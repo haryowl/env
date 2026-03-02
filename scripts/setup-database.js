@@ -533,6 +533,185 @@ const setupDatabase = async () => {
       );
     `);
 
+    // Email config (required by NotificationService)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS email_config (
+        config_id SERIAL PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        smtp_host VARCHAR(255) NOT NULL,
+        smtp_port INTEGER NOT NULL,
+        smtp_secure BOOLEAN DEFAULT false,
+        username VARCHAR(255) NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        from_email VARCHAR(255) NOT NULL,
+        from_name VARCHAR(255),
+        is_default BOOLEAN DEFAULT false,
+        created_by INTEGER REFERENCES users(user_id),
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+
+    // Alert email config (required by AlertSettings)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS alert_email_config (
+        id INTEGER PRIMARY KEY DEFAULT 1,
+        smtp_host VARCHAR(255),
+        smtp_port INTEGER,
+        smtp_secure BOOLEAN DEFAULT false,
+        smtp_user VARCHAR(255),
+        smtp_pass VARCHAR(255),
+        from_email VARCHAR(255),
+        from_name VARCHAR(255),
+        enabled BOOLEAN DEFAULT false,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+
+    // Companies (for maintenance/sensor sites)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS companies (
+        company_id SERIAL PRIMARY KEY,
+        company_name VARCHAR(255) NOT NULL UNIQUE,
+        address TEXT,
+        contact_person_name VARCHAR(255),
+        contact_person_phone VARCHAR(50),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL
+      );
+    `);
+
+    // Sites (for maintenance/sensor sites)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS sites (
+        site_id SERIAL PRIMARY KEY,
+        site_name VARCHAR(255) NOT NULL,
+        company_id INTEGER REFERENCES companies(company_id) ON DELETE SET NULL,
+        user_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+        device_id VARCHAR(255) REFERENCES devices(device_id) ON DELETE SET NULL,
+        description TEXT,
+        location TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL
+      );
+    `);
+
+    // Sensor database (for maintenance/sensor sites)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS sensor_database (
+        sensor_db_id SERIAL PRIMARY KEY,
+        brand_name VARCHAR(255) NOT NULL,
+        sensor_type VARCHAR(255) NOT NULL,
+        sensor_parameter VARCHAR(255) NOT NULL,
+        description TEXT,
+        specifications JSONB,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL
+      );
+    `);
+
+    // Sensor sites (required by maintenance_schedules)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS sensor_sites (
+        sensor_site_id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        sensor_db_id INTEGER REFERENCES sensor_database(sensor_db_id) ON DELETE CASCADE,
+        device_id VARCHAR(255) REFERENCES devices(device_id) ON DELETE SET NULL,
+        parameter VARCHAR(255) NOT NULL,
+        site_id INTEGER REFERENCES sites(site_id) ON DELETE SET NULL,
+        user_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+        installation_date DATE,
+        last_maintenance_date DATE,
+        next_maintenance_date DATE,
+        status VARCHAR(20) DEFAULT 'active',
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL
+      );
+    `);
+
+    // Maintenance schedules (required by MaintenanceReminderService)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS maintenance_schedules (
+        maintenance_id SERIAL PRIMARY KEY,
+        sensor_site_id INTEGER REFERENCES sensor_sites(sensor_site_id) ON DELETE CASCADE,
+        maintenance_type VARCHAR(50) NOT NULL,
+        planned_date DATE NOT NULL,
+        actual_date DATE,
+        assigned_person VARCHAR(255),
+        status VARCHAR(20) DEFAULT 'planned',
+        description TEXT,
+        maintenance_notes TEXT,
+        reminder_sent BOOLEAN DEFAULT FALSE,
+        reminder_sent_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL
+      );
+    `);
+
+    // Scheduled exports (required by SimpleScheduledExportService)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS scheduled_exports (
+        export_id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        frequency VARCHAR(20) NOT NULL CHECK (frequency IN ('daily', 'weekly', 'monthly')),
+        cron_expression VARCHAR(100) NOT NULL,
+        time_zone VARCHAR(50) DEFAULT 'UTC',
+        is_active BOOLEAN DEFAULT true,
+        created_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS export_configurations (
+        config_id SERIAL PRIMARY KEY,
+        export_id INTEGER REFERENCES scheduled_exports(export_id) ON DELETE CASCADE,
+        device_ids BIGINT[] NOT NULL,
+        parameters TEXT[] NOT NULL,
+        format VARCHAR(10) NOT NULL CHECK (format IN ('pdf', 'excel')),
+        template VARCHAR(50) DEFAULT 'standard',
+        date_range_days INTEGER DEFAULT 1 CHECK (date_range_days > 0),
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS export_email_recipients (
+        recipient_id SERIAL PRIMARY KEY,
+        export_id INTEGER REFERENCES scheduled_exports(export_id) ON DELETE CASCADE,
+        email VARCHAR(255) NOT NULL,
+        name VARCHAR(255),
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS export_execution_logs (
+        log_id SERIAL PRIMARY KEY,
+        export_id INTEGER REFERENCES scheduled_exports(export_id) ON DELETE SET NULL,
+        status VARCHAR(20) NOT NULL CHECK (status IN ('success', 'failed', 'running')),
+        started_at TIMESTAMP DEFAULT NOW(),
+        completed_at TIMESTAMP,
+        file_path VARCHAR(500),
+        file_size BIGINT,
+        recipients_count INTEGER DEFAULT 0,
+        error_message TEXT,
+        execution_time_ms BIGINT,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
     // Try to convert to hypertables for time-series optimization (only if TimescaleDB is available)
     try {
       await pool.query(`
