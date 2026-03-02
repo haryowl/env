@@ -148,6 +148,39 @@ const setupDatabase = async () => {
       );
     `);
 
+    // Alerts table (required by alertEvaluationService, alerts routes)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS alerts (
+        alert_id SERIAL PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        device_id VARCHAR(50) REFERENCES devices(device_id) ON DELETE CASCADE,
+        parameter VARCHAR(50),
+        min DOUBLE PRECISION,
+        max DOUBLE PRECISION,
+        type VARCHAR(20) NOT NULL CHECK (type IN ('threshold', 'inactivity')),
+        threshold_time INTEGER,
+        actions JSONB DEFAULT '{}',
+        template TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+
+    // Alert logs (required by alertEvaluationService, alertLogs routes)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS alert_logs (
+        log_id SERIAL PRIMARY KEY,
+        alert_id INTEGER REFERENCES alerts(alert_id) ON DELETE CASCADE,
+        device_id VARCHAR(50),
+        parameter VARCHAR(50),
+        value DOUBLE PRECISION,
+        detected_at TIMESTAMPTZ NOT NULL,
+        status VARCHAR(20) DEFAULT 'active',
+        details JSONB DEFAULT '{}',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+
     // Device permissions by role table (requires devices)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS role_device_permissions (
@@ -649,11 +682,30 @@ const setupDatabase = async () => {
         maintenance_notes TEXT,
         reminder_sent BOOLEAN DEFAULT FALSE,
         reminder_sent_at TIMESTAMP,
+        reminder_days_before INTEGER DEFAULT 1,
+        completion_notification_sent BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         created_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL
       );
     `);
+    try {
+      await pool.query(`ALTER TABLE maintenance_schedules ADD COLUMN IF NOT EXISTS reminder_days_before INTEGER DEFAULT 1`);
+      await pool.query(`ALTER TABLE maintenance_schedules ADD COLUMN IF NOT EXISTS completion_notification_sent BOOLEAN DEFAULT FALSE`);
+    } catch (_) { /* columns may already exist */ }
+
+    // sensor_site_users junction (required by maintenance/sensorSites/technician)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS sensor_site_users (
+        sensor_site_id INTEGER NOT NULL REFERENCES sensor_sites(sensor_site_id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+        assigned_at TIMESTAMP DEFAULT NOW(),
+        assigned_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+        PRIMARY KEY (sensor_site_id, user_id)
+      );
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_sensor_site_users_sensor_site_id ON sensor_site_users(sensor_site_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_sensor_site_users_user_id ON sensor_site_users(user_id)`);
 
     // Scheduled exports (required by SimpleScheduledExportService)
     await pool.query(`
