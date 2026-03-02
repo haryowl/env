@@ -29,6 +29,7 @@ import moment from 'moment-timezone';
 import { min as d3min, max as d3max } from 'd3-array';
 
 import { API_BASE_URL } from '../config/api';
+import { CHART_COLORS, CARTESIAN_GRID_PROPS, AXIS_TICK_STYLE, CHART_MARGIN, TOOLTIP_CONTENT_STYLE, LEGEND_WRAPPER_STYLE, CHART_CARD_SX, SECTION_HEADER_SX } from '../utils/chartStyles';
 import DashboardMap from './DashboardMap';
 import KPICards from './KPICards';
 import DynamicParameterCards from './DynamicParameterCards';
@@ -86,29 +87,7 @@ const Dashboard = ({ socket }) => {
       }));
   }, [realtimeData]);
 
-  // Comprehensive color palette for any parameters
-  const colorPalette = [
-    '#007BA7', // Purple
-    '#0099CC', // Light Purple
-    '#F59E0B', // Orange
-    '#10B981', // Green
-    '#EF4444', // Red
-    '#3B82F6', // Blue
-    '#EC4899', // Pink
-    '#14B8A6', // Teal
-    '#F97316', // Orange Red
-    '#84CC16', // Lime
-    '#8B5A2B', // Brown
-    '#6366F1', // Indigo
-    '#DC2626', // Dark Red
-    '#059669', // Dark Green
-    '#006B9A', // Violet
-    '#0EA5E9', // Sky Blue
-    '#D97706', // Amber
-    '#BE185D', // Rose
-    '#0891B2', // Cyan
-    '#65A30D'  // Olive
-  ];
+  const colorPalette = CHART_COLORS;
 
   // Function to get color for parameter based on name hash
   const getParameterColor = (param) => {
@@ -439,7 +418,7 @@ const Dashboard = ({ socket }) => {
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom>
+      <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, color: 'text.primary', mb: 3 }}>
         Dashboard
       </Typography>
 
@@ -447,10 +426,12 @@ const Dashboard = ({ socket }) => {
       {isAdmin && (
         <Grid container spacing={{ xs: 2, sm: 2.5 }} sx={{ mb: { xs: 2, sm: 3 } }}>
         <Grid size={{ xs: 6, sm: 6, md: 3 }}>
-          <Card sx={{ height: '100%', borderRadius: '4px' }}>
+          <Card sx={{ height: '100%', borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.06)', '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.08)' } }}>
             <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
               <Box display="flex" alignItems="center">
-                <DevicesIcon color="primary" sx={{ mr: { xs: 1, sm: 2 }, fontSize: { xs: 30, sm: 40 } }} />
+                <Box sx={{ mr: { xs: 1.5, sm: 2 }, p: 1.25, borderRadius: 2, bgcolor: 'rgba(37, 99, 235, 0.12)', color: 'primary.main', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <DevicesIcon sx={{ fontSize: { xs: 28, sm: 36 } }} />
+                </Box>
                 <Box>
                   <Typography color="textSecondary" gutterBottom sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                     Total Devices
@@ -465,10 +446,12 @@ const Dashboard = ({ socket }) => {
         </Grid>
 
         <Grid size={{ xs: 6, sm: 6, md: 3 }}>
-          <Card sx={{ height: '100%', borderRadius: '4px' }}>
+          <Card sx={{ height: '100%', borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.06)', '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.08)' } }}>
             <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
               <Box display="flex" alignItems="center">
-                <WifiIcon color="success" sx={{ mr: { xs: 1, sm: 2 }, fontSize: { xs: 30, sm: 40 } }} />
+                <Box sx={{ mr: { xs: 1.5, sm: 2 }, p: 1.25, borderRadius: 2, bgcolor: 'rgba(34, 197, 94, 0.12)', color: 'success.main', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <WifiIcon sx={{ fontSize: { xs: 28, sm: 36 } }} />
+                </Box>
                 <Box>
                   <Typography color="textSecondary" gutterBottom sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                     Online Devices
@@ -483,10 +466,12 @@ const Dashboard = ({ socket }) => {
         </Grid>
 
         <Grid size={{ xs: 6, sm: 6, md: 3 }}>
-          <Card sx={{ height: '100%', borderRadius: '4px' }}>
+          <Card sx={{ height: '100%', borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.06)', '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.08)' } }}>
             <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
               <Box display="flex" alignItems="center">
-                <PeopleIcon color="info" sx={{ mr: { xs: 1, sm: 2 }, fontSize: { xs: 30, sm: 40 } }} />
+                <Box sx={{ mr: { xs: 1.5, sm: 2 }, p: 1.25, borderRadius: 2, bgcolor: 'rgba(59, 130, 246, 0.12)', color: 'info.main', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <PeopleIcon sx={{ fontSize: { xs: 28, sm: 36 } }} />
+                </Box>
                 <Box>
                   <Typography color="textSecondary" gutterBottom sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                     Total Users
@@ -501,10 +486,12 @@ const Dashboard = ({ socket }) => {
         </Grid>
 
         <Grid size={{ xs: 6, sm: 6, md: 3 }}>
-          <Card sx={{ height: '100%', borderRadius: '4px' }}>
+          <Card sx={{ height: '100%', borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.06)', '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.08)' } }}>
             <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
               <Box display="flex" alignItems="center">
-                <DataIcon color="secondary" sx={{ mr: { xs: 1, sm: 2 }, fontSize: { xs: 30, sm: 40 } }} />
+                <Box sx={{ mr: { xs: 1.5, sm: 2 }, p: 1.25, borderRadius: 2, bgcolor: 'rgba(100, 116, 139, 0.12)', color: 'secondary.main', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <DataIcon sx={{ fontSize: { xs: 28, sm: 36 } }} />
+                </Box>
                 <Box>
                   <Typography color="textSecondary" gutterBottom sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                     Data Points
@@ -547,22 +534,13 @@ const Dashboard = ({ socket }) => {
       <Card sx={{ 
         mt: 4, 
         mb: 4,
-        borderRadius: '4px',
-        background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-        border: '1px solid rgba(107, 70, 193, 0.1)',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)',
+        borderRadius: 2,
+        border: '1px solid rgba(0,0,0,0.06)',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
         overflow: 'hidden'
       }}>
         <CardContent sx={{ p: 0 }}>
-          {/* Modern Header - Compact */}
-          <Box sx={{ 
-            background: 'linear-gradient(135deg, #007BA7 0%, #0099CC 100%)',
-            px: 2,
-            py: 1.5,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between'
-          }}>
+          <Box sx={{ ...SECTION_HEADER_SX, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
               <DataIcon sx={{ color: '#ffffff', mr: 1.5, fontSize: 16 }} />
               <Typography variant="h6" sx={{ 
@@ -579,18 +557,11 @@ const Dashboard = ({ socket }) => {
                 value={realtimeDevice}
                 onChange={e => setRealtimeDevice(e.target.value)}
                 sx={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                  borderRadius: '4px',
-                  '& .MuiSelect-select': {
-                    color: theme.palette.text.primary,
-                    fontWeight: 500
-                  },
-                  '& .MuiOutlinedInput-notchedOutline': {
-                    borderColor: 'rgba(255, 255, 255, 0.3)'
-                  },
-                  '&:hover .MuiOutlinedInput-notchedOutline': {
-                    borderColor: 'rgba(255, 255, 255, 0.5)'
-                  }
+                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                  borderRadius: 1.5,
+                  '& .MuiSelect-select': { color: theme.palette.text.primary, fontWeight: 500 },
+                  '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255, 255, 255, 0.4)' },
+                  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255, 255, 255, 0.7)' }
                 }}
               >
                 {devices.map(d => (
@@ -604,7 +575,7 @@ const Dashboard = ({ socket }) => {
           
           <Box sx={{ p: 3 }}>
           {realtimeError ? (
-              <Alert severity="error" sx={{ borderRadius: '4px', mb: 3 }}>
+              <Alert severity="error" sx={{ borderRadius: 2, mb: 3 }}>
                 {realtimeError}
               </Alert>
           ) : (
@@ -628,29 +599,16 @@ const Dashboard = ({ socket }) => {
                         <Card sx={{
                           p: 2,
                           textAlign: 'center',
-                          background: `linear-gradient(135deg, ${['#007BA7', '#0099CC', '#F59E0B', '#10B981', '#EF4444', '#3B82F6'][idx % 6]}15 0%, ${['#007BA7', '#0099CC', '#F59E0B', '#10B981', '#EF4444', '#3B82F6'][idx % 6]}08 100%)`,
-                          border: `2px solid ${['#007BA7', '#0099CC', '#F59E0B', '#10B981', '#EF4444', '#3B82F6'][idx % 6]}20`,
-                          borderRadius: '4px',
-                          transition: 'all 0.3s ease-in-out',
-                          '&:hover': {
-                            transform: 'translateY(-4px)',
-                            boxShadow: `0 8px 25px ${['#007BA7', '#0099CC', '#F59E0B', '#10B981', '#EF4444', '#3B82F6'][idx % 6]}30`
-                          }
+                          borderRadius: 2,
+                          border: `1px solid ${colorPalette[idx % colorPalette.length]}20`,
+                          bgcolor: `${colorPalette[idx % colorPalette.length]}08`,
+                          transition: 'all 0.2s ease',
+                          '&:hover': { boxShadow: `0 4px 12px ${colorPalette[idx % colorPalette.length]}25` }
                         }}>
-                          <Typography variant="subtitle2" sx={{ 
-                            color: theme.palette.text.secondary,
-                            fontWeight: 500,
-                            mb: 1,
-                            textTransform: 'capitalize',
-                            fontSize: '0.8rem'
-                          }}>
+                          <Typography variant="subtitle2" sx={{ color: 'text.secondary', fontWeight: 500, mb: 1, fontSize: '0.8125rem' }}>
                             {formattedLabel}
                           </Typography>
-                          <Typography variant="h5" sx={{ 
-                            fontWeight: 800, 
-                            color: ['#007BA7', '#0099CC', '#F59E0B', '#10B981', '#EF4444', '#3B82F6'][idx % 6],
-                            fontSize: '1.4rem'
-                          }}>
+                          <Typography variant="h5" sx={{ fontWeight: 700, color: colorPalette[idx % colorPalette.length], fontSize: '1.25rem' }}>
                             {formattedValue}
                           </Typography>
                     </Card>
@@ -669,104 +627,50 @@ const Dashboard = ({ socket }) => {
                   }}>
                     Chart Controls
                   </Typography>
-                  <Box sx={{ 
-                    display: 'flex', 
-                    flexWrap: 'wrap', 
-                    gap: 1,
-                    p: 2,
-                    backgroundColor: 'rgba(107, 70, 193, 0.05)',
-                    borderRadius: '4px',
-                    border: '1px solid rgba(107, 70, 193, 0.1)'
-                  }}>
-                    {realtimeParams.filter(p => p !== 'datetime' && p !== 'timestamp').map((param, idx) => (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, p: 2, backgroundColor: 'rgba(0,0,0,0.02)', borderRadius: 2, border: '1px solid rgba(0,0,0,0.06)' }}>
+                    {realtimeParams.filter(p => p !== 'datetime' && p !== 'timestamp').map((param) => (
                   <Chip
                     key={param}
-                        label={formatDisplayName(param, { withUnit: true })}
+                    label={formatDisplayName(param, { withUnit: true })}
                     color={visibleParams.includes(param) ? 'primary' : 'default'}
                     variant={visibleParams.includes(param) ? 'filled' : 'outlined'}
                     clickable
                     onClick={() => setVisibleParams(v => v.includes(param) ? v.filter(p => p !== param) : [...v, param])}
-                        sx={{ 
-                          fontSize: '0.8rem',
-                          fontWeight: 500,
-                          height: '32px',
-                          borderRadius: '4px',
-                          '& .MuiChip-label': {
-                            px: 2
-                          }
-                        }}
+                    sx={{ fontSize: '0.8125rem', fontWeight: 500, height: 32, borderRadius: 1.5, '& .MuiChip-label': { px: 1.5 } }}
                   />
                 ))}
               </Box>
                 </Box>
 
-                {/* Modern Chart */}
-                <Box sx={{ 
-                  height: 400,
-                  borderRadius: '4px',
-                  background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-                  border: '1px solid rgba(107, 70, 193, 0.1)',
-                  p: 2
-                }}>
-                  <ResponsiveContainer 
-                    key={`responsive-${visibleParams.join('-')}-${realtimeDevice}`}
-                    width="100%" 
-                    height="100%"
-                  >
-                    <LineChart 
-                      key={`chart-${visibleParams.join('-')}-${realtimeDevice}`}
-                      data={memoizedChartData} 
-                      margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(107, 70, 193, 0.1)" />
-                      <XAxis 
-                        dataKey="timestamp" 
-                        minTickGap={20}
-                        tick={{ fontSize: 12, fontFamily: 'Inter, sans-serif' }}
+                {/* Chart */}
+                <Box sx={{ height: 400, ...CHART_CARD_SX }}>
+                  <ResponsiveContainer key={`responsive-${visibleParams.join('-')}-${realtimeDevice}`} width="100%" height="100%">
+                    <LineChart data={memoizedChartData} margin={CHART_MARGIN}>
+                      <CartesianGrid {...CARTESIAN_GRID_PROPS} />
+                      <XAxis
+                        dataKey="timestamp"
+                        minTickGap={24}
+                        tick={AXIS_TICK_STYLE}
                         tickFormatter={(value) => {
-                          if (typeof value === 'string' && !value.includes('T')) {
-                            return value;
-                          }
+                          if (typeof value === 'string' && !value.includes('T')) return value;
                           return formatInUserTimezone(value);
                         }}
                       />
-                    <YAxis
-                      type="number"
-                        tick={{ fontSize: 12, fontFamily: 'Inter, sans-serif' }}
-                      domain={([dataMin, dataMax]) => {
-                        if (dataMin === 0) return [0, dataMax];
-                        return [dataMin, dataMax];
-                      }}
-                      allowDataOverflow={true}
-                    />
-                    <Tooltip
-                        contentStyle={{ 
-                          fontFamily: 'Inter, sans-serif', 
-                          fontSize: 13,
-                          borderRadius: '4px',
-                          border: '1px solid rgba(107, 70, 193, 0.2)',
-                          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)'
+                      <YAxis type="number" tick={AXIS_TICK_STYLE} domain={([dataMin, dataMax]) => (dataMin === 0 ? [0, dataMax] : [dataMin, dataMax])} allowDataOverflow />
+                      <Tooltip
+                        contentStyle={TOOLTIP_CONTENT_STYLE}
+                        formatter={(value, name, props) => {
+                          const dataKey = props?.dataKey || name;
+                          if (dataKey === 'datetime' || dataKey === 'timestamp') return [formatInUserTimezone(value), dataKey];
+                          return [formatParameterValue(dataKey, value, 3), formatDisplayName(dataKey, { withUnit: true })];
                         }}
-                      formatter={(value, name, props) => {
-                        const dataKey = props?.dataKey || name;
-                        if (dataKey === 'datetime' || dataKey === 'timestamp') {
-                          return [formatInUserTimezone(value), dataKey];
-                        }
-                        return [
-                          formatParameterValue(dataKey, value, 3),
-                          formatDisplayName(dataKey, { withUnit: true })
-                        ];
-                      }}
                         labelFormatter={(label) => formatInUserTimezone(label)}
                       />
-                      <Legend 
-                        wrapperStyle={{ fontSize: 13, fontFamily: 'Inter, sans-serif' }}
-                        formatter={(value, entry) => formatDisplayName(entry?.dataKey || value, { withUnit: true })}
-                      />
+                      <Legend wrapperStyle={LEGEND_WRAPPER_STYLE} formatter={(value, entry) => formatDisplayName(entry?.dataKey || value, { withUnit: true })} />
                       {memoizedChartLines}
-                  </LineChart>
-                </ResponsiveContainer>
-              </Box>
+                    </LineChart>
+                  </ResponsiveContainer>
+                </Box>
             </>
           )}
           </Box>
@@ -777,7 +681,7 @@ const Dashboard = ({ socket }) => {
       {isAdmin && (
         <Grid container spacing={{ xs: 2, sm: 2.5 }}>
         <Grid size={{ xs: 12, md: 6 }}>
-          <Card sx={{ height: '100%', borderRadius: '4px' }}>
+          <Card sx={{ height: '100%', borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.06)' }}>
             <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
               <Typography 
                 variant="h6" 
@@ -834,16 +738,9 @@ const Dashboard = ({ socket }) => {
         </Grid>
 
         <Grid size={{ xs: 12, md: 6 }}>
-          <Card sx={{ height: '100%', borderRadius: '4px' }}>
+          <Card sx={{ height: '100%', borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.06)' }}>
             <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-              <Typography 
-                variant="h6" 
-                gutterBottom 
-                sx={{ 
-                  fontSize: { xs: '1rem', sm: '1.25rem' },
-                  color: theme.palette.text.primary + ' !important' // Theme-aware text color
-                }}
-              >
+              <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '1rem', sm: '1.25rem' }, fontWeight: 600 }}>
                 System Status
               </Typography>
               <List sx={{ p: 0 }}>

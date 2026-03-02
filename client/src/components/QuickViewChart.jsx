@@ -27,6 +27,7 @@ import {
 } from '@mui/icons-material';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
+import { CHART_CARD_SX, CHART_MARGIN, CARTESIAN_GRID_PROPS, AXIS_TICK_STYLE, getParameterColorIndex, CHART_COLORS } from '../utils/chartStyles';
 
 const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) => {
   const theme = useTheme();
@@ -95,46 +96,9 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
     return { min: minThreshold, max: maxThreshold };
   }, [parameterAlerts]);
 
-  // Comprehensive color palette for any parameters
-  const colorPalette = [
-    { line: '#007BA7', area: '#007BA720', bg: '#007BA708' }, // Purple
-    { line: '#0099CC', area: '#0099CC20', bg: '#0099CC08' }, // Light Purple
-    { line: '#F59E0B', area: '#F59E0B20', bg: '#F59E0B08' }, // Orange
-    { line: '#10B981', area: '#10B98120', bg: '#10B98108' }, // Green
-    { line: '#EF4444', area: '#EF444420', bg: '#EF444408' }, // Red
-    { line: '#3B82F6', area: '#3B82F620', bg: '#3B82F608' }, // Blue
-    { line: '#EC4899', area: '#EC489920', bg: '#EC489908' }, // Pink
-    { line: '#14B8A6', area: '#14B8A620', bg: '#14B8A608' }, // Teal
-    { line: '#F97316', area: '#F9731620', bg: '#F9731608' }, // Orange Red
-    { line: '#84CC16', area: '#84CC1620', bg: '#84CC1608' }, // Lime
-    { line: '#8B5A2B', area: '#8B5A2B20', bg: '#8B5A2B08' }, // Brown
-    { line: '#6366F1', area: '#6366F120', bg: '#6366F108' }, // Indigo
-    { line: '#DC2626', area: '#DC262620', bg: '#DC262608' }, // Dark Red
-    { line: '#059669', area: '#05966920', bg: '#05966908' }, // Dark Green
-    { line: '#006B9A', area: '#006B9A20', bg: '#006B9A08' }, // Violet
-    { line: '#0EA5E9', area: '#0EA5E920', bg: '#0EA5E908' }, // Sky Blue
-    { line: '#D97706', area: '#D9770620', bg: '#D9770608' }, // Amber
-    { line: '#BE185D', area: '#BE185D20', bg: '#BE185D08' }, // Rose
-    { line: '#0891B2', area: '#0891B220', bg: '#0891B208' }, // Cyan
-    { line: '#65A30D', area: '#65A30D20', bg: '#65A30D08' }  // Olive
-  ];
-
-  // Function to get color scheme based on parameter name hash
-  const getColorScheme = (param) => {
-    // Create a simple hash from parameter name
-    let hash = 0;
-    for (let i = 0; i < param.length; i++) {
-      const char = param.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32-bit integer
-    }
-    
-    // Use absolute value and modulo to get index
-    const index = Math.abs(hash) % colorPalette.length;
-    return colorPalette[index];
-  };
-
-  const colorScheme = getColorScheme(parameter);
+  const colorIndex = getParameterColorIndex(parameter);
+  const lineColor = CHART_COLORS[colorIndex];
+  const colorScheme = { line: lineColor, area: `${lineColor}20`, bg: `${lineColor}08` };
 
   // Modern custom tooltip
   const CustomTooltip = ({ active, payload, label }) => {
@@ -146,13 +110,12 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
       return (
         <Box
           sx={{
-            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-            border: `2px solid ${isOutOfRange ? '#EF4444' : colorScheme.line}`,
-            borderRadius: '4px',
+            backgroundColor: 'rgba(255, 255, 255, 0.98)',
+            border: `1px solid ${isOutOfRange ? '#EF4444' : 'rgba(0,0,0,0.08)'}`,
+            borderRadius: 2,
             p: 2,
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
-            backdropFilter: 'blur(10px)',
-            fontFamily: 'Inter, sans-serif'
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+            fontFamily: '"Inter", "Roboto", sans-serif'
           }}
         >
           <Typography variant="body2" sx={{ 
@@ -243,27 +206,21 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
       flexDirection: 'column', 
       minHeight: 400, 
       width: '100%',
-      borderRadius: '4px',
-      background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-      border: '1px solid rgba(107, 70, 193, 0.1)',
-      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)',
-      transition: 'all 0.3s ease-in-out',
-      '&:hover': {
-        transform: 'translateY(-4px)',
-        boxShadow: '0 12px 40px rgba(107, 70, 193, 0.15)',
-        border: '1px solid rgba(107, 70, 193, 0.2)'
-      }
+      borderRadius: 2,
+      border: '1px solid rgba(0,0,0,0.06)',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+      transition: 'all 0.2s ease',
+      '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }
     }}>
-      <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: '100%', width: '100%', p: 3 }}>
-        {/* Modern Header - Very Compact */}
+      <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: '100%', width: '100%', p: 2.5 }}>
         <Box sx={{ 
           display: 'flex', 
           justifyContent: 'space-between', 
           alignItems: 'center', 
           mb: 1.5,
-          p: 1,
-          borderRadius: '4px',
-          background: `linear-gradient(135deg, ${colorScheme.line} 0%, ${colorScheme.line}CC 100%)`,
+          p: 1.25,
+          borderRadius: 1.5,
+          background: `linear-gradient(135deg, ${colorScheme.line} 0%, ${colorScheme.line}dd 100%)`,
           color: 'white'
         }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -360,21 +317,13 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
           <Box sx={{ 
             textAlign: 'center',
             p: 2,
-            borderRadius: '4px',
+            borderRadius: 1.5,
             background: `linear-gradient(135deg, ${colorScheme.bg} 0%, rgba(255, 255, 255, 0.5) 100%)`,
-            border: `2px solid ${colorScheme.line}30`,
-            transition: 'all 0.2s ease-in-out',
-            '&:hover': {
-              transform: 'translateY(-2px)',
-              boxShadow: `0 4px 12px ${colorScheme.line}20`
-            }
+            border: `1px solid ${colorScheme.line}30`,
+            transition: 'all 0.2s ease',
+            '&:hover': { boxShadow: `0 2px 8px ${colorScheme.line}20` }
           }}>
-            <Typography variant="body1" sx={{ 
-              color: colorScheme.line,
-              fontWeight: 700,
-              fontSize: '1rem',
-              mb: 0.5
-            }}>
+            <Typography variant="body1" sx={{ color: colorScheme.line, fontWeight: 700, fontSize: '1rem', mb: 0.5 }}>
               {formatValue(stats.avg)}
             </Typography>
             <Typography variant="caption" sx={{ 
@@ -389,21 +338,13 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
           <Box sx={{ 
             textAlign: 'center',
             p: 2,
-            borderRadius: '4px',
+            borderRadius: 1.5,
             background: `linear-gradient(135deg, ${colorScheme.bg} 0%, rgba(255, 255, 255, 0.5) 100%)`,
-            border: `2px solid ${colorScheme.line}30`,
-            transition: 'all 0.2s ease-in-out',
-            '&:hover': {
-              transform: 'translateY(-2px)',
-              boxShadow: `0 4px 12px ${colorScheme.line}20`
-            }
+            border: `1px solid ${colorScheme.line}30`,
+            transition: 'all 0.2s ease',
+            '&:hover': { boxShadow: `0 2px 8px ${colorScheme.line}20` }
           }}>
-            <Typography variant="body1" sx={{ 
-              color: colorScheme.line,
-              fontWeight: 700,
-              fontSize: '1rem',
-              mb: 0.5
-            }}>
+            <Typography variant="body1" sx={{ color: colorScheme.line, fontWeight: 700, fontSize: '1rem', mb: 0.5 }}>
               {formatValue(stats.min)}
             </Typography>
             <Typography variant="caption" sx={{ 
@@ -418,21 +359,13 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
           <Box sx={{ 
             textAlign: 'center',
             p: 2,
-            borderRadius: '4px',
+            borderRadius: 1.5,
             background: `linear-gradient(135deg, ${colorScheme.bg} 0%, rgba(255, 255, 255, 0.5) 100%)`,
-            border: `2px solid ${colorScheme.line}30`,
-            transition: 'all 0.2s ease-in-out',
-            '&:hover': {
-              transform: 'translateY(-2px)',
-              boxShadow: `0 4px 12px ${colorScheme.line}20`
-            }
+            border: `1px solid ${colorScheme.line}30`,
+            transition: 'all 0.2s ease',
+            '&:hover': { boxShadow: `0 2px 8px ${colorScheme.line}20` }
           }}>
-            <Typography variant="body1" sx={{ 
-              color: colorScheme.line,
-              fontWeight: 700,
-              fontSize: '1rem',
-              mb: 0.5
-            }}>
+            <Typography variant="body1" sx={{ color: colorScheme.line, fontWeight: 700, fontSize: '1rem', mb: 0.5 }}>
               {formatValue(stats.max)}
             </Typography>
             <Typography variant="caption" sx={{ 
@@ -447,45 +380,13 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
         </Box>
 
         {/* Modern Chart */}
-        <Box 
-          ref={chartRef}
-          sx={{ 
-            flexGrow: 1, 
-            minHeight: 250, 
-            height: '100%', 
-            width: '100%',
-            borderRadius: '4px',
-            background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-            border: '1px solid rgba(107, 70, 193, 0.1)',
-            p: 2,
-            position: 'relative',
-            overflow: 'hidden'
-          }}
-        >
+        <Box ref={chartRef} sx={{ flexGrow: 1, minHeight: 250, height: '100%', width: '100%', ...CHART_CARD_SX, position: 'relative', overflow: 'hidden' }}>
           {chartData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(107, 70, 193, 0.1)" />
-                <XAxis 
-                  dataKey="datetime" 
-                  stroke="rgba(107, 70, 193, 0.6)"
-                  fontSize={12}
-                  tick={{ 
-                    fontSize: 11, 
-                    fontFamily: 'Inter, sans-serif',
-                    fill: theme.palette.text.secondary
-                  }}
-                />
-                <YAxis 
-                  stroke="rgba(107, 70, 193, 0.6)"
-                  fontSize={12}
-                  tick={{ 
-                    fontSize: 11, 
-                    fontFamily: 'Inter, sans-serif',
-                    fill: theme.palette.text.secondary
-                  }}
-                  domain={yAxisDomain}
-                />
+              <LineChart data={chartData} margin={CHART_MARGIN}>
+                <CartesianGrid {...CARTESIAN_GRID_PROPS} />
+                <XAxis dataKey="datetime" stroke="rgba(0,0,0,0.2)" tick={AXIS_TICK_STYLE} />
+                <YAxis stroke="rgba(0,0,0,0.2)" tick={AXIS_TICK_STYLE} domain={yAxisDomain} />
                 <RechartsTooltip content={<CustomTooltip />} />
                 
                 {/* Modern threshold lines */}

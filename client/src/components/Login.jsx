@@ -40,7 +40,7 @@ const LoginContainer = styled(Box)(({ theme, backgroundImage }) => ({
   justifyContent: 'center',
   position: 'relative',
   padding: theme.spacing(2),
-  backgroundImage: backgroundImage ? `url(${backgroundImage})` : 'linear-gradient(135deg, #1b5e20 0%, #2e7d32 50%, #4caf50 100%)',
+  backgroundImage: backgroundImage ? `url(${backgroundImage})` : 'linear-gradient(145deg, #0F172A 0%, #1E293B 40%, #334155 100%)',
   backgroundSize: 'cover',
   backgroundPosition: 'center',
   backgroundRepeat: 'no-repeat',
@@ -51,27 +51,27 @@ const LoginContainer = styled(Box)(({ theme, backgroundImage }) => ({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: theme.palette.mode === 'dark' 
-      ? 'rgba(0, 0, 0, 0.6)' 
-      : 'rgba(255, 255, 255, 0.1)',
-    backdropFilter: 'blur(1px)',
+    backgroundColor: backgroundImage 
+      ? (theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.5)' : 'rgba(15, 23, 42, 0.4)')
+      : 'transparent',
+    backdropFilter: backgroundImage ? 'blur(2px)' : 'none',
   },
 }));
 
 const LoginCard = styled(Card)(({ theme }) => ({
   width: '100%',
-  maxWidth: 450,
+  maxWidth: 420,
   position: 'relative',
   zIndex: 1,
   backgroundColor: theme.palette.mode === 'dark' 
-    ? 'rgba(30, 30, 30, 0.95)' 
-    : 'rgba(255, 255, 255, 0.95)',
+    ? 'rgba(30, 41, 59, 0.98)' 
+    : 'rgba(255, 255, 255, 0.98)',
   backdropFilter: 'blur(20px)',
-  borderRadius: theme.spacing(3),
+  borderRadius: 16,
   boxShadow: theme.palette.mode === 'dark'
-    ? '0 25px 50px rgba(0, 0, 0, 0.5)'
-    : '0 25px 50px rgba(0, 0, 0, 0.15)',
-  border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.3)'}`,
+    ? '0 24px 48px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255,255,255,0.06)'
+    : '0 24px 48px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05)',
+  border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)'}`,
 }));
 
 const BackgroundControls = styled(Paper)(({ theme }) => ({
@@ -91,14 +91,16 @@ const BackgroundControls = styled(Paper)(({ theme }) => ({
 
 const BrandContainer = styled(Box)(({ theme }) => ({
   textAlign: 'center',
-  marginBottom: theme.spacing(4),
+  marginBottom: theme.spacing(3),
   '& .brand-icon': {
-    fontSize: '3rem',
+    fontSize: '2.5rem',
     marginBottom: theme.spacing(1),
-    background: 'linear-gradient(135deg, #2e7d32 0%, #4caf50 100%)',
+    background: theme.palette.mode === 'dark' 
+      ? 'linear-gradient(135deg, #38BDF8 0%, #818CF8 100%)' 
+      : 'linear-gradient(135deg, #2563EB 0%, #0EA5E9 100%)',
     backgroundClip: 'text',
-    textFillColor: 'transparent',
-    filter: 'drop-shadow(0 2px 4px rgba(46, 125, 50, 0.3))',
+    WebkitBackgroundClip: 'text',
+    WebkitTextFillColor: 'transparent',
   },
 }));
 

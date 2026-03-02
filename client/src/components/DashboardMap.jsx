@@ -25,6 +25,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { API_BASE_URL } from '../config/api';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
+import { CHART_CARD_SX } from '../utils/chartStyles';
 
 // Custom styled popup component that respects theme
 const ThemedPopup = ({ children, theme }) => {
@@ -409,7 +410,7 @@ const DashboardMap = ({ socket }) => {
 
   if (loading) {
     return (
-      <Card sx={{ mt: 3, mb: 3 }}>
+      <Card sx={{ mt: 3, mb: 3, borderRadius: 2, ...CHART_CARD_SX }}>
         <CardContent>
           <Box display="flex" justifyContent="center" alignItems="center" minHeight={400}>
             <CircularProgress />
@@ -423,9 +424,8 @@ const DashboardMap = ({ socket }) => {
     <Card sx={{ 
       mt: 3, 
       mb: 3,
-      borderRadius: '4px',
-      background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-      border: '1px solid rgba(107, 70, 193, 0.1)',
+      borderRadius: 2,
+      ...CHART_CARD_SX,
       boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)',
       overflow: 'hidden'
     }}>

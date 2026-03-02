@@ -45,6 +45,7 @@ import QuickViewTable from './QuickViewTable';
 import { exportToPDF, exportToExcel } from '../utils/exportUtils';
 import { formatInUserTimezone, getUserTimezone } from '../utils/timezoneUtils';
 import moment from 'moment-timezone';
+import { CHART_CARD_SX } from '../utils/chartStyles';
 
 const QuickView = () => {
   const theme = useTheme();
@@ -560,20 +561,14 @@ const QuickView = () => {
       </Box>
 
       {/* Modern Filters */}
-      <Card sx={{ 
-        mb: 4,
-        borderRadius: '4px',
-        background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-        border: '1px solid rgba(107, 70, 193, 0.1)',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)'
-      }}>
+      <Card sx={{ mb: 4, borderRadius: 2, ...CHART_CARD_SX }}>
         <CardContent sx={{ p: 4 }}>
           <Box sx={{ 
             display: 'flex', 
             alignItems: 'center', 
             mb: 2,
             p: 1.5,
-            borderRadius: '4px',
+            borderRadius: 1.5,
             background: 'linear-gradient(135deg, #007BA7 0%, #0099CC 100%)',
             color: 'white'
           }}>
@@ -597,7 +592,7 @@ const QuickView = () => {
                   onChange={(e) => setSelectedDevice(e.target.value)}
                   label="Device"
                   sx={{
-                    borderRadius: '4px',
+                    borderRadius: 1.5,
                     '& .MuiOutlinedInput-notchedOutline': {
                       borderColor: 'rgba(107, 70, 193, 0.3)',
                       borderWidth: 2
@@ -635,7 +630,7 @@ const QuickView = () => {
                   onChange={(e) => setSelectedPeriod(e.target.value)}
                   label="Time Period"
                   sx={{
-                    borderRadius: '4px',
+                    borderRadius: 1.5,
                     '& .MuiOutlinedInput-notchedOutline': {
                       borderColor: 'rgba(107, 70, 193, 0.3)',
                       borderWidth: 2
@@ -671,7 +666,7 @@ const QuickView = () => {
                           fullWidth 
                           sx={{
                             '& .MuiOutlinedInput-root': {
-                              borderRadius: '4px',
+                              borderRadius: 1.5,
                               '& fieldset': {
                                 borderColor: 'rgba(107, 70, 193, 0.3)',
                                 borderWidth: 2
@@ -704,7 +699,7 @@ const QuickView = () => {
                           fullWidth 
                           sx={{
                             '& .MuiOutlinedInput-root': {
-                              borderRadius: '4px',
+                              borderRadius: 1.5,
                               '& fieldset': {
                                 borderColor: 'rgba(107, 70, 193, 0.3)',
                                 borderWidth: 2
@@ -730,7 +725,7 @@ const QuickView = () => {
             <Grid item xs={12} md={selectedPeriod === 'custom' ? 12 : 6}>
               <Box sx={{ 
                 p: 2,
-                borderRadius: '4px',
+                borderRadius: 1.5,
                 background: 'linear-gradient(135deg, #f8fafc 0%, #ffffff 100%)',
                 border: '2px solid rgba(107, 70, 193, 0.1)'
               }}>
@@ -788,7 +783,7 @@ const QuickView = () => {
             <Grid item xs={12}>
               <Box sx={{ 
                 p: 2,
-                borderRadius: '4px',
+                borderRadius: 1.5,
                 background: 'rgba(107, 70, 193, 0.05)',
                 border: '1px solid rgba(107, 70, 193, 0.1)'
               }}>
@@ -814,7 +809,7 @@ const QuickView = () => {
           severity="error" 
           sx={{ 
             mb: 4,
-            borderRadius: '4px',
+            borderRadius: 1.5,
             border: '2px solid rgba(239, 68, 68, 0.2)',
             background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.05) 0%, rgba(239, 68, 68, 0.02) 100%)',
             '& .MuiAlert-icon': {
@@ -834,7 +829,7 @@ const QuickView = () => {
       {loading && (
         <Card sx={{ 
           mb: 4,
-          borderRadius: '4px',
+          borderRadius: 1.5,
           background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
           border: '1px solid rgba(107, 70, 193, 0.1)',
           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)'
@@ -875,7 +870,7 @@ const QuickView = () => {
                 alignItems: 'center', 
                 mb: 2,
                 p: 1.5,
-                borderRadius: '4px',
+                borderRadius: 1.5,
                 background: 'linear-gradient(135deg, #007BA7 0%, #0099CC 100%)',
                 color: 'white'
               }}>
@@ -935,7 +930,7 @@ const QuickView = () => {
       {/* Modern Empty States */}
       {!selectedDevice && !loading && (
         <Card sx={{ 
-          borderRadius: '4px',
+          borderRadius: 1.5,
           background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
           border: '1px solid rgba(107, 70, 193, 0.1)',
           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)'
@@ -965,7 +960,7 @@ const QuickView = () => {
 
       {selectedDevice && parameters.length === 0 && !loading && (
         <Card sx={{ 
-          borderRadius: '4px',
+          borderRadius: 1.5,
           background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
           border: '1px solid rgba(107, 70, 193, 0.1)',
           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)'

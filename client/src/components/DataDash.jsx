@@ -9,6 +9,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Leg
 import axios from 'axios';
 import { API_BASE_URL } from '../config/api';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
+import { CHART_CARD_SX, CHART_MARGIN, CARTESIAN_GRID_PROPS, AXIS_TICK_STYLE, TOOLTIP_CONTENT_STYLE, LEGEND_WRAPPER_STYLE, getParameterColor as getChartParamColor } from '../utils/chartStyles';
 import SpeedIcon from '@mui/icons-material/Speed';
 import OpacityIcon from '@mui/icons-material/Opacity';
 import ScienceIcon from '@mui/icons-material/Science';
@@ -60,16 +61,7 @@ const colorPalette = [
 ];
 
 // Function to get color for parameter based on name hash
-const getParameterColor = (param) => {
-  let hash = 0;
-  for (let i = 0; i < param.length; i++) {
-    const char = param.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
-  }
-  const index = Math.abs(hash) % colorPalette.length;
-  return colorPalette[index];
-};
+const getParameterColor = (param) => getChartParamColor(param);
 
 // Legacy paramColors for backward compatibility (can be removed if not needed)
 const paramColors = {
@@ -292,14 +284,7 @@ export default function DataDash() {
   );
 
   const filterControls = (
-    <Card sx={{ 
-      mb: 2, 
-      background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-      border: '1px solid rgba(107, 70, 193, 0.1)',
-      borderRadius: '4px',
-      boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
-      overflow: 'visible'
-    }}>
+    <Card sx={{ mb: 2, borderRadius: 2, ...CHART_CARD_SX, overflow: 'visible' }}>
       <CardContent sx={{ p: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 1.5 }}>
           <DeviceHubIcon sx={{ color: theme.palette.primary.main, mr: 1, fontSize: 16 }} />
@@ -324,11 +309,11 @@ export default function DataDash() {
                     PaperProps: {
                       sx: {
                         backgroundColor: theme.palette.background.paper + ' !important',
-                        borderRadius: '4px',
+                        borderRadius: 1.5,
                         boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
                         '& .MuiMenuItem-root': {
                           color: theme.palette.text.primary + ' !important',
-                          borderRadius: '4px',
+                          borderRadius: 1.5,
                           margin: '4px 8px',
                           '&:hover': {
                             backgroundColor: theme.palette.action.hover + ' !important',
@@ -346,7 +331,7 @@ export default function DataDash() {
                     },
                   }}
                   sx={{ 
-                    borderRadius: '4px',
+                    borderRadius: 1.5,
                     '& .MuiSelect-select': { 
                       color: theme.palette.text.primary,
                       padding: '12px 16px',
@@ -391,11 +376,11 @@ export default function DataDash() {
                     PaperProps: {
                       sx: {
                         backgroundColor: theme.palette.background.paper + ' !important',
-                        borderRadius: '4px',
+                        borderRadius: 1.5,
                         boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
                         '& .MuiMenuItem-root': {
                           color: theme.palette.text.primary + ' !important',
-                          borderRadius: '4px',
+                          borderRadius: 1.5,
                           margin: '4px 8px',
                           '&:hover': {
                             backgroundColor: theme.palette.action.hover + ' !important',
@@ -413,7 +398,7 @@ export default function DataDash() {
                     },
                   }}
                   sx={{ 
-                    borderRadius: '4px',
+                    borderRadius: 1.5,
                     '& .MuiSelect-select': { 
                       color: theme.palette.text.primary,
                       padding: '12px 16px',
@@ -521,7 +506,7 @@ export default function DataDash() {
             size="large"
             sx={{
               background: 'linear-gradient(135deg, #007BA7 0%, #0099CC 100%)',
-              borderRadius: '4px',
+              borderRadius: 1.5,
               px: 4,
               py: 1.5,
               fontSize: '0.95rem',
@@ -557,7 +542,7 @@ export default function DataDash() {
               gap: 1,
               p: 2,
               backgroundColor: 'rgba(107, 70, 193, 0.05)',
-              borderRadius: '4px',
+              borderRadius: 1.5,
               border: '1px solid rgba(107, 70, 193, 0.1)'
             }}>
           {selectedDevices.length > 0 && selectedDevices.map(id => (
@@ -567,7 +552,7 @@ export default function DataDash() {
                   color="primary" 
                   size="small"
                   sx={{ 
-                    borderRadius: '4px',
+                    borderRadius: 1.5,
                     fontWeight: 500,
                     fontSize: '0.8rem',
                     height: '28px',
@@ -584,7 +569,7 @@ export default function DataDash() {
                   color="secondary" 
                   size="small"
                   sx={{ 
-                    borderRadius: '4px',
+                    borderRadius: 1.5,
                     fontWeight: 500,
                     fontSize: '0.8rem',
                     height: '28px',
@@ -599,7 +584,7 @@ export default function DataDash() {
                 color="info" 
                 size="small"
                 sx={{ 
-                  borderRadius: '4px',
+                  borderRadius: 1.5,
                   fontWeight: 500,
                   fontSize: '0.8rem',
                   height: '28px',
@@ -613,7 +598,7 @@ export default function DataDash() {
                 color="info" 
                 size="small"
                 sx={{ 
-                  borderRadius: '4px',
+                  borderRadius: 1.5,
                   fontWeight: 500,
                   fontSize: '0.8rem',
                   height: '28px',
@@ -740,9 +725,9 @@ export default function DataDash() {
           <Card sx={{
             p: 2,
             height: '100%',
-            background: '#ffffff',
-            border: '1px solid #e2e8f0',
-            borderRadius: '4px',
+            borderRadius: 2,
+            border: '1px solid rgba(0,0,0,0.06)',
+            background: '#fff',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
@@ -750,13 +735,9 @@ export default function DataDash() {
             fontFamily: 'Inter, sans-serif',
             position: 'relative',
             overflow: 'hidden',
-            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06)',
-            transition: 'all 0.2s ease-in-out',
-            '&:hover': {
-              transform: 'translateY(-2px)',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.1)',
-              border: '1px solid #cbd5e1',
-            }
+            boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+            transition: 'all 0.2s ease',
+            '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }
           }}>
             {/* Parameter name */}
             <Typography variant="h6" sx={{ 
@@ -778,7 +759,7 @@ export default function DataDash() {
                 alignItems: 'center',
                 mb: 1,
                 p: 1.5,
-                borderRadius: '4px',
+                borderRadius: 1.5,
                 background: '#f8fafc',
                 border: '1px solid #e2e8f0'
               }}>
@@ -794,7 +775,7 @@ export default function DataDash() {
                 alignItems: 'center',
                 mb: 1,
                 p: 1.5,
-                borderRadius: '4px',
+                borderRadius: 1.5,
                 background: '#f8fafc',
                 border: '1px solid #e2e8f0'
               }}>
@@ -809,7 +790,7 @@ export default function DataDash() {
                 justifyContent: 'space-between', 
                 alignItems: 'center',
                 p: 2,
-                borderRadius: '4px',
+                borderRadius: 1.5,
                 background: '#f1f5f9',
                 border: '1px solid #cbd5e1'
               }}>
@@ -869,13 +850,7 @@ export default function DataDash() {
       {filterControls}
       
       {!loading && data.length > 0 && (
-        <Card sx={{ 
-          mt: 2,
-          borderRadius: '4px',
-          background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-          border: '1px solid rgba(107, 70, 193, 0.1)',
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)'
-        }}>
+        <Card sx={{ mt: 2, borderRadius: 2, ...CHART_CARD_SX }}>
           <CardContent sx={{ p: 0 }}>
             <Box 
               sx={{ 
@@ -917,14 +892,7 @@ export default function DataDash() {
         </Card>
       )}
       
-      <Card sx={{ 
-        borderRadius: '4px',
-        background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-        border: '1px solid rgba(107, 70, 193, 0.1)',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)',
-        overflow: 'hidden',
-        mt: 4
-      }}>
+      <Card sx={{ borderRadius: 2, ...CHART_CARD_SX, overflow: 'hidden', mt: 4 }}>
         <CardContent sx={{ p: 0 }}>
           <Box sx={{ 
             background: 'linear-gradient(135deg, #007BA7 0%, #0099CC 100%)',
@@ -972,7 +940,7 @@ export default function DataDash() {
                       size="medium" 
                       onClick={() => exportToCSV(data, columns)}
                       sx={{
-                        borderRadius: '4px',
+                        borderRadius: 1.5,
                         textTransform: 'none',
                         fontWeight: 500,
                         borderColor: theme.palette.primary.main,
@@ -992,7 +960,7 @@ export default function DataDash() {
                       size="medium" 
                       onClick={() => exportToXLSX(data, columns)}
                       sx={{
-                        borderRadius: '4px',
+                        borderRadius: 1.5,
                         textTransform: 'none',
                         fontWeight: 500,
                         background: 'linear-gradient(135deg, #007BA7 0%, #0099CC 100%)',
@@ -1015,7 +983,7 @@ export default function DataDash() {
                     alignItems: 'center', 
                     minHeight: 300,
                     background: 'linear-gradient(135deg, #f8fafc 0%, #ffffff 100%)',
-                    borderRadius: '4px',
+                    borderRadius: 1.5,
                     border: '2px dashed rgba(107, 70, 193, 0.2)'
                   }}>
                     <Box sx={{ textAlign: 'center' }}>
@@ -1033,7 +1001,7 @@ export default function DataDash() {
                 pageSize={10}
                     rowsPerPageOptions={[10, 25, 50, 100]}
                 sx={{
-                      borderRadius: '4px',
+                      borderRadius: 1.5,
                       border: 'none',
                       fontFamily: 'Inter, sans-serif',
                       fontSize: '0.9rem',
@@ -1041,7 +1009,7 @@ export default function DataDash() {
                         borderRadius: '4px'
                       },
                       '& .MuiDataGrid-row': {
-                        borderRadius: '4px',
+                        borderRadius: 1.5,
                         margin: '2px 8px',
                         '&:nth-of-type(even)': { 
                           backgroundColor: 'rgba(107, 70, 193, 0.02)',
@@ -1094,7 +1062,7 @@ export default function DataDash() {
                     alignItems: 'center', 
                     minHeight: 400,
                     background: 'linear-gradient(135deg, #f8fafc 0%, #ffffff 100%)',
-                    borderRadius: '4px',
+                    borderRadius: 1.5,
                     border: '2px dashed rgba(107, 70, 193, 0.2)'
                   }}>
                     <Box sx={{ textAlign: 'center' }}>
@@ -1105,19 +1073,14 @@ export default function DataDash() {
                     </Box>
             </Box>
                 ) : (
-                  <Card sx={{ 
-                    borderRadius: '4px',
-                    background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-                    border: '1px solid rgba(107, 70, 193, 0.1)',
-                    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)'
-                  }}>
+                  <Card sx={{ ...CHART_CARD_SX }}>
                     <CardContent sx={{ p: 3 }}>
               <ResponsiveContainer width="100%" height={400}>
-                <LineChart data={data} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(107, 70, 193, 0.1)" />
+                <LineChart data={data} margin={CHART_MARGIN}>
+                          <CartesianGrid {...CARTESIAN_GRID_PROPS} />
                           <XAxis 
                             dataKey="datetime" 
-                            tick={{ fontSize: 12, fontFamily: 'Inter, sans-serif' }}
+                            tick={AXIS_TICK_STYLE}
                             tickFormatter={(value) => {
                               if (typeof value === 'string' && !value.includes('T')) {
                                 return value;
@@ -1125,15 +1088,9 @@ export default function DataDash() {
                               return formatInUserTimezone(value);
                             }}
                           />
-                          <YAxis tick={{ fontSize: 12, fontFamily: 'Inter, sans-serif' }} domain={getYDomain()} />
+                          <YAxis tick={AXIS_TICK_STYLE} domain={getYDomain()} />
                           <ReTooltip
-                            contentStyle={{ 
-                              fontFamily: 'Inter, sans-serif', 
-                              fontSize: 13,
-                              borderRadius: '4px',
-                              border: '1px solid rgba(107, 70, 193, 0.2)',
-                              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)'
-                            }}
+                            contentStyle={TOOLTIP_CONTENT_STYLE}
                             formatter={(value, name, props) => {
                               const dataKey = props?.dataKey || name;
                               if (dataKey === 'datetime' || dataKey === 'timestamp') {
@@ -1146,8 +1103,7 @@ export default function DataDash() {
                             }}
                             labelFormatter={(label) => formatInUserTimezone(label)}
                           />
-                          <Legend
-                            wrapperStyle={{ fontSize: 13, fontFamily: 'Inter, sans-serif' }}
+                          <Legend wrapperStyle={LEGEND_WRAPPER_STYLE}
                             formatter={(value, entry) =>
                               formatDisplayName(entry?.dataKey || value, { withUnit: true })
                             }
@@ -1200,7 +1156,7 @@ export default function DataDash() {
                     alignItems: 'center', 
                     minHeight: 300,
                     background: 'linear-gradient(135deg, #f8fafc 0%, #ffffff 100%)',
-                    borderRadius: '4px',
+                    borderRadius: 1.5,
                     border: '2px dashed rgba(107, 70, 193, 0.2)'
                   }}>
                     <Box sx={{ textAlign: 'center' }}>
@@ -1218,7 +1174,7 @@ export default function DataDash() {
                 pageSize={10}
                 rowsPerPageOptions={[10, 25, 50]}
                 sx={{
-                      borderRadius: '4px',
+                      borderRadius: 1.5,
                       border: 'none',
                       fontFamily: 'Inter, sans-serif',
                       fontSize: '0.9rem',
@@ -1226,7 +1182,7 @@ export default function DataDash() {
                         borderRadius: '4px'
                       },
                       '& .MuiDataGrid-row': {
-                        borderRadius: '4px',
+                        borderRadius: 1.5,
                         margin: '2px 8px',
                         '&:nth-of-type(even)': { 
                           backgroundColor: 'rgba(107, 70, 193, 0.02)',
@@ -1272,13 +1228,7 @@ export default function DataDash() {
       
       
       {!loading && data.length === 0 && (
-        <Card sx={{ 
-          mt: 4,
-          borderRadius: '4px',
-          background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-          border: '1px solid rgba(107, 70, 193, 0.1)',
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)'
-        }}>
+        <Card sx={{ mt: 4, borderRadius: 2, ...CHART_CARD_SX }}>
           <CardContent sx={{ p: 4, textAlign: 'center' }}>
             <DeviceHubIcon sx={{ fontSize: 80, mb: 2, color: 'rgba(107, 70, 193, 0.3)' }} />
             <Typography variant="h6" sx={{ color: theme.palette.text.secondary, mb: 1 }}>

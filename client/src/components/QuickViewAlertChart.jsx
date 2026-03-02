@@ -27,6 +27,7 @@ import {
 } from '@mui/icons-material';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
+import { CHART_CARD_SX, CHART_MARGIN, CARTESIAN_GRID_PROPS, AXIS_TICK_STYLE, TOOLTIP_CONTENT_STYLE } from '../utils/chartStyles';
 
 const QuickViewAlertChart = ({ alertData, deviceName }) => {
   const theme = useTheme();
@@ -139,17 +140,7 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
       const severityColors = getSeverityColors(data.severity);
       
       return (
-        <Box
-          sx={{
-            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-            border: `2px solid ${severityColors.border}`,
-            borderRadius: '4px',
-            p: 2,
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
-            backdropFilter: 'blur(10px)',
-            fontFamily: 'Inter, sans-serif'
-          }}
-        >
+        <Box sx={{ ...TOOLTIP_CONTENT_STYLE, border: `1px solid ${severityColors.border}`, p: 2 }}>
           <Typography variant="body2" sx={{ 
             fontWeight: 600, 
             color: theme.palette.text.primary,
@@ -205,22 +196,7 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
   }, [timelineData]);
 
   return (
-    <Card sx={{ 
-      height: '100%', 
-      display: 'flex', 
-      flexDirection: 'column', 
-      minHeight: 500,
-      borderRadius: '4px',
-      background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-      border: '1px solid rgba(107, 70, 193, 0.1)',
-      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)',
-      transition: 'all 0.3s ease-in-out',
-      '&:hover': {
-        transform: 'translateY(-4px)',
-        boxShadow: '0 12px 40px rgba(107, 70, 193, 0.15)',
-        border: '1px solid rgba(107, 70, 193, 0.2)'
-      }
-    }}>
+    <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 500, ...CHART_CARD_SX, transition: 'all 0.2s ease', '&:hover': { boxShadow: '0 4px 20px rgba(0,0,0,0.08)' } }}>
       <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: '100%', p: 3 }}>
         {/* Modern Header */}
         <Box sx={{ 
@@ -229,8 +205,8 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
           alignItems: 'center', 
           mb: 3,
           p: 2,
-          borderRadius: '4px',
-          background: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)',
+          borderRadius: 1.5,
+          background: 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)',
           color: 'white'
         }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -287,15 +263,7 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
             gap: 2, 
             mb: 3 
           }}>
-            <Box sx={{ 
-              textAlign: 'center',
-              p: 2,
-              borderRadius: '4px',
-              background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(239, 68, 68, 0.05) 100%)',
-              border: '2px solid rgba(239, 68, 68, 0.3)',
-              transition: 'all 0.2s ease-in-out',
-              '&:hover': { transform: 'translateY(-2px)' }
-            }}>
+            <Box sx={{ textAlign: 'center', p: 2, borderRadius: 1.5, background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.25)', transition: 'all 0.2s ease' }}>
               <Typography variant="h6" sx={{ 
                 color: '#EF4444',
                 fontWeight: 800,
@@ -313,15 +281,7 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
                 Total Alerts
               </Typography>
             </Box>
-            <Box sx={{ 
-              textAlign: 'center',
-              p: 2,
-              borderRadius: '4px',
-              background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%)',
-              border: '2px solid rgba(245, 158, 11, 0.3)',
-              transition: 'all 0.2s ease-in-out',
-              '&:hover': { transform: 'translateY(-2px)' }
-            }}>
+            <Box sx={{ textAlign: 'center', p: 2, borderRadius: 1.5, background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.25)', transition: 'all 0.2s ease' }}>
               <Typography variant="body1" sx={{ 
                 color: '#F59E0B',
                 fontWeight: 700,
@@ -339,17 +299,9 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
                 Max/Hour
               </Typography>
             </Box>
-            <Box sx={{ 
-              textAlign: 'center',
-              p: 2,
-              borderRadius: '4px',
-              background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(59, 130, 246, 0.05) 100%)',
-              border: '2px solid rgba(59, 130, 246, 0.3)',
-              transition: 'all 0.2s ease-in-out',
-              '&:hover': { transform: 'translateY(-2px)' }
-            }}>
+            <Box sx={{ textAlign: 'center', p: 2, borderRadius: 1.5, background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.25)', transition: 'all 0.2s ease' }}>
               <Typography variant="body1" sx={{ 
-                color: '#3B82F6',
+                color: '#2563EB',
                 fontWeight: 700,
                 fontSize: '1rem',
                 mb: 0.5
@@ -368,11 +320,10 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
             <Box sx={{ 
               textAlign: 'center',
               p: 2,
-              borderRadius: '4px',
-              background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(139, 92, 246, 0.05) 100%)',
-              border: '2px solid rgba(139, 92, 246, 0.3)',
-              transition: 'all 0.2s ease-in-out',
-              '&:hover': { transform: 'translateY(-2px)' }
+              borderRadius: 1.5,
+              background: 'rgba(124, 58, 237, 0.08)',
+              border: '1px solid rgba(124, 58, 237, 0.25)',
+              transition: 'all 0.2s ease'
             }}>
               <Typography variant="body1" sx={{ 
                 color: '#0099CC',
@@ -397,43 +348,14 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
         {/* Modern Chart */}
         <Box sx={{ 
           flexGrow: 1, 
-          minHeight: 300, 
-          height: '400px',
-          width: '100%',
-          borderRadius: '4px',
-          background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-          border: '1px solid rgba(107, 70, 193, 0.1)',
-          p: 2,
-          position: 'relative',
-          overflow: 'hidden'
+          minHeight: 300, height: '400px', width: '100%', p: 2, position: 'relative', overflow: 'hidden', ...CHART_CARD_SX
         }}>
-          {console.log('Rendering chart with timelineData:', timelineData)}
           {timelineData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={timelineData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(107, 70, 193, 0.1)" />
-                <XAxis 
-                  dataKey="hour" 
-                  stroke="rgba(107, 70, 193, 0.6)"
-                  fontSize={12}
-                  tick={{ 
-                    fontSize: 11, 
-                    fontFamily: 'Inter, sans-serif',
-                    fill: theme.palette.text.secondary
-                  }}
-                  angle={-45}
-                  textAnchor="end"
-                  height={60}
-                />
-                <YAxis 
-                  stroke="rgba(107, 70, 193, 0.6)"
-                  fontSize={12}
-                  tick={{ 
-                    fontSize: 11, 
-                    fontFamily: 'Inter, sans-serif',
-                    fill: theme.palette.text.secondary
-                  }}
-                />
+              <BarChart data={timelineData} margin={{ ...CHART_MARGIN, bottom: 56 }}>
+                <CartesianGrid {...CARTESIAN_GRID_PROPS} />
+                <XAxis dataKey="hour" stroke="rgba(0,0,0,0.2)" tick={AXIS_TICK_STYLE} angle={-45} textAnchor="end" height={56} />
+                <YAxis stroke="rgba(0,0,0,0.2)" tick={AXIS_TICK_STYLE} />
                 <RechartsTooltip content={<CustomTooltip />} />
                 
                 <Bar
@@ -473,11 +395,7 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
         {/* Modern Legend */}
         {timelineData.length > 0 && (
           <Box sx={{ 
-            mt: 3, 
-            p: 2,
-            borderRadius: '4px',
-            background: 'linear-gradient(135deg, rgba(107, 70, 193, 0.05) 0%, rgba(107, 70, 193, 0.02) 100%)',
-            border: '1px solid rgba(107, 70, 193, 0.1)'
+            mt: 3, p: 2, borderRadius: 1.5, background: 'rgba(0,0,0,0.02)', border: '1px solid rgba(0,0,0,0.06)'
           }}>
             <Typography variant="subtitle2" sx={{ 
               fontWeight: 600, 
@@ -496,10 +414,7 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
                 display: 'flex', 
                 alignItems: 'center', 
                 gap: 1,
-                p: 1,
-                borderRadius: '4px',
-                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%)',
-                border: '1px solid rgba(16, 185, 129, 0.2)'
+                p: 1, borderRadius: 1, background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.2)'
               }}>
                 <Box sx={{ 
                   width: 12, 
@@ -520,10 +435,7 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
                 display: 'flex', 
                 alignItems: 'center', 
                 gap: 1,
-                p: 1,
-                borderRadius: '4px',
-                background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%)',
-                border: '1px solid rgba(245, 158, 11, 0.2)'
+                p: 1, borderRadius: 1, background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.2)'
               }}>
                 <Box sx={{ 
                   width: 12, 
@@ -544,10 +456,7 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
                 display: 'flex', 
                 alignItems: 'center', 
                 gap: 1,
-                p: 1,
-                borderRadius: '4px',
-                background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(239, 68, 68, 0.05) 100%)',
-                border: '1px solid rgba(239, 68, 68, 0.2)'
+                p: 1, borderRadius: 1, background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)'
               }}>
                 <Box sx={{ 
                   width: 12, 
@@ -568,10 +477,7 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
                 display: 'flex', 
                 alignItems: 'center', 
                 gap: 1,
-                p: 1,
-                borderRadius: '4px',
-                background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(139, 92, 246, 0.05) 100%)',
-                border: '1px solid rgba(139, 92, 246, 0.2)'
+                p: 1, borderRadius: 1, background: 'rgba(0, 153, 204, 0.08)', border: '1px solid rgba(0, 153, 204, 0.2)'
               }}>
                 <Box sx={{ 
                   width: 12, 

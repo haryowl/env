@@ -92,9 +92,9 @@ const Layout = ({ children, user, onLogout }) => {
       case 'kima':
       default:
         return {
-          background: '#007BA7', // Purple for KIMA theme
+          background: '#0E7490', // Teal for KIMA theme
           text: 'white',
-          textSecondary: 'rgba(255,255,255,0.8)',
+          textSecondary: 'rgba(255,255,255,0.85)',
           textActive: 'white'
         };
     }
@@ -356,10 +356,11 @@ const Layout = ({ children, user, onLogout }) => {
                 onClick={() => toggleSection(section.title)}
                 sx={{ 
                   cursor: 'pointer',
-                  borderRadius: '4px',
+                  borderRadius: '8px',
                   mb: 0.5,
+                  py: 1,
                   '&:hover': {
-                    backgroundColor: 'rgba(255,255,255,0.1)',
+                    backgroundColor: currentTheme === 'light' || currentTheme === 'green' ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.1)',
                   }
                 }}
               >
@@ -390,17 +391,22 @@ const Layout = ({ children, user, onLogout }) => {
                   selected={location.pathname === item.path}
                   sx={{ 
                     cursor: 'pointer',
-                    ml: 2,
-                    borderRadius: '4px',
-                    mb: 0.5,
+                    ml: 1.5,
+                    mr: 0.5,
+                    borderRadius: '8px',
+                    mb: 0.25,
+                    py: 0.75,
+                    pl: 2,
+                    borderLeft: '3px solid transparent',
                     '&.Mui-selected': {
-                      backgroundColor: currentTheme === 'light' || currentTheme === 'green' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.2)',
+                      backgroundColor: currentTheme === 'light' || currentTheme === 'green' ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.18)',
+                      borderLeftColor: currentTheme === 'light' || currentTheme === 'green' ? theme.palette.primary.main : 'rgba(255,255,255,0.9)',
                       '&:hover': {
-                        backgroundColor: currentTheme === 'light' || currentTheme === 'green' ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.25)',
+                        backgroundColor: currentTheme === 'light' || currentTheme === 'green' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.22)',
                       }
                     },
                     '&:hover': {
-                      backgroundColor: currentTheme === 'light' || currentTheme === 'green' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)',
+                      backgroundColor: currentTheme === 'light' || currentTheme === 'green' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.08)',
                     }
                   }}
                 >
@@ -415,7 +421,7 @@ const Layout = ({ children, user, onLogout }) => {
                     sx={{ 
                       color: location.pathname === item.path ? sidebarColors.textActive : sidebarColors.textSecondary,
                       '& .MuiListItemText-primary': {
-                        fontSize: '0.8rem',
+                        fontSize: '0.8125rem',
                         fontWeight: location.pathname === item.path ? 600 : 400
                       }
                     }}
@@ -425,8 +431,8 @@ const Layout = ({ children, user, onLogout }) => {
                       width: 6, 
                       height: 6, 
                       borderRadius: '50%', 
-                      bgcolor: '#F59E0B',
-                      ml: 1
+                      bgcolor: currentTheme === 'light' || currentTheme === 'green' ? theme.palette.primary.main : '#F59E0B',
+                      ml: 0.5
                     }} />
                   )}
                 </ListItem>
@@ -453,10 +459,11 @@ const Layout = ({ children, user, onLogout }) => {
           }),
           backgroundColor: 'white',
           color: 'text.primary',
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06)',
+          borderBottom: '1px solid rgba(0, 0, 0, 0.06)',
         }}
       >
-        <Toolbar sx={{ minHeight: '64px !important' }}>
+        <Toolbar sx={{ minHeight: { xs: '56px', sm: '64px' }, px: { xs: 1, sm: 2 } }}>
           <IconButton
             color="inherit"
             aria-label="open drawer"
@@ -648,8 +655,9 @@ const Layout = ({ children, user, onLogout }) => {
           width: { md: drawerOpen ? `calc(100% - ${drawerWidth}px)` : '100%' },
           minHeight: '100vh',
           backgroundColor: customColors?.background || theme.palette.background.default,
-          padding: { xs: 1, sm: 2, md: 3 },
-          paddingTop: { xs: 7, sm: 9, md: 10 },
+          padding: { xs: 2, sm: 2.5, md: 3 },
+          paddingTop: { xs: 8, sm: 10, md: 11 },
+          className: 'main-content',
           boxSizing: 'border-box',
           transition: theme.transitions.create(['margin', 'width'], {
             easing: theme.transitions.easing.sharp,

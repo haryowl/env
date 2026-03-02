@@ -209,60 +209,42 @@ const SingleRowParameterCards = ({ data = {}, parameterColors = {}, realtimePara
           <Card
             key={index}
             sx={{
-              height: '160px', // Increased height for better content display
+              height: 160,
               width: cardWidth,
-              flex: isMobile ? 'none' : '1 1 0', // Equal flex distribution on desktop
-              background: `linear-gradient(135deg, ${kpi.color}20 0%, ${kpi.color}10 50%, ${kpi.color}05 100%)`,
-              border: `2px solid ${kpi.color}40`,
-              borderRadius: '4px',
+              flex: isMobile ? 'none' : '1 1 0',
+              borderRadius: 2,
+              border: `1px solid ${kpi.color}30`,
+              background: `linear-gradient(135deg, ${kpi.color}12 0%, ${kpi.color}08 100%)`,
               position: 'relative',
               overflow: 'hidden',
-              transition: 'all 0.3s ease',
-              '&:hover': {
-                transform: 'translateY(-4px)',
-                boxShadow: `0 12px 30px ${kpi.color}30`,
-                border: `2px solid ${kpi.color}60`,
-              },
+              transition: 'all 0.2s ease',
+              '&:hover': { boxShadow: `0 4px 12px ${kpi.color}25` },
               '&::before': {
                 content: '""',
                 position: 'absolute',
                 top: 0,
                 left: 0,
                 right: 0,
-                height: '4px',
-                background: `linear-gradient(90deg, ${kpi.color} 0%, ${kpi.color}CC 100%)`,
+                height: 3,
+                background: `linear-gradient(90deg, ${kpi.color} 0%, ${kpi.color}cc 100%)`,
               },
             }}
           >
             <CardContent sx={{ p: 2, position: 'relative', zIndex: 1, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                <Box
-                  sx={{
-                    p: 1,
-                    borderRadius: '4px',
-                    backgroundColor: `${kpi.color}30`,
-                    color: kpi.color,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: `0 2px 8px ${kpi.color}20`,
-                    border: `1px solid ${kpi.color}40`,
-                    minWidth: '32px',
-                    minHeight: '32px',
-                  }}
-                >
+                <Box sx={{ p: 1, borderRadius: 1.5, backgroundColor: `${kpi.color}20`, color: kpi.color, display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 32, minHeight: 32 }}>
                   {kpi.icon}
                 </Box>
                 <Chip
                   label={kpi.trend}
                   size="small"
                   sx={{
-                    backgroundColor: kpi.trend.startsWith('+') ? '#10B981' : kpi.trend.startsWith('-') ? '#EF4444' : '#6B7280',
-                    color: 'white',
+                    backgroundColor: kpi.trend.startsWith('+') ? '#059669' : kpi.trend.startsWith('-') ? '#DC2626' : '#64748B',
+                    color: '#fff',
                     fontSize: '0.6rem',
-                    height: '18px',
+                    height: 20,
                     fontWeight: 600,
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                    borderRadius: 1,
                   }}
                 />
               </Box>

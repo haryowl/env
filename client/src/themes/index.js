@@ -21,59 +21,72 @@ export const createThemeWithFont = (baseTheme, fontType = 'monospace') => {
   });
 };
 
-// Light Theme (Original)
+// Light Theme (Modern professional)
 export const lightTheme = createTheme({
   palette: {
     mode: 'light',
     primary: {
-      main: '#1976d2',
-      light: '#42a5f5',
-      dark: '#1565c0',
+      main: '#2563EB',
+      light: '#3B82F6',
+      dark: '#1D4ED8',
       contrastText: '#fff',
     },
     secondary: {
-      main: '#dc004e',
-      light: '#ff5983',
-      dark: '#9a0036',
+      main: '#64748B',
+      light: '#94A3B8',
+      dark: '#475569',
       contrastText: '#fff',
     },
     background: {
-      default: '#f5f5f5',
-      paper: '#fff',
+      default: '#F8FAFC',
+      paper: '#ffffff',
     },
     text: {
-      primary: 'rgba(0, 0, 0, 0.87)',
-      secondary: 'rgba(0, 0, 0, 0.6)',
+      primary: '#0F172A',
+      secondary: '#64748B',
     },
+    divider: 'rgba(0, 0, 0, 0.08)',
   },
   typography: {
     fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
-    fontSize: 14, // User prefers smaller, more compact font sizes
-    h1: { fontSize: '2rem', fontWeight: 600 },
-    h2: { fontSize: '1.75rem', fontWeight: 600 },
-    h3: { fontSize: '1.5rem', fontWeight: 600 },
-    h4: { fontSize: '1.25rem', fontWeight: 600 },
-    h5: { fontSize: '1.1rem', fontWeight: 600 },
-    h6: { fontSize: '1rem', fontWeight: 600 },
-    body1: { fontSize: '0.875rem' },
-    body2: { fontSize: '0.75rem' },
-    caption: { fontSize: '0.7rem' },
+    fontSize: 14,
+    h1: { fontSize: '1.875rem', fontWeight: 700, letterSpacing: '-0.02em' },
+    h2: { fontSize: '1.5rem', fontWeight: 600, letterSpacing: '-0.01em' },
+    h3: { fontSize: '1.25rem', fontWeight: 600 },
+    h4: { fontSize: '1.125rem', fontWeight: 600 },
+    h5: { fontSize: '1rem', fontWeight: 600 },
+    h6: { fontSize: '0.9375rem', fontWeight: 600 },
+    body1: { fontSize: '0.875rem', lineHeight: 1.5 },
+    body2: { fontSize: '0.8125rem', lineHeight: 1.5 },
+    caption: { fontSize: '0.75rem', color: '#64748B' },
+    button: { fontWeight: 500, textTransform: 'none' },
   },
+  shape: { borderRadius: 8 },
   components: {
     MuiButton: {
       styleOverrides: {
         root: {
           textTransform: 'none',
           fontSize: '0.875rem',
+          borderRadius: '8px',
+          boxShadow: 'none',
+          '&:hover': { boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)' },
+        },
+      },
+    },
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          borderRadius: '12px',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
+          border: '1px solid rgba(0,0,0,0.06)',
         },
       },
     },
     MuiTableCell: {
       styleOverrides: {
-        root: {
-          fontSize: '0.8rem',
-          padding: '8px 16px',
-        },
+        root: { fontSize: '0.8125rem', padding: '12px 16px' },
+        head: { fontWeight: 600, backgroundColor: '#F8FAFC' },
       },
     },
   },
@@ -247,14 +260,14 @@ export const greenTheme = createTheme({
   },
 });
 
-// KIMA Professional Theme (Inspired by the images)
+// KIMA Professional Theme (refined modern)
 export const kimaTheme = createTheme({
   palette: {
     mode: 'light',
     primary: {
-      main: '#007BA7', // Purple from the images
-      light: '#0099CC',
-      dark: '#005577',
+      main: '#0E7490',
+      light: '#0891B2',
+      dark: '#0C4A6E',
       contrastText: '#fff',
     },
     secondary: {
@@ -370,17 +383,17 @@ export const kimaTheme = createTheme({
           },
         },
         contained: {
-          background: 'linear-gradient(135deg, #007BA7 0%, #0099CC 100%)',
+          background: 'linear-gradient(135deg, #0E7490 0%, #0891B2 100%)',
           '&:hover': {
-            background: 'linear-gradient(135deg, #005577 0%, #006B9A 100%)',
+            background: 'linear-gradient(135deg, #0C4A6E 0%, #0E7490 100%)',
           },
         },
         outlined: {
-          borderColor: '#007BA7',
-          color: '#007BA7',
+          borderColor: '#0E7490',
+          color: '#0E7490',
           '&:hover': {
-            backgroundColor: 'rgba(107, 70, 193, 0.04)',
-            borderColor: '#005577',
+            backgroundColor: 'rgba(14, 116, 144, 0.06)',
+            borderColor: '#0C4A6E',
           },
         },
       },
@@ -440,7 +453,7 @@ export const kimaTheme = createTheme({
           fontWeight: 500,
         },
         colorPrimary: {
-          backgroundColor: '#007BA7',
+          backgroundColor: '#0E7490',
           color: '#fff',
         },
         colorSecondary: {
@@ -453,9 +466,9 @@ export const kimaTheme = createTheme({
       styleOverrides: {
         switchBase: {
           '&.Mui-checked': {
-            color: '#007BA7',
+            color: '#0E7490',
             '& + .MuiSwitch-track': {
-              backgroundColor: '#007BA7',
+              backgroundColor: '#0E7490',
             },
           },
         },
@@ -467,10 +480,10 @@ export const kimaTheme = createTheme({
           '& .MuiOutlinedInput-root': {
             borderRadius: '4px',
             '&:hover .MuiOutlinedInput-notchedOutline': {
-              borderColor: '#007BA7',
+              borderColor: '#0E7490',
             },
             '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-              borderColor: '#007BA7',
+              borderColor: '#0E7490',
               borderWidth: '2px',
             },
           },
@@ -509,7 +522,7 @@ export const kimaTheme = createTheme({
     MuiDrawer: {
       styleOverrides: {
         paper: {
-          backgroundColor: '#007BA7',
+          backgroundColor: '#0E7490',
           color: '#FFFFFF',
           borderRight: 'none',
         },
@@ -558,7 +571,7 @@ export const kimaTheme = createTheme({
     },
   },
   shape: {
-    borderRadius: 4,
+    borderRadius: 8,
   },
   spacing: 8,
 });

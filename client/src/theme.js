@@ -4,13 +4,13 @@ const createAppTheme = (fontType = 'monospace') => {
   const getFontFamily = (type) => {
     switch (type) {
       case 'monospace':
-        return "'Courier New', 'Monaco', 'Consolas', 'Roboto Mono', 'Fira Code', 'Source Code Pro', monospace";
+        return "'Roboto Mono', 'Courier New', 'Monaco', 'Consolas', 'Fira Code', 'Source Code Pro', monospace";
       case 'sans-serif':
-        return "'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif";
+        return "'Inter', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif";
       case 'serif':
         return "'Times New Roman', 'Georgia', 'Palatino', serif";
       case 'system':
-        return "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif";
+        return "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif";
       case 'condensed':
         return "'Roboto Condensed', 'Arial Narrow', sans-serif";
       case 'rounded':
@@ -23,15 +23,26 @@ const createAppTheme = (fontType = 'monospace') => {
   return createTheme({
   palette: {
     primary: {
-      main: '#1976d2',
+      main: '#2563EB',
+      light: '#3B82F6',
+      dark: '#1D4ED8',
+      contrastText: '#fff',
     },
     secondary: {
-      main: '#dc004e',
+      main: '#64748B',
+      light: '#94A3B8',
+      dark: '#475569',
+      contrastText: '#fff',
     },
     background: {
-      default: '#f5f5f5',
+      default: '#F8FAFC',
       paper: '#ffffff',
     },
+    text: {
+      primary: '#0F172A',
+      secondary: '#64748B',
+    },
+    divider: 'rgba(0, 0, 0, 0.08)',
   },
   typography: {
     fontFamily: getFontFamily(fontType),
@@ -109,17 +120,26 @@ const createAppTheme = (fontType = 'monospace') => {
     MuiButton: {
       styleOverrides: {
         root: {
-          fontSize: '0.8rem',
-          padding: '6px 12px',
-          borderRadius: '4px',
-        },
-        sizeSmall: {
-          fontSize: '0.75rem',
-          padding: '4px 8px',
-        },
-        sizeLarge: {
           fontSize: '0.875rem',
           padding: '8px 16px',
+          borderRadius: '8px',
+          textTransform: 'none',
+          fontWeight: 500,
+          boxShadow: 'none',
+          transition: 'all 0.2s ease',
+          '&:hover': {
+            boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
+          },
+        },
+        sizeSmall: {
+          fontSize: '0.8125rem',
+          padding: '6px 12px',
+          borderRadius: '6px',
+        },
+        sizeLarge: {
+          fontSize: '0.9375rem',
+          padding: '10px 20px',
+          borderRadius: '8px',
         },
       },
     },
@@ -149,8 +169,8 @@ const createAppTheme = (fontType = 'monospace') => {
       styleOverrides: {
         root: {
           fontSize: '0.75rem',
-          height: '24px',
-          borderRadius: '4px',
+          height: '28px',
+          borderRadius: '8px',
         },
         label: {
           padding: '0 8px',
@@ -160,17 +180,23 @@ const createAppTheme = (fontType = 'monospace') => {
     MuiCard: {
       styleOverrides: {
         root: {
-          borderRadius: '4px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+          borderRadius: '12px',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
+          border: '1px solid rgba(0,0,0,0.06)',
+          transition: 'box-shadow 0.2s ease, border-color 0.2s ease',
+          '&:hover': {
+            boxShadow: '0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04)',
+            borderColor: 'rgba(0,0,0,0.08)',
+          },
         },
       },
     },
     MuiCardContent: {
       styleOverrides: {
         root: {
-          padding: '12px',
+          padding: '20px',
           '&:last-child': {
-            paddingBottom: '12px',
+            paddingBottom: '20px',
           },
         },
       },
@@ -178,7 +204,8 @@ const createAppTheme = (fontType = 'monospace') => {
     MuiDialog: {
       styleOverrides: {
         paper: {
-          borderRadius: '4px',
+          borderRadius: '12px',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
         },
       },
     },
@@ -225,7 +252,8 @@ const createAppTheme = (fontType = 'monospace') => {
     MuiAppBar: {
       styleOverrides: {
         root: {
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+          backdropFilter: 'blur(8px)',
         },
       },
     },
@@ -233,7 +261,8 @@ const createAppTheme = (fontType = 'monospace') => {
       styleOverrides: {
         paper: {
           fontSize: '0.875rem',
-          borderRight: '1px solid rgba(224, 224, 224, 1)',
+          borderRight: '1px solid rgba(0,0,0,0.06)',
+          boxShadow: '2px 0 12px rgba(0,0,0,0.04)',
         },
       },
     },
@@ -284,8 +313,8 @@ const createAppTheme = (fontType = 'monospace') => {
     MuiMenu: {
       styleOverrides: {
         paper: {
-          borderRadius: '4px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          borderRadius: '8px',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.1), 0 2px 8px rgba(0,0,0,0.06)',
         },
       },
     },
@@ -314,7 +343,7 @@ const createAppTheme = (fontType = 'monospace') => {
     MuiAccordion: {
       styleOverrides: {
         root: {
-          borderRadius: '4px',
+          borderRadius: '8px',
           '&:before': {
             display: 'none',
           },
@@ -339,9 +368,12 @@ const createAppTheme = (fontType = 'monospace') => {
     },
   },
   shape: {
-    borderRadius: 4,
+    borderRadius: 8,
   },
   spacing: 8,
+  transitions: {
+    duration: { shortest: 150, shorter: 200, short: 250, standard: 300 },
+  },
   });
 };
 

@@ -48,6 +48,7 @@ import {
 import { API_BASE_URL } from '../config/api';
 import moment from 'moment-timezone';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
+import { CHART_CARD_SX, CHART_MARGIN, CARTESIAN_GRID_PROPS, AXIS_TICK_STYLE, CHART_COLORS } from '../utils/chartStyles';
 
 const DataViewer = () => {
   const [devices, setDevices] = useState([]);
@@ -171,7 +172,7 @@ const DataViewer = () => {
   };
 
   const fieldNames = getFieldNames();
-  const colors = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#ff0000', '#00ff00'];
+  const colors = CHART_COLORS;
 
   const renderSensorCharts = () => {
     if (sensorData.length === 0) {
@@ -185,21 +186,16 @@ const DataViewer = () => {
     return (
       <Grid container spacing={3}>
         <Grid size={{ xs: 12 }}>
-          <Card>
+          <Card sx={CHART_CARD_SX}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
                 Sensor Data Over Time
               </Typography>
               <ResponsiveContainer width="100%" height={400}>
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="timestamp" 
-                    angle={-45}
-                    textAnchor="end"
-                    height={80}
-                  />
-                  <YAxis />
+                <LineChart data={chartData} margin={CHART_MARGIN}>
+                  <CartesianGrid {...CARTESIAN_GRID_PROPS} />
+                  <XAxis dataKey="timestamp" tick={AXIS_TICK_STYLE} angle={-45} textAnchor="end" height={80} />
+                  <YAxis tick={AXIS_TICK_STYLE} />
                   <Tooltip />
                   <Legend />
                   {fieldNames.map((field, index) => (
@@ -219,16 +215,16 @@ const DataViewer = () => {
         </Grid>
 
         <Grid size={{ xs: 12, md: 6 }}>
-          <Card>
+          <Card sx={CHART_CARD_SX}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
                 Latest Values
               </Typography>
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={chartData.slice(-5)}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="timestamp" />
-                  <YAxis />
+                <BarChart data={chartData.slice(-5)} margin={CHART_MARGIN}>
+                  <CartesianGrid {...CARTESIAN_GRID_PROPS} />
+                  <XAxis dataKey="timestamp" tick={AXIS_TICK_STYLE} />
+                  <YAxis tick={AXIS_TICK_STYLE} />
                   <Tooltip />
                   <Legend />
                   {fieldNames.slice(0, 3).map((field, index) => (
@@ -245,7 +241,7 @@ const DataViewer = () => {
         </Grid>
 
         <Grid size={{ xs: 12, md: 6 }}>
-          <Card>
+          <Card sx={CHART_CARD_SX}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
                 Data Distribution
@@ -280,12 +276,12 @@ const DataViewer = () => {
 
   const renderDataTable = () => {
     return (
-      <Card>
+      <Card sx={CHART_CARD_SX}>
         <CardContent>
           <Typography variant="h6" gutterBottom>
             Raw Data
           </Typography>
-          <TableContainer component={Paper}>
+          <TableContainer component={Paper} sx={{ borderRadius: 1.5, overflow: 'hidden' }}>
             <Table>
               <TableHead>
                 <TableRow>
@@ -352,7 +348,7 @@ const DataViewer = () => {
         </Alert>
       )}
 
-      <Card sx={{ mb: 3 }}>
+      <Card sx={{ mb: 3, borderRadius: 2, ...CHART_CARD_SX }}>
         <CardContent>
           <Grid container spacing={2} alignItems="center">
             <Grid size={{ xs: 12, sm: 4 }}>
@@ -447,7 +443,7 @@ const DataViewer = () => {
       )}
 
       {!selectedDevice && (
-        <Card>
+        <Card sx={CHART_CARD_SX}>
           <CardContent>
             <Box textAlign="center" py={4}>
               <ShowChartIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
