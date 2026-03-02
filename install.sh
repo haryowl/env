@@ -22,13 +22,13 @@ fi
 
 # Optional: install system dependencies (PostgreSQL, Mosquitto, Node.js) on Ubuntu
 if [ "$1" = "--system" ]; then
-  if [ -x scripts/setup-ubuntu.sh ]; then
-    echo ">>> Installing system dependencies (Ubuntu/Debian)..."
-    sudo scripts/setup-ubuntu.sh
-  else
-    echo ">>> scripts/setup-ubuntu.sh not found or not executable. Run: chmod +x scripts/setup-ubuntu.sh"
+  if [ ! -f scripts/setup-ubuntu.sh ]; then
+    echo ">>> Error: scripts/setup-ubuntu.sh not found."
     exit 1
   fi
+  chmod +x scripts/setup-ubuntu.sh
+  echo ">>> Installing system dependencies (Ubuntu/Debian)..."
+  sudo scripts/setup-ubuntu.sh
 fi
 
 # Create .env from example if missing
