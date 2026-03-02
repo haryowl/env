@@ -1,0 +1,266 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Courier New', 'Monaco', 'Consolas', 'Roboto Mono', 'Fira Code', 'Source Code Pro', monospace;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Ensure tables are responsive */
+.MuiTableContainer-root {
+  overflow-x: auto !important;
+}
+
+/* Fix Material-UI Grid v2 issues */
+.MuiGrid-root {
+  box-sizing: border-box;
+}
+
+/* Ensure proper spacing in dialogs */
+.MuiDialog-paper {
+  margin: 16px;
+  max-width: calc(100vw - 32px) !important;
+}
+
+/* Fix button alignment issues */
+.MuiButton-root {
+  text-transform: none;
+}
+
+/* Ensure proper text wrapping */
+.MuiTypography-root {
+  word-wrap: break-word;
+}
+
+/* Fix table cell text overflow */
+.MuiTableCell-root {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+  .MuiDialog-paper {
+    margin: 8px;
+    max-width: calc(100vw - 16px) !important;
+  }
+  
+  .MuiTypography-h4 {
+    font-size: 1.2rem !important;
+  }
+  
+  .MuiTypography-h6 {
+    font-size: 0.9rem !important;
+  }
+  
+  .MuiCard-root {
+    margin-bottom: 8px;
+  }
+  
+  .MuiGrid-container {
+    margin: 0 !important;
+  }
+}
+
+/* Compact typography for engineering feel */
+.MuiTypography-h1 {
+  font-size: 1.8rem !important;
+  font-weight: 600 !important;
+}
+
+.MuiTypography-h2 {
+  font-size: 1.5rem !important;
+  font-weight: 600 !important;
+}
+
+.MuiTypography-h3 {
+  font-size: 1.3rem !important;
+  font-weight: 600 !important;
+}
+
+.MuiTypography-h4 {
+  font-size: 1.1rem !important;
+  font-weight: 600 !important;
+}
+
+.MuiTypography-h5 {
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+}
+
+.MuiTypography-h6 {
+  font-size: 0.9rem !important;
+  font-weight: 600 !important;
+}
+
+.MuiTypography-body1 {
+  font-size: 0.875rem !important;
+}
+
+.MuiTypography-body2 {
+  font-size: 0.8rem !important;
+}
+
+.MuiTypography-caption {
+  font-size: 0.75rem !important;
+}
+
+/* Compact table cells */
+.MuiTableCell-root {
+  font-size: 0.8rem !important;
+  padding: 8px 12px !important;
+}
+
+.MuiTableCell-head {
+  font-size: 0.8rem !important;
+  font-weight: 600 !important;
+}
+
+/* Compact buttons */
+.MuiButton-root {
+  font-size: 0.8rem !important;
+  padding: 6px 12px !important;
+}
+
+.MuiButton-sizeSmall {
+  font-size: 0.75rem !important;
+  padding: 4px 8px !important;
+}
+
+/* Compact form fields */
+.MuiTextField-root .MuiInputBase-root {
+  font-size: 0.875rem !important;
+}
+
+.MuiInputLabel-root {
+  font-size: 0.8rem !important;
+}
+
+/* Compact chips */
+.MuiChip-root {
+  font-size: 0.75rem !important;
+  height: 24px !important;
+}
+
+/* Compact cards */
+.MuiCardContent-root {
+  padding: 12px !important;
+}
+
+@media (min-width: 600px) {
+  .MuiCardContent-root {
+    padding: 16px !important;
+  }
+}
+
+/* Compact dialogs */
+.MuiDialogTitle-root {
+  font-size: 1.1rem !important;
+  padding: 16px 20px 8px 20px !important;
+}
+
+.MuiDialogContent-root {
+  padding: 8px 20px 16px 20px !important;
+}
+
+/* Compact list items */
+.MuiListItem-root {
+  padding: 6px 16px !important;
+}
+
+.MuiListItemText-primary {
+  font-size: 0.875rem !important;
+}
+
+.MuiListItemText-secondary {
+  font-size: 0.75rem !important;
+}
+
+/* Compact app bar */
+.MuiToolbar-root {
+  min-height: 56px !important;
+}
+
+/* Compact sidebar */
+.MuiDrawer-paper {
+  font-size: 0.875rem !important;
+}
+
+/* Compact icons */
+.MuiSvgIcon-root {
+  font-size: 1.1rem !important;
+}
+
+.MuiSvgIcon-fontSizeSmall {
+  font-size: 0.9rem !important;
+}
+
+/* Compact alerts */
+.MuiAlert-message {
+  font-size: 0.875rem !important;
+}
+
+/* Compact tabs */
+.MuiTab-root {
+  font-size: 0.8rem !important;
+  min-height: 40px !important;
+}
+
+/* Compact badges */
+.MuiBadge-badge {
+  font-size: 0.7rem !important;
+  height: 18px !important;
+  min-width: 18px !important;
+}
+
+/* Ensure proper sidebar behavior */
+.MuiDrawer-paper {
+  border-right: none !important;
+}
+
+/* Fix table responsiveness */
+.MuiTableContainer-root {
+  border-radius: 4px;
+}
+
+/* Better card spacing */
+.MuiCardContent-root {
+  padding: 16px !important;
+}
+
+@media (min-width: 600px) {
+  .MuiCardContent-root {
+    padding: 24px !important;
+  }
+}
+
+/* Ensure proper table sizing */
+.MuiTableContainer-root {
+  max-height: calc(100vh - 300px) !important;
+}
+
+/* Better content area sizing */
+.MuiBox-root {
+  box-sizing: border-box;
+}
+
+/* Fix sticky header */
+.MuiTableHead-root {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background-color: white;
+}

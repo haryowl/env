@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+client/node_modules/
+
+# Environment and secrets
+.env
+.env.backup
+.env.local
+.env.*.local
+client/.env
+jwt_secret.txt
+logback.txt
+
+# Build output
+client/dist/
+dist/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime and temp
+server/temp/
+server/uploads/
+uploads/
+backups/
+
+# OS and editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Optional
+*.local
