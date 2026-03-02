@@ -115,31 +115,7 @@ const setupDatabase = async () => {
       );
     `);
 
-    // Device permissions by role table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS role_device_permissions (
-        role_id INTEGER REFERENCES roles(role_id) ON DELETE CASCADE,
-        device_id VARCHAR(50) REFERENCES devices(device_id) ON DELETE CASCADE,
-        permissions JSONB DEFAULT '{"read": false, "write": false, "configure": false, "delete": false}',
-        data_access JSONB DEFAULT '{"view_data": false, "export_data": false, "real_time": false}',
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        PRIMARY KEY (role_id, device_id)
-      );
-    `);
-
-    // Device group permissions by role table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS role_device_group_permissions (
-        role_id INTEGER REFERENCES roles(role_id) ON DELETE CASCADE,
-        group_id INTEGER REFERENCES device_groups(group_id) ON DELETE CASCADE,
-        permissions JSONB DEFAULT '{"read": false, "write": false, "configure": false, "delete": false}',
-        data_access JSONB DEFAULT '{"view_data": false, "export_data": false, "real_time": false}',
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        PRIMARY KEY (role_id, group_id)
-      );
-    `);
-
-    // Device groups
+    // Device groups (must exist before role_device_group_permissions and devices)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS device_groups (
         group_id SERIAL PRIMARY KEY,
@@ -151,7 +127,7 @@ const setupDatabase = async () => {
       );
     `);
 
-    // Enhanced devices table
+    // Enhanced devices table (must exist before role_device_permissions and other device FK tables)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS devices (
         device_id VARCHAR(50) PRIMARY KEY,
@@ -169,6 +145,30 @@ const setupDatabase = async () => {
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW(),
         metadata JSONB DEFAULT '{}'
+      );
+    `);
+
+    // Device permissions by role table (requires devices)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS role_device_permissions (
+        role_id INTEGER REFERENCES roles(role_id) ON DELETE CASCADE,
+        device_id VARCHAR(50) REFERENCES devices(device_id) ON DELETE CASCADE,
+        permissions JSONB DEFAULT '{"read": false, "write": false, "configure": false, "delete": false}',
+        data_access JSONB DEFAULT '{"view_data": false, "export_data": false, "real_time": false}',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (role_id, device_id)
+      );
+    `);
+
+    // Device group permissions by role table (requires device_groups)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS role_device_group_permissions (
+        role_id INTEGER REFERENCES roles(role_id) ON DELETE CASCADE,
+        group_id INTEGER REFERENCES device_groups(group_id) ON DELETE CASCADE,
+        permissions JSONB DEFAULT '{"read": false, "write": false, "configure": false, "delete": false}',
+        data_access JSONB DEFAULT '{"view_data": false, "export_data": false, "real_time": false}',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (role_id, group_id)
       );
     `);
 
