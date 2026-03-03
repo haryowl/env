@@ -1,12 +1,11 @@
 // API Configuration - uses env for portability (set VITE_API_BASE_URL / VITE_WS_BASE_URL when building or in .env)
+// When browser forces HTTPS upgrade (Chrome "Always use secure connections", HSTS), set VITE_API_BASE_URL=http://YOUR_IP:3000
 const getApiBaseUrl = () => {
   const base = import.meta.env.VITE_API_BASE_URL;
   if (base) {
     const url = base.replace(/\/$/, '');
     return url.endsWith('/api') ? url : `${url}/api`;
   }
-  // Dev with Vite proxy or production same-origin: use relative path so requests follow page protocol (http/https)
-  // This avoids ERR_SSL_PROTOCOL_ERROR when page loads over HTTP but browser would upgrade API calls to HTTPS
   return '/api';
 };
 

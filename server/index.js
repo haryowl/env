@@ -17,6 +17,7 @@ const getAllowedOrigins = () => {
     'http://127.0.0.1:3000',
     'http://localhost:5173',
     'http://127.0.0.1:5173',
+    'http://81.17.100.7:3000',
     'http://109.123.255.169:3000',
     'http://env.aksadata.id',
     'https://env.aksadata.id'

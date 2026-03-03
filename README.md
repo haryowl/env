@@ -490,6 +490,28 @@ cp env.example .env
 # Windows: copy env.example .env
 ```
 
+#### Network Error / ERR_SSL_PROTOCOL_ERROR when using HTTP
+
+If you access the app via `http://YOUR_IP:3000` but get "Network error" and the console shows `https://... net::ERR_SSL_PROTOCOL_ERROR`, the browser may be upgrading HTTP to HTTPS (e.g. Chrome "Always use secure connections" or HSTS).
+
+**Fix – force HTTP for API calls:**
+1. Create `client/.env` (copy from `client/.env.example`)
+2. Add (replace with your server IP):
+   ```
+   VITE_API_BASE_URL=http://81.17.100.7:3000
+   VITE_WS_BASE_URL=http://81.17.100.7:3000
+   ```
+3. Rebuild and restart:
+   ```bash
+   cd client && npm run build && cd ..
+   npm start
+   ```
+
+**Also add your IP to CORS** in root `.env`:
+```
+CORS_ORIGINS=http://81.17.100.7:3000,http://localhost:3000
+```
+
 ### Logs
 - **Application Logs**: `logs/app.log`
 - **Database Logs**: PostgreSQL log files (Linux: often `/var/log/postgresql/`)
