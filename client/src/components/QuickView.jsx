@@ -482,98 +482,69 @@ const QuickView = () => {
       minHeight: '100vh', 
       p: { xs: 2, md: 4 }
     }}>
-      {/* Modern Header */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h3" sx={{ 
-          fontWeight: 800, 
-          background: 'linear-gradient(135deg, #007BA7 0%, #0099CC 100%)',
-          backgroundClip: 'text',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          mb: 1,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 2
+      {/* Page Header - Site Location style */}
+      <Box sx={{ 
+        mb: 4, 
+        bgcolor: 'background.paper', 
+        borderRadius: 1, 
+        border: '1px solid',
+        borderColor: 'primary.light',
+        overflow: 'hidden'
+      }}>
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between',
+          px: 2,
+          py: 1.5,
+          borderBottom: '1px solid',
+          borderColor: 'primary.light'
         }}>
-          <SpeedIcon sx={{ fontSize: '2.5rem', color: '#007BA7' }} />
-          Quick View
-        </Typography>
-        <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, fontSize: '1.1rem' }}>
-          Real-time IoT Data Analytics & Monitoring Dashboard
-        </Typography>
-        
-        {/* Modern Action Buttons */}
-        <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
-          <Tooltip title="Refresh Data">
-            <IconButton 
-              onClick={handleRefresh} 
-              disabled={loading}
-              sx={{
-                background: 'linear-gradient(135deg, #007BA7 0%, #0099CC 100%)',
-                color: 'white',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #005577 0%, #006B9A 100%)',
-                  transform: 'translateY(-2px)',
-                  transition: 'all 0.2s ease-in-out'
-                },
-                '&:disabled': {
-                  background: 'rgba(107, 70, 193, 0.3)',
-                  color: 'rgba(255, 255, 255, 0.5)'
-                }
-              }}
-            >
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Export to PDF">
-            <IconButton 
-              onClick={handleExportPDF}
-              sx={{
-                background: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)',
-                color: 'white',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)',
-                  transform: 'translateY(-2px)',
-                  transition: 'all 0.2s ease-in-out'
-                }
-              }}
-            >
-              <PdfIcon />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Export to Excel">
-            <IconButton 
-              onClick={handleExportExcel}
-              sx={{
-                background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
-                color: 'white',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                  transform: 'translateY(-2px)',
-                  transition: 'all 0.2s ease-in-out'
-                }
-              }}
-            >
-              <ExcelIcon />
-            </IconButton>
-          </Tooltip>
-        </Stack>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <SpeedIcon sx={{ mr: 1.25, fontSize: 28, color: 'primary.main' }} />
+            <Box>
+              <Typography variant="h5" sx={{ fontWeight: 600, color: 'primary.main', fontSize: '1.25rem' }}>
+                Quick View
+              </Typography>
+              <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.875rem', mt: 0.25 }}>
+                Real-time IoT Data Analytics & Monitoring Dashboard
+              </Typography>
+            </Box>
+          </Box>
+          <Stack direction="row" spacing={1}>
+            <Tooltip title="Refresh Data">
+              <IconButton onClick={handleRefresh} disabled={loading} sx={{ color: 'primary.main', '&:hover': { bgcolor: 'action.hover' }, '&:disabled': { color: 'action.disabled' } }}>
+                <RefreshIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Export to PDF">
+              <IconButton onClick={handleExportPDF} sx={{ color: 'error.main', '&:hover': { bgcolor: 'action.hover' } }}>
+                <PdfIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Export to Excel">
+              <IconButton onClick={handleExportExcel} sx={{ color: 'success.main', '&:hover': { bgcolor: 'action.hover' } }}>
+                <ExcelIcon />
+              </IconButton>
+            </Tooltip>
+          </Stack>
+        </Box>
       </Box>
 
-      {/* Modern Filters */}
+      {/* Data Filters - Site Location style header */}
       <Card sx={{ mb: 4, borderRadius: 1, ...CHART_CARD_SX, p: 0 }}>
         <CardContent sx={{ p: 0 }}>
           <Box sx={{ 
             display: 'flex', 
             alignItems: 'center', 
-            px: 1,
-            py: 0.75,
-            borderRadius: '4px 4px 0 0',
-            background: 'linear-gradient(135deg, #007BA7 0%, #0099CC 100%)',
-            color: 'white'
+            px: 2,
+            py: 1.5,
+            bgcolor: 'background.paper',
+            borderBottom: '1px solid',
+            borderColor: 'primary.light'
           }}>
-            <FilterIcon sx={{ mr: 1, fontSize: 20 }} />
-            <Typography variant="h6" sx={{ fontWeight: 600, color: 'white', fontSize: '1.1rem' }}>
+            <FilterIcon sx={{ mr: 1.25, fontSize: 22, color: 'primary.main' }} />
+            <Typography variant="h6" sx={{ fontWeight: 600, color: 'primary.main', fontSize: '1.1rem' }}>
               Data Filters
             </Typography>
           </Box>
@@ -868,14 +839,15 @@ const QuickView = () => {
               <Box sx={{ 
                 display: 'flex', 
                 alignItems: 'center', 
+                px: 2,
+                py: 1.5,
                 mb: 2,
-                p: 1.5,
-                borderRadius: 1.5,
-                background: 'linear-gradient(135deg, #007BA7 0%, #0099CC 100%)',
-                color: 'white'
+                bgcolor: 'background.paper',
+                borderBottom: '1px solid',
+                borderBottomColor: 'primary.light'
               }}>
-                <ScienceIcon sx={{ mr: 1.5, fontSize: 20 }} />
-                <Typography variant="h6" sx={{ fontWeight: 600, color: 'white', fontSize: '1.1rem' }}>
+                <ScienceIcon sx={{ mr: 1.25, fontSize: 22, color: 'primary.main' }} />
+                <Typography variant="h6" sx={{ fontWeight: 600, color: 'primary.main', fontSize: '1.1rem' }}>
                   Parameter Analytics
                 </Typography>
               </Box>

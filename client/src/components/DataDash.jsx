@@ -284,15 +284,22 @@ export default function DataDash() {
   );
 
   const filterControls = (
-    <Card sx={{ mb: 2, borderRadius: 1, ...CHART_CARD_SX, overflow: 'visible' }}>
+    <Card sx={{ mb: 2, borderRadius: 1, ...CHART_CARD_SX, overflow: 'visible', p: 0 }}>
+      <Box sx={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        px: 2,
+        py: 1.5,
+        bgcolor: 'background.paper',
+        borderBottom: '1px solid',
+        borderBottomColor: 'primary.light'
+      }}>
+        <DeviceHubIcon sx={{ mr: 1.25, fontSize: 22, color: 'primary.main' }} />
+        <Typography variant="h6" sx={{ fontWeight: 600, color: 'primary.main', fontSize: '1.1rem' }}>
+          Data Filters
+        </Typography>
+      </Box>
       <CardContent sx={{ p: 1.5 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-          <DeviceHubIcon sx={{ color: theme.palette.primary.main, mr: 1, fontSize: 16 }} />
-          <Typography variant="subtitle1" sx={{ fontWeight: 600, color: theme.palette.text.primary, fontSize: '1rem' }}>
-            Data Filters
-          </Typography>
-        </Box>
-        
         <Grid container spacing={2}>
           <Grid item xs={12} md={4}>
             <Box sx={{ position: 'relative' }}>
