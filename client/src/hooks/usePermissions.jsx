@@ -261,7 +261,7 @@ export const PermissionProvider = ({ children }) => {
     if (!userPermissions || !userPermissions.menuPermissions) {
       return false;
     }
-    // Map frontend permission names to backend property names
+    // Map frontend permission names to backend property names (API returns can_access, etc.)
     const permissionMap = {
       'access': 'can_access',
       'create': 'can_create',
@@ -270,7 +270,10 @@ export const PermissionProvider = ({ children }) => {
       'delete': 'can_delete'
     };
     const backendPermission = permissionMap[permission] || permission;
-    return userPermissions.menuPermissions[menuPath]?.[backendPermission] || false;
+    const perms = userPermissions.menuPermissions[menuPath];
+    if (!perms) return false;
+    // Support both API format (can_access) and fallback format (access)
+    return perms[backendPermission] || perms[permission] || false;
   };
 
   const hasDevicePermission = (permission = 'read') => {
