@@ -53,10 +53,16 @@ export const PermissionProvider = ({ children }) => {
           const data = await response.json();
           console.log('🔍 API Permissions Response:', data);
           if (data.success && data.permissions) {
+            const defaultMenus = getDefaultMenuPermissions(user.role);
+            const apiMenus = data.permissions.menu_permissions || {};
+            const mergedMenuPermissions = { ...defaultMenus };
+            Object.keys(apiMenus).forEach((path) => {
+              mergedMenuPermissions[path] = apiMenus[path];
+            });
             const permissions = {
               role: user.role,
               roles: data.permissions.roles || [],
-              menuPermissions: data.permissions.menu_permissions || {},
+              menuPermissions: mergedMenuPermissions,
               devicePermissions: data.permissions.device_permissions || {}
             };
             console.log('🔍 Processed Permissions:', permissions);
