@@ -5,6 +5,7 @@ const { getRow, getRows, query } = require('../config/database');
 const mqttService = require('../services/mqttService');
 const { authenticateToken } = require('../middleware/auth'); // Added missing import
 const { filterDeviceData } = require('../middleware/dataFilter');
+const mathFormulaService = require('../services/mathFormulaService');
 
 const router = express.Router();
 
@@ -672,30 +673,45 @@ router.get('/:deviceId/latest-data', authenticateToken, async (req, res) => {
     }
 
     const mappings = mapperAssignment.mappings || [];
-    const targetFields = mappings.map(m => m.target_field).filter(field => 
-      field !== 'datetime' && field !== 'timestamp' && field !== 'device_id' && field !== 'device_name'
-    );
+    // Only consider mappings that have both source and target (sensor_readings stores source_field as sensor_type)
+    const sourceKey = (m) => m.source_field ?? m.source;
+    const dataMappings = mappings.filter(m => {
+      const src = sourceKey(m);
+      return src != null && m.target_field != null &&
+        !['datetime', 'timestamp', 'device_id', 'device_name'].includes(m.target_field);
+    });
 
-    if (targetFields.length === 0) {
+    if (dataMappings.length === 0) {
       return res.json({ data: {} });
     }
 
-    // Get latest data for each parameter
+    // Get latest data: query by source_field (how it's stored), return keyed by target_field (for display)
     const latestData = {};
-    
-    for (const field of targetFields) {
+
+    for (const m of dataMappings) {
+      const srcField = sourceKey(m);
       const result = await getRow(`
         SELECT value, timestamp
         FROM sensor_readings 
         WHERE device_id = $1 AND sensor_type = $2
         ORDER BY timestamp DESC 
         LIMIT 1
-      `, [deviceId, field]);
-      
+      `, [deviceId, srcField]);
+
       if (result) {
-        // Try to convert to number if possible
-        const numValue = parseFloat(result.value);
-        latestData[field] = isNaN(numValue) ? result.value : numValue;
+        let value = result.value;
+        if (typeof value === 'string') {
+          const numValue = parseFloat(value);
+          value = isNaN(numValue) ? value : numValue;
+        }
+        if (m.formula) {
+          try {
+            value = mathFormulaService.evaluateFormula(m.formula, { value: result.value });
+          } catch (e) {
+            // keep value as-is on formula error
+          }
+        }
+        latestData[m.target_field] = value;
       }
     }
 

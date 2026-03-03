@@ -402,6 +402,12 @@ const DashboardMap = ({ socket }) => {
     };
   }, [socket]);
 
+  // Preload latest data for all devices with coordinates so popup shows parameters without waiting for click
+  useEffect(() => {
+    const withCoords = devices.filter(d => d.latitude && d.longitude && !isNaN(d.latitude) && !isNaN(d.longitude));
+    withCoords.forEach(device => loadDeviceData(device.device_id));
+  }, [devices]);
+
   // Filter devices with valid coordinates
   const devicesWithCoordinates = devices.filter(device => 
     device.latitude && device.longitude && 
