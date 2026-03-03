@@ -324,7 +324,7 @@ const ScheduledExportForm = ({ exportData, onSubmit, onCancel, title }) => {
         p: 3,
         background: 'linear-gradient(135deg, #007BA7 0%, #0099CC 100%)',
         color: 'white',
-        borderRadius: '20px 20px 0 0'
+        borderRadius: '4px 4px 0 0'
       }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
           <Typography variant="h5" sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>

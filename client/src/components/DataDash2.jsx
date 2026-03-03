@@ -288,7 +288,7 @@ export default function DataDash2() {
       {filterControls}
       <Divider sx={{ my: 2 }} />
       {tab === 0 && (
-        <Card sx={{ boxShadow: 2, borderRadius: 2 }}>
+        <Card sx={{ boxShadow: 2, borderRadius: 1 }}>
           <CardContent>
             {loading ? <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 200 }}><CircularProgress /></Box> : (
               <DataGrid
@@ -311,7 +311,7 @@ export default function DataDash2() {
         </Card>
       )}
       {tab === 1 && (
-        <Card sx={{ boxShadow: 2, borderRadius: 2 }}>
+        <Card sx={{ boxShadow: 2, borderRadius: 1 }}>
           <CardContent>
             {/* Parameter show/hide controls */}
             <Box mb={1} display="flex" flexWrap="wrap" gap={1}>
@@ -339,7 +339,7 @@ export default function DataDash2() {
         </Card>
       )}
       {tab === 2 && (
-        <Card sx={{ boxShadow: 2, borderRadius: 2 }}>
+        <Card sx={{ boxShadow: 2, borderRadius: 1 }}>
           <CardContent>
             <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
               <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Aggregation:</Typography>

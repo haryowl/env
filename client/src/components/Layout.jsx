@@ -356,7 +356,7 @@ const Layout = ({ children, user, onLogout }) => {
                 onClick={() => toggleSection(section.title)}
                 sx={{ 
                   cursor: 'pointer',
-                  borderRadius: '8px',
+                  borderRadius: '4px',
                   mb: 0.5,
                   py: 1,
                   '&:hover': {
@@ -393,7 +393,7 @@ const Layout = ({ children, user, onLogout }) => {
                     cursor: 'pointer',
                     ml: 1.5,
                     mr: 0.5,
-                    borderRadius: '8px',
+                    borderRadius: '4px',
                     mb: 0.25,
                     py: 0.75,
                     pl: 2,

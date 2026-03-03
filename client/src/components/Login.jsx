@@ -67,7 +67,7 @@ const LoginCard = styled(Card)(({ theme }) => ({
     ? 'rgba(30, 41, 59, 0.98)' 
     : 'rgba(255, 255, 255, 0.98)',
   backdropFilter: 'blur(20px)',
-  borderRadius: 16,
+  borderRadius: 4,
   boxShadow: theme.palette.mode === 'dark'
     ? '0 24px 48px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255,255,255,0.06)'
     : '0 24px 48px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05)',
@@ -195,7 +195,7 @@ const Login = ({ onLogin }) => {
               zIndex: 3,
               backgroundColor: 'rgba(255, 255, 255, 0.95)',
               backdropFilter: 'blur(10px)',
-              borderRadius: 2,
+              borderRadius: 1,
               minWidth: 300,
             }}
           >
@@ -252,7 +252,7 @@ const Login = ({ onLogin }) => {
           </BrandContainer>
 
           {error && (
-            <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
+            <Alert severity="error" sx={{ mb: 3, borderRadius: 1 }}>
               {error}
             </Alert>
           )}
@@ -270,7 +270,7 @@ const Login = ({ onLogin }) => {
               sx={{
                 mb: 2,
                 '& .MuiOutlinedInput-root': {
-                  borderRadius: 2,
+                  borderRadius: 1,
                 },
               }}
             />
@@ -299,7 +299,7 @@ const Login = ({ onLogin }) => {
               sx={{
                 mb: 3,
                 '& .MuiOutlinedInput-root': {
-                  borderRadius: 2,
+                  borderRadius: 1,
                 },
               }}
             />

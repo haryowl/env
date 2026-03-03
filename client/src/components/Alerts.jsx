@@ -387,7 +387,7 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
         <Tab label="Alert Logs" />
       </Tabs>
       {tab === 0 && (
-        <Card sx={{ mb: 3, borderRadius: 2, ...CHART_CARD_SX }}>
+        <Card sx={{ mb: 3, borderRadius: 1, ...CHART_CARD_SX }}>
           <CardContent>
             <Typography variant="h6" gutterBottom>Alert Management</Typography>
             <Button variant="contained" color="primary" sx={{ mb: 2 }} onClick={() => handleOpenDialog()}>Create New Alert</Button>
@@ -398,7 +398,7 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
         </Card>
       )}
       {tab === 1 && (
-        <Card sx={{ mb: 3, borderRadius: 2, ...CHART_CARD_SX }}>
+        <Card sx={{ mb: 3, borderRadius: 1, ...CHART_CARD_SX }}>
           <CardContent>
             <Typography variant="h6" gutterBottom>Alert Logs</Typography>
             <div style={{ height: 350, width: '100%' }}>
@@ -407,7 +407,7 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
           </CardContent>
         </Card>
       )}
-      <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 2 } }}>
+      <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 1 } }}>
         <DialogTitle>{editingAlert ? 'Edit Alert' : 'Create Alert'}</DialogTitle>
         <DialogContent>
           <TextField label="Alert Name" fullWidth sx={{ mb: 2 }} value={form.name} onChange={e => handleFormChange('name', e.target.value)} />

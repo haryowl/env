@@ -371,7 +371,7 @@ const ScheduledExportLogs = ({ exportData, onClose }) => {
               <Box sx={{ 
                 p: 3,
                 background: 'linear-gradient(135deg, #007BA7 0%, #0099CC 100%)',
-                borderRadius: '20px 20px 0 0',
+                borderRadius: '4px 4px 0 0',
                 color: 'white'
               }}>
                 <Typography variant="h6" sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>

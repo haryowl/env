@@ -426,10 +426,10 @@ const Dashboard = ({ socket }) => {
       {isAdmin && (
         <Grid container spacing={{ xs: 2, sm: 2.5 }} sx={{ mb: { xs: 2, sm: 3 } }}>
         <Grid size={{ xs: 6, sm: 6, md: 3 }}>
-          <Card sx={{ height: '100%', borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.06)', '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.08)' } }}>
+          <Card sx={{ height: '100%', borderRadius: 1, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.06)', '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.08)' } }}>
             <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
               <Box display="flex" alignItems="center">
-                <Box sx={{ mr: { xs: 1.5, sm: 2 }, p: 1.25, borderRadius: 2, bgcolor: 'rgba(37, 99, 235, 0.12)', color: 'primary.main', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Box sx={{ mr: { xs: 1.5, sm: 2 }, p: 1.25, borderRadius: 1, bgcolor: 'rgba(37, 99, 235, 0.12)', color: 'primary.main', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <DevicesIcon sx={{ fontSize: { xs: 28, sm: 36 } }} />
                 </Box>
                 <Box>
@@ -446,10 +446,10 @@ const Dashboard = ({ socket }) => {
         </Grid>
 
         <Grid size={{ xs: 6, sm: 6, md: 3 }}>
-          <Card sx={{ height: '100%', borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.06)', '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.08)' } }}>
+          <Card sx={{ height: '100%', borderRadius: 1, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.06)', '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.08)' } }}>
             <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
               <Box display="flex" alignItems="center">
-                <Box sx={{ mr: { xs: 1.5, sm: 2 }, p: 1.25, borderRadius: 2, bgcolor: 'rgba(34, 197, 94, 0.12)', color: 'success.main', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Box sx={{ mr: { xs: 1.5, sm: 2 }, p: 1.25, borderRadius: 1, bgcolor: 'rgba(34, 197, 94, 0.12)', color: 'success.main', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <WifiIcon sx={{ fontSize: { xs: 28, sm: 36 } }} />
                 </Box>
                 <Box>
@@ -466,10 +466,10 @@ const Dashboard = ({ socket }) => {
         </Grid>
 
         <Grid size={{ xs: 6, sm: 6, md: 3 }}>
-          <Card sx={{ height: '100%', borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.06)', '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.08)' } }}>
+          <Card sx={{ height: '100%', borderRadius: 1, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.06)', '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.08)' } }}>
             <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
               <Box display="flex" alignItems="center">
-                <Box sx={{ mr: { xs: 1.5, sm: 2 }, p: 1.25, borderRadius: 2, bgcolor: 'rgba(59, 130, 246, 0.12)', color: 'info.main', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Box sx={{ mr: { xs: 1.5, sm: 2 }, p: 1.25, borderRadius: 1, bgcolor: 'rgba(59, 130, 246, 0.12)', color: 'info.main', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <PeopleIcon sx={{ fontSize: { xs: 28, sm: 36 } }} />
                 </Box>
                 <Box>
@@ -486,10 +486,10 @@ const Dashboard = ({ socket }) => {
         </Grid>
 
         <Grid size={{ xs: 6, sm: 6, md: 3 }}>
-          <Card sx={{ height: '100%', borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.06)', '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.08)' } }}>
+          <Card sx={{ height: '100%', borderRadius: 1, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.06)', '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.08)' } }}>
             <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
               <Box display="flex" alignItems="center">
-                <Box sx={{ mr: { xs: 1.5, sm: 2 }, p: 1.25, borderRadius: 2, bgcolor: 'rgba(100, 116, 139, 0.12)', color: 'secondary.main', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Box sx={{ mr: { xs: 1.5, sm: 2 }, p: 1.25, borderRadius: 1, bgcolor: 'rgba(100, 116, 139, 0.12)', color: 'secondary.main', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <DataIcon sx={{ fontSize: { xs: 28, sm: 36 } }} />
                 </Box>
                 <Box>
@@ -534,7 +534,7 @@ const Dashboard = ({ socket }) => {
       <Card sx={{ 
         mt: 4, 
         mb: 4,
-        borderRadius: 2,
+        borderRadius: 1,
         border: '1px solid rgba(0,0,0,0.06)',
         boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
         overflow: 'hidden'
@@ -575,7 +575,7 @@ const Dashboard = ({ socket }) => {
           
           <Box sx={{ p: 3 }}>
           {realtimeError ? (
-              <Alert severity="error" sx={{ borderRadius: 2, mb: 3 }}>
+              <Alert severity="error" sx={{ borderRadius: 1, mb: 3 }}>
                 {realtimeError}
               </Alert>
           ) : (
@@ -599,7 +599,7 @@ const Dashboard = ({ socket }) => {
                         <Card sx={{
                           p: 2,
                           textAlign: 'center',
-                          borderRadius: 2,
+                          borderRadius: 1,
                           border: `1px solid ${colorPalette[idx % colorPalette.length]}20`,
                           bgcolor: `${colorPalette[idx % colorPalette.length]}08`,
                           transition: 'all 0.2s ease',
@@ -627,7 +627,7 @@ const Dashboard = ({ socket }) => {
                   }}>
                     Chart Controls
                   </Typography>
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, p: 2, backgroundColor: 'rgba(0,0,0,0.02)', borderRadius: 2, border: '1px solid rgba(0,0,0,0.06)' }}>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, p: 2, backgroundColor: 'rgba(0,0,0,0.02)', borderRadius: 1, border: '1px solid rgba(0,0,0,0.06)' }}>
                     {realtimeParams.filter(p => p !== 'datetime' && p !== 'timestamp').map((param) => (
                   <Chip
                     key={param}
@@ -681,7 +681,7 @@ const Dashboard = ({ socket }) => {
       {isAdmin && (
         <Grid container spacing={{ xs: 2, sm: 2.5 }}>
         <Grid size={{ xs: 12, md: 6 }}>
-          <Card sx={{ height: '100%', borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.06)' }}>
+          <Card sx={{ height: '100%', borderRadius: 1, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.06)' }}>
             <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
               <Typography 
                 variant="h6" 
@@ -738,7 +738,7 @@ const Dashboard = ({ socket }) => {
         </Grid>
 
         <Grid size={{ xs: 12, md: 6 }}>
-          <Card sx={{ height: '100%', borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.06)' }}>
+          <Card sx={{ height: '100%', borderRadius: 1, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.06)' }}>
             <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
               <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '1rem', sm: '1.25rem' }, fontWeight: 600 }}>
                 System Status

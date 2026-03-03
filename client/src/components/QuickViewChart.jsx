@@ -112,7 +112,7 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
           sx={{
             backgroundColor: 'rgba(255, 255, 255, 0.98)',
             border: `1px solid ${isOutOfRange ? '#EF4444' : 'rgba(0,0,0,0.08)'}`,
-            borderRadius: 2,
+            borderRadius: 1,
             p: 2,
             boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
             fontFamily: '"Inter", "Roboto", sans-serif'
@@ -206,7 +206,7 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
       flexDirection: 'column', 
       minHeight: 400, 
       width: '100%',
-      borderRadius: 2,
+      borderRadius: 1,
       border: '1px solid rgba(0,0,0,0.06)',
       boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
       transition: 'all 0.2s ease',

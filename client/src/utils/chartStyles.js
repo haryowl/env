@@ -62,7 +62,7 @@ export const CHART_MARGIN = { top: 16, right: 24, left: 16, bottom: 16 };
 export const TOOLTIP_CONTENT_STYLE = {
   fontFamily: '"Inter", "Roboto", sans-serif',
   fontSize: 12,
-  borderRadius: 8,
+  borderRadius: 4,
   border: '1px solid rgba(0, 0, 0, 0.08)',
   boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
   padding: '10px 14px',
@@ -77,7 +77,7 @@ export const LEGEND_WRAPPER_STYLE = {
 
 // Card-style container for chart (sx object)
 export const CHART_CARD_SX = {
-  borderRadius: 12,
+  borderRadius: 1,
   border: '1px solid rgba(0, 0, 0, 0.06)',
   background: 'linear-gradient(180deg, #ffffff 0%, #F8FAFC 100%)',
   p: 2,
@@ -89,5 +89,5 @@ export const SECTION_HEADER_SX = {
   color: '#fff',
   px: 2,
   py: 1.5,
-  borderRadius: '12px 12px 0 0',
+  borderRadius: '4px 4px 0 0',
 };

@@ -31,7 +31,7 @@ body {
 /* Tables */
 .MuiTableContainer-root {
   overflow-x: auto;
-  border-radius: 8px;
+  border-radius: 4px;
 }
 
 .MuiTable-root {
@@ -62,7 +62,7 @@ body {
 .MuiDialog-paper {
   margin: 16px;
   max-width: calc(100vw - 32px);
-  border-radius: 12px;
+  border-radius: 4px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.12);
 }
 

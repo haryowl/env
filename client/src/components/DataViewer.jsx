@@ -348,7 +348,7 @@ const DataViewer = () => {
         </Alert>
       )}
 
-      <Card sx={{ mb: 3, borderRadius: 2, ...CHART_CARD_SX }}>
+      <Card sx={{ mb: 3, borderRadius: 1, ...CHART_CARD_SX }}>
         <CardContent>
           <Grid container spacing={2} alignItems="center">
             <Grid size={{ xs: 12, sm: 4 }}>

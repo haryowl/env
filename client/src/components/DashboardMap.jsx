@@ -410,7 +410,7 @@ const DashboardMap = ({ socket }) => {
 
   if (loading) {
     return (
-      <Card sx={{ mt: 3, mb: 3, borderRadius: 2, ...CHART_CARD_SX }}>
+      <Card sx={{ mt: 3, mb: 3, borderRadius: 1, ...CHART_CARD_SX }}>
         <CardContent>
           <Box display="flex" justifyContent="center" alignItems="center" minHeight={400}>
             <CircularProgress />
@@ -424,7 +424,7 @@ const DashboardMap = ({ socket }) => {
     <Card sx={{ 
       mt: 3, 
       mb: 3,
-      borderRadius: 2,
+      borderRadius: 1,
       ...CHART_CARD_SX,
       boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)',
       overflow: 'hidden'
@@ -510,6 +510,7 @@ const DashboardMap = ({ socket }) => {
                 fontWeight: 600,
                 borderColor: '#007BA7',
                 color: '#007BA7',
+                borderRadius: '4px',
                 '& .MuiChip-icon': {
                   color: '#007BA7'
                 },

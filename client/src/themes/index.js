@@ -61,14 +61,14 @@ export const lightTheme = createTheme({
     caption: { fontSize: '0.75rem', color: '#64748B' },
     button: { fontWeight: 500, textTransform: 'none' },
   },
-  shape: { borderRadius: 8 },
+  shape: { borderRadius: 4 },
   components: {
     MuiButton: {
       styleOverrides: {
         root: {
           textTransform: 'none',
           fontSize: '0.875rem',
-          borderRadius: '8px',
+          borderRadius: '4px',
           boxShadow: 'none',
           '&:hover': { boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)' },
         },
@@ -77,7 +77,7 @@ export const lightTheme = createTheme({
     MuiCard: {
       styleOverrides: {
         root: {
-          borderRadius: '12px',
+          borderRadius: '4px',
           boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
           border: '1px solid rgba(0,0,0,0.06)',
         },

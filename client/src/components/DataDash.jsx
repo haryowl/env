@@ -284,7 +284,7 @@ export default function DataDash() {
   );
 
   const filterControls = (
-    <Card sx={{ mb: 2, borderRadius: 2, ...CHART_CARD_SX, overflow: 'visible' }}>
+    <Card sx={{ mb: 2, borderRadius: 1, ...CHART_CARD_SX, overflow: 'visible' }}>
       <CardContent sx={{ p: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 1.5 }}>
           <DeviceHubIcon sx={{ color: theme.palette.primary.main, mr: 1, fontSize: 16 }} />
@@ -725,7 +725,7 @@ export default function DataDash() {
           <Card sx={{
             p: 2,
             height: '100%',
-            borderRadius: 2,
+            borderRadius: 1,
             border: '1px solid rgba(0,0,0,0.06)',
             background: '#fff',
             display: 'flex',
@@ -850,7 +850,7 @@ export default function DataDash() {
       {filterControls}
       
       {!loading && data.length > 0 && (
-        <Card sx={{ mt: 2, borderRadius: 2, ...CHART_CARD_SX }}>
+        <Card sx={{ mt: 2, borderRadius: 1, ...CHART_CARD_SX }}>
           <CardContent sx={{ p: 0 }}>
             <Box 
               sx={{ 
@@ -892,7 +892,7 @@ export default function DataDash() {
         </Card>
       )}
       
-      <Card sx={{ borderRadius: 2, ...CHART_CARD_SX, overflow: 'hidden', mt: 4 }}>
+      <Card sx={{ borderRadius: 1, ...CHART_CARD_SX, overflow: 'hidden', mt: 4 }}>
         <CardContent sx={{ p: 0 }}>
           <Box sx={{ 
             background: 'linear-gradient(135deg, #007BA7 0%, #0099CC 100%)',
@@ -1228,7 +1228,7 @@ export default function DataDash() {
       
       
       {!loading && data.length === 0 && (
-        <Card sx={{ mt: 4, borderRadius: 2, ...CHART_CARD_SX }}>
+        <Card sx={{ mt: 4, borderRadius: 1, ...CHART_CARD_SX }}>
           <CardContent sx={{ p: 4, textAlign: 'center' }}>
             <DeviceHubIcon sx={{ fontSize: 80, mb: 2, color: 'rgba(107, 70, 193, 0.3)' }} />
             <Typography variant="h6" sx={{ color: theme.palette.text.secondary, mb: 1 }}>

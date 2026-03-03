@@ -344,7 +344,7 @@ const FontColorCustomizer = () => {
             Preview
           </Typography>
           
-          <Box sx={{ p: 2, backgroundColor: 'grey.50', borderRadius: 2 }}>
+          <Box sx={{ p: 2, backgroundColor: 'grey.50', borderRadius: 1 }}>
             <Typography variant="h1" sx={{ color: fontColors.primary, fontSize: fontSizes.h1 }}>
               Heading 1 - Primary Color
             </Typography>

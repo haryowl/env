@@ -193,7 +193,7 @@ const FullWidthParameterCards = ({ data = {}, parameterColors = {}, realtimePara
               flex: '1 1 0',
               minWidth: isMobile ? '100%' : 180,
               maxWidth: isMobile ? '100%' : 'none',
-              borderRadius: 2,
+              borderRadius: 1,
               border: `1px solid ${kpi.color}30`,
               background: `linear-gradient(135deg, ${kpi.color}12 0%, ${kpi.color}08 100%)`,
               position: 'relative',

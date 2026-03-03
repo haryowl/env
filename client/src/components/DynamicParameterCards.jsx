@@ -219,7 +219,7 @@ const DynamicParameterCards = ({ data = {}, parameterColors = {}, realtimeParams
                 height: '100%',
                 width: '100%',
                 minHeight: isMobile ? 120 : 140,
-                borderRadius: 2,
+                borderRadius: 1,
                 border: `1px solid ${kpi.color}30`,
                 background: `linear-gradient(135deg, ${kpi.color}12 0%, ${kpi.color}08 100%)`,
                 position: 'relative',

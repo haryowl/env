@@ -122,7 +122,7 @@ const createAppTheme = (fontType = 'monospace') => {
         root: {
           fontSize: '0.875rem',
           padding: '8px 16px',
-          borderRadius: '8px',
+          borderRadius: '4px',
           textTransform: 'none',
           fontWeight: 500,
           boxShadow: 'none',
@@ -134,12 +134,12 @@ const createAppTheme = (fontType = 'monospace') => {
         sizeSmall: {
           fontSize: '0.8125rem',
           padding: '6px 12px',
-          borderRadius: '6px',
+          borderRadius: '4px',
         },
         sizeLarge: {
           fontSize: '0.9375rem',
           padding: '10px 20px',
-          borderRadius: '8px',
+          borderRadius: '4px',
         },
       },
     },
@@ -170,7 +170,7 @@ const createAppTheme = (fontType = 'monospace') => {
         root: {
           fontSize: '0.75rem',
           height: '28px',
-          borderRadius: '8px',
+          borderRadius: '4px',
         },
         label: {
           padding: '0 8px',
@@ -180,7 +180,7 @@ const createAppTheme = (fontType = 'monospace') => {
     MuiCard: {
       styleOverrides: {
         root: {
-          borderRadius: '12px',
+          borderRadius: '4px',
           boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
           border: '1px solid rgba(0,0,0,0.06)',
           transition: 'box-shadow 0.2s ease, border-color 0.2s ease',
@@ -204,7 +204,7 @@ const createAppTheme = (fontType = 'monospace') => {
     MuiDialog: {
       styleOverrides: {
         paper: {
-          borderRadius: '12px',
+          borderRadius: '4px',
           boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
         },
       },
@@ -313,7 +313,7 @@ const createAppTheme = (fontType = 'monospace') => {
     MuiMenu: {
       styleOverrides: {
         paper: {
-          borderRadius: '8px',
+          borderRadius: '4px',
           boxShadow: '0 4px 20px rgba(0,0,0,0.1), 0 2px 8px rgba(0,0,0,0.06)',
         },
       },
@@ -343,7 +343,7 @@ const createAppTheme = (fontType = 'monospace') => {
     MuiAccordion: {
       styleOverrides: {
         root: {
-          borderRadius: '8px',
+          borderRadius: '4px',
           '&:before': {
             display: 'none',
           },
@@ -368,7 +368,7 @@ const createAppTheme = (fontType = 'monospace') => {
     },
   },
   shape: {
-    borderRadius: 8,
+    borderRadius: 4,
   },
   spacing: 8,
   transitions: {

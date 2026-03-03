@@ -561,7 +561,7 @@ const QuickView = () => {
       </Box>
 
       {/* Modern Filters */}
-      <Card sx={{ mb: 4, borderRadius: 2, ...CHART_CARD_SX }}>
+      <Card sx={{ mb: 4, borderRadius: 1, ...CHART_CARD_SX }}>
         <CardContent sx={{ p: 4 }}>
           <Box sx={{ 
             display: 'flex', 
@@ -747,7 +747,7 @@ const QuickView = () => {
                   fullWidth
                   sx={{
                     '& .MuiToggleButton-root': {
-                      borderRadius: '12px !important',
+                      borderRadius: '4px !important',
                       border: '2px solid rgba(107, 70, 193, 0.2)',
                       color: theme.palette.text.secondary,
                       fontWeight: 500,
