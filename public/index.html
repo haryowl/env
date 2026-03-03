@@ -281,6 +281,11 @@
     </div>
 
     <script>
+        // Force HTTP for API when browser upgrades page to HTTPS (avoids ERR_SSL_PROTOCOL_ERROR)
+        window.API_BASE = (window.location.protocol === 'https:' && !window.location.hostname.match(/^localhost|127\.0\.0\.1$/))
+            ? 'http://' + window.location.host + '/api'
+            : '/api';
+
         let token = localStorage.getItem('iot_token');
         let user = JSON.parse(localStorage.getItem('iot_user') || '{}');
 
@@ -310,7 +315,7 @@
             loginBtn.textContent = 'Logging in...';
             
             try {
-                const response = await fetch('/api/auth/login', {
+                const response = await fetch(window.API_BASE + '/auth/login', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -367,7 +372,7 @@
         async function loadDashboardData() {
             try {
                 // Load overview data
-                const overviewResponse = await fetch('/api/dashboard/overview', {
+                const overviewResponse = await fetch(window.API_BASE + '/dashboard/overview', {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
@@ -383,7 +388,7 @@
                 }
 
                 // Load devices
-                const devicesResponse = await fetch('/api/devices', {
+                const devicesResponse = await fetch(window.API_BASE + '/devices', {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
