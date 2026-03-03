@@ -436,59 +436,70 @@ const DashboardMap = ({ socket }) => {
       overflow: 'hidden'
     }}>
       <CardContent sx={{ p: 0 }}>
-        {/* Modern Header - Compact */}
+        {/* Site Location header - clean layout per design */}
         <Box sx={{ 
           display: 'flex', 
           alignItems: 'center', 
           justifyContent: 'space-between',
-          p: 1.5,
-          background: 'linear-gradient(135deg, #007BA7 0%, #0099CC 100%)',
-          color: 'white'
+          px: 2,
+          py: 1.5,
+          bgcolor: 'background.paper',
+          borderBottom: '1px solid',
+          borderColor: 'primary.light'
         }}>
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <MapIcon sx={{ mr: 1.5, fontSize: 16 }} />
-            <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'white', fontSize: '1rem' }}>
-              Device Map
+            <LocationIcon sx={{ mr: 1.25, fontSize: 22, color: 'primary.main' }} />
+            <Typography variant="h6" sx={{ fontWeight: 600, color: 'primary.main', fontSize: '1.1rem' }}>
+              Site Location
             </Typography>
           </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <FormControl size="small" sx={{ minWidth: 140 }}>
-              <InputLabel sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>Layer</InputLabel>
-              <Select
-                value={selectedLayer}
-                label="Layer"
-                onChange={(e) => setSelectedLayer(e.target.value)}
-                sx={{
-                  color: 'white',
-                  '& .MuiOutlinedInput-notchedOutline': {
-                    borderColor: 'rgba(255, 255, 255, 0.3)',
-                  },
-                  '&:hover .MuiOutlinedInput-notchedOutline': {
-                    borderColor: 'rgba(255, 255, 255, 0.5)',
-                  },
-                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                    borderColor: 'white',
-                  },
-                  '& .MuiSvgIcon-root': {
-                    color: 'white',
-                  },
-                }}
-              >
-                {mapLayers.map(layer => (
-                  <MenuItem key={layer.value} value={layer.value}>
-                    {layer.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500, mb: 0.25 }}>
+                Layer
+              </Typography>
+              <FormControl size="small" sx={{ minWidth: 160 }}>
+                <Select
+                  value={selectedLayer}
+                  onChange={(e) => setSelectedLayer(e.target.value)}
+                  displayEmpty
+                  sx={{
+                    color: 'primary.main',
+                    fontWeight: 600,
+                    fontSize: '0.9rem',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: 'divider',
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: 'primary.main',
+                      borderWidth: '1px',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: 'primary.main',
+                      borderWidth: '1.5px',
+                    },
+                    '& .MuiSvgIcon-root': {
+                      color: 'primary.main',
+                    },
+                  }}
+                >
+                  {mapLayers.map(layer => (
+                    <MenuItem key={layer.value} value={layer.value}>
+                      {layer.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
             <Tooltip title="Refresh">
               <IconButton 
                 onClick={loadDevices} 
                 size="small"
                 sx={{ 
-                  color: 'white',
+                  color: 'primary.main',
+                  mt: 2.5,
                   '&:hover': {
-                    backgroundColor: 'rgba(255, 255, 255, 0.1)'
+                    backgroundColor: 'action.hover',
                   }
                 }}
               >
@@ -506,25 +517,29 @@ const DashboardMap = ({ socket }) => {
           </Alert>
         )}
 
+          {/* Device count - rounded bar with subtle border */}
           <Box sx={{ mb: 2 }}>
-            <Chip 
-              icon={<LocationIcon />} 
-              label={`${devicesWithCoordinates.length} devices on map`}
-              color="primary"
-              variant="outlined"
+            <Box
               sx={{
-                fontWeight: 600,
-                borderColor: '#007BA7',
-                color: '#007BA7',
-                borderRadius: '4px',
-                '& .MuiChip-icon': {
-                  color: '#007BA7'
-                },
-                '&:hover': {
-                  backgroundColor: 'rgba(0, 123, 167, 0.04)'
-                }
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 1,
+                px: 2,
+                py: 1.25,
+                borderRadius: 1.5,
+                border: '1px solid',
+                borderColor: 'divider',
+                bgcolor: 'background.default',
+                color: 'text.primary',
+                fontWeight: 500,
+                fontSize: '0.9rem',
               }}
-            />
+            >
+              <LocationIcon sx={{ fontSize: 20, color: 'primary.main' }} />
+              <Typography component="span" sx={{ fontWeight: 500, fontSize: '0.9rem' }}>
+                {devicesWithCoordinates.length} devices on map
+              </Typography>
+            </Box>
           </Box>
 
           <Box sx={{ 
