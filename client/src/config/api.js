@@ -5,12 +5,9 @@ const getApiBaseUrl = () => {
     const url = base.replace(/\/$/, '');
     return url.endsWith('/api') ? url : `${url}/api`;
   }
-  // Dev with Vite proxy: use relative path so requests go to same origin and get proxied to backend
-  if (import.meta.env.DEV) {
-    return '/api';
-  }
-  // Production: same origin (when frontend is served by same server) or set VITE_API_BASE_URL
-  return `${window.location.origin}/api`;
+  // Dev with Vite proxy or production same-origin: use relative path so requests follow page protocol (http/https)
+  // This avoids ERR_SSL_PROTOCOL_ERROR when page loads over HTTP but browser would upgrade API calls to HTTPS
+  return '/api';
 };
 
 const getWsBaseUrl = () => {
