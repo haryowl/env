@@ -78,14 +78,19 @@ app.use(helmet({
   crossOriginResourcePolicy: false,
   originAgentCluster: false,
   contentSecurityPolicy: {
+    useDefaults: false,
     directives: {
       defaultSrc: cspOrigins,
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      frameAncestors: ["'self'"],
+      objectSrc: ["'none'"],
+      scriptSrcAttr: ["'none'"],
       styleSrc: ["'self'", "'unsafe-inline'", ...cspOrigins],
       scriptSrc: ["'self'", "'unsafe-inline'", ...cspOrigins],
       imgSrc: ["'self'", "data:", "https:", "http:", ...cspOrigins],
       connectSrc: ["'self'", "ws:", "wss:", ...cspOrigins],
       fontSrc: ["'self'", "data:", ...cspOrigins],
-      upgradeInsecureRequests: [],
     },
   },
 }));
