@@ -70,10 +70,13 @@ const io = initializeSocket(server);
 global.io = io;
 
 // Security middleware (CSP allows configured origins)
-// Disable HSTS and upgrade-insecure-requests so the app works over HTTP (e.g. IP:3000 without TLS)
+// Disable headers that break HTTP access (IP:port without TLS)
 const cspOrigins = ["'self'", ...allowedOrigins];
 app.use(helmet({
   hsts: false,
+  crossOriginOpenerPolicy: false,
+  crossOriginResourcePolicy: false,
+  originAgentCluster: false,
   contentSecurityPolicy: {
     directives: {
       defaultSrc: cspOrigins,
