@@ -603,12 +603,17 @@ const Dashboard = ({ socket }) => {
                           border: `1px solid ${colorPalette[idx % colorPalette.length]}20`,
                           bgcolor: `${colorPalette[idx % colorPalette.length]}08`,
                           transition: 'all 0.2s ease',
+                          height: 100,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'center',
+                          overflow: 'hidden',
                           '&:hover': { boxShadow: `0 4px 12px ${colorPalette[idx % colorPalette.length]}25` }
                         }}>
-                          <Typography variant="subtitle2" sx={{ color: 'text.secondary', fontWeight: 500, mb: 1, fontSize: '0.8125rem' }}>
+                          <Typography variant="subtitle2" sx={{ color: 'text.secondary', fontWeight: 500, mb: 1, fontSize: '0.8125rem', minHeight: '2.5em', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {formattedLabel}
                           </Typography>
-                          <Typography variant="h5" sx={{ fontWeight: 700, color: colorPalette[idx % colorPalette.length], fontSize: '1.25rem' }}>
+                          <Typography variant="h5" sx={{ fontWeight: 700, color: colorPalette[idx % colorPalette.length], fontSize: '1.25rem', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {formattedValue}
                           </Typography>
                     </Card>
