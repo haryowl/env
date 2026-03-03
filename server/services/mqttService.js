@@ -140,11 +140,15 @@ class MQTTService {
       // Subscribe to wildcard topics for dynamic device discovery
       console.log('MQTT: Subscribing to wildcard topics for device discovery');
       this.subscribeToTopic('devices/+/data');
+      this.subscribeToTopic('device/+/data');   // singular (common in IoT)
+      this.subscribeToTopic('+/data');          // e.g. <deviceId>/data
       this.subscribeToTopic('sensors/+/reading');
       this.subscribeToTopic('gps/+/location');
-      
-      // Subscribe to user's specific topic pattern
-      console.log('MQTT: Subscribing to user-specific topic patterns');
+      this.subscribeToTopic('+/telemetry');    // e.g. <deviceId>/telemetry
+      this.subscribeToTopic('+/state');        // e.g. <deviceId>/state
+      this.subscribeToTopic('+/message');      // e.g. <deviceId>/message
+      this.subscribeToTopic('telemetry/+');    // e.g. telemetry/<deviceId>
+      this.subscribeToTopic('data/+/+');       // e.g. data/<x>/<deviceId>
       this.subscribeToTopic('data/sparing/sparing/+');
       this.subscribeToTopic('data/+/+/+');
       
@@ -245,14 +249,20 @@ class MQTTService {
   }
 
   extractDeviceIdFromTopic(topic) {
-    // Extract device ID from various topic patterns
+    // Extract device ID from various topic patterns (order can matter for overlapping patterns)
     const patterns = [
       /^devices\/(.+)\/data$/,
+      /^device\/(.+)\/data$/,             // singular
       /^sensors\/(.+)\/reading$/,
       /^gps\/(.+)\/location$/,
-      /^data\/sparing\/sparing\/(.+)$/,  // User's specific pattern
-      /^data\/.+\/.+\/(.+)$/,            // Generic data pattern
-      /^(.+)\/data$/,
+      /^data\/sparing\/sparing\/(.+)$/,
+      /^data\/.+\/.+\/(.+)$/,
+      /^data\/.+\/(.+)$/,                 // data/<x>/<id>
+      /^telemetry\/(.+)$/,                // telemetry/<id>
+      /^(.+)\/data$/,                     // <id>/data
+      /^(.+)\/telemetry$/,
+      /^(.+)\/state$/,
+      /^(.+)\/message$/,
       /^(.+)\/sensor$/,
       /^(.+)\/gps$/
     ];

@@ -85,6 +85,27 @@ Look for: `Connected to MQTT broker` and `Subscribed to topic`. If you see `Skip
 
 ---
 
+## 1b. Device connects to broker but does not appear in the list
+
+The app **does not** create devices when a client connects to the broker. It only creates a device when it **receives a published message** on a topic it is subscribed to. So the device must **publish** at least one message to a matching topic (e.g. `devices/<id>/data` or `<id>/data`).
+
+- **Check what the device publishes:** On the server, subscribe to all topics and watch for messages (then Ctrl+C to stop):
+
+  ```bash
+  mosquitto_sub -h localhost -t '#' -v
+  ```
+
+  Note the **topic** and **payload** of the first message. The topic must match one of the patterns in section 3 below (e.g. `devices/7022759042020164263/data` or `7022759042020164263/data`).
+
+- **After the device publishes** to a matching topic, check app logs for:
+  - `Received message on topic: ...`
+  - `MQTT: Extracted device ID: ... from topic: ...`
+  - `Device ... not found in database, creating new device`
+
+If you see those lines, the device should appear in the list after a refresh. If the device only connects and never publishes, or publishes to a topic that does not match any pattern, it will not appear.
+
+---
+
 ## 2. Device registered in database
 
 The server only stores data for devices that exist in the `devices` table (or that it can auto-create from a known topic pattern).
@@ -115,11 +136,10 @@ If the device is missing, add it in the app (Devices → Add) or ensure the devi
 The server derives `device_id` from the MQTT topic. It must match the `device_id` in the `devices` table.
 
 **Subscribed patterns (from code):**
-- `devices/+/data`  → device_id = middle part
-- `sensors/+/reading`
-- `gps/+/location`
-- `data/sparing/sparing/+`
-- `data/+/+/+`
+- `devices/+/data`, `device/+/data`, `+/data`  → device_id from topic
+- `sensors/+/reading`, `gps/+/location`
+- `+/telemetry`, `+/state`, `+/message`, `telemetry/+`
+- `data/+/+`, `data/sparing/sparing/+`, `data/+/+/+`
 - Per-device topics from `devices.config.topics`
 
 **Example:** If the device publishes to `devices/mydevice123/data`, the device in DB must have `device_id = 'mydevice123'`.
