@@ -83,6 +83,8 @@ journalctl -u myapp -n 100 --no-pager | grep -i mqtt
 
 Look for: `Connected to MQTT broker` and `Subscribed to topic`. If you see `Skipping MQTT connection` or `MQTT broker URL not configured`, set `MQTT_BROKER_URL` in `.env` and restart the server.
 
+**If you see `ECONNREFUSED ::1:1883`:** The app is trying to connect to the broker over IPv6 (`::1`). If Mosquitto listens only on IPv4, the connection fails. Set the URL to use IPv4 explicitly: `MQTT_BROKER_URL=mqtt://127.0.0.1:1883` (use `127.0.0.1` instead of `localhost`), then restart.
+
 ---
 
 ## 1b. Device connects to broker but does not appear in the list
