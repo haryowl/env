@@ -561,24 +561,24 @@ const QuickView = () => {
       </Box>
 
       {/* Modern Filters */}
-      <Card sx={{ mb: 4, borderRadius: 1, ...CHART_CARD_SX }}>
-        <CardContent sx={{ p: 4 }}>
+      <Card sx={{ mb: 4, borderRadius: 1, ...CHART_CARD_SX, p: 0 }}>
+        <CardContent sx={{ p: 0 }}>
           <Box sx={{ 
             display: 'flex', 
             alignItems: 'center', 
-            mb: 2,
-            p: 1.5,
-            borderRadius: 1.5,
+            px: 1,
+            py: 0.75,
+            borderRadius: '4px 4px 0 0',
             background: 'linear-gradient(135deg, #007BA7 0%, #0099CC 100%)',
             color: 'white'
           }}>
-            <FilterIcon sx={{ mr: 1.5, fontSize: 20 }} />
+            <FilterIcon sx={{ mr: 1, fontSize: 20 }} />
             <Typography variant="h6" sx={{ fontWeight: 600, color: 'white', fontSize: '1.1rem' }}>
               Data Filters
             </Typography>
           </Box>
           
-          <Grid container spacing={3}>
+          <Grid container spacing={2} sx={{ p: 1.5 }}>
             <Grid item xs={12} md={3}>
               <FormControl fullWidth>
                 <InputLabel sx={{ 
@@ -834,7 +834,7 @@ const QuickView = () => {
           border: '1px solid rgba(107, 70, 193, 0.1)',
           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)'
         }}>
-          <CardContent sx={{ p: 4, textAlign: 'center' }}>
+          <CardContent sx={{ p: 2, textAlign: 'center' }}>
             <CircularProgress 
               size={60} 
               sx={{ 
@@ -935,7 +935,7 @@ const QuickView = () => {
           border: '1px solid rgba(107, 70, 193, 0.1)',
           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)'
         }}>
-          <CardContent sx={{ p: 6, textAlign: 'center' }}>
+          <CardContent sx={{ p: 2, textAlign: 'center' }}>
             <DeviceHubIcon sx={{ 
               fontSize: 80, 
               mb: 3, 
@@ -965,7 +965,7 @@ const QuickView = () => {
           border: '1px solid rgba(107, 70, 193, 0.1)',
           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)'
         }}>
-          <CardContent sx={{ p: 6, textAlign: 'center' }}>
+          <CardContent sx={{ p: 2, textAlign: 'center' }}>
             <ScienceIcon sx={{ 
               fontSize: 80, 
               mb: 3, 

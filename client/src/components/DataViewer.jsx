@@ -349,7 +349,7 @@ const DataViewer = () => {
       )}
 
       <Card sx={{ mb: 3, borderRadius: 1, ...CHART_CARD_SX }}>
-        <CardContent>
+        <CardContent sx={{ p: 1.5 }}>
           <Grid container spacing={2} alignItems="center">
             <Grid size={{ xs: 12, sm: 4 }}>
               <FormControl fullWidth>

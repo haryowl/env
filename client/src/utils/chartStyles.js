@@ -80,14 +80,14 @@ export const CHART_CARD_SX = {
   borderRadius: 1,
   border: '1px solid rgba(0, 0, 0, 0.06)',
   background: 'linear-gradient(180deg, #ffffff 0%, #F8FAFC 100%)',
-  p: 2,
+  p: 1,
 };
 
-// Section header gradient (sx) – primary blue/teal
+// Section header gradient (sx) – primary blue/teal, minimal margin
 export const SECTION_HEADER_SX = {
   background: 'linear-gradient(135deg, #2563EB 0%, #0E7490 100%)',
   color: '#fff',
-  px: 2,
-  py: 1.5,
+  px: 1,
+  py: 0.75,
   borderRadius: '4px 4px 0 0',
 };

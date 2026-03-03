@@ -285,8 +285,8 @@ export default function DataDash() {
 
   const filterControls = (
     <Card sx={{ mb: 2, borderRadius: 1, ...CHART_CARD_SX, overflow: 'visible' }}>
-      <CardContent sx={{ p: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1.5 }}>
+      <CardContent sx={{ p: 1.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
           <DeviceHubIcon sx={{ color: theme.palette.primary.main, mr: 1, fontSize: 16 }} />
           <Typography variant="subtitle1" sx={{ fontWeight: 600, color: theme.palette.text.primary, fontSize: '1rem' }}>
             Data Filters
@@ -857,8 +857,9 @@ export default function DataDash() {
                 display: 'flex', 
                 alignItems: 'center', 
                 justifyContent: 'space-between',
-                p: 2,
-                pb: summaryExpanded ? 1.5 : 2,
+                px: 1,
+                py: 1,
+                pb: summaryExpanded ? 0.75 : 1,
                 cursor: 'pointer',
                 '&:hover': {
                   backgroundColor: 'rgba(107, 70, 193, 0.02)'
@@ -884,7 +885,7 @@ export default function DataDash() {
             </Box>
             
             <Collapse in={summaryExpanded} timeout="auto" unmountOnExit>
-              <Box sx={{ px: 2, pb: 2 }}>
+              <Box sx={{ px: 1, pb: 1.5 }}>
                 {summaryCards}
               </Box>
             </Collapse>
@@ -896,8 +897,8 @@ export default function DataDash() {
         <CardContent sx={{ p: 0 }}>
           <Box sx={{ 
             background: 'linear-gradient(135deg, #007BA7 0%, #0099CC 100%)',
-            px: 3,
-            py: 2
+            px: 1,
+            py: 1
           }}>
             <Tabs 
               value={summaryTab} 
@@ -927,7 +928,7 @@ export default function DataDash() {
             </Tabs>
           </Box>
           
-          <Box sx={{ p: 3 }}>
+          <Box sx={{ p: 1.5 }}>
       {summaryTab === 0 && (
               <Box>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
