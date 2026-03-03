@@ -1,4 +1,5 @@
 const express = require('express');
+const fs = require('fs');
 const http = require('http');
 const path = require('path');
 const cors = require('cors');
@@ -86,11 +87,11 @@ app.use(helmet({
       frameAncestors: ["'self'"],
       objectSrc: ["'none'"],
       scriptSrcAttr: ["'none'"],
-      styleSrc: ["'self'", "'unsafe-inline'", ...cspOrigins],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", ...cspOrigins],
       scriptSrc: ["'self'", "'unsafe-inline'", ...cspOrigins],
       imgSrc: ["'self'", "data:", "https:", "http:", ...cspOrigins],
-      connectSrc: ["'self'", "ws:", "wss:", ...cspOrigins],
-      fontSrc: ["'self'", "data:", ...cspOrigins],
+      connectSrc: ["'self'", "ws:", "wss:", "https://fonts.googleapis.com", "https://fonts.gstatic.com", ...cspOrigins],
+      fontSrc: ["'self'", "data:", "https://fonts.gstatic.com", "https://fonts.googleapis.com", ...cspOrigins],
     },
   },
 }));
@@ -123,7 +124,13 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Static files
 app.use('/uploads', express.static('uploads'));
-app.use(express.static(path.join(__dirname, '../public')));
+const clientDist = path.join(__dirname, '../client/dist');
+const publicDir = path.join(__dirname, '../public');
+// Serve built React app (full UI) if it exists; else fall back to simple public page
+if (fs.existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+}
+app.use(express.static(publicDir));
 
 // Health check endpoint
 app.get('/health', async (req, res) => {
@@ -201,9 +208,16 @@ app.use('/api/technician', authenticateToken, technicianRoutes);
 console.log('✓ /api/technician route registered');
 console.log('All API routes registered successfully');
 
-// Serve the main application
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/index.html'));
+// Serve the main application - React SPA if built, else simple public page
+// SPA fallback: serve index.html for all non-API/health/uploads GET requests (client-side routing)
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api') || req.path.startsWith('/health') || req.path.startsWith('/uploads')) {
+    return next();
+  }
+  if (fs.existsSync(clientDist)) {
+    return res.sendFile(path.join(clientDist, 'index.html'));
+  }
+  return res.sendFile(path.join(publicDir, 'index.html'));
 });
 
 // Error handling middleware

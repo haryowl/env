@@ -5,6 +5,7 @@
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
+    "start:prod": "npm run build && node server/index.js",
     "dev": "nodemon server/index.js",
     "build": "cd client && npm run build",
     "install-all": "npm install && cd client && npm install",
