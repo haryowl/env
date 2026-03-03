@@ -29,7 +29,7 @@ import moment from 'moment-timezone';
 import { min as d3min, max as d3max } from 'd3-array';
 
 import { API_BASE_URL } from '../config/api';
-import { CHART_COLORS, CARTESIAN_GRID_PROPS, AXIS_TICK_STYLE, CHART_MARGIN, TOOLTIP_CONTENT_STYLE, LEGEND_WRAPPER_STYLE, CHART_CARD_SX, SECTION_HEADER_SX } from '../utils/chartStyles';
+import { CHART_COLORS, CARTESIAN_GRID_PROPS, AXIS_TICK_STYLE, CHART_MARGIN, TOOLTIP_CONTENT_STYLE, LEGEND_WRAPPER_STYLE, CHART_CARD_SX } from '../utils/chartStyles';
 import DashboardMap from './DashboardMap';
 import KPICards from './KPICards';
 import DynamicParameterCards from './DynamicParameterCards';
@@ -530,7 +530,7 @@ const Dashboard = ({ socket }) => {
       {/* Device Map Section */}
       <DashboardMap socket={socket} />
 
-      {/* Realtime Data View Section */}
+      {/* Realtime Data View Section - Site Location style header */}
       <Card sx={{ 
         mt: 4, 
         mb: 4,
@@ -540,37 +540,59 @@ const Dashboard = ({ socket }) => {
         overflow: 'hidden'
       }}>
         <CardContent sx={{ p: 0 }}>
-          <Box sx={{ ...SECTION_HEADER_SX, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between',
+            px: 2,
+            py: 1.5,
+            bgcolor: 'background.paper',
+            borderBottom: '1px solid',
+            borderColor: 'primary.light'
+          }}>
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <DataIcon sx={{ color: '#ffffff', mr: 1.5, fontSize: 16 }} />
-              <Typography variant="h6" sx={{ 
-                fontWeight: 600, 
-                color: '#ffffff',
-                textTransform: 'none',
-                fontSize: '1rem'
-              }}>
+              <DataIcon sx={{ mr: 1.25, fontSize: 22, color: 'primary.main' }} />
+              <Typography variant="h6" sx={{ fontWeight: 600, color: 'primary.main', fontSize: '1.1rem' }}>
                 Realtime Data View
               </Typography>
             </Box>
-            <FormControl size="medium" sx={{ minWidth: 280 }}>
-              <Select
-                value={realtimeDevice}
-                onChange={e => setRealtimeDevice(e.target.value)}
-                sx={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                  borderRadius: 1.5,
-                  '& .MuiSelect-select': { color: theme.palette.text.primary, fontWeight: 500 },
-                  '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255, 255, 255, 0.4)' },
-                  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255, 255, 255, 0.7)' }
-                }}
-              >
-                {devices.map(d => (
-                  <MenuItem key={d.device_id} value={d.device_id}>
-                    {d.name} ({d.device_id})
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500, mb: 0.25 }}>
+                Device
+              </Typography>
+              <FormControl size="medium" sx={{ minWidth: 280 }}>
+                <Select
+                  value={realtimeDevice}
+                  onChange={e => setRealtimeDevice(e.target.value)}
+                  displayEmpty
+                  sx={{
+                    color: 'primary.main',
+                    fontWeight: 600,
+                    fontSize: '0.9rem',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: 'divider',
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: 'primary.main',
+                      borderWidth: '1px',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: 'primary.main',
+                      borderWidth: '1.5px',
+                    },
+                    '& .MuiSvgIcon-root': {
+                      color: 'primary.main',
+                    },
+                  }}
+                >
+                  {devices.map(d => (
+                    <MenuItem key={d.device_id} value={d.device_id}>
+                      {d.name} ({d.device_id})
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
           </Box>
           
           <Box sx={{ p: 3 }}>
