@@ -23,6 +23,7 @@ import {
   Select,
   MenuItem,
   Autocomplete,
+  Snackbar,
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import {
@@ -60,6 +61,7 @@ const CompanySite = () => {
     description: '',
     location: ''
   });
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
 
   // Fetch data on component mount
   useEffect(() => {
@@ -187,8 +189,17 @@ const CompanySite = () => {
 
       handleCloseDialog();
       fetchData();
+      const entity = activeTab === 0 ? 'Company' : 'Site';
+      setSnackbar({ open: true, message: `${entity} saved successfully`, severity: 'success' });
     } catch (error) {
       console.error('Error saving data:', error);
+      const status = error.response?.status;
+      const serverMessage = error.response?.data?.error;
+      const message =
+        status === 409
+          ? (serverMessage || (activeTab === 0 ? 'Company name already exists.' : 'Site name already exists.'))
+          : (serverMessage || 'Failed to save. Please try again.');
+      setSnackbar({ open: true, message, severity: 'error' });
     }
   };
 
@@ -206,8 +217,11 @@ const CompanySite = () => {
       }
 
       fetchData();
+      setSnackbar({ open: true, message: `${type} deleted successfully`, severity: 'success' });
     } catch (error) {
       console.error('Error deleting data:', error);
+      const serverMessage = error.response?.data?.error;
+      setSnackbar({ open: true, message: serverMessage || `Failed to delete ${type}. Please try again.`, severity: 'error' });
     }
   };
 
@@ -545,6 +559,21 @@ const CompanySite = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

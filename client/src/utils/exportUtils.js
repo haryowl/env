@@ -66,76 +66,83 @@ export const exportToPDF = async ({ deviceName, period, chartData, alertData, ta
           const svg = chartRef.current.querySelector('svg');
           
           if (svg) {
-            console.log(`SVG found for ${param}, dimensions:`, svg.width.baseVal.value, 'x', svg.height.baseVal.value);
-            
-            // Convert SVG to data URL
-            const svgData = new XMLSerializer().serializeToString(svg);
-            const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-            const url = URL.createObjectURL(svgBlob);
-            
-            // Wait for the image to load
-            await new Promise((resolve, reject) => {
+            // Get dimensions: Recharts often uses viewBox only, so width/height may be 0
+            let w = svg.width?.baseVal?.value;
+            let h = svg.height?.baseVal?.value;
+            if (!w || !h) {
+              const vb = svg.getAttribute('viewBox');
+              if (vb) {
+                const parts = vb.trim().split(/\s+/);
+                if (parts.length >= 4) {
+                  w = Number(parts[2]) || 800;
+                  h = Number(parts[3]) || 400;
+                }
+              }
+            }
+            if (!w || !h) {
+              const rect = svg.getBBox?.();
+              if (rect) {
+                w = rect.width || 800;
+                h = rect.height || 400;
+              }
+            }
+            w = w || 800;
+            h = h || 400;
+            console.log(`SVG found for ${param}, dimensions:`, w, 'x', h);
+
+            let svgData = new XMLSerializer().serializeToString(svg);
+            // Ensure root SVG has explicit width/height so it loads reliably as Image
+            const svgTag = svgData.substring(0, svgData.indexOf('>'));
+            if (!/width\s*=/.test(svgTag)) {
+              svgData = svgData.replace(/<svg/, `<svg width="${w}" height="${h}"`);
+            }
+            // Use data URL instead of blob URL: more reliable for SVG in Image/canvas in many browsers
+            const dataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+
+            await new Promise((resolve) => {
               const img = new Image();
               img.onload = () => {
                 try {
-                  // Create a canvas to convert the image
                   const canvas = document.createElement('canvas');
                   const ctx = canvas.getContext('2d');
-                  canvas.width = svg.width.baseVal.value || 800;
-                  canvas.height = svg.height.baseVal.value || 400;
-                  
-                  // Draw the image on canvas
-                  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                  
-                  // Convert canvas to image data
+                  canvas.width = w;
+                  canvas.height = h;
+                  ctx.drawImage(img, 0, 0, w, h);
                   const imgData = canvas.toDataURL('image/png', 1.0);
                   console.log(`Image data generated for ${param}, length:`, imgData.length);
-                  
-                  // Add chart title
+
                   doc.setFontSize(12);
                   doc.text(`${param.toUpperCase()} Chart`, 20, yPos);
                   yPos += 8;
-                  
-                  // Add chart image
-                  const imgWidth = 170; // Max width for A4
-                  const imgHeight = (canvas.height * imgWidth) / canvas.width;
-                  
-                  // Check if we need a new page
+
+                  const imgWidth = 170;
+                  const imgHeight = (h * imgWidth) / w;
                   if (yPos + imgHeight > 250) {
                     doc.addPage();
                     yPos = 20;
                   }
-                  
                   doc.addImage(imgData, 'PNG', 20, yPos, imgWidth, imgHeight);
                   yPos += imgHeight + 10;
-                  
                   console.log(`Chart ${param} added to PDF successfully`);
-                  
-                  // Clean up
-                  URL.revokeObjectURL(url);
                   resolve();
                 } catch (imgError) {
                   console.error(`Error generating image for ${param}:`, imgError);
-                  // Add text fallback
                   doc.setFontSize(10);
                   doc.text(`${param} Chart (image generation failed)`, 20, yPos);
                   yPos += 8;
-                  URL.revokeObjectURL(url);
                   resolve();
                 }
               };
-              
+
               img.onerror = () => {
                 console.error(`Failed to load SVG image for ${param}`);
-                // Add text fallback
                 doc.setFontSize(10);
                 doc.text(`${param} Chart (SVG load failed)`, 20, yPos);
                 yPos += 8;
-                URL.revokeObjectURL(url);
                 resolve();
               };
-              
-              img.src = url;
+
+              img.src = dataUrl;
             });
           } else {
             console.log(`No SVG found for ${param}, adding text fallback`);
