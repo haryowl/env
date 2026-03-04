@@ -609,45 +609,58 @@ class MQTTService {
     };
   }
 
+  /** Get source field name for a given target parameter from device mapper (for alert lookup when data uses source keys) */
+  async getSourceFieldForParameter(deviceId, targetParameter) {
+    const row = await getRow(
+      `SELECT mt.mappings FROM device_mapper_assignments dma
+       JOIN mapper_templates mt ON dma.template_id = mt.template_id
+       WHERE dma.device_id = $1`,
+      [deviceId]
+    );
+    if (!row || !row.mappings) return null;
+    const mappings = typeof row.mappings === 'string' ? JSON.parse(row.mappings) : row.mappings;
+    const entry = (mappings || []).find(m => (m.target_field || m.target) === targetParameter);
+    return entry ? (entry.source_field || entry.source) : null;
+  }
+
   async evaluateAlertsWithRealTimeData(deviceId, processedData) {
     try {
       console.log('MQTT: Evaluating alerts with real-time data for device:', deviceId);
-      console.log('MQTT: Real-time data:', processedData);
+      console.log('MQTT: Real-time data keys:', Object.keys(processedData || {}));
       
-      // Get all threshold alerts for this device
-      const alerts = await query(
+      const alertsResult = await query(
         `SELECT * FROM alerts WHERE device_id = $1 AND type = 'threshold'`,
         [deviceId]
       );
+      const alerts = alertsResult.rows || [];
       
-      if (alerts.rows.length === 0) {
+      if (alerts.length === 0) {
         console.log('MQTT: No threshold alerts found for device:', deviceId);
         return;
       }
       
-      console.log('MQTT: Found alerts for device:', alerts.rows);
+      console.log('MQTT: Found', alerts.length, 'threshold alert(s) for device:', deviceId);
       
-      // Evaluate each alert with the real-time data
-      for (const alert of alerts.rows) {
-        const value = processedData[alert.parameter];
+      for (const alert of alerts) {
+        let value = processedData[alert.parameter];
+        if (value === undefined) {
+          const sourceField = await this.getSourceFieldForParameter(deviceId, alert.parameter);
+          if (sourceField !== null) value = processedData[sourceField];
+        }
         
-        // Convert string to number if needed
         const numericValue = typeof value === 'string' ? parseFloat(value) : value;
         
         if (typeof numericValue === 'number' && !isNaN(numericValue)) {
-          console.log(`MQTT: Evaluating alert ${alert.alert_id} (${alert.parameter}) with real-time value:`, numericValue);
+          console.log(`MQTT: Evaluating alert ${alert.alert_id} (${alert.parameter}) with value:`, numericValue, 'min:', alert.min, 'max:', alert.max);
           
-          // Check if alert threshold is exceeded
           if ((alert.min !== null && numericValue < alert.min) || (alert.max !== null && numericValue > alert.max)) {
-            console.log(`MQTT: Alert ${alert.alert_id} triggered! Value ${numericValue} exceeds threshold (min: ${alert.min}, max: ${alert.max})`);
-            
-            // Call the alert evaluation function with real-time data
+            console.log(`MQTT: Alert ${alert.alert_id} triggered! Value ${numericValue} outside [${alert.min}, ${alert.max}]`);
             await evaluateThresholdAlertsOnData(deviceId, alert.parameter, numericValue, new Date());
           } else {
-            console.log(`MQTT: Alert ${alert.alert_id} not triggered. Value ${numericValue} within threshold (min: ${alert.min}, max: ${alert.max})`);
+            console.log(`MQTT: Alert ${alert.alert_id} not triggered. Value ${numericValue} within range.`);
           }
         } else {
-          console.log(`MQTT: Parameter ${alert.parameter} not found in real-time data or not a valid number:`, value);
+          console.log(`MQTT: Parameter "${alert.parameter}" not found or not numeric in processedData. Keys:`, Object.keys(processedData || {}));
         }
       }
     } catch (error) {

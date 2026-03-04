@@ -2,10 +2,13 @@ const { query, getRows, getRow } = require('../config/database');
 const { processDeviceData } = require('./deviceMapper');
 const { NotificationService } = require('./notificationService');
 
-// Helper: Get device mapper template
+// Helper: Get device mapper template (via device_mapper_assignments)
 async function getDeviceMapperTemplate(device_id) {
   return await getRow(
-    'SELECT * FROM mapper_templates WHERE device_id = $1 ORDER BY updated_at DESC LIMIT 1',
+    `SELECT mt.* FROM mapper_templates mt
+     JOIN device_mapper_assignments dma ON dma.template_id = mt.template_id
+     WHERE dma.device_id = $1
+     ORDER BY mt.updated_at DESC LIMIT 1`,
     [device_id]
   );
 }
@@ -34,26 +37,18 @@ async function evaluateThresholdAlertsOnData(device_id, parameter, value, timest
   
   for (const alert of alerts) {
     if ((alert.min !== null && value < alert.min) || (alert.max !== null && value > alert.max)) {
-      // Get device name for notification
       const device = await getRow('SELECT name FROM devices WHERE device_id = $1', [device_id]);
       const deviceName = device ? device.name : device_id;
+      const actions = typeof alert.actions === 'string' ? (() => { try { return JSON.parse(alert.actions); } catch { return {}; } })() : (alert.actions || {});
       
-      // Log alert event
-      console.log('Inserting into alert_logs:', {
-        alert_id: alert.alert_id,
-        device_id,
-        parameter,
-        value, // <--- this is the value being saved
-        timestamp
-      });
+      console.log('Inserting into alert_logs:', { alert_id: alert.alert_id, device_id, parameter, value });
       await query(
         `INSERT INTO alert_logs (alert_id, device_id, parameter, value, detected_at, status, details) VALUES ($1, $2, $3, $4, NOW(), 'active', $5)`,
         [alert.alert_id, device_id, parameter, value, JSON.stringify({ triggered: 'threshold', min: alert.min, max: alert.max, at: timestamp })]
       );
       
-      // Send notifications if configured
       try {
-        if (alert.actions && (alert.actions.email || alert.actions.http)) {
+        if (actions && (actions.email || actions.http)) {
           console.log('Sending notification for alert:', {
             alert_id: alert.alert_id,
             template: alert.template,
@@ -63,7 +58,7 @@ async function evaluateThresholdAlertsOnData(device_id, parameter, value, timest
           });
           
           await NotificationService.sendNotification(
-            alert,
+            { ...alert, actions },
             deviceName,
             parameter,
             value,
