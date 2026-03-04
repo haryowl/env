@@ -8,14 +8,15 @@ router.use(authenticateToken);
 router.use(authorizeMenuAccess('/company-site'));
 
 // GET /api/sites - Get all sites
+// Note: devices.site_id may not exist in all DBs (added by implement-site-device-mapping); use fallback query if needed
 router.get('/', async (req, res) => {
   try {
     const userId = req.user.user_id;
     const role = req.user.role || '';
     const isFullAccess = role === 'super_admin' || role === 'admin';
 
-    const sites = isFullAccess
-      ? await getRows(`
+    const queryWithDevices = isFullAccess
+      ? `
           SELECT
             s.site_id,
             s.site_name,
@@ -35,9 +36,9 @@ router.get('/', async (req, res) => {
           LEFT JOIN devices d ON s.site_id = d.site_id
           GROUP BY s.site_id, s.site_name, s.company_id, s.description, s.location, s.created_at, s.updated_at, s.created_by, c.company_name
           ORDER BY s.site_name
-        `)
-      : await getRows(`
-      SELECT DISTINCT
+        `
+      : `
+      SELECT
         s.site_id,
         s.site_name,
         s.company_id,
@@ -57,14 +58,75 @@ router.get('/', async (req, res) => {
       WHERE (s.created_by = $1 OR s.created_by IS NULL OR us.user_id = $1)
       GROUP BY s.site_id, s.site_name, s.company_id, s.description, s.location, s.created_at, s.updated_at, s.created_by, c.company_name
       ORDER BY s.site_name
-    `, [userId]);
+    `;
+
+    const queryWithoutDevices = isFullAccess
+      ? `
+          SELECT
+            s.site_id,
+            s.site_name,
+            s.company_id,
+            s.description,
+            s.location,
+            s.created_at,
+            s.updated_at,
+            s.created_by,
+            c.company_name,
+            array_agg(DISTINCT u.username) FILTER (WHERE u.username IS NOT NULL) as assigned_users,
+            ARRAY[]::text[] as assigned_devices
+          FROM sites s
+          LEFT JOIN companies c ON s.company_id = c.company_id
+          LEFT JOIN user_sites us ON s.site_id = us.site_id
+          LEFT JOIN users u ON us.user_id = u.user_id
+          GROUP BY s.site_id, s.site_name, s.company_id, s.description, s.location, s.created_at, s.updated_at, s.created_by, c.company_name
+          ORDER BY s.site_name
+        `
+      : `
+      SELECT
+        s.site_id,
+        s.site_name,
+        s.company_id,
+        s.description,
+        s.location,
+        s.created_at,
+        s.updated_at,
+        s.created_by,
+        c.company_name,
+        array_agg(DISTINCT u.username) FILTER (WHERE u.username IS NOT NULL) as assigned_users,
+        ARRAY[]::text[] as assigned_devices
+      FROM sites s
+      LEFT JOIN companies c ON s.company_id = c.company_id
+      LEFT JOIN user_sites us ON s.site_id = us.site_id
+      LEFT JOIN users u ON us.user_id = u.user_id
+      WHERE (s.created_by = $1 OR s.created_by IS NULL OR us.user_id = $1)
+      GROUP BY s.site_id, s.site_name, s.company_id, s.description, s.location, s.created_at, s.updated_at, s.created_by, c.company_name
+      ORDER BY s.site_name
+    `;
+
+    let sites;
+    try {
+      sites = isFullAccess
+        ? await getRows(queryWithDevices)
+        : await getRows(queryWithDevices, [userId]);
+    } catch (err) {
+      const msg = (err.message || '').toLowerCase();
+      if (msg.includes('site_id') || msg.includes('column') || msg.includes('does not exist')) {
+        console.warn('Get sites: devices.site_id not available, using fallback query:', err.message);
+        sites = isFullAccess
+          ? await getRows(queryWithoutDevices)
+          : await getRows(queryWithoutDevices, [userId]);
+      } else {
+        throw err;
+      }
+    }
 
     res.json(sites);
   } catch (error) {
     console.error('Get sites error:', error);
     res.status(500).json({
       error: 'Failed to get sites',
-      code: 'GET_SITES_ERROR'
+      code: 'GET_SITES_ERROR',
+      details: error.message
     });
   }
 });

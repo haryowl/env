@@ -70,24 +70,23 @@ const CompanySite = () => {
 
   const fetchData = async () => {
     setLoading(true);
-    try {
-      const token = localStorage.getItem('iot_token');
-      const headers = { 'Authorization': `Bearer ${token}` };
+    const token = localStorage.getItem('iot_token');
+    const headers = { 'Authorization': `Bearer ${token}` };
 
-      const [companiesRes, sitesRes, devicesRes, usersRes] = await Promise.all([
-        axios.get(`${API_BASE_URL}/companies`, { headers }),
-        axios.get(`${API_BASE_URL}/sites`, { headers }),
-        axios.get(`${API_BASE_URL}/devices/dropdown`, { headers }),
-        axios.get(`${API_BASE_URL}/users/dropdown`, { headers })
-      ]);
+    const [companiesRes, sitesRes, devicesRes, usersRes] = await Promise.allSettled([
+      axios.get(`${API_BASE_URL}/companies`, { headers }),
+      axios.get(`${API_BASE_URL}/sites`, { headers }),
+      axios.get(`${API_BASE_URL}/devices/dropdown`, { headers }),
+      axios.get(`${API_BASE_URL}/users/dropdown`, { headers })
+    ]);
 
-      setCompanies(companiesRes.data || []);
-      setSites(sitesRes.data || []);
-      setDevices(devicesRes.data || []);
-      setUsers(usersRes.data || []);
-    } catch (error) {
-      console.error('Error fetching data:', error);
-    }
+    if (companiesRes.status === 'fulfilled') setCompanies(companiesRes.value?.data ?? []);
+    if (sitesRes.status === 'fulfilled') setSites(sitesRes.value?.data ?? []);
+    if (devicesRes.status === 'fulfilled') setDevices(devicesRes.value?.data ?? []);
+    if (usersRes.status === 'fulfilled') setUsers(usersRes.value?.data ?? []);
+    if (sitesRes.status === 'rejected') console.error('Error fetching sites:', sitesRes.reason);
+    if (companiesRes.status === 'rejected') console.error('Error fetching companies:', companiesRes.reason);
+
     setLoading(false);
   };
 
