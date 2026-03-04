@@ -167,7 +167,8 @@ const CompanySite = () => {
         if (editingItem) {
           await axios.put(`${API_BASE_URL}/companies/${editingItem.company_id}`, companyData, { headers });
         } else {
-          await axios.post(`${API_BASE_URL}/companies`, companyData, { headers });
+          const createRes = await axios.post(`${API_BASE_URL}/companies`, companyData, { headers });
+          setCompanies((prev) => [...prev, createRes.data]);
         }
       } else {
         // Save site
@@ -183,7 +184,8 @@ const CompanySite = () => {
         if (editingItem) {
           await axios.put(`${API_BASE_URL}/sites/${editingItem.site_id}`, siteData, { headers });
         } else {
-          await axios.post(`${API_BASE_URL}/sites`, siteData, { headers });
+          const createRes = await axios.post(`${API_BASE_URL}/sites`, siteData, { headers });
+          setSites((prev) => [...prev, createRes.data]);
         }
       }
 

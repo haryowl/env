@@ -10,8 +10,19 @@ router.use(authorizeMenuAccess('/company-site'));
 // GET /api/companies - Get all companies
 router.get('/', async (req, res) => {
   try {
-    console.log('Fetching companies for user:', req.user.user_id);
-    const companies = await getRows(`
+    const userId = req.user.user_id;
+    const role = req.user.role || '';
+    console.log('Fetching companies for user:', userId, 'role:', role);
+
+    // super_admin and admin see all companies; others see only own + shared via user_sites
+    const isFullAccess = role === 'super_admin' || role === 'admin';
+    const companies = isFullAccess
+      ? await getRows(`
+          SELECT company_id, company_name, address, contact_person_name, contact_person_phone, created_at, updated_at, created_by
+          FROM companies
+          ORDER BY company_name
+        `)
+      : await getRows(`
       SELECT DISTINCT
         c.company_id,
         c.company_name,
@@ -26,7 +37,7 @@ router.get('/', async (req, res) => {
       LEFT JOIN user_sites us ON s.site_id = us.site_id
       WHERE (c.created_by = $1 OR c.created_by IS NULL OR us.user_id = $1)
       ORDER BY c.company_name
-    `, [req.user.user_id]);
+    `, [userId]);
     console.log('Companies fetched:', companies.length);
     res.json(companies);
   } catch (error) {
