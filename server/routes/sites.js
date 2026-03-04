@@ -251,37 +251,71 @@ router.post('/', async (req, res) => {
         }
       }
 
-      // Assign devices to site if provided
+      // Assign devices to site if provided (devices.site_id may not exist in all DBs)
       if (device_ids && device_ids.length > 0) {
         for (const deviceId of device_ids) {
-          await query(`
-            UPDATE devices SET site_id = $1 WHERE device_id = $2
-          `, [siteId, deviceId]);
+          try {
+            await query(`UPDATE devices SET site_id = $1 WHERE device_id = $2`, [siteId, deviceId]);
+          } catch (err) {
+            const msg = (err.message || '').toLowerCase();
+            if (msg.includes('site_id') || msg.includes('column') || msg.includes('does not exist')) {
+              console.warn('devices.site_id not available, skipping device assignment:', err.message);
+              break;
+            }
+            throw err;
+          }
         }
       }
 
       await query('COMMIT');
 
-      // Return the created site with additional info
-      const siteWithDetails = await getRow(`
-        SELECT 
-          s.site_id,
-          s.site_name,
-          s.company_id,
-          s.description,
-          s.location,
-          s.created_at,
-          c.company_name,
-          array_agg(DISTINCT u.username) FILTER (WHERE u.username IS NOT NULL) as assigned_users,
-          array_agg(DISTINCT d.name) FILTER (WHERE d.name IS NOT NULL) as assigned_devices
-        FROM sites s
-        LEFT JOIN companies c ON s.company_id = c.company_id
-        LEFT JOIN user_sites us ON s.site_id = us.site_id
-        LEFT JOIN users u ON us.user_id = u.user_id
-        LEFT JOIN devices d ON s.site_id = d.site_id
-        WHERE s.site_id = $1
-        GROUP BY s.site_id, s.site_name, s.company_id, s.description, s.location, s.created_at, c.company_name
-      `, [siteId]);
+      // Return the created site (avoid JOIN devices if devices.site_id does not exist)
+      let siteWithDetails;
+      try {
+        siteWithDetails = await getRow(`
+          SELECT 
+            s.site_id,
+            s.site_name,
+            s.company_id,
+            s.description,
+            s.location,
+            s.created_at,
+            c.company_name,
+            array_agg(DISTINCT u.username) FILTER (WHERE u.username IS NOT NULL) as assigned_users,
+            array_agg(DISTINCT d.name) FILTER (WHERE d.name IS NOT NULL) as assigned_devices
+          FROM sites s
+          LEFT JOIN companies c ON s.company_id = c.company_id
+          LEFT JOIN user_sites us ON s.site_id = us.site_id
+          LEFT JOIN users u ON us.user_id = u.user_id
+          LEFT JOIN devices d ON s.site_id = d.site_id
+          WHERE s.site_id = $1
+          GROUP BY s.site_id, s.site_name, s.company_id, s.description, s.location, s.created_at, c.company_name
+        `, [siteId]);
+      } catch (err) {
+        const msg = (err.message || '').toLowerCase();
+        if (msg.includes('site_id') || msg.includes('column') || msg.includes('does not exist')) {
+          siteWithDetails = await getRow(`
+            SELECT 
+              s.site_id,
+              s.site_name,
+              s.company_id,
+              s.description,
+              s.location,
+              s.created_at,
+              c.company_name,
+              array_agg(DISTINCT u.username) FILTER (WHERE u.username IS NOT NULL) as assigned_users,
+              ARRAY[]::text[] as assigned_devices
+            FROM sites s
+            LEFT JOIN companies c ON s.company_id = c.company_id
+            LEFT JOIN user_sites us ON s.site_id = us.site_id
+            LEFT JOIN users u ON us.user_id = u.user_id
+            WHERE s.site_id = $1
+            GROUP BY s.site_id, s.site_name, s.company_id, s.description, s.location, s.created_at, c.company_name
+          `, [siteId]);
+        } else {
+          throw err;
+        }
+      }
 
       res.status(201).json(siteWithDetails);
 
