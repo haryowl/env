@@ -310,11 +310,11 @@ export default function DataDash() {
             '& > *': { minWidth: 0 },
           }}
         >
-          <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden' }}>
-            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 500, color: theme.palette.text.secondary }}>
+          <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 500, color: theme.palette.text.secondary, minHeight: 20, display: 'flex', alignItems: 'center' }}>
               Devices
             </Typography>
-            <FormControl fullWidth variant="outlined" size="medium" sx={{ width: '100%', maxWidth: '100%', minWidth: 0 }}>
+              <FormControl fullWidth variant="outlined" size="medium" sx={{ width: '100%', maxWidth: '100%', minWidth: 0, '& .MuiInputBase-root': { minHeight: 56 } }}>
             <Select
               multiple
               value={selectedDevices}
@@ -381,11 +381,11 @@ export default function DataDash() {
           </FormControl>
             </Box>
 
-          <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden' }}>
-            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 500, color: theme.palette.text.secondary }}>
+          <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 500, color: theme.palette.text.secondary, minHeight: 20, display: 'flex', alignItems: 'center' }}>
               Parameters
             </Typography>
-            <FormControl fullWidth variant="outlined" size="medium" sx={{ width: '100%', maxWidth: '100%', minWidth: 0 }}>
+              <FormControl fullWidth variant="outlined" size="medium" sx={{ width: '100%', maxWidth: '100%', minWidth: 0, '& .MuiInputBase-root': { minHeight: 56 } }}>
             <Select
               multiple
               value={selectedParameters}
@@ -456,19 +456,18 @@ export default function DataDash() {
             </Box>
 
           <LocalizationProvider dateAdapter={AdapterDateFns}>
-            <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden' }}>
+            <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 500, color: theme.palette.text.secondary, minHeight: 20, display: 'flex', alignItems: 'center' }}>
+                Start Date & Time
+              </Typography>
               <DateTimePicker
-                label="Start Date & Time"
                 value={dateRange[0]}
                 onChange={date => setDateRange([date, dateRange[1]])}
-                renderInput={params => <TextField {...params} fullWidth size="medium" sx={{ 
+                renderInput={params => <TextField {...params} fullWidth size="medium" label={null} InputLabelProps={{ shrink: false }} sx={{ 
+                  '& .MuiInputBase-root': { minHeight: 56 },
                   '& .MuiInputBase-input': { 
                     color: theme.palette.text.primary,
                     padding: '12px 16px',
-                    fontSize: '0.9rem'
-                  },
-                  '& .MuiInputLabel-root': { 
-                    color: theme.palette.text.secondary,
                     fontSize: '0.9rem'
                   },
                   '& .MuiOutlinedInput-notchedOutline': { 
@@ -486,19 +485,18 @@ export default function DataDash() {
                 }} />}
               />
             </Box>
-            <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden' }}>
+            <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 500, color: theme.palette.text.secondary, minHeight: 20, display: 'flex', alignItems: 'center' }}>
+                End Date & Time
+              </Typography>
               <DateTimePicker
-                label="End Date & Time"
                 value={dateRange[1]}
                 onChange={date => setDateRange([dateRange[0], date])}
-                renderInput={params => <TextField {...params} fullWidth size="medium" sx={{ 
+                renderInput={params => <TextField {...params} fullWidth size="medium" label={null} InputLabelProps={{ shrink: false }} sx={{ 
+                  '& .MuiInputBase-root': { minHeight: 56 },
                   '& .MuiInputBase-input': { 
                     color: theme.palette.text.primary,
                     padding: '12px 16px',
-                    fontSize: '0.9rem'
-                  },
-                  '& .MuiInputLabel-root': { 
-                    color: theme.palette.text.secondary,
                     fontSize: '0.9rem'
                   },
                   '& .MuiOutlinedInput-notchedOutline': { 
