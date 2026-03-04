@@ -112,6 +112,31 @@ const QuickViewTable = ({ data, parameters, deviceName }) => {
     return colorPalette[index];
   };
 
+  // Export table data to CSV
+  const handleExportTableData = useCallback(() => {
+    if (!tableData.length || !parameters.length) return;
+    const escapeCsv = (v) => {
+      const s = v == null ? '' : String(v);
+      return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const headers = ['DateTime', ...parameters.map(p => formatDisplayName(p, { withUnit: true }))];
+    const rows = tableData.map(row => [
+      row.datetime,
+      ...parameters.map(p => formatParameterValue(p, row[p], 3, true)),
+    ]);
+    const csvContent = [
+      headers.map(escapeCsv).join(','),
+      ...rows.map(r => r.map(escapeCsv).join(',')),
+    ].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${deviceName || 'data'}_table_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [tableData, parameters, deviceName, formatDisplayName, formatParameterValue]);
+
   // Get alert thresholds for highlighting
   const getAlertThresholds = (parameter) => {
     // This would come from your alerts configuration
@@ -309,6 +334,8 @@ const QuickViewTable = ({ data, parameters, deviceName }) => {
             <Tooltip title="Export Table Data">
               <IconButton 
                 size="small"
+                onClick={handleExportTableData}
+                disabled={!tableData.length}
                 sx={{
                   backgroundColor: 'rgba(255, 255, 255, 0.2)',
                   color: 'white',
