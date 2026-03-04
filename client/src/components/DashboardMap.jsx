@@ -118,8 +118,15 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
 });
 
-// Modern professional device marker with enhanced styling
-const createDeviceIcon = (status, hasAlerts = false) => {
+// Escape HTML for safe use in marker label
+const escapeHtml = (str) => {
+  if (str == null || str === '') return '';
+  const s = String(str);
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+};
+
+// Modern professional device marker with optional name label; popup on click unchanged
+const createDeviceIcon = (status, hasAlerts = false, name = '') => {
   let color = '#10B981'; // Modern green for online
   let className = 'custom-device-marker';
   let pulseColor = 'rgba(16, 185, 129, 0.3)';
@@ -133,46 +140,74 @@ const createDeviceIcon = (status, hasAlerts = false) => {
     pulseColor = 'rgba(245, 158, 11, 0.3)';
   }
   
+  const hasName = name && String(name).trim() !== '';
+  const labelHtml = hasName
+    ? `<div style="
+        margin-top: 4px;
+        padding: 2px 6px;
+        background: rgba(255,255,255,0.95);
+        color: #1f2937;
+        font-size: 11px;
+        font-weight: 600;
+        white-space: nowrap;
+        max-width: 120px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        border-radius: 4px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        border: 1px solid rgba(0,0,0,0.08);
+        text-align: center;
+      ">${escapeHtml(String(name).trim())}</div>`
+    : '';
+  
+  const wrapperHeight = hasName ? 48 : 32;
+  const iconAnchorY = 16; // center of circle stays at lat/lng
+  
   return L.divIcon({
     className: className,
     html: `
       <div style="
-        position: relative;
-        width: 24px;
-        height: 24px;
         display: flex;
+        flex-direction: column;
         align-items: center;
-        justify-content: center;
+        width: 32px;
       ">
-        <!-- Pulse ring -->
         <div style="
-          position: absolute;
-          width: 32px;
-          height: 32px;
-          background-color: ${pulseColor};
-          border-radius: 50%;
-          animation: pulse 2s infinite;
-        "></div>
-        <!-- Main marker -->
-        <div style="
+          position: relative;
           width: 24px;
           height: 24px;
-          background: linear-gradient(135deg, ${color} 0%, ${color}CC 100%);
-          border: 3px solid white;
-          border-radius: 50%;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.1);
-          position: relative;
-          z-index: 1;
-        "></div>
-        <!-- Inner dot -->
-        <div style="
-          position: absolute;
-          width: 8px;
-          height: 8px;
-          background-color: white;
-          border-radius: 50%;
-          z-index: 2;
-        "></div>
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        ">
+          <div style="
+            position: absolute;
+            width: 32px;
+            height: 32px;
+            background-color: ${pulseColor};
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+          "></div>
+          <div style="
+            width: 24px;
+            height: 24px;
+            background: linear-gradient(135deg, ${color} 0%, ${color}CC 100%);
+            border: 3px solid white;
+            border-radius: 50%;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.1);
+            position: relative;
+            z-index: 1;
+          "></div>
+          <div style="
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background-color: white;
+            border-radius: 50%;
+            z-index: 2;
+          "></div>
+        </div>
+        ${labelHtml}
       </div>
       <style>
         @keyframes pulse {
@@ -182,8 +217,8 @@ const createDeviceIcon = (status, hasAlerts = false) => {
         }
       </style>
     `,
-    iconSize: [32, 32],
-    iconAnchor: [16, 16]
+    iconSize: [32, wrapperHeight],
+    iconAnchor: [16, iconAnchorY]
   });
 };
 
@@ -566,7 +601,7 @@ const DashboardMap = ({ socket }) => {
               <Marker
                 key={device.device_id}
                 position={[device.latitude, device.longitude]}
-                icon={createDeviceIcon(device.status, deviceAlerts[device.device_id])}
+                icon={createDeviceIcon(device.status, deviceAlerts[device.device_id], device.name)}
                 eventHandlers={{
                   click: (e) => {
                     loadDeviceData(device.device_id);
