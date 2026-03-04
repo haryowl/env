@@ -300,13 +300,21 @@ export default function DataDash() {
         </Typography>
       </Box>
       <CardContent sx={{ p: 1.5 }}>
-        <Grid container spacing={2} sx={{ minWidth: 0 }}>
-          <Grid item xs={12} md={4} sx={{ minWidth: 0 }}>
-            <Box sx={{ position: 'relative', minWidth: 0 }}>
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 500, color: theme.palette.text.secondary }}>
-                Devices
-              </Typography>
-              <FormControl fullWidth variant="outlined" size="medium" sx={{ minWidth: 0 }}>
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr' },
+            gap: 2,
+            width: '100%',
+            minWidth: 0,
+            '& > *': { minWidth: 0 },
+          }}
+        >
+          <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden' }}>
+            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 500, color: theme.palette.text.secondary }}>
+              Devices
+            </Typography>
+            <FormControl fullWidth variant="outlined" size="medium" sx={{ width: '100%', maxWidth: '100%', minWidth: 0 }}>
             <Select
               multiple
               value={selectedDevices}
@@ -338,6 +346,8 @@ export default function DataDash() {
                     },
                   }}
                   sx={{ 
+                    maxWidth: '100%',
+                    '& .MuiInputBase-root': { maxWidth: '100%' },
                     borderRadius: 1.5,
                     '& .MuiSelect-select': { 
                       color: theme.palette.text.primary,
@@ -345,7 +355,8 @@ export default function DataDash() {
                       fontSize: '0.9rem',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap'
+                      whiteSpace: 'nowrap',
+                      maxWidth: '100%'
                     },
                     '& .MuiOutlinedInput-notchedOutline': { 
                       borderColor: 'rgba(107, 70, 193, 0.2)',
@@ -369,14 +380,12 @@ export default function DataDash() {
             </Select>
           </FormControl>
             </Box>
-        </Grid>
-          
-          <Grid item xs={12} md={4} sx={{ minWidth: 0 }}>
-            <Box sx={{ position: 'relative', minWidth: 0 }}>
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 500, color: theme.palette.text.secondary }}>
-                Parameters
-              </Typography>
-              <FormControl fullWidth variant="outlined" size="medium" sx={{ minWidth: 0 }}>
+
+          <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden' }}>
+            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 500, color: theme.palette.text.secondary }}>
+              Parameters
+            </Typography>
+            <FormControl fullWidth variant="outlined" size="medium" sx={{ width: '100%', maxWidth: '100%', minWidth: 0 }}>
             <Select
               multiple
               value={selectedParameters}
@@ -408,6 +417,8 @@ export default function DataDash() {
                     },
                   }}
                   sx={{ 
+                    maxWidth: '100%',
+                    '& .MuiInputBase-root': { maxWidth: '100%' },
                     borderRadius: 1.5,
                     '& .MuiSelect-select': { 
                       color: theme.palette.text.primary,
@@ -415,7 +426,8 @@ export default function DataDash() {
                       fontSize: '0.9rem',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap'
+                      whiteSpace: 'nowrap',
+                      maxWidth: '100%'
                     },
                     '& .MuiOutlinedInput-notchedOutline': { 
                       borderColor: 'rgba(107, 70, 193, 0.2)',
@@ -442,13 +454,11 @@ export default function DataDash() {
             </Select>
           </FormControl>
             </Box>
-        </Grid>
-          
-          <Grid item xs={12} md={4} sx={{ minWidth: 0 }}>
-            <Box sx={{ position: 'relative', minWidth: 0 }}>
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 500, color: theme.palette.text.secondary }}>
-                Date Range
-              </Typography>
+
+          <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden' }}>
+            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 500, color: theme.palette.text.secondary }}>
+              Date Range
+            </Typography>
           <LocalizationProvider dateAdapter={AdapterDateFns}>
             <DateTimePicker
               label="Start Date & Time"
@@ -509,8 +519,7 @@ export default function DataDash() {
             />
           </LocalizationProvider>
             </Box>
-          </Grid>
-        </Grid>
+        </Box>
         
         <Box sx={{ mt: 3 }}>
           <Button 
