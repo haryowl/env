@@ -303,7 +303,7 @@ export default function DataDash() {
         <Box
           sx={{
             display: 'grid',
-            gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr' },
+            gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr 1fr' },
             gap: 2,
             width: '100%',
             minWidth: 0,
@@ -455,70 +455,68 @@ export default function DataDash() {
           </FormControl>
             </Box>
 
-          <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden' }}>
-            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 500, color: theme.palette.text.secondary }}>
-              Date Range
-            </Typography>
           <LocalizationProvider dateAdapter={AdapterDateFns}>
-            <DateTimePicker
-              label="Start Date & Time"
-              value={dateRange[0]}
-              onChange={date => setDateRange([date, dateRange[1]])}
-                  renderInput={params => <TextField {...params} fullWidth size="medium" sx={{ 
-                    '& .MuiInputBase-input': { 
-                      color: theme.palette.text.primary,
-                      padding: '12px 16px',
-                      fontSize: '0.9rem'
-                    },
-                    '& .MuiInputLabel-root': { 
-                      color: theme.palette.text.secondary,
-                      fontSize: '0.9rem'
-                    },
-                    '& .MuiOutlinedInput-notchedOutline': { 
-                      borderColor: 'rgba(107, 70, 193, 0.2)',
-                      borderWidth: '2px'
-                    },
-                    '&:hover .MuiOutlinedInput-notchedOutline': {
-                      borderColor: theme.palette.primary.main
-                    },
-                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                      borderColor: theme.palette.primary.main,
-                      borderWidth: '2px'
-                    },
-                    borderRadius: '4px'
-                  }} />}
-            />
-            <DateTimePicker
-              label="End Date & Time"
-              value={dateRange[1]}
-              onChange={date => setDateRange([dateRange[0], date])}
-                  renderInput={params => <TextField {...params} fullWidth size="medium" sx={{ 
-                    mt: 1,
-                    '& .MuiInputBase-input': { 
-                      color: theme.palette.text.primary,
-                      padding: '12px 16px',
-                      fontSize: '0.9rem'
-                    },
-                    '& .MuiInputLabel-root': { 
-                      color: theme.palette.text.secondary,
-                      fontSize: '0.9rem'
-                    },
-                    '& .MuiOutlinedInput-notchedOutline': { 
-                      borderColor: 'rgba(107, 70, 193, 0.2)',
-                      borderWidth: '2px'
-                    },
-                    '&:hover .MuiOutlinedInput-notchedOutline': {
-                      borderColor: theme.palette.primary.main
-                    },
-                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                      borderColor: theme.palette.primary.main,
-                      borderWidth: '2px'
-                    },
-                    borderRadius: '4px'
-                  }} />}
-            />
-          </LocalizationProvider>
+            <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden' }}>
+              <DateTimePicker
+                label="Start Date & Time"
+                value={dateRange[0]}
+                onChange={date => setDateRange([date, dateRange[1]])}
+                renderInput={params => <TextField {...params} fullWidth size="medium" sx={{ 
+                  '& .MuiInputBase-input': { 
+                    color: theme.palette.text.primary,
+                    padding: '12px 16px',
+                    fontSize: '0.9rem'
+                  },
+                  '& .MuiInputLabel-root': { 
+                    color: theme.palette.text.secondary,
+                    fontSize: '0.9rem'
+                  },
+                  '& .MuiOutlinedInput-notchedOutline': { 
+                    borderColor: 'rgba(107, 70, 193, 0.2)',
+                    borderWidth: '2px'
+                  },
+                  '&:hover .MuiOutlinedInput-notchedOutline': {
+                    borderColor: theme.palette.primary.main
+                  },
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                    borderColor: theme.palette.primary.main,
+                    borderWidth: '2px'
+                  },
+                  borderRadius: '4px'
+                }} />}
+              />
             </Box>
+            <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden' }}>
+              <DateTimePicker
+                label="End Date & Time"
+                value={dateRange[1]}
+                onChange={date => setDateRange([dateRange[0], date])}
+                renderInput={params => <TextField {...params} fullWidth size="medium" sx={{ 
+                  '& .MuiInputBase-input': { 
+                    color: theme.palette.text.primary,
+                    padding: '12px 16px',
+                    fontSize: '0.9rem'
+                  },
+                  '& .MuiInputLabel-root': { 
+                    color: theme.palette.text.secondary,
+                    fontSize: '0.9rem'
+                  },
+                  '& .MuiOutlinedInput-notchedOutline': { 
+                    borderColor: 'rgba(107, 70, 193, 0.2)',
+                    borderWidth: '2px'
+                  },
+                  '&:hover .MuiOutlinedInput-notchedOutline': {
+                    borderColor: theme.palette.primary.main
+                  },
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                    borderColor: theme.palette.primary.main,
+                    borderWidth: '2px'
+                  },
+                  borderRadius: '4px'
+                }} />}
+              />
+            </Box>
+          </LocalizationProvider>
         </Box>
         
         <Box sx={{ mt: 3 }}>
