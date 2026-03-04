@@ -117,7 +117,10 @@ const Login = ({ onLogin }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [backgroundImage, setBackgroundImage] = useState(() => {
     const saved = localStorage.getItem('login-background');
-    return saved || DEFAULT_BACKGROUNDS[0];
+    // Prefer local image: ignore old Unsplash URLs so server image is used after deploy
+    if (!saved || saved.trim() === '') return LOCAL_LOGIN_BACKGROUND;
+    if (saved.includes('unsplash.com')) return LOCAL_LOGIN_BACKGROUND;
+    return saved;
   });
   const [customImageUrl, setCustomImageUrl] = useState('');
   const [showImageInput, setShowImageInput] = useState(false);
