@@ -62,6 +62,7 @@ const QuickView = () => {
   const [tableData, setTableData] = useState([]);
   const [parameters, setParameters] = useState([]);
   const [alerts, setAlerts] = useState([]);
+  const [alertConfigs, setAlertConfigs] = useState([]); // threshold alert rules for table highlighting
   const [deviceMapper, setDeviceMapper] = useState(null);
   // Custom date conversion functions for timezone consistency
   const convertToUserTimezone = (date) => {
@@ -145,6 +146,7 @@ const QuickView = () => {
   useEffect(() => {
     if (selectedDevice) {
       loadDeviceMapper();
+      loadAlertConfigs();
     }
   }, [selectedDevice]);
 
@@ -236,6 +238,33 @@ const QuickView = () => {
       }
     } catch (error) {
       console.error('Error loading alerts:', error);
+    }
+  };
+
+  // Load alert configurations (threshold rules) for the selected device - used by QuickViewTable for highlighting
+  const loadAlertConfigs = async () => {
+    if (!selectedDevice) {
+      setAlertConfigs([]);
+      return;
+    }
+    try {
+      const token = localStorage.getItem('iot_token');
+      const response = await fetch(`${API_BASE_URL}/alerts`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const list = data.alerts || [];
+        const forDevice = list.filter(
+          (a) => a.device_id === selectedDevice && a.type === 'threshold' && (a.min != null || a.max != null)
+        );
+        setAlertConfigs(forDevice);
+      } else {
+        setAlertConfigs([]);
+      }
+    } catch (error) {
+      console.error('Error loading alert configs:', error);
+      setAlertConfigs([]);
     }
   };
 
@@ -894,6 +923,7 @@ const QuickView = () => {
               data={tableData}
               parameters={parameters}
               deviceName={devices.find(d => d.device_id === selectedDevice)?.name}
+              alertConfigs={alertConfigs}
             />
           </Box>
         </Box>

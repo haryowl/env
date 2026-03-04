@@ -33,11 +33,25 @@ import {
 import { formatInUserTimezone } from '../utils/timezoneUtils';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
 
-const QuickViewTable = ({ data, parameters, deviceName }) => {
+const QuickViewTable = ({ data, parameters, deviceName, alertConfigs = [] }) => {
   const theme = useTheme();
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [page, setPage] = useState(0);
   const { formatDisplayName, getUnit } = useFieldMetadata();
+
+  // Build thresholds from configured alerts only (parameter -> { min, max })
+  const thresholdsByParameter = useMemo(() => {
+    const map = {};
+    for (const a of alertConfigs) {
+      if (a.type !== 'threshold') continue;
+      const key = a.parameter;
+      if (!key) continue;
+      if (!map[key]) map[key] = { min: null, max: null };
+      if (a.min != null) map[key].min = map[key].min == null ? a.min : Math.min(map[key].min, a.min);
+      if (a.max != null) map[key].max = map[key].max == null ? a.max : Math.max(map[key].max, a.max);
+    }
+    return map;
+  }, [alertConfigs]);
 
   const formatParameterValue = useCallback(
     (parameter, value, precision = 3, includeUnit = true) => {
@@ -137,27 +151,19 @@ const QuickViewTable = ({ data, parameters, deviceName }) => {
     URL.revokeObjectURL(url);
   }, [tableData, parameters, deviceName, formatDisplayName, formatParameterValue]);
 
-  // Get alert thresholds for highlighting
-  const getAlertThresholds = (parameter) => {
-    // This would come from your alerts configuration
-    // For now, using example thresholds
-    const thresholds = {
-      'cod_mg_l': { min: 100, max: 300 },
-      'ph_value': { min: 6.5, max: 8.5 },
-      'tss_mg_l': { min: 50, max: 200 }
-    };
-    return thresholds[parameter] || {};
-  };
+  // Use only configured alerts for this device (no hardcoded thresholds)
+  const getAlertThresholds = useCallback((parameter) => {
+    return thresholdsByParameter[parameter] || {};
+  }, [thresholdsByParameter]);
 
-  // Check if value is out of range
-  const isOutOfRange = (parameter, value) => {
-    const thresholds = getAlertThresholds(parameter);
+  const isOutOfRange = useCallback((parameter, value) => {
+    const thresholds = thresholdsByParameter[parameter];
+    if (!thresholds || (thresholds.min == null && thresholds.max == null)) return false;
     const numValue = parseFloat(value);
     if (isNaN(numValue)) return false;
-    
-    return (thresholds.min && numValue < thresholds.min) || 
-           (thresholds.max && numValue > thresholds.max);
-  };
+    return (thresholds.min != null && numValue < thresholds.min) ||
+           (thresholds.max != null && numValue > thresholds.max);
+  }, [thresholdsByParameter]);
 
   // Handle page change
   const handleChangePage = (event, newPage) => {
