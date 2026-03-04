@@ -300,13 +300,13 @@ export default function DataDash() {
         </Typography>
       </Box>
       <CardContent sx={{ p: 1.5 }}>
-        <Grid container spacing={2}>
-          <Grid item xs={12} md={4}>
-            <Box sx={{ position: 'relative' }}>
+        <Grid container spacing={2} sx={{ minWidth: 0 }}>
+          <Grid item xs={12} md={4} sx={{ minWidth: 0 }}>
+            <Box sx={{ position: 'relative', minWidth: 0 }}>
               <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 500, color: theme.palette.text.secondary }}>
                 Devices
               </Typography>
-              <FormControl fullWidth variant="outlined" size="medium">
+              <FormControl fullWidth variant="outlined" size="medium" sx={{ minWidth: 0 }}>
             <Select
               multiple
               value={selectedDevices}
@@ -342,7 +342,10 @@ export default function DataDash() {
                     '& .MuiSelect-select': { 
                       color: theme.palette.text.primary,
                       padding: '12px 16px',
-                      fontSize: '0.9rem'
+                      fontSize: '0.9rem',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
                     },
                     '& .MuiOutlinedInput-notchedOutline': { 
                       borderColor: 'rgba(107, 70, 193, 0.2)',
@@ -368,12 +371,12 @@ export default function DataDash() {
             </Box>
         </Grid>
           
-          <Grid item xs={12} md={4}>
-            <Box sx={{ position: 'relative' }}>
+          <Grid item xs={12} md={4} sx={{ minWidth: 0 }}>
+            <Box sx={{ position: 'relative', minWidth: 0 }}>
               <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 500, color: theme.palette.text.secondary }}>
                 Parameters
               </Typography>
-              <FormControl fullWidth variant="outlined" size="medium">
+              <FormControl fullWidth variant="outlined" size="medium" sx={{ minWidth: 0 }}>
             <Select
               multiple
               value={selectedParameters}
@@ -409,7 +412,10 @@ export default function DataDash() {
                     '& .MuiSelect-select': { 
                       color: theme.palette.text.primary,
                       padding: '12px 16px',
-                      fontSize: '0.9rem'
+                      fontSize: '0.9rem',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
                     },
                     '& .MuiOutlinedInput-notchedOutline': { 
                       borderColor: 'rgba(107, 70, 193, 0.2)',
@@ -438,8 +444,8 @@ export default function DataDash() {
             </Box>
         </Grid>
           
-          <Grid item xs={12} md={4}>
-            <Box sx={{ position: 'relative' }}>
+          <Grid item xs={12} md={4} sx={{ minWidth: 0 }}>
+            <Box sx={{ position: 'relative', minWidth: 0 }}>
               <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 500, color: theme.palette.text.secondary }}>
                 Date Range
               </Typography>
