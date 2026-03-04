@@ -24,13 +24,15 @@ import {
 import { styled } from '@mui/material/styles';
 import { useUserTheme } from '../contexts/UserThemeContext';
 
-// Default environmental monitoring background images
+// Login background: use local image from public folder first (place login-background.jpg in client/public/)
+const LOCAL_LOGIN_BACKGROUND = '/login-background.jpg';
 const DEFAULT_BACKGROUNDS = [
-  'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2071&q=80', // Forest
-  'https://images.unsplash.com/photo-1473773508845-188df298d2d1?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2074&q=80', // Mountains
-  'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80', // Nature landscape
-  'https://images.unsplash.com/photo-1518837695005-2083093ee35b?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80', // Ocean waves
-  'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2074&q=80', // Sunset over lake
+  LOCAL_LOGIN_BACKGROUND,
+  'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?ixlib=rb-4.0.3&auto=format&fit=crop&w=2071&q=80',
+  'https://images.unsplash.com/photo-1473773508845-188df298d2d1?ixlib=rb-4.0.3&auto=format&fit=crop&w=2074&q=80',
+  'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80',
+  'https://images.unsplash.com/photo-1518837695005-2083093ee35b?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80',
+  'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?ixlib=rb-4.0.3&auto=format&fit=crop&w=2074&q=80',
 ];
 
 const LoginContainer = styled(Box)(({ theme, backgroundImage }) => ({
@@ -205,7 +207,7 @@ const Login = ({ onLogin }) => {
             <TextField
               fullWidth
               size="small"
-              placeholder="https://example.com/image.jpg"
+              placeholder="/login-background.jpg or https://..."
               value={customImageUrl}
               onChange={(e) => setCustomImageUrl(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleCustomImageSubmit()}
