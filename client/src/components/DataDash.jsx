@@ -735,93 +735,48 @@ export default function DataDash() {
     }
   ];
 
-  // Modern card grid for summary stats
+  // Data Summary cards - same size, simple layout, one font size for Max/Min/Avg
+  const statLineSx = { fontSize: '0.875rem', color: 'text.primary', display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 0.5 };
   const summaryCards = (
-    <Grid container spacing={2}>
+    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' }, gap: 2 }}>
       {parameters.map(param => summary[param] && (
-        <Grid item xs={12} sm={6} lg={2.4} key={param}>
-          <Card sx={{
+        <Card
+          key={param}
+          sx={{
+            height: 160,
+            minHeight: 160,
             p: 2,
-            height: '100%',
             borderRadius: 1,
-            border: '1px solid rgba(0,0,0,0.06)',
-            background: '#fff',
+            border: '1px solid',
+            borderColor: 'divider',
+            bgcolor: 'background.paper',
             display: 'flex',
             flexDirection: 'column',
-            alignItems: 'center',
-            textAlign: 'center',
-            fontFamily: 'Inter, sans-serif',
-            position: 'relative',
-            overflow: 'hidden',
             boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-            transition: 'all 0.2s ease',
-            '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }
-          }}>
-            {/* Parameter name */}
-            <Typography variant="h6" sx={{ 
-              fontWeight: 600, 
-              color: '#374151',
-              mb: 2,
-              fontSize: '1rem',
-              textTransform: 'capitalize',
-              letterSpacing: '0.025em'
-            }}>
-              {formatDisplayName(param, { withUnit: true })}
-            </Typography>
-            
-            {/* Stats container */}
-            <Box sx={{ width: '100%', mt: 'auto' }}>
-              <Box sx={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center',
-                mb: 1,
-                p: 1.5,
-                borderRadius: 1.5,
-                background: '#f8fafc',
-                border: '1px solid #e2e8f0'
-              }}>
-                <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: 500, fontSize: '0.75rem' }}>Max</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 600, color: '#111827', fontSize: '0.875rem' }}>
-                  {formatParameterValue(param, summary[param].max)}
-                </Typography>
-              </Box>
-              
-              <Box sx={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center',
-                mb: 1,
-                p: 1.5,
-                borderRadius: 1.5,
-                background: '#f8fafc',
-                border: '1px solid #e2e8f0'
-              }}>
-                <Typography variant="caption" sx={{ color: '#6b7280', fontWeight: 500, fontSize: '0.75rem' }}>Min</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 600, color: '#111827', fontSize: '0.875rem' }}>
-                  {formatParameterValue(param, summary[param].min)}
-                </Typography>
-              </Box>
-              
-              <Box sx={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center',
-                p: 2,
-                borderRadius: 1.5,
-                background: '#f1f5f9',
-                border: '1px solid #cbd5e1'
-              }}>
-                <Typography variant="caption" sx={{ color: '#374151', fontWeight: 600, fontSize: '0.75rem' }}>Avg</Typography>
-                <Typography variant="h6" sx={{ fontWeight: 700, color: '#111827', fontSize: '1.125rem' }}>
-                  {formatParameterValue(param, summary[param].avg)}
-                </Typography>
-              </Box>
+            transition: 'box-shadow 0.2s ease',
+            '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.08)' },
+          }}
+        >
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', fontSize: '0.9rem', mb: 1.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {formatDisplayName(param, { withUnit: true })}
+          </Typography>
+          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            <Box sx={statLineSx}>
+              <span style={{ color: theme.palette.text.secondary, fontWeight: 500 }}>Max</span>
+              <span style={{ fontWeight: 600 }}>{formatParameterValue(param, summary[param].max)}</span>
             </Box>
-          </Card>
-        </Grid>
+            <Box sx={statLineSx}>
+              <span style={{ color: theme.palette.text.secondary, fontWeight: 500 }}>Min</span>
+              <span style={{ fontWeight: 600 }}>{formatParameterValue(param, summary[param].min)}</span>
+            </Box>
+            <Box sx={statLineSx}>
+              <span style={{ color: theme.palette.text.secondary, fontWeight: 500 }}>Avg</span>
+              <span style={{ fontWeight: 600 }}>{formatParameterValue(param, summary[param].avg)}</span>
+            </Box>
+          </Box>
+        </Card>
       ))}
-    </Grid>
+    </Box>
   );
 
   // Calculate Y axis min/max for visible parameters
