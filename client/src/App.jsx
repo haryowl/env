@@ -49,6 +49,14 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [socket, setSocket] = useState(null);
+  const [userContext, setUserContext] = useState(() => {
+    try {
+      const raw = localStorage.getItem('iot_user_context');
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      return null;
+    }
+  });
   const [fontType, setFontType] = useState(() => {
     return localStorage.getItem('iot_font_preference') || 'monospace';
   });
@@ -84,6 +92,32 @@ function App() {
     
     setLoading(false);
   }, []);
+
+  // Fetch logged-in user's company/site context for header display
+  useEffect(() => {
+    const fetchUserContext = async () => {
+      if (!user) {
+        setUserContext(null);
+        localStorage.removeItem('iot_user_context');
+        return;
+      }
+      const token = localStorage.getItem('iot_token');
+      if (!token) return;
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/users/me/context`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (!res.ok) return;
+        setUserContext(data);
+        localStorage.setItem('iot_user_context', JSON.stringify(data));
+      } catch (e) {
+        // Best-effort only; header can fall back to cached context
+      }
+    };
+    fetchUserContext();
+  }, [user?.user_id]);
 
   // Apply saved font preference on startup
   useEffect(() => {
@@ -233,7 +267,7 @@ function App() {
         ) : (
           <ErrorBoundary>
           <Router>
-            <Layout user={user} onLogout={handleLogout}>
+            <Layout user={user} userContext={userContext} onLogout={handleLogout}>
               <Routes>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<Dashboard socket={socket} />} />

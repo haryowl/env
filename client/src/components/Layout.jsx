@@ -60,7 +60,7 @@ import ThemeSelector from './ThemeSelector';
 
 const drawerWidth = 240;
 
-const Layout = ({ children, user, onLogout }) => {
+const Layout = ({ children, user, userContext, onLogout }) => {
   const theme = useMuiTheme();
   const { customColors, currentTheme } = useUserTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -132,6 +132,26 @@ const Layout = ({ children, user, onLogout }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { canAccessMenu, loading: permissionsLoading } = usePermissions();
+
+  const assignedSites = Array.isArray(userContext?.sites) ? userContext.sites : [];
+  const assignmentLabel = (() => {
+    if (!assignedSites.length) return 'No assigned site';
+    if (assignedSites.length === 1) {
+      const s = assignedSites[0] || {};
+      const company = s.company_name || 'N/A';
+      const site = s.site_name || 'N/A';
+      return `${company} • ${site}`;
+    }
+    const companies = new Set(assignedSites.map(s => s?.company_name).filter(Boolean));
+    const companyCount = companies.size || 0;
+    return companyCount > 1 ? `${companyCount} companies • ${assignedSites.length} sites` : `${assignedSites.length} sites`;
+  })();
+  const assignmentTooltip = assignedSites.length
+    ? assignedSites
+        .slice(0, 8)
+        .map(s => `${s?.company_name || 'N/A'} • ${s?.site_name || 'N/A'}`)
+        .join('\n')
+    : '';
 
   const menuSections = [
     {
@@ -518,6 +538,23 @@ const Layout = ({ children, user, onLogout }) => {
 
           {/* Right side controls */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', mr: 1 }}>
+              <Chip
+                icon={<LocationOnIcon />}
+                label={assignmentLabel}
+                size="small"
+                variant="outlined"
+                title={assignmentTooltip}
+                sx={{
+                  maxWidth: 360,
+                  '& .MuiChip-label': {
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }
+                }}
+              />
+            </Box>
             <Typography variant="body2" sx={{ 
               mr: 2, 
               display: { xs: 'none', sm: 'block' },

@@ -6,6 +6,47 @@ const bcrypt = require('bcryptjs');
 
 const router = express.Router();
 
+// GET /api/users/me/context - Get current user's assigned company/site context
+// Note: This router is already mounted behind authenticateToken in server/index.js
+router.get('/me/context', async (req, res) => {
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+        code: 'UNAUTHORIZED'
+      });
+    }
+
+    const sites = await getRows(
+      `
+      SELECT
+        s.site_id,
+        s.site_name,
+        s.company_id,
+        c.company_name
+      FROM user_sites us
+      JOIN sites s ON us.site_id = s.site_id
+      LEFT JOIN companies c ON s.company_id = c.company_id
+      WHERE us.user_id = $1
+      ORDER BY c.company_name NULLS LAST, s.site_name
+      `,
+      [userId]
+    );
+
+    res.json({
+      user_id: userId,
+      sites: Array.isArray(sites) ? sites : []
+    });
+  } catch (error) {
+    console.error('Get user context error:', error);
+    res.status(500).json({
+      error: 'Failed to get user context',
+      code: 'GET_USER_CONTEXT_ERROR'
+    });
+  }
+});
+
 // GET /api/users/by-role/:roleName - Get users by specific role
 router.get('/by-role/:roleName', authenticateToken, async (req, res) => {
   try {
