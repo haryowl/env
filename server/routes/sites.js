@@ -36,16 +36,22 @@ router.get('/', async (req, res) => {
 
     let sites = [];
     try {
+      const countRow = await getRow('SELECT COUNT(*)::int as n FROM sites');
+      const tableCount = countRow?.n ?? -1;
       sites = isFullAccess
         ? await getRows(minimalSelect + orderClause)
         : await getRows(minimalSelect + whereClause + orderClause, [userId]);
+      if (tableCount > 0 && sites.length === 0) {
+        const raw = await getRows('SELECT site_id, site_name, company_id FROM sites ORDER BY site_name LIMIT 5');
+        console.warn('GET /api/sites: table has', tableCount, 'rows but main query returned 0. Sample:', raw);
+      }
+      console.log('GET /api/sites:', { userId, role: req.user?.role, isFullAccess, tableCount, count: sites.length });
     } catch (err) {
       console.error('Get sites: query failed', err.message);
       throw err;
     }
 
     if (!Array.isArray(sites)) sites = [];
-    console.log('GET /api/sites:', { userId, role: req.user?.role, isFullAccess, count: sites.length });
     res.json(sites);
   } catch (error) {
     console.error('Get sites error:', error);
