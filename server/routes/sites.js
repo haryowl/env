@@ -11,9 +11,9 @@ router.use(authorizeMenuAccess('/company-site'));
 // Note: devices.site_id may not exist in all DBs (added by implement-site-device-mapping); use fallback query if needed
 router.get('/', async (req, res) => {
   try {
-    const userId = req.user.user_id;
-    const role = req.user.role || '';
-    const isFullAccess = role === 'super_admin' || role === 'admin';
+    const userId = req.user?.user_id;
+    const role = (req.user?.role || '').toString().trim().toLowerCase().replace(/\s+/g, '_');
+    const isFullAccess = role === 'super_admin' || role === 'admin' || !userId;
 
     const queryWithDevices = isFullAccess
       ? `
@@ -118,6 +118,32 @@ router.get('/', async (req, res) => {
       } else {
         throw err;
       }
+    }
+
+    if (!isFullAccess && Array.isArray(sites) && sites.length === 0 && userId != null) {
+      const createdByQuery = `
+        SELECT
+          s.site_id,
+          s.site_name,
+          s.company_id,
+          s.description,
+          s.location,
+          s.created_at,
+          s.updated_at,
+          s.created_by,
+          c.company_name,
+          array_agg(DISTINCT u.username) FILTER (WHERE u.username IS NOT NULL) as assigned_users,
+          ARRAY[]::text[] as assigned_devices
+        FROM sites s
+        LEFT JOIN companies c ON s.company_id = c.company_id
+        LEFT JOIN user_sites us ON s.site_id = us.site_id
+        LEFT JOIN users u ON us.user_id = u.user_id
+        WHERE s.created_by = $1
+        GROUP BY s.site_id, s.site_name, s.company_id, s.description, s.location, s.created_at, s.updated_at, s.created_by, c.company_name
+        ORDER BY s.site_name
+      `;
+      const byCreated = await getRows(createdByQuery, [userId]);
+      if (byCreated.length > 0) sites = byCreated;
     }
 
     res.json(sites);
