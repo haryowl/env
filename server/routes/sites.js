@@ -183,18 +183,14 @@ router.post('/', async (req, res) => {
         }
       }
 
-      // Assign devices to site if provided (devices.site_id may not exist in all DBs)
+      // Assign devices to site only if devices.site_id column exists (optional migration)
       if (device_ids && device_ids.length > 0) {
-        for (const deviceId of device_ids) {
-          try {
+        const hasSiteId = await getRow(
+          `SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'devices' AND column_name = 'site_id'`
+        );
+        if (hasSiteId) {
+          for (const deviceId of device_ids) {
             await query(`UPDATE devices SET site_id = $1 WHERE device_id = $2`, [siteId, deviceId]);
-          } catch (err) {
-            const msg = (err.message || '').toLowerCase();
-            if (msg.includes('site_id') || msg.includes('column') || msg.includes('does not exist')) {
-              console.warn('devices.site_id not available, skipping device assignment:', err.message);
-              break;
-            }
-            throw err;
           }
         }
       }
