@@ -317,6 +317,16 @@ router.post('/', async (req, res) => {
         }
       }
       if (!siteWithDetails) {
+        let assignedUsers = [];
+        let assignedDevices = [];
+        if (user_ids && user_ids.length > 0) {
+          const userRows = await getRows('SELECT username FROM users WHERE user_id = ANY($1)', [user_ids]);
+          assignedUsers = userRows.map((r) => r.username).filter(Boolean);
+        }
+        if (device_ids && device_ids.length > 0) {
+          const deviceRows = await getRows('SELECT name FROM devices WHERE device_id = ANY($1)', [device_ids]);
+          assignedDevices = deviceRows.map((r) => r.name).filter(Boolean);
+        }
         siteWithDetails = {
           site_id: siteId,
           site_name,
@@ -325,9 +335,26 @@ router.post('/', async (req, res) => {
           location: location || null,
           created_at: result.rows[0].created_at,
           company_name: null,
-          assigned_users: [],
-          assigned_devices: []
+          assigned_users: assignedUsers,
+          assigned_devices: assignedDevices
         };
+      } else {
+        if (!Array.isArray(siteWithDetails.assigned_users) || siteWithDetails.assigned_users.length === 0) {
+          if (user_ids && user_ids.length > 0) {
+            const userRows = await getRows('SELECT username FROM users WHERE user_id = ANY($1)', [user_ids]);
+            siteWithDetails.assigned_users = userRows.map((r) => r.username).filter(Boolean);
+          } else {
+            siteWithDetails.assigned_users = [];
+          }
+        }
+        if (!Array.isArray(siteWithDetails.assigned_devices) || siteWithDetails.assigned_devices.length === 0) {
+          if (device_ids && device_ids.length > 0) {
+            const deviceRows = await getRows('SELECT name FROM devices WHERE device_id = ANY($1)', [device_ids]);
+            siteWithDetails.assigned_devices = deviceRows.map((r) => r.name).filter(Boolean);
+          } else {
+            siteWithDetails.assigned_devices = [];
+          }
+        }
       }
 
       res.status(201).json(siteWithDetails);
