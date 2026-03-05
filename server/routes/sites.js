@@ -15,7 +15,34 @@ router.get('/', async (req, res) => {
     const role = (req.user?.role || '').toString().trim().toLowerCase().replace(/\s+/g, '_');
     const isFullAccess = role === 'super_admin' || role === 'admin' || !userId;
 
-    const minimalSelect = `
+    // Check once per request whether devices.site_id exists so we can safely join devices
+    const hasDevicesSiteIdRow = await getRow(
+      `SELECT 1 FROM information_schema.columns 
+       WHERE table_schema = 'public' AND table_name = 'devices' AND column_name = 'site_id'`
+    );
+    const hasDevicesSiteId = !!hasDevicesSiteIdRow;
+
+    const minimalSelect = hasDevicesSiteId
+      ? `
+      SELECT
+        s.site_id,
+        s.site_name,
+        s.company_id,
+        s.description,
+        s.location,
+        s.created_at,
+        s.updated_at,
+        s.created_by,
+        c.company_name,
+        array_agg(DISTINCT u.username) FILTER (WHERE u.username IS NOT NULL) as assigned_users,
+        array_agg(DISTINCT d.name) FILTER (WHERE d.name IS NOT NULL) as assigned_devices
+      FROM sites s
+      LEFT JOIN companies c ON s.company_id = c.company_id
+      LEFT JOIN user_sites us ON s.site_id = us.site_id
+      LEFT JOIN users u ON us.user_id = u.user_id
+      LEFT JOIN devices d ON s.site_id = d.site_id
+    `
+      : `
       SELECT
         s.site_id,
         s.site_name,
