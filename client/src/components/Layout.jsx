@@ -538,15 +538,42 @@ const Layout = ({ children, user, userContext, onLogout }) => {
 
           {/* Right side controls */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', mr: 1 }}>
+            <Box
+              sx={{
+                display: { xs: 'none', sm: 'flex' },
+                alignItems: 'center',
+                mr: 1,
+                px: 1,
+                py: 0.25,
+                borderRadius: 999,
+                background: theme.palette.mode === 'dark'
+                  ? 'linear-gradient(90deg, rgba(59,130,246,0.18) 0%, rgba(56,189,248,0.18) 100%)'
+                  : 'linear-gradient(90deg, rgba(59,130,246,0.12) 0%, rgba(16,185,129,0.12) 100%)',
+                border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(96,165,250,0.6)' : 'rgba(37,99,235,0.4)'}`
+              }}
+            >
+              <Typography
+                variant="caption"
+                sx={{
+                  mr: 0.75,
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.4,
+                  color: 'text.secondary'
+                }}
+              >
+                Location
+              </Typography>
               <Chip
                 icon={<LocationOnIcon />}
                 label={assignmentLabel}
                 size="small"
-                variant="outlined"
+                color="primary"
                 title={assignmentTooltip}
                 sx={{
-                  maxWidth: 360,
+                  maxWidth: 320,
+                  borderRadius: 999,
+                  fontWeight: 600,
                   '& .MuiChip-label': {
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
