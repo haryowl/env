@@ -19,7 +19,6 @@ import {
   CircularProgress,
   Breadcrumbs,
   Link,
-  Chip,
   Badge,
 } from '@mui/material';
 import {
@@ -48,7 +47,6 @@ import {
   Science as ScienceIcon,
   ScheduleSend as ScheduleSendIcon,
   Business as BusinessIcon,
-  LocationOn as LocationOnIcon,
   Sensors as SensorsIcon,
   Build as BuildIcon,
   Assignment as AssignmentIcon,
@@ -145,6 +143,19 @@ const Layout = ({ children, user, userContext, onLogout }) => {
     const companies = new Set(assignedSites.map(s => s?.company_name).filter(Boolean));
     const companyCount = companies.size || 0;
     return companyCount > 1 ? `${companyCount} companies • ${assignedSites.length} sites` : `${assignedSites.length} sites`;
+  })();
+  // Future look: "COMPANY NAME - SITE NAME" (uppercase, for center header badge)
+  const assignmentDisplayText = (() => {
+    if (!assignedSites.length) return 'NO ASSIGNED SITE';
+    if (assignedSites.length === 1) {
+      const s = assignedSites[0] || {};
+      const company = (s.company_name || 'N/A').toUpperCase();
+      const site = (s.site_name || 'N/A').toUpperCase();
+      return `${company} - ${site}`;
+    }
+    const companies = new Set(assignedSites.map(s => s?.company_name).filter(Boolean));
+    const companyCount = companies.size || 0;
+    return companyCount > 1 ? `${companyCount} COMPANIES - ${assignedSites.length} SITES` : `${assignedSites.length} SITES`;
   })();
   const assignmentTooltip = assignedSites.length
     ? assignedSites
@@ -483,7 +494,7 @@ const Layout = ({ children, user, userContext, onLogout }) => {
           borderBottom: '1px solid rgba(0, 0, 0, 0.06)',
         }}
       >
-        <Toolbar sx={{ minHeight: { xs: '56px', sm: '64px' }, px: { xs: 1, sm: 2 } }}>
+        <Toolbar sx={{ minHeight: { xs: '56px', sm: '64px' }, px: { xs: 1, sm: 2 }, position: 'relative' }}>
           <IconButton
             color="inherit"
             aria-label="open drawer"
@@ -493,14 +504,14 @@ const Layout = ({ children, user, userContext, onLogout }) => {
           >
             <MenuIcon />
           </IconButton>
-          
-          {/* Breadcrumbs */}
-          <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center' }}>
+
+          {/* Left: Breadcrumbs */}
+          <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center' }}>
             <Breadcrumbs
               separator={<ChevronRightIcon fontSize="small" />}
               aria-label="breadcrumb"
-              sx={{ 
-                '& .MuiBreadcrumbs-separator': { 
+              sx={{
+                '& .MuiBreadcrumbs-separator': {
                   color: 'text.secondary',
                   mx: 1
                 }
@@ -536,52 +547,43 @@ const Layout = ({ children, user, userContext, onLogout }) => {
             </Breadcrumbs>
           </Box>
 
-          {/* Right side controls */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Box
+          {/* Center: Future look – COMPANY NAME - SITE NAME (bold uppercase white in black outline) */}
+          <Box
+            sx={{
+              position: 'absolute',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              display: { xs: 'none', sm: 'flex' },
+              alignItems: 'center',
+              justifyContent: 'center',
+              px: 2,
+              py: 1,
+              backgroundColor: '#000',
+              border: '2px solid #000',
+              borderRadius: 0,
+              maxWidth: 'min(420px, 50vw)'
+            }}
+            title={assignmentTooltip}
+          >
+            <Typography
+              variant="body2"
               sx={{
-                display: { xs: 'none', sm: 'flex' },
-                alignItems: 'center',
-                mr: 1,
-                px: 1,
-                py: 0.25,
-                borderRadius: 999,
-                background: theme.palette.mode === 'dark'
-                  ? 'linear-gradient(90deg, rgba(59,130,246,0.18) 0%, rgba(56,189,248,0.18) 100%)'
-                  : 'linear-gradient(90deg, rgba(59,130,246,0.12) 0%, rgba(16,185,129,0.12) 100%)',
-                border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(96,165,250,0.6)' : 'rgba(37,99,235,0.4)'}`
+                color: '#fff',
+                fontWeight: 700,
+                fontSize: '0.8rem',
+                letterSpacing: '0.04em',
+                textAlign: 'center',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
               }}
             >
-              <Typography
-                variant="caption"
-                sx={{
-                  mr: 0.75,
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.4,
-                  color: 'text.secondary'
-                }}
-              >
-                Location
-              </Typography>
-              <Chip
-                icon={<LocationOnIcon />}
-                label={assignmentLabel}
-                size="small"
-                color="primary"
-                title={assignmentTooltip}
-                sx={{
-                  maxWidth: 320,
-                  borderRadius: 999,
-                  fontWeight: 600,
-                  '& .MuiChip-label': {
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
-                  }
-                }}
-              />
-            </Box>
+              {assignmentDisplayText}
+            </Typography>
+          </Box>
+
+          {/* Right: date + controls */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
             <Typography variant="body2" sx={{ 
               mr: 2, 
               display: { xs: 'none', sm: 'block' },
