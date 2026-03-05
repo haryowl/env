@@ -297,18 +297,39 @@ export const exportToExcel = ({ deviceName, period, chartData, alertData, tableD
     XLSX.utils.book_append_sheet(workbook, dataSheet, 'Data');
   }
   
-  // Alert sheet
+  // Alert sheet – use detected_at for Timestamp; Threshold from details JSONB; Severity from status
   if (alertData && alertData.length > 0) {
     const alertHeaders = ['Timestamp', 'Parameter', 'Value', 'Threshold', 'Type', 'Severity'];
-    const alertRows = alertData.map(alert => [
-      formatInUserTimezone(alert.timestamp, 'YYYY-MM-DD HH:mm:ss'),
-      alert.parameter,
-      alert.value,
-      alert.threshold,
-      alert.type,
-      alert.severity
-    ]);
-    
+    const alertRows = alertData.map(alert => {
+      const ts = alert.detected_at || alert.timestamp || alert.created_at;
+      const timestampStr = ts ? formatInUserTimezone(ts, 'YYYY-MM-DD HH:mm:ss') : '-';
+      let thresholdStr = alert.threshold;
+      if (thresholdStr === undefined || thresholdStr === null || thresholdStr === '') {
+        const details = alert.details;
+        if (details) {
+          const d = typeof details === 'string' ? (() => { try { return JSON.parse(details); } catch { return {}; } })() : details;
+          if (d.min != null || d.max != null) {
+            thresholdStr = [d.min != null ? `min: ${d.min}` : '', d.max != null ? `max: ${d.max}` : ''].filter(Boolean).join(', ');
+          } else if (d.threshold != null) {
+            thresholdStr = `${d.threshold} min`;
+          } else {
+            thresholdStr = '-';
+          }
+        } else {
+          thresholdStr = '-';
+        }
+      }
+      const typeStr = alert.type != null ? String(alert.type) : '-';
+      const severityStr = alert.severity != null ? String(alert.severity) : (alert.status != null ? String(alert.status) : '-');
+      return [
+        timestampStr,
+        alert.parameter ?? '-',
+        alert.value != null ? alert.value : '-',
+        thresholdStr,
+        typeStr,
+        severityStr
+      ];
+    });
     const alertSheet = XLSX.utils.aoa_to_sheet([alertHeaders, ...alertRows]);
     XLSX.utils.book_append_sheet(workbook, alertSheet, 'Alerts');
   }
