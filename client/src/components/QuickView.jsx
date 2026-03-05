@@ -33,7 +33,8 @@ import {
   FilterList as FilterIcon,
   Speed as SpeedIcon,
   Science as ScienceIcon,
-  DeviceHub as DeviceHubIcon
+  DeviceHub as DeviceHubIcon,
+  AccessTime as AccessTimeIcon
 } from '@mui/icons-material';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -560,22 +561,43 @@ const QuickView = () => {
         </Box>
       </Box>
 
-      {/* Data Filters - Site Location style header */}
+      {/* Data Filters - Quick View style */}
       <Card sx={{ mb: 4, borderRadius: 1, ...CHART_CARD_SX, p: 0 }}>
         <CardContent sx={{ p: 0 }}>
           <Box sx={{ 
             display: 'flex', 
             alignItems: 'center', 
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 1.5,
             px: 2,
             py: 1.5,
             bgcolor: 'background.paper',
             borderBottom: '1px solid',
-            borderColor: 'primary.light'
+            borderColor: 'divider'
           }}>
-            <FilterIcon sx={{ mr: 1.25, fontSize: 22, color: 'primary.main' }} />
-            <Typography variant="h6" sx={{ fontWeight: 600, color: 'primary.main', fontSize: '1.1rem' }}>
-              Data Filters
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <FilterIcon sx={{ mr: 1.25, fontSize: 22, color: 'primary.main' }} />
+              <Typography variant="h6" sx={{ fontWeight: 600, color: 'primary.main', fontSize: '1.1rem' }}>
+                Data Filters
+              </Typography>
+            </Box>
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 1,
+              px: 1.5,
+              py: 1,
+              borderRadius: 1,
+              bgcolor: 'action.hover',
+              border: '1px solid',
+              borderColor: 'divider'
+            }}>
+              <AccessTimeIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+              <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                Current Timezone: {getUserTimezone()} | Local Time: {formatInUserTimezone(new Date().toISOString(), 'YYYY-MM-DD HH:mm:ss')}
+              </Typography>
+            </Box>
           </Box>
           
           <Grid container spacing={2} sx={{ p: 1.5 }}>
@@ -724,20 +746,20 @@ const QuickView = () => {
             )}
             <Grid item xs={12} md={selectedPeriod === 'custom' ? 12 : 6}>
               <Box sx={{ 
-                p: 2,
+                p: 1.5,
                 borderRadius: 1.5,
-                background: 'linear-gradient(135deg, #f8fafc 0%, #ffffff 100%)',
-                border: '2px solid rgba(107, 70, 193, 0.1)'
+                bgcolor: 'action.hover',
+                border: '1px solid',
+                borderColor: 'divider'
               }}>
                 <Typography variant="subtitle2" sx={{ 
-                  mb: 2, 
+                  mb: 1.5, 
                   fontWeight: 600, 
                   color: theme.palette.text.primary,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 1
+                  gap: 0.75
                 }}>
-                  <ScienceIcon sx={{ fontSize: 20, color: '#007BA7' }} />
                   View Mode
                 </Typography>
                 <ToggleButtonGroup
@@ -745,58 +767,40 @@ const QuickView = () => {
                   exclusive
                   onChange={(e, newMode) => newMode && setViewMode(newMode)}
                   fullWidth
+                  size="small"
                   sx={{
                     '& .MuiToggleButton-root': {
-                      borderRadius: '4px !important',
-                      border: '2px solid rgba(107, 70, 193, 0.2)',
-                      color: theme.palette.text.secondary,
+                      borderRadius: '6px !important',
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      color: 'text.secondary',
                       fontWeight: 500,
                       textTransform: 'none',
-                      px: 3,
-                      py: 1.5,
+                      py: 1.25,
                       '&:hover': {
-                        backgroundColor: 'rgba(107, 70, 193, 0.05)',
-                        borderColor: '#007BA7'
+                        bgcolor: 'action.selected',
+                        borderColor: 'primary.main'
                       },
                       '&.Mui-selected': {
-                        backgroundColor: 'linear-gradient(135deg, #007BA7 0%, #0099CC 100%)',
-                        color: 'white',
-                        borderColor: '#007BA7',
+                        bgcolor: 'primary.main',
+                        color: 'primary.contrastText',
+                        borderColor: 'primary.main',
                         '&:hover': {
-                          backgroundColor: 'linear-gradient(135deg, #005577 0%, #006B9A 100%)'
+                          bgcolor: 'primary.dark'
                         }
                       }
                     }
                   }}
                 >
                   <ToggleButton value="realtime" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <TimelineIcon />
-                    Real-time Data
+                    <TimelineIcon fontSize="small" />
+                    Real-time
                   </ToggleButton>
                   <ToggleButton value="history" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <HistoryIcon />
+                    <RefreshIcon fontSize="small" />
                     Historical Data
                   </ToggleButton>
                 </ToggleButtonGroup>
-              </Box>
-            </Grid>
-            <Grid item xs={12}>
-              <Box sx={{ 
-                p: 2,
-                borderRadius: 1.5,
-                background: 'rgba(107, 70, 193, 0.05)',
-                border: '1px solid rgba(107, 70, 193, 0.1)'
-              }}>
-                <Typography variant="body2" sx={{ 
-                  color: theme.palette.text.secondary,
-                  fontWeight: 500,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1
-                }}>
-                  <SpeedIcon sx={{ fontSize: 16, color: '#007BA7' }} />
-                  Current Timezone: {getUserTimezone()} | Local Time: {formatInUserTimezone(new Date().toISOString(), 'YYYY-MM-DD HH:mm:ss')}
-                </Typography>
               </Box>
             </Grid>
           </Grid>
