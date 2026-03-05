@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Card,
@@ -62,6 +62,8 @@ const CompanySite = () => {
     location: ''
   });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
+  const lastCreatedCompanyRef = useRef(null);
+  const lastCreatedSiteRef = useRef(null);
 
   // Fetch data on component mount
   useEffect(() => {
@@ -81,11 +83,25 @@ const CompanySite = () => {
     ]);
 
     if (companiesRes.status === 'fulfilled') {
-      const data = companiesRes.value?.data ?? [];
+      const raw = companiesRes.value?.data;
+      const data = Array.isArray(raw) ? [...raw] : [];
+      const pending = lastCreatedCompanyRef.current;
+      if (pending) {
+        const exists = data.some((c) => (c.company_id ?? c.companyId) === (pending.company_id ?? pending.companyId));
+        if (!exists) data.push(pending);
+        lastCreatedCompanyRef.current = null;
+      }
       setCompanies((prev) => (data.length > 0 ? data : prev));
     }
     if (sitesRes.status === 'fulfilled') {
-      const data = sitesRes.value?.data ?? [];
+      const raw = sitesRes.value?.data;
+      const data = Array.isArray(raw) ? [...raw] : [];
+      const pending = lastCreatedSiteRef.current;
+      if (pending) {
+        const exists = data.some((s) => (s.site_id ?? s.siteId) === (pending.site_id ?? pending.siteId));
+        if (!exists) data.push(pending);
+        lastCreatedSiteRef.current = null;
+      }
       setSites((prev) => (data.length > 0 ? data : prev));
     }
     if (devicesRes.status === 'fulfilled') setDevices(devicesRes.value?.data ?? []);
@@ -179,6 +195,7 @@ const CompanySite = () => {
               ...created,
               company_id: created.company_id ?? created.companyId ?? `new-${Date.now()}`
             };
+            lastCreatedCompanyRef.current = company;
             setCompanies((prev) => [...prev, company]);
           }
         }
@@ -207,6 +224,7 @@ const CompanySite = () => {
               assigned_users: created.assigned_users ?? [],
               assigned_devices: created.assigned_devices ?? []
             };
+            lastCreatedSiteRef.current = site;
             setSites((prev) => [...prev, site]);
           }
         }

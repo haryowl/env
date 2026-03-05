@@ -316,6 +316,19 @@ router.post('/', async (req, res) => {
           throw err;
         }
       }
+      if (!siteWithDetails) {
+        siteWithDetails = {
+          site_id: siteId,
+          site_name,
+          company_id: company_id || null,
+          description: description || null,
+          location: location || null,
+          created_at: result.rows[0].created_at,
+          company_name: null,
+          assigned_users: [],
+          assigned_devices: []
+        };
+      }
 
       res.status(201).json(siteWithDetails);
 
