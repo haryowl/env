@@ -14,7 +14,6 @@ const addUserPermissionColumns = async () => {
   try {
     console.log('🔧 Adding user permission columns for role-based access control...\n');
 
-    // Check if columns already exist to avoid errors
     const checkColumn = async (tableName, columnName) => {
       const result = await pool.query(`
         SELECT EXISTS (
@@ -24,6 +23,16 @@ const addUserPermissionColumns = async () => {
           AND column_name = $2
         )
       `, [tableName, columnName]);
+      return result.rows[0].exists;
+    };
+
+    const tableExists = async (tableName) => {
+      const result = await pool.query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' AND table_name = $1
+        )
+      `, [tableName]);
       return result.rows[0].exists;
     };
 
@@ -40,30 +49,40 @@ const addUserPermissionColumns = async () => {
       console.log('✅ created_by column already exists in alerts table');
     }
 
-    // 2. Add created_by to alert_email_recipients table
-    const recipientsCreatedByExists = await checkColumn('alert_email_recipients', 'created_by');
-    if (!recipientsCreatedByExists) {
-      console.log('📝 Adding created_by column to alert_email_recipients table...');
-      await pool.query(`
-        ALTER TABLE alert_email_recipients 
-        ADD COLUMN created_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL
-      `);
-      console.log('✅ Added created_by column to alert_email_recipients table');
+    // 2. Add created_by to alert_email_recipients table (if table exists)
+    const recipientsTableExists = await tableExists('alert_email_recipients');
+    if (!recipientsTableExists) {
+      console.log('⏭️  Skipping alert_email_recipients (table does not exist). Run: node scripts/create-alert-notification-tables.js');
     } else {
-      console.log('✅ created_by column already exists in alert_email_recipients table');
+      const recipientsCreatedByExists = await checkColumn('alert_email_recipients', 'created_by');
+      if (!recipientsCreatedByExists) {
+        console.log('📝 Adding created_by column to alert_email_recipients table...');
+        await pool.query(`
+          ALTER TABLE alert_email_recipients 
+          ADD COLUMN created_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL
+        `);
+        console.log('✅ Added created_by column to alert_email_recipients table');
+      } else {
+        console.log('✅ created_by column already exists in alert_email_recipients table');
+      }
     }
 
-    // 3. Add created_by to alert_notification_logs table
-    const logsCreatedByExists = await checkColumn('alert_notification_logs', 'created_by');
-    if (!logsCreatedByExists) {
-      console.log('📝 Adding created_by column to alert_notification_logs table...');
-      await pool.query(`
-        ALTER TABLE alert_notification_logs 
-        ADD COLUMN created_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL
-      `);
-      console.log('✅ Added created_by column to alert_notification_logs table');
+    // 3. Add created_by to alert_notification_logs table (if table exists)
+    const logsTableExists = await tableExists('alert_notification_logs');
+    if (!logsTableExists) {
+      console.log('⏭️  Skipping alert_notification_logs (table does not exist). Run: node scripts/create-alert-notification-tables.js');
     } else {
-      console.log('✅ created_by column already exists in alert_notification_logs table');
+      const logsCreatedByExists = await checkColumn('alert_notification_logs', 'created_by');
+      if (!logsCreatedByExists) {
+        console.log('📝 Adding created_by column to alert_notification_logs table...');
+        await pool.query(`
+          ALTER TABLE alert_notification_logs 
+          ADD COLUMN created_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL
+        `);
+        console.log('✅ Added created_by column to alert_notification_logs table');
+      } else {
+        console.log('✅ created_by column already exists in alert_notification_logs table');
+      }
     }
 
     // 4. Check if notification_logs table exists and add created_by if needed (for backward compatibility)
@@ -83,21 +102,25 @@ const addUserPermissionColumns = async () => {
       console.log('✅ created_by column already exists in notification_logs table');
     }
 
-    // 4. Create indexes for better performance
+    // 4. Create indexes for better performance (only on tables that exist)
     console.log('\n📊 Creating performance indexes...');
     try {
       await pool.query(`
         CREATE INDEX IF NOT EXISTS idx_alerts_created_by 
         ON alerts(created_by) WHERE created_by IS NOT NULL
       `);
-      await pool.query(`
-        CREATE INDEX IF NOT EXISTS idx_alert_email_recipients_created_by 
-        ON alert_email_recipients(created_by) WHERE created_by IS NOT NULL
-      `);
-      await pool.query(`
-        CREATE INDEX IF NOT EXISTS idx_alert_notification_logs_created_by 
-        ON alert_notification_logs(created_by) WHERE created_by IS NOT NULL
-      `);
+      if (await tableExists('alert_email_recipients')) {
+        await pool.query(`
+          CREATE INDEX IF NOT EXISTS idx_alert_email_recipients_created_by 
+          ON alert_email_recipients(created_by) WHERE created_by IS NOT NULL
+        `);
+      }
+      if (await tableExists('alert_notification_logs')) {
+        await pool.query(`
+          CREATE INDEX IF NOT EXISTS idx_alert_notification_logs_created_by 
+          ON alert_notification_logs(created_by) WHERE created_by IS NOT NULL
+        `);
+      }
       console.log('✅ Created performance indexes');
     } catch (error) {
       console.log('⚠️ Index creation failed (non-critical):', error.message);
@@ -136,9 +159,16 @@ const addUserPermissionColumns = async () => {
     console.log('\n🎉 User permission columns added successfully!');
     console.log('\n📋 Summary of changes:');
     console.log('  • Added created_by column to alerts table');
-    console.log('  • Added created_by column to alert_email_recipients table');
-    console.log('  • Added created_by column to alert_notification_logs table');
-    console.log('  • Created performance indexes for all new columns');
+    if (recipientsTableExists) console.log('  • Added created_by column to alert_email_recipients table');
+    else console.log('  • Skipped alert_email_recipients (table not present)');
+    if (logsTableExists) console.log('  • Added created_by column to alert_notification_logs table');
+    else console.log('  • Skipped alert_notification_logs (table not present)');
+    console.log('  • Created performance indexes for existing tables');
+    if (!recipientsTableExists || !logsTableExists) {
+      console.log('\n💡 To add Alert Settings tables and then created_by, run:');
+      console.log('   node scripts/create-alert-notification-tables.js');
+      console.log('   node scripts/add-user-permission-columns.js');
+    }
     console.log('\n⚠️  Next steps:');
     console.log('  1. Update API routes to use created_by filtering');
     console.log('  2. Update frontend components for user-specific views');
