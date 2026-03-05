@@ -91,7 +91,7 @@ const CompanySite = () => {
         if (!exists) data.push(pending);
         lastCreatedCompanyRef.current = null;
       }
-      setCompanies((prev) => (data.length > 0 ? data : prev));
+      setCompanies(data);
     }
     if (sitesRes.status === 'fulfilled') {
       const raw = sitesRes.value?.data;
@@ -102,7 +102,7 @@ const CompanySite = () => {
         if (!exists) data.push(pending);
         lastCreatedSiteRef.current = null;
       }
-      setSites((prev) => (data.length > 0 ? data : prev));
+      setSites(data);
     }
     if (devicesRes.status === 'fulfilled') setDevices(devicesRes.value?.data ?? []);
     if (usersRes.status === 'fulfilled') setUsers(usersRes.value?.data ?? []);

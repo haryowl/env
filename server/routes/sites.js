@@ -8,7 +8,7 @@ router.use(authenticateToken);
 router.use(authorizeMenuAccess('/company-site'));
 
 // GET /api/sites - Get all sites
-// Note: devices.site_id may not exist in all DBs (added by implement-site-device-mapping); use fallback query if needed
+// Use query without devices join first (devices.site_id may not exist); fallback to minimal query if needed
 router.get('/', async (req, res) => {
   try {
     const userId = req.user?.user_id;
@@ -106,22 +106,11 @@ router.get('/', async (req, res) => {
     let sites;
     try {
       sites = isFullAccess
-        ? await getRows(queryWithDevices)
-        : await getRows(queryWithDevices, [userId]);
+        ? await getRows(queryWithoutDevices)
+        : await getRows(queryWithoutDevices, [userId]);
     } catch (err) {
-      const msg = (err.message || '').toLowerCase();
-      if (msg.includes('site_id') || msg.includes('column') || msg.includes('does not exist')) {
-        console.warn('Get sites: devices.site_id not available, using fallback query:', err.message);
-        sites = isFullAccess
-          ? await getRows(queryWithoutDevices)
-          : await getRows(queryWithoutDevices, [userId]);
-      } else {
-        throw err;
-      }
-    }
-
-    if (!isFullAccess && Array.isArray(sites) && sites.length === 0 && userId != null) {
-      const createdByQuery = `
+      console.warn('Get sites: main query failed', err.message);
+      const minimalSelect = `
         SELECT
           s.site_id,
           s.site_name,
@@ -132,18 +121,37 @@ router.get('/', async (req, res) => {
           s.updated_at,
           s.created_by,
           c.company_name,
-          array_agg(DISTINCT u.username) FILTER (WHERE u.username IS NOT NULL) as assigned_users,
+          ARRAY[]::text[] as assigned_users,
           ARRAY[]::text[] as assigned_devices
         FROM sites s
         LEFT JOIN companies c ON s.company_id = c.company_id
-        LEFT JOIN user_sites us ON s.site_id = us.site_id
-        LEFT JOIN users u ON us.user_id = u.user_id
-        WHERE s.created_by = $1
-        GROUP BY s.site_id, s.site_name, s.company_id, s.description, s.location, s.created_at, s.updated_at, s.created_by, c.company_name
-        ORDER BY s.site_name
       `;
-      const byCreated = await getRows(createdByQuery, [userId]);
-      if (byCreated.length > 0) sites = byCreated;
+      const minimalWhere = isFullAccess ? '' : ' WHERE (s.created_by = $1 OR s.created_by IS NULL)';
+      const minimalOrder = ' ORDER BY s.site_name';
+      const minimalQuery = minimalSelect + minimalWhere + minimalOrder;
+      try {
+        sites = isFullAccess
+          ? await getRows(minimalQuery)
+          : await getRows(minimalQuery, [userId]);
+      } catch (minErr) {
+        console.error('Get sites: minimal query failed', minErr);
+        throw err;
+      }
+    }
+
+    if (!Array.isArray(sites)) sites = [];
+    if (sites.length === 0 && !isFullAccess && userId != null) {
+      try {
+        const byCreated = await getRows(`
+          SELECT s.site_id, s.site_name, s.company_id, s.description, s.location, s.created_at, s.updated_at, s.created_by,
+                 c.company_name, ARRAY[]::text[] as assigned_users, ARRAY[]::text[] as assigned_devices
+          FROM sites s
+          LEFT JOIN companies c ON s.company_id = c.company_id
+          WHERE s.created_by = $1
+          ORDER BY s.site_name
+        `, [userId]);
+        if (byCreated.length > 0) sites = byCreated;
+      } catch (_) { /* ignore */ }
     }
 
     res.json(sites);
