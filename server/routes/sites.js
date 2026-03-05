@@ -26,21 +26,23 @@ router.get('/', async (req, res) => {
         s.updated_at,
         s.created_by,
         c.company_name,
-        ARRAY[]::text[] as assigned_users,
+        array_agg(DISTINCT u.username) FILTER (WHERE u.username IS NOT NULL) as assigned_users,
         ARRAY[]::text[] as assigned_devices
       FROM sites s
       LEFT JOIN companies c ON s.company_id = c.company_id
+      LEFT JOIN user_sites us ON s.site_id = us.site_id
+      LEFT JOIN users u ON us.user_id = u.user_id
     `;
     const whereClause = isFullAccess ? '' : ' WHERE (s.created_by = $1 OR s.created_by IS NULL)';
-    const orderClause = ' ORDER BY s.site_name';
+    const groupOrder = ` GROUP BY s.site_id, s.site_name, s.company_id, s.description, s.location, s.created_at, s.updated_at, s.created_by, c.company_name ORDER BY s.site_name`;
 
     let sites = [];
     try {
       const countRow = await getRow('SELECT COUNT(*)::int as n FROM sites');
       const tableCount = countRow?.n ?? -1;
       sites = isFullAccess
-        ? await getRows(minimalSelect + orderClause)
-        : await getRows(minimalSelect + whereClause + orderClause, [userId]);
+        ? await getRows(minimalSelect + groupOrder)
+        : await getRows(minimalSelect + whereClause + groupOrder, [userId]);
       if (tableCount > 0 && sites.length === 0) {
         const raw = await getRows('SELECT site_id, site_name, company_id FROM sites ORDER BY site_name LIMIT 5');
         console.warn('GET /api/sites: table has', tableCount, 'rows but main query returned 0. Sample:', raw);
