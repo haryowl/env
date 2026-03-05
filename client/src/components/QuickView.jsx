@@ -746,19 +746,21 @@ const QuickView = () => {
             )}
             <Grid item xs={12} md={selectedPeriod === 'custom' ? 12 : 6}>
               <Box sx={{ 
-                p: 1.5,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
+                minHeight: 56,
+                px: 1.5,
+                py: 0,
                 borderRadius: 1.5,
                 bgcolor: 'action.hover',
                 border: '1px solid',
                 borderColor: 'divider'
               }}>
                 <Typography variant="subtitle2" sx={{ 
-                  mb: 1.5, 
                   fontWeight: 600, 
                   color: theme.palette.text.primary,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 0.75
+                  flexShrink: 0
                 }}>
                   View Mode
                 </Typography>
@@ -766,9 +768,10 @@ const QuickView = () => {
                   value={viewMode}
                   exclusive
                   onChange={(e, newMode) => newMode && setViewMode(newMode)}
-                  fullWidth
                   size="small"
                   sx={{
+                    flex: 1,
+                    minWidth: 0,
                     '& .MuiToggleButton-root': {
                       borderRadius: '6px !important',
                       border: '1px solid',
@@ -776,7 +779,9 @@ const QuickView = () => {
                       color: 'text.secondary',
                       fontWeight: 500,
                       textTransform: 'none',
-                      py: 1.25,
+                      py: 0.75,
+                      px: 1.5,
+                      minHeight: 32,
                       '&:hover': {
                         bgcolor: 'action.selected',
                         borderColor: 'primary.main'
@@ -792,12 +797,12 @@ const QuickView = () => {
                     }
                   }}
                 >
-                  <ToggleButton value="realtime" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <TimelineIcon fontSize="small" />
+                  <ToggleButton value="realtime" sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                    <TimelineIcon sx={{ fontSize: 18 }} />
                     Real-time
                   </ToggleButton>
-                  <ToggleButton value="history" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <RefreshIcon fontSize="small" />
+                  <ToggleButton value="history" sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                    <RefreshIcon sx={{ fontSize: 18 }} />
                     Historical Data
                   </ToggleButton>
                 </ToggleButtonGroup>
