@@ -106,7 +106,10 @@ const CompanySite = () => {
     }
     if (devicesRes.status === 'fulfilled') setDevices(devicesRes.value?.data ?? []);
     if (usersRes.status === 'fulfilled') setUsers(usersRes.value?.data ?? []);
-    if (sitesRes.status === 'rejected') console.error('Error fetching sites:', sitesRes.reason);
+    if (sitesRes.status === 'rejected') {
+      console.error('Error fetching sites:', sitesRes.reason);
+      setSnackbar({ open: true, message: 'Could not load site list. Check connection and try again.', severity: 'warning' });
+    }
     if (companiesRes.status === 'rejected') console.error('Error fetching companies:', companiesRes.reason);
 
     setLoading(false);

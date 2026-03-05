@@ -8,36 +8,14 @@ router.use(authenticateToken);
 router.use(authorizeMenuAccess('/company-site'));
 
 // GET /api/sites - Get all sites
-// Use query without devices join first (devices.site_id may not exist); fallback to minimal query if needed
+// Use minimal query (sites + companies only) so list never empty due to JOIN/column issues
 router.get('/', async (req, res) => {
   try {
     const userId = req.user?.user_id;
     const role = (req.user?.role || '').toString().trim().toLowerCase().replace(/\s+/g, '_');
     const isFullAccess = role === 'super_admin' || role === 'admin' || !userId;
 
-    const queryWithDevices = isFullAccess
-      ? `
-          SELECT
-            s.site_id,
-            s.site_name,
-            s.company_id,
-            s.description,
-            s.location,
-            s.created_at,
-            s.updated_at,
-            s.created_by,
-            c.company_name,
-            array_agg(DISTINCT u.username) FILTER (WHERE u.username IS NOT NULL) as assigned_users,
-            array_agg(DISTINCT d.name) FILTER (WHERE d.name IS NOT NULL) as assigned_devices
-          FROM sites s
-          LEFT JOIN companies c ON s.company_id = c.company_id
-          LEFT JOIN user_sites us ON s.site_id = us.site_id
-          LEFT JOIN users u ON us.user_id = u.user_id
-          LEFT JOIN devices d ON s.site_id = d.site_id
-          GROUP BY s.site_id, s.site_name, s.company_id, s.description, s.location, s.created_at, s.updated_at, s.created_by, c.company_name
-          ORDER BY s.site_name
-        `
-      : `
+    const minimalSelect = `
       SELECT
         s.site_id,
         s.site_name,
@@ -48,112 +26,26 @@ router.get('/', async (req, res) => {
         s.updated_at,
         s.created_by,
         c.company_name,
-        array_agg(DISTINCT u.username) FILTER (WHERE u.username IS NOT NULL) as assigned_users,
-        array_agg(DISTINCT d.name) FILTER (WHERE d.name IS NOT NULL) as assigned_devices
-      FROM sites s
-      LEFT JOIN companies c ON s.company_id = c.company_id
-      LEFT JOIN user_sites us ON s.site_id = us.site_id
-      LEFT JOIN users u ON us.user_id = u.user_id
-      LEFT JOIN devices d ON s.site_id = d.site_id
-      WHERE (s.created_by = $1 OR s.created_by IS NULL OR us.user_id = $1)
-      GROUP BY s.site_id, s.site_name, s.company_id, s.description, s.location, s.created_at, s.updated_at, s.created_by, c.company_name
-      ORDER BY s.site_name
-    `;
-
-    const queryWithoutDevices = isFullAccess
-      ? `
-          SELECT
-            s.site_id,
-            s.site_name,
-            s.company_id,
-            s.description,
-            s.location,
-            s.created_at,
-            s.updated_at,
-            s.created_by,
-            c.company_name,
-            array_agg(DISTINCT u.username) FILTER (WHERE u.username IS NOT NULL) as assigned_users,
-            ARRAY[]::text[] as assigned_devices
-          FROM sites s
-          LEFT JOIN companies c ON s.company_id = c.company_id
-          LEFT JOIN user_sites us ON s.site_id = us.site_id
-          LEFT JOIN users u ON us.user_id = u.user_id
-          GROUP BY s.site_id, s.site_name, s.company_id, s.description, s.location, s.created_at, s.updated_at, s.created_by, c.company_name
-          ORDER BY s.site_name
-        `
-      : `
-      SELECT
-        s.site_id,
-        s.site_name,
-        s.company_id,
-        s.description,
-        s.location,
-        s.created_at,
-        s.updated_at,
-        s.created_by,
-        c.company_name,
-        array_agg(DISTINCT u.username) FILTER (WHERE u.username IS NOT NULL) as assigned_users,
+        ARRAY[]::text[] as assigned_users,
         ARRAY[]::text[] as assigned_devices
       FROM sites s
       LEFT JOIN companies c ON s.company_id = c.company_id
-      LEFT JOIN user_sites us ON s.site_id = us.site_id
-      LEFT JOIN users u ON us.user_id = u.user_id
-      WHERE (s.created_by = $1 OR s.created_by IS NULL OR us.user_id = $1)
-      GROUP BY s.site_id, s.site_name, s.company_id, s.description, s.location, s.created_at, s.updated_at, s.created_by, c.company_name
-      ORDER BY s.site_name
     `;
+    const whereClause = isFullAccess ? '' : ' WHERE (s.created_by = $1 OR s.created_by IS NULL)';
+    const orderClause = ' ORDER BY s.site_name';
 
-    let sites;
+    let sites = [];
     try {
       sites = isFullAccess
-        ? await getRows(queryWithoutDevices)
-        : await getRows(queryWithoutDevices, [userId]);
+        ? await getRows(minimalSelect + orderClause)
+        : await getRows(minimalSelect + whereClause + orderClause, [userId]);
     } catch (err) {
-      console.warn('Get sites: main query failed', err.message);
-      const minimalSelect = `
-        SELECT
-          s.site_id,
-          s.site_name,
-          s.company_id,
-          s.description,
-          s.location,
-          s.created_at,
-          s.updated_at,
-          s.created_by,
-          c.company_name,
-          ARRAY[]::text[] as assigned_users,
-          ARRAY[]::text[] as assigned_devices
-        FROM sites s
-        LEFT JOIN companies c ON s.company_id = c.company_id
-      `;
-      const minimalWhere = isFullAccess ? '' : ' WHERE (s.created_by = $1 OR s.created_by IS NULL)';
-      const minimalOrder = ' ORDER BY s.site_name';
-      const minimalQuery = minimalSelect + minimalWhere + minimalOrder;
-      try {
-        sites = isFullAccess
-          ? await getRows(minimalQuery)
-          : await getRows(minimalQuery, [userId]);
-      } catch (minErr) {
-        console.error('Get sites: minimal query failed', minErr);
-        throw err;
-      }
+      console.error('Get sites: query failed', err.message);
+      throw err;
     }
 
     if (!Array.isArray(sites)) sites = [];
-    if (sites.length === 0 && !isFullAccess && userId != null) {
-      try {
-        const byCreated = await getRows(`
-          SELECT s.site_id, s.site_name, s.company_id, s.description, s.location, s.created_at, s.updated_at, s.created_by,
-                 c.company_name, ARRAY[]::text[] as assigned_users, ARRAY[]::text[] as assigned_devices
-          FROM sites s
-          LEFT JOIN companies c ON s.company_id = c.company_id
-          WHERE s.created_by = $1
-          ORDER BY s.site_name
-        `, [userId]);
-        if (byCreated.length > 0) sites = byCreated;
-      } catch (_) { /* ignore */ }
-    }
-
+    console.log('GET /api/sites:', { userId, role: req.user?.role, isFullAccess, count: sites.length });
     res.json(sites);
   } catch (error) {
     console.error('Get sites error:', error);
