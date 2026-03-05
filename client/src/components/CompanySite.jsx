@@ -173,7 +173,14 @@ const CompanySite = () => {
           await axios.put(`${API_BASE_URL}/companies/${editingItem.company_id}`, companyData, { headers });
         } else {
           const createRes = await axios.post(`${API_BASE_URL}/companies`, companyData, { headers });
-          setCompanies((prev) => [...prev, createRes.data]);
+          const created = createRes?.data;
+          if (created && typeof created === 'object') {
+            const company = {
+              ...created,
+              company_id: created.company_id ?? created.companyId ?? `new-${Date.now()}`
+            };
+            setCompanies((prev) => [...prev, company]);
+          }
         }
       } else {
         // Save site
@@ -190,7 +197,18 @@ const CompanySite = () => {
           await axios.put(`${API_BASE_URL}/sites/${editingItem.site_id}`, siteData, { headers });
         } else {
           const createRes = await axios.post(`${API_BASE_URL}/sites`, siteData, { headers });
-          setSites((prev) => [...prev, createRes.data]);
+          const created = createRes?.data;
+          if (created && typeof created === 'object') {
+            const site = {
+              ...created,
+              site_id: created.site_id ?? created.siteId ?? `new-${Date.now()}`,
+              site_name: created.site_name ?? formData.site_name,
+              company_id: created.company_id ?? formData.company_id,
+              assigned_users: created.assigned_users ?? [],
+              assigned_devices: created.assigned_devices ?? []
+            };
+            setSites((prev) => [...prev, site]);
+          }
         }
       }
 
