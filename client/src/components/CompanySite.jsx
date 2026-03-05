@@ -326,13 +326,20 @@ const CompanySite = () => {
     }
   ];
 
-  // Enhanced sites data with related names
-  const enhancedSites = Array.isArray(sites) ? sites.map(site => ({
-    ...site,
-    company_name: Array.isArray(companies) ? companies.find(c => c.company_id === site.company_id)?.company_name || 'N/A' : 'N/A',
-    assigned_users: site.assigned_users || [],
-    assigned_devices: site.assigned_devices || []
-  })) : [];
+  // Enhanced sites data with related names (only include rows that have site_id for Data Grid id)
+  const enhancedSites = Array.isArray(sites)
+    ? sites
+        .filter((site) => site?.site_id != null)
+        .map((site) => ({
+          ...site,
+          company_name: Array.isArray(companies) ? companies.find((c) => c.company_id === site.company_id)?.company_name || 'N/A' : 'N/A',
+          assigned_users: site.assigned_users || [],
+          assigned_devices: site.assigned_devices || []
+        }))
+    : [];
+
+  const companyRows = Array.isArray(companies) ? companies.filter((c) => c?.company_id != null) : [];
+  const siteRows = enhancedSites;
 
   return (
     <Box sx={{ p: 2 }}>
@@ -381,9 +388,9 @@ const CompanySite = () => {
           ) : (
             <DataGrid
               autoHeight
-              rows={activeTab === 0 ? companies : enhancedSites}
+              rows={activeTab === 0 ? companyRows : siteRows}
               columns={activeTab === 0 ? companyColumns : siteColumns}
-              getRowId={(row) => activeTab === 0 ? row.company_id : row.site_id}
+              getRowId={(row) => (activeTab === 0 ? row.company_id : row.site_id)}
               pageSize={10}
               rowsPerPageOptions={[10, 25, 50]}
               sx={{
