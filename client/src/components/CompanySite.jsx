@@ -195,7 +195,8 @@ const CompanySite = () => {
       }
 
       handleCloseDialog();
-      fetchData();
+      // Only refetch after edit so list isn't overwritten; after create the new item is already in state
+      if (editingItem) fetchData();
       const entity = activeTab === 0 ? 'Company' : 'Site';
       setSnackbar({ open: true, message: `${entity} saved successfully`, severity: 'success' });
     } catch (error) {
