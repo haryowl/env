@@ -22,8 +22,7 @@ import {
 import {
   TrendingUp as TrendingUpIcon,
   Warning as WarningIcon,
-  CheckCircle as CheckCircleIcon,
-  Speed as SpeedIcon
+  CheckCircle as CheckCircleIcon
 } from '@mui/icons-material';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
@@ -199,6 +198,34 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
            (thresholds.max && stats.latest > thresholds.max);
   }, [stats.latest, thresholds]);
 
+  // "Become" look: minimal header, neutral metric cards, clean chart
+  const metricCardSx = {
+    textAlign: 'center',
+    p: 2,
+    borderRadius: 1.5,
+    background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : '#FAFAF9',
+    border: '1px solid',
+    borderColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+    transition: 'all 0.2s ease',
+    '&:hover': {
+      borderColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+    }
+  };
+  const metricValueSx = (isAccent) => ({
+    fontWeight: 700,
+    fontSize: '1rem',
+    mb: 0.5,
+    color: isAccent ? (isLatestOutOfRange ? '#EF4444' : colorScheme.line) : theme.palette.text.primary
+  });
+  const metricLabelSx = {
+    color: theme.palette.text.secondary,
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+    fontSize: '0.7rem'
+  };
+
   return (
     <Card sx={{ 
       height: '100%', 
@@ -206,57 +233,67 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
       flexDirection: 'column', 
       minHeight: 400, 
       width: '100%',
-      borderRadius: 1,
-      border: '1px solid rgba(0,0,0,0.06)',
-      boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+      borderRadius: 1.5,
+      border: '1px solid',
+      borderColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+      boxShadow: theme.palette.mode === 'dark' ? 'none' : '0 1px 3px rgba(0,0,0,0.06)',
       transition: 'all 0.2s ease',
-      '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }
+      overflow: 'hidden',
+      '&:hover': { boxShadow: theme.palette.mode === 'dark' ? '0 0 0 1px rgba(255,255,255,0.1)' : '0 4px 12px rgba(0,0,0,0.08)' }
     }}>
       <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: '100%', width: '100%', p: 2.5 }}>
+        {/* Become look: minimal header – title + subtitle, thin left accent, alerts on right */}
         <Box sx={{ 
           display: 'flex', 
           justifyContent: 'space-between', 
-          alignItems: 'center', 
-          mb: 1.5,
-          p: 1.25,
-          borderRadius: 1.5,
-          background: `linear-gradient(135deg, ${colorScheme.line} 0%, ${colorScheme.line}dd 100%)`,
-          color: 'white'
+          alignItems: 'flex-start', 
+          mb: 2,
+          pb: 1.5,
+          borderBottom: '1px solid',
+          borderColor: theme.palette.divider
         }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <SpeedIcon sx={{ fontSize: 16 }} />
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'stretch', 
+            gap: 0,
+            borderLeft: '4px solid',
+            borderColor: colorScheme.line,
+            pl: 1.5
+          }}>
             <Box>
               <Typography variant="body1" component="h3" sx={{ 
                 fontWeight: 600,
-                fontSize: '0.9rem',
-                color: 'white',
-                textShadow: '0 1px 2px rgba(0,0,0,0.2)'
+                fontSize: '1rem',
+                color: theme.palette.text.primary,
+                lineHeight: 1.3
               }}>
                 {parameterDisplayName}
               </Typography>
               <Typography variant="caption" sx={{ 
-                color: 'rgba(255, 255, 255, 0.9)',
+                color: theme.palette.text.secondary,
                 fontWeight: 500,
-                fontSize: '0.7rem'
+                fontSize: '0.75rem',
+                display: 'block',
+                mt: 0.25
               }}>
                 {deviceName}
               </Typography>
             </Box>
           </Box>
-          <Box sx={{ display: 'flex', gap: 0.5 }}>
+          <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }}>
             {isLatestOutOfRange && (
               <Chip 
                 label="ALERT" 
                 size="small"
                 sx={{ 
                   fontWeight: 600,
-                  fontSize: '0.6rem',
-                  height: 20,
-                  backgroundColor: 'rgba(239, 68, 68, 0.9)',
-                  color: 'white',
-                  border: '1px solid rgba(255, 255, 255, 0.3)'
+                  fontSize: '0.65rem',
+                  height: 22,
+                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                  color: '#DC2626',
+                  border: '1px solid rgba(239, 68, 68, 0.4)'
                 }}
-                icon={<WarningIcon sx={{ color: 'white', fontSize: 12 }} />}
+                icon={<WarningIcon sx={{ color: '#DC2626', fontSize: 14 }} />}
               />
             )}
             {parameterAlerts.length > 0 && (
@@ -265,117 +302,47 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
                 size="small"
                 sx={{ 
                   fontWeight: 500,
-                  fontSize: '0.6rem',
-                  height: 20,
-                  backgroundColor: 'rgba(245, 158, 11, 0.9)',
-                  color: 'white',
-                  border: '1px solid rgba(255, 255, 255, 0.3)'
+                  fontSize: '0.65rem',
+                  height: 22,
+                  backgroundColor: theme.palette.mode === 'dark' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(245, 158, 11, 0.14)',
+                  color: theme.palette.mode === 'dark' ? '#FBBF24' : '#B45309',
+                  border: '1px solid rgba(245, 158, 11, 0.35)'
                 }}
               />
             )}
           </Box>
         </Box>
 
-        {/* Modern Statistics */}
+        {/* Become look: neutral metric cards – light beige/off-white, dark text */}
         <Box sx={{ 
           display: 'grid', 
           gridTemplateColumns: 'repeat(4, 1fr)', 
-          gap: 2, 
+          gap: 1.5, 
           mb: 2 
         }}>
-          <Box sx={{ 
-            textAlign: 'center',
-            p: 2,
-            borderRadius: '4px',
-            background: isLatestOutOfRange 
-              ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(239, 68, 68, 0.05) 100%)'
-              : `linear-gradient(135deg, ${colorScheme.bg} 0%, rgba(255, 255, 255, 0.5) 100%)`,
-            border: `2px solid ${isLatestOutOfRange ? 'rgba(239, 68, 68, 0.3)' : colorScheme.line + '30'}`,
-            transition: 'all 0.2s ease-in-out',
-            '&:hover': {
-              transform: 'translateY(-2px)',
-              boxShadow: `0 4px 12px ${colorScheme.line}20`
-            }
-          }}>
-            <Typography variant="h6" sx={{ 
-              color: isLatestOutOfRange ? '#EF4444' : colorScheme.line,
-              fontWeight: 800,
-              fontSize: '1.1rem',
-              mb: 0.5
-            }}>
+          <Box sx={metricCardSx}>
+            <Typography variant="body1" sx={metricValueSx(true)}>
               {formatValue(stats.latest)}
             </Typography>
-            <Typography variant="caption" sx={{ 
-              color: theme.palette.text.secondary,
-              fontWeight: 600,
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px'
-            }}>
-              Latest
-            </Typography>
+            <Typography variant="caption" sx={metricLabelSx}>Latest</Typography>
           </Box>
-          <Box sx={{ 
-            textAlign: 'center',
-            p: 2,
-            borderRadius: 1.5,
-            background: `linear-gradient(135deg, ${colorScheme.bg} 0%, rgba(255, 255, 255, 0.5) 100%)`,
-            border: `1px solid ${colorScheme.line}30`,
-            transition: 'all 0.2s ease',
-            '&:hover': { boxShadow: `0 2px 8px ${colorScheme.line}20` }
-          }}>
-            <Typography variant="body1" sx={{ color: colorScheme.line, fontWeight: 700, fontSize: '1rem', mb: 0.5 }}>
+          <Box sx={metricCardSx}>
+            <Typography variant="body1" sx={metricValueSx(false)}>
               {formatValue(stats.avg)}
             </Typography>
-            <Typography variant="caption" sx={{ 
-              color: theme.palette.text.secondary,
-              fontWeight: 600,
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px'
-            }}>
-              Average
-            </Typography>
+            <Typography variant="caption" sx={metricLabelSx}>Average</Typography>
           </Box>
-          <Box sx={{ 
-            textAlign: 'center',
-            p: 2,
-            borderRadius: 1.5,
-            background: `linear-gradient(135deg, ${colorScheme.bg} 0%, rgba(255, 255, 255, 0.5) 100%)`,
-            border: `1px solid ${colorScheme.line}30`,
-            transition: 'all 0.2s ease',
-            '&:hover': { boxShadow: `0 2px 8px ${colorScheme.line}20` }
-          }}>
-            <Typography variant="body1" sx={{ color: colorScheme.line, fontWeight: 700, fontSize: '1rem', mb: 0.5 }}>
+          <Box sx={metricCardSx}>
+            <Typography variant="body1" sx={metricValueSx(false)}>
               {formatValue(stats.min)}
             </Typography>
-            <Typography variant="caption" sx={{ 
-              color: theme.palette.text.secondary,
-              fontWeight: 600,
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px'
-            }}>
-              Min
-            </Typography>
+            <Typography variant="caption" sx={metricLabelSx}>Min</Typography>
           </Box>
-          <Box sx={{ 
-            textAlign: 'center',
-            p: 2,
-            borderRadius: 1.5,
-            background: `linear-gradient(135deg, ${colorScheme.bg} 0%, rgba(255, 255, 255, 0.5) 100%)`,
-            border: `1px solid ${colorScheme.line}30`,
-            transition: 'all 0.2s ease',
-            '&:hover': { boxShadow: `0 2px 8px ${colorScheme.line}20` }
-          }}>
-            <Typography variant="body1" sx={{ color: colorScheme.line, fontWeight: 700, fontSize: '1rem', mb: 0.5 }}>
+          <Box sx={metricCardSx}>
+            <Typography variant="body1" sx={metricValueSx(false)}>
               {formatValue(stats.max)}
             </Typography>
-            <Typography variant="caption" sx={{ 
-              color: theme.palette.text.secondary,
-              fontWeight: 600,
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px'
-            }}>
-              Max
-            </Typography>
+            <Typography variant="caption" sx={metricLabelSx}>Max</Typography>
           </Box>
         </Box>
 
