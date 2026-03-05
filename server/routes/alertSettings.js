@@ -168,21 +168,37 @@ router.get('/email-recipients', auth.authenticateToken, async (req, res) => {
 router.post('/email-recipients', auth.authenticateToken, async (req, res) => {
   try {
     const { name, email, alerts } = req.body;
-    console.log('Adding email recipient:', { name, email, alerts });
-    
-    const alertsJson = JSON.stringify(alerts);
-    console.log('Alerts JSON to be stored:', alertsJson);
-    
-    const result = await db.query(
-      'INSERT INTO alert_email_recipients (name, email, alerts, created_by) VALUES ($1, $2, $3, $4) RETURNING id',
-      [name, email, alertsJson, req.user.user_id]
-    );
-    
-    console.log('Email recipient added successfully with ID:', result.rows[0].id);
-    res.json({ message: 'Email recipient added successfully', id: result.rows[0].id });
+
+    if (!name || !email) {
+      return res.status(400).json({ error: 'Name and email are required' });
+    }
+
+    const alertsArray = Array.isArray(alerts) ? alerts : (alerts != null ? [alerts] : []);
+    const alertsJson = JSON.stringify(alertsArray);
+
+    try {
+      const result = await db.query(
+        'INSERT INTO alert_email_recipients (name, email, alerts, created_by) VALUES ($1, $2, $3::jsonb, $4) RETURNING id',
+        [String(name).trim(), String(email).trim(), alertsJson, req.user.user_id]
+      );
+      return res.json({ message: 'Email recipient added successfully', id: result.rows[0].id });
+    } catch (insertError) {
+      const msg = insertError.message || '';
+      if (msg.includes('created_by') && (msg.includes('does not exist') || msg.includes('column'))) {
+        const result = await db.query(
+          'INSERT INTO alert_email_recipients (name, email, alerts) VALUES ($1, $2, $3::jsonb) RETURNING id',
+          [String(name).trim(), String(email).trim(), alertsJson]
+        );
+        return res.json({ message: 'Email recipient added successfully', id: result.rows[0].id });
+      }
+      throw insertError;
+    }
   } catch (error) {
     console.error('Error adding email recipient:', error);
-    res.status(500).json({ error: 'Failed to add email recipient' });
+    res.status(500).json({
+      error: 'Failed to add email recipient',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 

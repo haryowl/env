@@ -256,8 +256,32 @@ function App() {
   return (
     <FontProvider>
       <UserThemeContextProvider>
-      <Snackbar open={notification.open} autoHideDuration={6000} onClose={() => setNotification({ ...notification, open: false })} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
-        <Alert onClose={() => setNotification({ ...notification, open: false })} severity={notification.severity} sx={{ width: '100%' }}>
+      <Snackbar
+        open={notification.open}
+        autoHideDuration={6000}
+        onClose={() => setNotification({ ...notification, open: false })}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        sx={{ '& .MuiPaper-root': { maxWidth: 560, minWidth: 400 } }}
+      >
+        <Alert
+          onClose={() => setNotification({ ...notification, open: false })}
+          severity={notification.severity}
+          sx={{
+            width: '100%',
+            py: 2,
+            px: 2.5,
+            fontSize: '1.1rem',
+            fontWeight: 700,
+            '& .MuiAlert-icon': { fontSize: 28, color: 'inherit' },
+            '& .MuiAlert-message': { color: 'inherit', fontWeight: 700 },
+            ...(notification.severity === 'error' && {
+              backgroundColor: '#DC2626',
+              color: '#fff',
+              '& .MuiAlert-icon': { color: '#fff' },
+              '& .MuiAlert-action .MuiIconButton-root': { color: 'rgba(255,255,255,0.9)' },
+            }),
+          }}
+        >
           {notification.message}
         </Alert>
       </Snackbar>
