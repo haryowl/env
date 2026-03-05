@@ -294,6 +294,37 @@ const MapCenterUpdater = ({ centerCoords, mapRef }) => {
   return null;
 };
 
+// Build deviceId -> list of { parameter, min, max } for threshold alerts
+const buildDeviceThresholds = (alerts) => {
+  const map = {};
+  if (!Array.isArray(alerts)) return map;
+  alerts.forEach((a) => {
+    if (a.type !== 'threshold' || (a.min == null && a.max == null)) return;
+    const id = a.device_id;
+    if (!map[id]) map[id] = [];
+    map[id].push({
+      parameter: a.parameter,
+      min: a.min != null ? Number(a.min) : null,
+      max: a.max != null ? Number(a.max) : null
+    });
+  });
+  return map;
+};
+
+// True if latest data object has any value out of range for the device's thresholds
+const isLatestDataOutOfRange = (latestData, thresholds) => {
+  if (!latestData || typeof latestData !== 'object' || !Array.isArray(thresholds) || thresholds.length === 0) return false;
+  for (const t of thresholds) {
+    const value = latestData[t.parameter];
+    if (value === undefined || value === null) continue;
+    const num = typeof value === 'number' ? value : parseFloat(value);
+    if (Number.isNaN(num)) continue;
+    if (t.min != null && num < t.min) return true;
+    if (t.max != null && num > t.max) return true;
+  }
+  return false;
+};
+
 const DashboardMap = ({ socket }) => {
   const theme = useTheme();
   const { formatDisplayName } = useFieldMetadata();
@@ -303,6 +334,7 @@ const DashboardMap = ({ socket }) => {
   const [selectedLayer, setSelectedLayer] = useState('dark');
   const [deviceData, setDeviceData] = useState({});
   const [deviceAlerts, setDeviceAlerts] = useState({});
+  const [alertThresholdsByDevice, setAlertThresholdsByDevice] = useState({});
   const [centerCoords, setCenterCoords] = useState(null);
   const mapRef = useRef(null);
 
@@ -335,6 +367,23 @@ const DashboardMap = ({ socket }) => {
     return typeof value === 'object' ? '' : value;
   };
 
+  // Load alert threshold rules once (used to derive "out of range" from latest data)
+  const loadAlertThresholds = async () => {
+    try {
+      const token = localStorage.getItem('iot_token');
+      const response = await fetch(`${API_BASE_URL}/alerts`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const list = data.alerts || [];
+        setAlertThresholdsByDevice(buildDeviceThresholds(list));
+      }
+    } catch (e) {
+      console.error('Error loading alert thresholds for map:', e);
+    }
+  };
+
   // Load devices with coordinates
   const loadDevices = async () => {
     setLoading(true);
@@ -350,11 +399,6 @@ const DashboardMap = ({ socket }) => {
         const data = await response.json();
         const devicesList = data.devices || [];
         setDevices(devicesList);
-        
-        // Check alerts for each device
-        devicesList.forEach(device => {
-          checkDeviceAlerts(device.device_id);
-        });
       } else {
         setError('Failed to load devices');
       }
@@ -366,7 +410,7 @@ const DashboardMap = ({ socket }) => {
     }
   };
 
-  // Load device data for popup
+  // Load device data for popup and update marker alert state from latest data vs thresholds
   const loadDeviceData = async (deviceId) => {
     try {
       const token = localStorage.getItem('iot_token');
@@ -376,49 +420,29 @@ const DashboardMap = ({ socket }) => {
       
       if (response.ok) {
         const data = await response.json();
-        setDeviceData(prev => ({
-          ...prev,
-          [deviceId]: data.data || {}
-        }));
+        const latest = data.data || {};
+        setDeviceData(prev => ({ ...prev, [deviceId]: latest }));
+        setDeviceAlerts(prev => {
+          const thresholds = alertThresholdsByDevice[deviceId] || [];
+          const outOfRange = isLatestDataOutOfRange(latest, thresholds);
+          return { ...prev, [deviceId]: outOfRange };
+        });
       }
     } catch (error) {
       console.error('Error loading device data:', error);
     }
   };
 
-  // Check for device alerts
-  const checkDeviceAlerts = async (deviceId) => {
-    try {
-      const token = localStorage.getItem('iot_token');
-      const now = new Date();
-      const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-      
-      const response = await fetch(`${API_BASE_URL}/alert-logs?deviceId=${deviceId}&startDate=${oneHourAgo.toISOString()}&endDate=${now.toISOString()}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        const hasAlerts = data.logs && data.logs.length > 0;
-        setDeviceAlerts(prev => ({
-          ...prev,
-          [deviceId]: hasAlerts
-        }));
-      }
-    } catch (error) {
-      console.error('Error checking device alerts:', error);
-    }
-  };
-
-  // Real-time updates
+  // Load devices and alert thresholds on mount
   useEffect(() => {
     loadDevices();
-    
+    loadAlertThresholds();
+
     if (socket) {
       socket.on('device_status_update', (data) => {
-        setDevices(prevDevices => 
-          prevDevices.map(device => 
-            device.device_id === data.device_id 
+        setDevices(prevDevices =>
+          prevDevices.map(device =>
+            device.device_id === data.device_id
               ? { ...device, status: data.status }
               : device
           )
@@ -426,22 +450,28 @@ const DashboardMap = ({ socket }) => {
       });
     }
 
-    // Refresh every 10 minutes
     const interval = setInterval(loadDevices, 10 * 60 * 1000);
-
     return () => {
       clearInterval(interval);
-      if (socket) {
-        socket.off('device_status_update');
-      }
+      if (socket) socket.off('device_status_update');
     };
   }, [socket]);
 
-  // Preload latest data for all devices with coordinates so popup shows parameters without waiting for click
+  // Preload latest data for all devices with coordinates; derive red/green from latest data vs thresholds
   useEffect(() => {
     const withCoords = devices.filter(d => d.latitude && d.longitude && !isNaN(d.latitude) && !isNaN(d.longitude));
     withCoords.forEach(device => loadDeviceData(device.device_id));
-  }, [devices]);
+  }, [devices, alertThresholdsByDevice]);
+
+  // Periodic refresh of latest data so "next data" in range turns marker green
+  useEffect(() => {
+    const withCoords = devices.filter(d => d.latitude && d.longitude && !isNaN(d.latitude) && !isNaN(d.longitude));
+    if (withCoords.length === 0) return;
+    const interval = setInterval(() => {
+      withCoords.forEach(device => loadDeviceData(device.device_id));
+    }, 60 * 1000);
+    return () => clearInterval(interval);
+  }, [devices, alertThresholdsByDevice]);
 
   // Filter devices with valid coordinates
   const devicesWithCoordinates = devices.filter(device => 
