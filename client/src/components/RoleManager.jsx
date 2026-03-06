@@ -75,6 +75,8 @@ const RoleManager = () => {
   });
   const [devices, setDevices] = useState([]);
   const [selectedDevices, setSelectedDevices] = useState([]);
+  const [editSpecificDevicePermissions, setEditSpecificDevicePermissions] = useState({});
+  const [editAddDevices, setEditAddDevices] = useState([]);
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
@@ -270,7 +272,8 @@ const RoleManager = () => {
           menu_permissions: data.role.menu_permissions || {},
           device_permissions: data.role.device_permissions || {}
         });
-        
+        setEditSpecificDevicePermissions(data.role.specific_device_permissions ? { ...data.role.specific_device_permissions } : {});
+        setEditAddDevices([]);
         setEditDialogOpen(true);
       } else {
         const errorData = await response.json();
@@ -336,7 +339,7 @@ const RoleManager = () => {
         display_name: editForm.display_name,
         description: editForm.description,
         menu_permissions: editPermissions.menu_permissions,
-        device_permissions: editPermissions.device_permissions
+        device_permissions: { ...(editPermissions.device_permissions || {}), ...editSpecificDevicePermissions }
       };
 
       console.log('Updating role:', selectedRole.role_id, requestData);
@@ -416,6 +419,37 @@ const RoleManager = () => {
         [permission]: value
       }
     }));
+  };
+
+  const updateEditSpecificDevicePermission = (deviceId, permission, value) => {
+    setEditSpecificDevicePermissions(prev => ({
+      ...prev,
+      [deviceId]: {
+        ...(prev[deviceId] || { read: false, write: false, delete: false, configure: false }),
+        [permission]: value
+      }
+    }));
+  };
+
+  const removeEditSpecificDevice = (deviceId) => {
+    setEditSpecificDevicePermissions(prev => {
+      const next = { ...prev };
+      delete next[deviceId];
+      return next;
+    });
+  };
+
+  const addEditSpecificDevices = (deviceIds) => {
+    if (!deviceIds || deviceIds.length === 0) return;
+    const defaults = { read: true, write: false, delete: false, configure: false };
+    setEditSpecificDevicePermissions(prev => {
+      const next = { ...prev };
+      deviceIds.forEach(id => {
+        if (!next[id]) next[id] = { ...defaults };
+      });
+      return next;
+    });
+    setEditAddDevices([]);
   };
 
   if (!canAccessMenu('/roles')) {
@@ -856,20 +890,68 @@ const RoleManager = () => {
                      <Typography variant="subtitle2" gutterBottom>
                        Specific Device Permissions:
                      </Typography>
+                     <Box sx={{ mb: 2, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
+                       <FormControl size="small" sx={{ minWidth: 220 }}>
+                         <InputLabel>Add device(s)</InputLabel>
+                         <Select
+                           multiple
+                           value={editAddDevices}
+                           onChange={(e) => setEditAddDevices(e.target.value)}
+                           renderValue={(selected) => (
+                             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                               {selected.map((id) => {
+                                 const d = devices.find(x => x.device_id === id);
+                                 return <Chip key={id} label={d ? d.name : id} size="small" />;
+                               })}
+                             </Box>
+                           )}
+                           label="Add device(s)"
+                         >
+                           {devices
+                             .filter(d => !Object.keys(editSpecificDevicePermissions).includes(d.device_id))
+                             .map((device) => (
+                               <MenuItem key={device.device_id} value={device.device_id}>
+                                 {device.name} ({device.device_id})
+                               </MenuItem>
+                             ))}
+                         </Select>
+                       </FormControl>
+                       <Button
+                         variant="outlined"
+                         size="small"
+                         startIcon={<AddIcon />}
+                         onClick={() => addEditSpecificDevices(editAddDevices)}
+                         disabled={!editAddDevices || editAddDevices.length === 0}
+                       >
+                         Add
+                       </Button>
+                     </Box>
                      <Box display="flex" gap={2} flexWrap="wrap">
-                       {Object.entries(selectedRole?.specific_device_permissions || {}).map(([deviceId, perms]) => (
-                         <Card variant="outlined" key={deviceId} sx={{ p: 1 }}>
-                           <Typography variant="body2" fontWeight="bold">
-                             Device: {devices.find(d => d.device_id === deviceId)?.name || deviceId}
-                           </Typography>
-                           <Box display="flex" gap={2} flexWrap="wrap">
-                             {Object.entries(perms).map(([perm, value]) => (
+                       {Object.entries(editSpecificDevicePermissions).map(([deviceId, perms]) => (
+                         <Card variant="outlined" key={deviceId} sx={{ p: 1.5, minWidth: 200 }}>
+                           <Box display="flex" alignItems="flex-start" justifyContent="space-between">
+                             <Typography variant="body2" fontWeight="bold">
+                               {devices.find(d => d.device_id === deviceId)?.name || deviceId}
+                             </Typography>
+                             <Tooltip title="Unassign device">
+                               <IconButton
+                                 size="small"
+                                 color="error"
+                                 onClick={() => removeEditSpecificDevice(deviceId)}
+                               >
+                                 <DeleteIcon fontSize="small" />
+                               </IconButton>
+                             </Tooltip>
+                           </Box>
+                           <Box display="flex" gap={2} flexWrap="wrap" sx={{ mt: 0.5 }}>
+                             {['read', 'write', 'delete', 'configure'].map((perm) => (
                                <FormControlLabel
                                  key={perm}
                                  control={
                                    <Switch
-                                     checked={value}
-                                     disabled
+                                     size="small"
+                                     checked={!!(perms && perms[perm])}
+                                     onChange={(e) => updateEditSpecificDevicePermission(deviceId, perm, e.target.checked)}
                                    />
                                  }
                                  label={perm}
@@ -878,7 +960,7 @@ const RoleManager = () => {
                            </Box>
                          </Card>
                        ))}
-            </Box>
+                     </Box>
                    </Grid>
                  </Grid>
                </AccordionDetails>
