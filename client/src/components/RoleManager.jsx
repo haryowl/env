@@ -337,8 +337,8 @@ const RoleManager = () => {
       
       const requestData = {
         display_name: editForm.display_name,
-        description: editForm.description,
-        menu_permissions: editPermissions.menu_permissions,
+        description: editForm.description != null ? String(editForm.description) : '',
+        menu_permissions: editPermissions.menu_permissions || {},
         device_permissions: { ...(editPermissions.device_permissions || {}), ...editSpecificDevicePermissions }
       };
 

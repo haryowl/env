@@ -89,11 +89,11 @@ const createRoleSchema = Joi.object({
 // Update role schema
 const updateRoleSchema = Joi.object({
   display_name: Joi.string().min(3).max(100).optional(),
-  description: Joi.string().optional(),
+  description: Joi.string().optional().allow(null, ''),
   permissions: Joi.object().optional(),
   menu_permissions: Joi.object().optional(),
-  device_permissions: Joi.object().optional()
-});
+  device_permissions: Joi.object().pattern(Joi.string(), Joi.any()).optional()
+}).options({ stripUnknown: true, allowUnknown: true });
 
 // GET /api/roles/templates - Get role templates
 router.get('/templates', authorizeRole(['super_admin', 'admin']), async (req, res) => {
@@ -758,12 +758,13 @@ router.put('/:roleId', authorizeRole(['super_admin', 'admin']), async (req, res)
     const { display_name, description, permissions, menu_permissions, device_permissions } = req.body;
 
     // Validate input
-    const { error, value } = updateRoleSchema.validate(req.body);
+    const { error, value } = updateRoleSchema.validate(req.body, { abortEarly: false });
     if (error) {
+      console.error('Update role validation failed:', error.details);
       return res.status(400).json({
         error: 'Invalid input data',
         code: 'VALIDATION_ERROR',
-        details: error.details
+        details: error.details.map(d => ({ path: d.path.join('.'), message: d.message }))
       });
     }
 
