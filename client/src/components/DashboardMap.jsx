@@ -125,27 +125,27 @@ const escapeHtml = (str) => {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 };
 
-// Modern professional device marker with optional name label; popup on click unchanged
+// Future Map style: green pin with white dot center and white rectangular label beneath
 const createDeviceIcon = (status, hasAlerts = false, name = '') => {
-  let color = '#10B981'; // Modern green for online
+  let color = '#10B981'; // green for online / in range
   let className = 'custom-device-marker';
-  let pulseColor = 'rgba(16, 185, 129, 0.3)';
+  let pulseColor = 'rgba(16, 185, 129, 0.2)';
   
   if (hasAlerts) {
-    color = '#EF4444'; // Modern red for alerts
+    color = '#EF4444';
     className = 'custom-device-marker alert-blink';
-    pulseColor = 'rgba(239, 68, 68, 0.3)';
+    pulseColor = 'rgba(239, 68, 68, 0.35)';
   } else if (status !== 'online') {
-    color = '#F59E0B'; // Modern orange for offline
-    pulseColor = 'rgba(245, 158, 11, 0.3)';
+    color = '#F59E0B';
+    pulseColor = 'rgba(245, 158, 11, 0.25)';
   }
   
   const hasName = name && String(name).trim() !== '';
   const labelHtml = hasName
     ? `<div style="
         margin-top: 4px;
-        padding: 2px 6px;
-        background: rgba(255,255,255,0.95);
+        padding: 3px 8px;
+        background: #fff;
         color: #1f2937;
         font-size: 11px;
         font-weight: 600;
@@ -161,7 +161,7 @@ const createDeviceIcon = (status, hasAlerts = false, name = '') => {
     : '';
   
   const wrapperHeight = hasName ? 48 : 32;
-  const iconAnchorY = 16; // center of circle stays at lat/lng
+  const iconAnchorY = 16;
   
   return L.divIcon({
     className: className,
@@ -174,35 +174,35 @@ const createDeviceIcon = (status, hasAlerts = false, name = '') => {
       ">
         <div style="
           position: relative;
-          width: 24px;
-          height: 24px;
+          width: 26px;
+          height: 26px;
           display: flex;
           align-items: center;
           justify-content: center;
         ">
           <div style="
             position: absolute;
-            width: 32px;
-            height: 32px;
+            width: 28px;
+            height: 28px;
             background-color: ${pulseColor};
             border-radius: 50%;
-            animation: pulse 2s infinite;
+            animation: pulse 2.5s infinite;
           "></div>
           <div style="
-            width: 24px;
-            height: 24px;
-            background: linear-gradient(135deg, ${color} 0%, ${color}CC 100%);
-            border: 3px solid white;
+            width: 22px;
+            height: 22px;
+            background: ${color};
+            border: 2.5px solid white;
             border-radius: 50%;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.25);
             position: relative;
             z-index: 1;
           "></div>
           <div style="
             position: absolute;
-            width: 8px;
-            height: 8px;
-            background-color: white;
+            width: 6px;
+            height: 6px;
+            background: white;
             border-radius: 50%;
             z-index: 2;
           "></div>
@@ -211,9 +211,9 @@ const createDeviceIcon = (status, hasAlerts = false, name = '') => {
       </div>
       <style>
         @keyframes pulse {
-          0% { transform: scale(0.8); opacity: 1; }
-          70% { transform: scale(1.2); opacity: 0.3; }
-          100% { transform: scale(1.4); opacity: 0; }
+          0% { transform: scale(0.9); opacity: 0.8; }
+          70% { transform: scale(1.15); opacity: 0.2; }
+          100% { transform: scale(1.2); opacity: 0; }
         }
       </style>
     `,
@@ -582,31 +582,6 @@ const DashboardMap = ({ socket }) => {
           </Alert>
         )}
 
-          {/* Device count - rounded bar with subtle border */}
-          <Box sx={{ mb: 2 }}>
-            <Box
-              sx={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 1,
-                px: 2,
-                py: 1.25,
-                borderRadius: 1.5,
-                border: '1px solid',
-                borderColor: 'divider',
-                bgcolor: 'background.default',
-                color: 'text.primary',
-                fontWeight: 500,
-                fontSize: '0.9rem',
-              }}
-            >
-              <LocationIcon sx={{ fontSize: 20, color: 'primary.main' }} />
-              <Typography component="span" sx={{ fontWeight: 500, fontSize: '0.9rem' }}>
-                {devicesWithCoordinates.length} devices on map
-              </Typography>
-            </Box>
-          </Box>
-
           <Box sx={{ 
             height: 500, 
             width: '100%', 
@@ -616,6 +591,32 @@ const DashboardMap = ({ socket }) => {
             boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
             border: '1px solid rgba(0, 0, 0, 0.05)'
           }}>
+          {/* Device count badge - inside map, adjacent to zoom controls (Future Map style) */}
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 10,
+              left: 50,
+              zIndex: 1000,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 1,
+              px: 1.5,
+              py: 0.75,
+              borderRadius: 1,
+              bgcolor: 'rgba(255,255,255,0.95)',
+              border: '1px solid rgba(0,0,0,0.1)',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
+              color: 'text.primary',
+              fontWeight: 500,
+              fontSize: '0.8rem',
+            }}
+          >
+            <LocationIcon sx={{ fontSize: 18, color: 'primary.main' }} />
+            <Typography component="span" sx={{ fontWeight: 500, fontSize: '0.8rem' }}>
+              {devicesWithCoordinates.length} devices on map
+            </Typography>
+          </Box>
           <MapContainer
             ref={mapRef}
             center={[0, 0]}
