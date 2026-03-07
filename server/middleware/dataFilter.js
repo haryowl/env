@@ -65,16 +65,17 @@ const filterDeviceData = async (req, res, next) => {
     `, [user.user_id]);
 
     // Fallback: if no user_roles, use primary role from users.role
-    if (userRoles.length === 0 && user.role) {
+    if (Array.isArray(userRoles) && userRoles.length === 0 && user.role) {
       const primaryRole = await getRows(`
         SELECT role_id, role_name, device_permissions
         FROM roles
         WHERE role_name = $1
       `, [user.role]);
-      userRoles = primaryRole;
+      userRoles = Array.isArray(primaryRole) ? primaryRole : [];
     }
+    userRoles = Array.isArray(userRoles) ? userRoles : [];
 
-    console.log('User roles:', userRoles.map(r => r.role_name));
+    console.log('User roles:', userRoles.map(r => r && r.role_name).filter(Boolean));
 
     // Check for super_admin or admin roles that have full access
     const hasFullAccess = user.role === 'super_admin' || user.role === 'admin';
@@ -89,6 +90,7 @@ const filterDeviceData = async (req, res, next) => {
     const allowedDeviceIds = [];
     
     for (const userRole of userRoles) {
+      if (!userRole) continue;
       const roleId = userRole.role_id;
       if (roleId) {
         // Get device IDs from role_device_permissions table (always check - specific devices)
@@ -118,7 +120,7 @@ const filterDeviceData = async (req, res, next) => {
         WHERE user_id = $1 AND permissions->>'read' = 'true'
       `, [user.user_id]);
 
-      allowedDeviceIds.push(...userDevicePermissions.map(d => d.device_id));
+      allowedDeviceIds.push(...(userDevicePermissions || []).map(d => d && d.device_id).filter(Boolean));
       console.log('Using direct user permissions');
     } else {
       console.log('Using role permissions only, ignoring direct user permissions');
@@ -133,6 +135,8 @@ const filterDeviceData = async (req, res, next) => {
     next();
   } catch (error) {
     console.error('Device data filter error:', error);
+    // On error, fail open so dashboard/devices/data-dash continue to work (avoids empty devices / "failed to load" when middleware throws)
+    req.allowedDeviceIds = null;
     next();
   }
 };
