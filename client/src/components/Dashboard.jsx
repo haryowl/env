@@ -520,6 +520,7 @@ const Dashboard = ({ socket }) => {
           parameterColors={parameterColors}
           realtimeParams={realtimeParams}
           realtimeData={realtimeData}
+          deviceId={realtimeDevice}
           formatDisplayName={formatDisplayName}
           getUnit={getUnit}
         />

@@ -1,8 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Box, Card, Typography, useTheme, useMediaQuery } from '@mui/material';
 import TrendingDown from '@mui/icons-material/TrendingDown';
 import TrendingUp from '@mui/icons-material/TrendingUp';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
+import { API_BASE_URL } from '../config/api';
 
 const TEAL_BORDER = '#0D9488';
 const TOP_BG = 'rgba(20, 184, 166, 0.15)';
@@ -12,13 +13,13 @@ const AVG_GREEN = '#059669';
 
 /**
  * Compute avg % change per parameter: (todayAvg - yesterdayAvg) / yesterdayAvg * 100.
- * Returns { [param]: { alertPct, avgPct } }. Alert is placeholder 0% for now.
+ * Returns { [param]: { avgPct } }. AlertPct comes from alertStats prop.
  */
-function useComparisonByParam(realtimeData = [], params = []) {
+function useAvgComparisonByParam(realtimeData = [], params = []) {
   return useMemo(() => {
     const out = {};
     params.forEach((param) => {
-      out[param] = { alertPct: null, avgPct: null };
+      out[param] = { avgPct: null };
     });
     if (!Array.isArray(realtimeData) || realtimeData.length === 0) return out;
     const now = new Date();
@@ -43,7 +44,7 @@ function useComparisonByParam(realtimeData = [], params = []) {
         const avgYesterday = yesterdayValues.reduce((a, b) => a + b, 0) / yesterdayValues.length;
         avgPct = avgYesterday !== 0 ? ((avgToday - avgYesterday) / avgYesterday) * 100 : 0;
       }
-      out[param] = { alertPct: null, avgPct };
+      out[param] = { avgPct };
     });
     return out;
   }, [realtimeData, params.join(',')]);
@@ -54,6 +55,7 @@ const NewParameterCards = ({
   parameterColors = {},
   realtimeParams = [],
   realtimeData = [],
+  deviceId = null,
   formatDisplayName: formatDisplayNameProp,
   getUnit: getUnitProp,
 }) => {
@@ -62,12 +64,29 @@ const NewParameterCards = ({
   const { formatDisplayName: formatDisplayNameHook, getUnit: getUnitHook } = useFieldMetadata();
   const formatDisplayName = formatDisplayNameProp || formatDisplayNameHook;
   const getUnit = getUnitProp || getUnitHook;
+  const [alertStats, setAlertStats] = useState({});
 
   const paramsToShow = realtimeParams.length > 0
     ? realtimeParams.filter((p) => p !== 'datetime' && p !== 'timestamp')
     : Object.keys(data).filter((p) => p !== 'datetime' && p !== 'timestamp');
 
-  const comparison = useComparisonByParam(realtimeData, paramsToShow);
+  const avgComparison = useAvgComparisonByParam(realtimeData, paramsToShow);
+
+  useEffect(() => {
+    if (!deviceId || paramsToShow.length === 0) {
+      setAlertStats({});
+      return;
+    }
+    const token = localStorage.getItem('iot_token');
+    if (!token) return;
+    const params = paramsToShow.join(',');
+    fetch(`${API_BASE_URL}/alert-logs/parameter-stats?deviceId=${encodeURIComponent(deviceId)}&parameters=${encodeURIComponent(params)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.ok ? r.json() : { parameterStats: {} })
+      .then((d) => setAlertStats(d.parameterStats || {}))
+      .catch(() => setAlertStats({}));
+  }, [deviceId, paramsToShow.join(',')]);
   const cardWidth = paramsToShow.length > 0 ? `${100 / Math.min(paramsToShow.length, 6)}%` : '100%';
 
   return (
@@ -86,7 +105,10 @@ const NewParameterCards = ({
           const value = data[param] !== undefined && data[param] !== null ? Number(data[param]) : null;
           const displayValue = value !== null ? (Number.isFinite(value) ? value.toFixed(3) : String(data[param])) : '–';
           const label = formatDisplayName ? formatDisplayName(param, { withUnit: true }) : param;
-          const { alertPct, avgPct } = comparison[param] || { alertPct: null, avgPct: null };
+          const avgData = avgComparison[param] || { avgPct: null };
+          const alertData = alertStats[param] || { pctChange: null };
+          const alertPct = alertData.pctChange;
+          const avgPct = avgData.avgPct;
 
           return (
             <Card
@@ -115,9 +137,13 @@ const NewParameterCards = ({
               >
                 <Box sx={{ flex: 1, textAlign: 'center' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                    <TrendingDown sx={{ fontSize: 18, color: ALERT_RED }} />
+                    {alertPct != null && alertPct >= 0 ? (
+                      <TrendingUp sx={{ fontSize: 18, color: ALERT_RED }} />
+                    ) : (
+                      <TrendingDown sx={{ fontSize: 18, color: ALERT_RED }} />
+                    )}
                     <Typography variant="caption" sx={{ fontWeight: 700, color: ALERT_RED, fontSize: '0.85rem' }}>
-                      {alertPct != null ? `${alertPct > 0 ? '+' : ''}${alertPct.toFixed(0)}%` : '0%'}
+                      {alertPct != null ? `${alertPct > 0 ? '+' : ''}${alertPct.toFixed(0)}%` : '–'}
                     </Typography>
                   </Box>
                   <Typography variant="caption" sx={{ color: ALERT_RED, fontWeight: 600, fontSize: '0.7rem' }}>
