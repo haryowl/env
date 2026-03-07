@@ -19,8 +19,8 @@ router.get('/', authenticateToken, authorizeMenuAccess('/alerts', 'read'), async
       const allowedDeviceIds = req.allowedDeviceIds;
       const hasDeviceAccess = Array.isArray(allowedDeviceIds) && allowedDeviceIds.length > 0;
       if (hasDeviceAccess) {
-        const placeholders = allowedDeviceIds.map(() => `$${paramCount++}`).join(',');
-        sql += ` WHERE (created_by = $${paramCount++} OR created_by IS NULL OR device_id IN (${placeholders}))`;
+        const inPlaceholders = allowedDeviceIds.map((_, i) => `$${i + 2}`).join(', ');
+        sql += ` WHERE (created_by = $1 OR created_by IS NULL OR device_id IN (${inPlaceholders}))`;
         params = [req.user.user_id, ...allowedDeviceIds];
       } else {
         sql += ' WHERE (created_by = $1 OR created_by IS NULL)';
