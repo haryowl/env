@@ -10,18 +10,27 @@ router.get('/', authenticateToken, authorizeMenuAccess('/alerts', 'read'), async
     // Check if user is admin/super_admin - if so, show all alerts (including NULL created_by)
     const isAdmin = req.user.role_name === 'super_admin' || req.user.role_name === 'admin';
     
-    let query = 'SELECT * FROM alerts';
+    let sql = 'SELECT * FROM alerts';
     let params = [];
+    let paramCount = 1;
     
     if (!isAdmin) {
-      // Non-admin users can only see alerts they created OR alerts with NULL created_by (existing records)
-      query += ' WHERE (created_by = $1 OR created_by IS NULL)';
-      params = [req.user.user_id];
+      // Non-admin: show alerts they created, alerts with NULL created_by, OR alerts for devices they have access to (e.g. admin-created for their assigned device)
+      const allowedDeviceIds = req.allowedDeviceIds;
+      const hasDeviceAccess = Array.isArray(allowedDeviceIds) && allowedDeviceIds.length > 0;
+      if (hasDeviceAccess) {
+        const placeholders = allowedDeviceIds.map(() => `$${paramCount++}`).join(',');
+        sql += ` WHERE (created_by = $${paramCount++} OR created_by IS NULL OR device_id IN (${placeholders}))`;
+        params = [req.user.user_id, ...allowedDeviceIds];
+      } else {
+        sql += ' WHERE (created_by = $1 OR created_by IS NULL)';
+        params = [req.user.user_id];
+      }
     }
     
-    query += ' ORDER BY created_at DESC';
+    sql += ' ORDER BY created_at DESC';
     
-    const result = await getRows(query, params);
+    const result = await getRows(sql, params);
     res.json({ alerts: result });
   } catch (error) {
     console.error('Failed to fetch alerts:', error);
