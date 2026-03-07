@@ -508,12 +508,10 @@ const Dashboard = ({ socket }) => {
       </Grid>
       )}
 
-      {/* KPI Cards with Individual Parameter Colors - Only visible to admin/super_admin */}
-      {isAdmin && (
-        <>
-          <Typography variant="h5" sx={{ mb: 2, mt: 3, fontWeight: 600 }}>
-            Parameter Overview
-          </Typography>
+      {/* Parameter Overview - visible to all users */}
+      <Typography variant="h5" sx={{ mb: 2, mt: 3, fontWeight: 600 }}>
+        Parameter Overview
+      </Typography>
       {realtimeParams.length > 0 ? (
         <NewParameterCards
           data={realtimeLatest}
@@ -528,8 +526,6 @@ const Dashboard = ({ socket }) => {
         <Alert severity="info" sx={{ mb: 2 }}>
           No realtime parameters available. Please select a device with mapped parameters.
         </Alert>
-      )}
-        </>
       )}
 
       {/* Device Map Section */}
