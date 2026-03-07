@@ -213,6 +213,22 @@ const authorizeMenuAccess = (menuPath, requiredPermission = 'access') => {
         }
       }
 
+      // Fallback: If requiredPermission is 'create' and user has can_read for /alerts, allow create (for device-assigned users)
+      if (!hasAccess && requiredPermission === 'create' && menuPath === '/alerts') {
+        for (const userRole of userRoles) {
+          const menuPerm = userRole.menu_permissions && userRole.menu_permissions[menuPath];
+          if (menuPerm && (menuPerm.read || menuPerm.can_read || menuPerm.access || menuPerm.can_access)) {
+            hasAccess = true;
+            break;
+          }
+          const dbPerm = await getRow('SELECT can_read, can_access FROM menu_permissions WHERE role_id = $1 AND menu_path = $2', [userRole.role_id, menuPath]);
+          if (dbPerm && (dbPerm.can_read || dbPerm.can_access)) {
+            hasAccess = true;
+            break;
+          }
+        }
+      }
+
       // Fallback: If no explicit permissions found, check role-based fallbacks
       if (!hasAccess) {
         const fallbackPermissions = {

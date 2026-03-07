@@ -57,12 +57,22 @@ const filterDeviceData = async (req, res, next) => {
     console.log('FilterDeviceData: User:', user.username, 'Role:', user.role);
     
     // Check if user has device read permissions through roles
-    const userRoles = await getRows(`
-      SELECT r.role_name, r.device_permissions
+    let userRoles = await getRows(`
+      SELECT r.role_name, r.role_id, r.device_permissions
       FROM user_roles ur
       JOIN roles r ON ur.role_id = r.role_id
       WHERE ur.user_id = $1
     `, [user.user_id]);
+
+    // Fallback: if no user_roles, use primary role from users.role
+    if (userRoles.length === 0 && user.role) {
+      const primaryRole = await getRows(`
+        SELECT role_id, role_name, device_permissions
+        FROM roles
+        WHERE role_name = $1
+      `, [user.role]);
+      userRoles = primaryRole;
+    }
 
     console.log('User roles:', userRoles.map(r => r.role_name));
 
@@ -79,21 +89,19 @@ const filterDeviceData = async (req, res, next) => {
     const allowedDeviceIds = [];
     
     for (const userRole of userRoles) {
-      if (userRole.device_permissions) {
-        // Check for specific device permissions
-        const devicePerms = userRole.device_permissions;
-        
-        // Get device IDs from role_device_permissions table
+      const roleId = userRole.role_id;
+      if (roleId) {
+        // Get device IDs from role_device_permissions table (always check - specific devices)
         const roleDevicePermissions = await getRows(`
           SELECT device_id FROM role_device_permissions 
-          WHERE role_id = (SELECT role_id FROM roles WHERE role_name = $1)
+          WHERE role_id = $1
           AND permissions->>'read' = 'true'
-        `, [userRole.role_name]);
-        
-        allowedDeviceIds.push(...roleDevicePermissions.map(d => d.device_id));
-        
-        // Also check for general device permissions
-        if (devicePerms.all_devices?.read === true || devicePerms.all_groups?.read === true) {
+        `, [roleId]);
+        allowedDeviceIds.push(...(roleDevicePermissions || []).map(d => d.device_id));
+
+        // Check general device permissions (all_devices / all_groups)
+        const devicePerms = userRole.device_permissions;
+        if (devicePerms && (devicePerms.all_devices?.read === true || devicePerms.all_groups?.read === true)) {
           console.log('Role has full device access');
           req.allowedDeviceIds = null; // Full access
           return next();

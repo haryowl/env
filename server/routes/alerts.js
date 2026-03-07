@@ -8,7 +8,7 @@ const { processDeviceData } = require('../services/deviceMapper');
 router.get('/', authenticateToken, authorizeMenuAccess('/alerts', 'read'), async (req, res) => {
   try {
     // Check if user is admin/super_admin - if so, show all alerts (including NULL created_by)
-    const isAdmin = req.user.role_name === 'super_admin' || req.user.role_name === 'admin';
+    const isAdmin = req.user.role === 'super_admin' || req.user.role === 'admin';
     
     let sql = 'SELECT * FROM alerts';
     let params = [];
@@ -59,6 +59,18 @@ router.post('/', authenticateToken, authorizeMenuAccess('/alerts', 'create'), as
         details: `Device ${device_id} does not exist` 
       });
     }
+    // Non-admin: ensure user has access to this device
+    const isAdminCreate = req.user.role === 'super_admin' || req.user.role === 'admin';
+    if (!isAdminCreate) {
+      const allowedIds = req.allowedDeviceIds;
+      if (allowedIds !== null && (Array.isArray(allowedIds) ? !allowedIds.includes(device_id) : true)) {
+        return res.status(403).json({ 
+          error: 'No access to this device', 
+          code: 'DEVICE_ACCESS_DENIED',
+          details: 'You can only create alerts for devices assigned to your role'
+        });
+      }
+    }
     const result = await query(`
       INSERT INTO alerts (name, device_id, parameter, min, max, type, threshold_time, actions, template, created_by, created_at, updated_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
@@ -95,7 +107,7 @@ router.put('/:id', authenticateToken, authorizeMenuAccess('/alerts', 'update'), 
     }
     
     // Check if user is admin/super_admin - if so, can update any alert
-    const isAdmin = req.user.role_name === 'super_admin' || req.user.role_name === 'admin';
+    const isAdmin = req.user.role === 'super_admin' || req.user.role === 'admin';
     
     let sqlQuery = `
       UPDATE alerts SET
@@ -142,7 +154,7 @@ router.delete('/:id', authenticateToken, authorizeMenuAccess('/alerts', 'delete'
     const { id } = req.params;
     
     // Check if user is admin/super_admin - if so, can delete any alert
-    const isAdmin = req.user.role_name === 'super_admin' || req.user.role_name === 'admin';
+    const isAdmin = req.user.role === 'super_admin' || req.user.role === 'admin';
     
     let deleteQuery = 'DELETE FROM alerts WHERE alert_id = $1';
     let params = [id];
