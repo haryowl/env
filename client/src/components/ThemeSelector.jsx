@@ -14,7 +14,6 @@ import {
   Brightness7 as LightIcon,
   Colorize as EcoIcon,
   Palette as PaletteIcon,
-  Dashboard as KimaIcon,
 } from '@mui/icons-material';
 import { useUserTheme } from '../contexts/UserThemeContext';
 import { themeNames } from '../themes';
@@ -23,6 +22,7 @@ const ThemeSelector = ({ variant = 'select', size = 'small' }) => {
   const { currentTheme, changeTheme, availableThemes } = useUserTheme();
 
   const getThemeIcon = (themeName) => {
+    const color = getThemeColor(themeName);
     switch (themeName) {
       case 'light':
         return <LightIcon fontSize="small" />;
@@ -31,7 +31,20 @@ const ThemeSelector = ({ variant = 'select', size = 'small' }) => {
       case 'green':
         return <EcoIcon fontSize="small" />;
       case 'kima':
-        return <KimaIcon fontSize="small" />;
+        return (
+          <Box
+            component="span"
+            sx={{
+              width: 20,
+              height: 20,
+              borderRadius: '50%',
+              backgroundColor: color,
+              display: 'inline-block',
+              border: '1px solid rgba(0,0,0,0.12)',
+              boxSizing: 'border-box',
+            }}
+          />
+        );
       default:
         return <PaletteIcon fontSize="small" />;
     }
