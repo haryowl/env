@@ -24,18 +24,21 @@ router.get('/test-auth', (req, res) => {
 router.get('/overview', authenticateToken, async (req, res) => {
   try {
     console.log('Dashboard overview accessed by:', req.user.username, 'Role:', req.user.role);
-    
-    // Simple overview without complex filtering for now
-    const deviceCount = await getRow('SELECT COUNT(*) as count FROM devices WHERE status != $1', ['deleted']);
+    await query('ALTER TABLE devices ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false');
+
+    // Exclude soft-deleted devices (is_deleted = true) from counts
+    const deviceCount = await getRow(
+      'SELECT COUNT(*) as count FROM devices WHERE COALESCE(is_deleted, false) = false'
+    );
     const userCount = await getRow('SELECT COUNT(*) as count FROM users WHERE status = $1', ['active']);
     const sensorDataCount = await getRow('SELECT COUNT(*) as count FROM sensor_readings');
     const gpsDataCount = await getRow('SELECT COUNT(*) as count FROM gps_tracks');
 
-    // Get device status breakdown
+    // Get device status breakdown (exclude soft-deleted)
     const deviceStatus = await query(`
       SELECT status, COUNT(*) as count 
       FROM devices 
-      WHERE status != 'deleted'
+      WHERE COALESCE(is_deleted, false) = false
       GROUP BY status
     `);
 
