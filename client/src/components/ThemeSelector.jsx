@@ -9,45 +9,48 @@ import {
   Tooltip,
   IconButton,
 } from '@mui/material';
-import {
-  Brightness4 as DarkIcon,
-  Brightness7 as LightIcon,
-  Colorize as EcoIcon,
-  Palette as PaletteIcon,
-} from '@mui/icons-material';
+import { Palette as PaletteIcon } from '@mui/icons-material';
 import { useUserTheme } from '../contexts/UserThemeContext';
 import { themeNames } from '../themes';
 
 const ThemeSelector = ({ variant = 'select', size = 'small' }) => {
   const { currentTheme, changeTheme, availableThemes } = useUserTheme();
 
-  const getThemeIcon = (themeName) => {
-    const color = getThemeColor(themeName);
+  const getThemeCircleColor = (themeName) => {
     switch (themeName) {
       case 'light':
-        return <LightIcon fontSize="small" />;
+        return '#ffffff';
       case 'dark':
-        return <DarkIcon fontSize="small" />;
+        return '#000000';
       case 'green':
-        return <EcoIcon fontSize="small" />;
+        return '#2e7d32';
       case 'kima':
-        return (
-          <Box
-            component="span"
-            sx={{
-              width: 20,
-              height: 20,
-              borderRadius: '50%',
-              backgroundColor: color,
-              display: 'inline-block',
-              border: '1px solid rgba(0,0,0,0.12)',
-              boxSizing: 'border-box',
-            }}
-          />
-        );
+        return '#007BA7';
       default:
-        return <PaletteIcon fontSize="small" />;
+        return '#1976d2';
     }
+  };
+
+  const getThemeIcon = (themeName) => {
+    const color = getThemeCircleColor(themeName);
+    const isLight = themeName === 'light';
+    if (['light', 'dark', 'green', 'kima'].includes(themeName)) {
+      return (
+        <Box
+          component="span"
+          sx={{
+            width: 20,
+            height: 20,
+            borderRadius: '50%',
+            backgroundColor: color,
+            display: 'inline-block',
+            border: isLight ? '1px solid rgba(0,0,0,0.2)' : '1px solid rgba(0,0,0,0.12)',
+            boxSizing: 'border-box',
+          }}
+        />
+      );
+    }
+    return <PaletteIcon fontSize="small" />;
   };
 
   const getThemeColor = (themeName) => {
