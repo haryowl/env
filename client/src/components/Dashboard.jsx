@@ -276,14 +276,14 @@ const Dashboard = ({ socket }) => {
     fetchMapper();
   }, [realtimeDevice]);
 
-  // Fetch mapped data from /data-dash for last 24 hours
+  // Fetch mapped data from /data-dash for last 48 hours (ensures full today + yesterday for Parameter Overview avg comparison)
   const fetchRealtimeData = async (deviceId, params) => {
     if (!deviceId || !params || params.length === 0) {
       return;
     }
     try {
       const token = localStorage.getItem('iot_token');
-      const startDate = subHours(new Date(), 24).toISOString();
+      const startDate = subHours(new Date(), 48).toISOString();
       const endDate = new Date().toISOString();
       const response = await axios.get(`${API_BASE_URL}/data-dash`, {
         params: {
