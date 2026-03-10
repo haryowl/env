@@ -291,6 +291,7 @@ const Dashboard = ({ socket }) => {
           parameters: params.join(','),
           startDate,
           endDate,
+          limit: 5000, // enough for 48h at 2–5 min interval (Parameter Overview today vs yesterday)
         },
         headers: { 'Authorization': `Bearer ${token}` },
       });

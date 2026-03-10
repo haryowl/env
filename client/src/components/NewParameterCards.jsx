@@ -13,6 +13,8 @@ const AVG_GREEN = '#059669';
 
 /**
  * Compute avg % change per parameter: (todayAvg - yesterdayAvg) / yesterdayAvg * 100.
+ * When today or yesterday has no data, fallback: (newerHalfAvg - olderHalfAvg) / olderHalfAvg * 100
+ * so we still show a comparison when we have enough points.
  * Returns { [param]: { avgPct } }. AlertPct comes from alertStats prop.
  */
 function useAvgComparisonByParam(realtimeData = [], params = []) {
@@ -30,11 +32,14 @@ function useAvgComparisonByParam(realtimeData = [], params = []) {
     params.forEach((param) => {
       const todayValues = [];
       const yesterdayValues = [];
+      const allRows = []; // { t, num } for fallback
       realtimeData.forEach((row) => {
         const t = new Date(row.timestamp || row.datetime);
+        if (Number.isNaN(t.getTime())) return;
         const v = row[param];
         if (v === undefined || v === null || Number.isNaN(Number(v))) return;
         const num = Number(v);
+        allRows.push({ t, num });
         if (t >= todayStart) todayValues.push(num);
         else if (t >= yesterdayStart && t < todayStart) yesterdayValues.push(num);
       });
@@ -43,6 +48,15 @@ function useAvgComparisonByParam(realtimeData = [], params = []) {
         const avgToday = todayValues.reduce((a, b) => a + b, 0) / todayValues.length;
         const avgYesterday = yesterdayValues.reduce((a, b) => a + b, 0) / yesterdayValues.length;
         avgPct = avgYesterday !== 0 ? ((avgToday - avgYesterday) / avgYesterday) * 100 : 0;
+      } else if (allRows.length >= 2) {
+        // Fallback: compare newer half vs older half by time so we always show a % when we have data
+        allRows.sort((a, b) => a.t - b.t);
+        const mid = Math.floor(allRows.length / 2);
+        const older = allRows.slice(0, mid).map((r) => r.num);
+        const newer = allRows.slice(mid).map((r) => r.num);
+        const avgOlder = older.reduce((a, b) => a + b, 0) / older.length;
+        const avgNewer = newer.reduce((a, b) => a + b, 0) / newer.length;
+        avgPct = avgOlder !== 0 ? ((avgNewer - avgOlder) / avgOlder) * 100 : 0;
       }
       out[param] = { avgPct };
     });
