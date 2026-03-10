@@ -295,8 +295,8 @@ const QuickView = () => {
         timeRangeHours: moment(endDate).diff(moment(startDate), 'hours', true)
       });
       
-      // Load chart data with specific parameters from device mapper
-      const chartResponse = await fetch(`${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}`, {
+      // Load chart data (display limit 500 for performance)
+      const chartResponse = await fetch(`${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=500`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -318,8 +318,8 @@ const QuickView = () => {
         console.error('Failed to load alert data:', alertResponse.status, alertResponse.statusText);
       }
       
-      // Load table data
-      const tableResponse = await fetch(`${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=100`, {
+      // Load table data (display limit 500 for performance)
+      const tableResponse = await fetch(`${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=500`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -372,6 +372,20 @@ const QuickView = () => {
     return result;
   };
 
+  // Fetch table data with high limit for CSV/export (up to ~1 month)
+  const getExportDataForTable = useCallback(async () => {
+    if (!selectedDevice || parameters.length === 0) return [];
+    const token = localStorage.getItem('iot_token');
+    const endDate = getEndDate(selectedPeriod);
+    const startDate = getStartDate(selectedPeriod);
+    const res = await fetch(`${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=100000`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) return [];
+    const json = await res.json();
+    return json.data || [];
+  }, [selectedDevice, selectedPeriod, parameters, customStartDate, customEndDate]);
+
   const getEndDate = (period) => {
     const userTz = getUserTimezone();
     
@@ -407,32 +421,18 @@ const QuickView = () => {
   const handleExportPDF = async () => {
     const deviceName = devices.find(d => d.device_id === selectedDevice)?.name || selectedDevice;
     try {
-      // For custom range, fetch all data without limit for PDF export
+      // Always fetch with high limit for export (up to ~1 month at 2–5 min interval)
+      const token = localStorage.getItem('iot_token');
+      const endDate = getEndDate(selectedPeriod);
+      const startDate = getStartDate(selectedPeriod);
       let fullTableData = tableData;
-      if (selectedPeriod === 'custom') {
-        const token = localStorage.getItem('iot_token');
-        const endDate = getEndDate(selectedPeriod);
-        const startDate = getStartDate(selectedPeriod);
-        
-        console.log('Fetching full dataset for PDF export:', {
-          startDate,
-          endDate,
-          selectedDevice,
-          parameters: parameters.join(',')
-        });
-        
-        // Fetch all data without limit for PDF export
-        const fullTableResponse = await fetch(`${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
-        if (fullTableResponse.ok) {
-          const fullData = await fullTableResponse.json();
-          fullTableData = fullData.data || [];
-          console.log('Full dataset for PDF export:', fullTableData.length, 'records');
-        }
+      const fullTableResponse = await fetch(`${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=100000`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (fullTableResponse.ok) {
+        const fullData = await fullTableResponse.json();
+        fullTableData = fullData.data || [];
       }
-      
       await exportToPDF({
         deviceName,
         period: periodOptions.find(p => p.value === selectedPeriod)?.label,
@@ -451,32 +451,18 @@ const QuickView = () => {
   const handleExportExcel = async () => {
     const deviceName = devices.find(d => d.device_id === selectedDevice)?.name || selectedDevice;
     try {
-      // For custom range, fetch all data without limit for Excel export
+      // Always fetch with high limit for export (up to ~1 month at 2–5 min interval)
+      const token = localStorage.getItem('iot_token');
+      const endDate = getEndDate(selectedPeriod);
+      const startDate = getStartDate(selectedPeriod);
       let fullTableData = tableData;
-      if (selectedPeriod === 'custom') {
-        const token = localStorage.getItem('iot_token');
-        const endDate = getEndDate(selectedPeriod);
-        const startDate = getStartDate(selectedPeriod);
-        
-        console.log('Fetching full dataset for Excel export:', {
-          startDate,
-          endDate,
-          selectedDevice,
-          parameters: parameters.join(',')
-        });
-        
-        // Fetch all data without limit for Excel export
-        const fullTableResponse = await fetch(`${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
-        if (fullTableResponse.ok) {
-          const fullData = await fullTableResponse.json();
-          fullTableData = fullData.data || [];
-          console.log('Full dataset for Excel export:', fullTableData.length, 'records');
-        }
+      const fullTableResponse = await fetch(`${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=100000`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (fullTableResponse.ok) {
+        const fullData = await fullTableResponse.json();
+        fullTableData = fullData.data || [];
       }
-      
       exportToExcel({
         deviceName,
         period: periodOptions.find(p => p.value === selectedPeriod)?.label,
@@ -933,6 +919,7 @@ const QuickView = () => {
               parameters={parameters}
               deviceName={devices.find(d => d.device_id === selectedDevice)?.name}
               alertConfigs={alertConfigs}
+              getExportData={getExportDataForTable}
             />
           </Box>
         </Box>

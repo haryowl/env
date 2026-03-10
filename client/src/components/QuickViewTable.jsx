@@ -33,7 +33,7 @@ import {
 import { formatInUserTimezone } from '../utils/timezoneUtils';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
 
-const QuickViewTable = ({ data, parameters, deviceName, alertConfigs = [] }) => {
+const QuickViewTable = ({ data, parameters, deviceName, alertConfigs = [], getExportData }) => {
   const theme = useTheme();
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [page, setPage] = useState(0);
@@ -126,15 +126,17 @@ const QuickViewTable = ({ data, parameters, deviceName, alertConfigs = [] }) => 
     return colorPalette[index];
   };
 
-  // Export table data to CSV
-  const handleExportTableData = useCallback(() => {
-    if (!tableData.length || !parameters.length) return;
+  // Export table data to CSV (uses getExportData for full-range export when provided)
+  const handleExportTableData = useCallback(async () => {
+    const dataToExport = typeof getExportData === 'function' ? await getExportData() : null;
+    const exportRows = Array.isArray(dataToExport) && dataToExport.length ? dataToExport : tableData;
+    if (!exportRows.length || !parameters.length) return;
     const escapeCsv = (v) => {
       const s = v == null ? '' : String(v);
       return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const headers = ['DateTime', ...parameters.map(p => formatDisplayName(p, { withUnit: true }))];
-    const rows = tableData.map(row => [
+    const rows = exportRows.map(row => [
       row.datetime,
       ...parameters.map(p => formatParameterValue(p, row[p], 3, true)),
     ]);
@@ -149,7 +151,7 @@ const QuickViewTable = ({ data, parameters, deviceName, alertConfigs = [] }) => 
     a.download = `${deviceName || 'data'}_table_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [tableData, parameters, deviceName, formatDisplayName, formatParameterValue]);
+  }, [tableData, parameters, deviceName, formatDisplayName, formatParameterValue, getExportData]);
 
   // Use only configured alerts for this device (no hardcoded thresholds)
   const getAlertThresholds = useCallback((parameter) => {

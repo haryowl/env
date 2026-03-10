@@ -180,6 +180,7 @@ export default function DataDash() {
         parameters: selectedParameters.join(','),
         startDate: dateRange[0] ? dateRange[0].toISOString() : undefined,
         endDate: dateRange[1] ? dateRange[1].toISOString() : undefined,
+        limit: 500,
       };
       const token = localStorage.getItem('iot_token');
       const response = await axios.get(`${API_BASE_URL}/data-dash`, {
@@ -268,6 +269,46 @@ export default function DataDash() {
     if (summaryTab === 2) fetchSummaryTableData();
     // eslint-disable-next-line
   }, [aggregation, selectedDevices, selectedParameters, dateRange, summaryTab]);
+
+  // Fetch up to ~1 month of data for export (high limit), then export CSV/XLSX
+  const fetchDataForExport = async () => {
+    const params = {
+      deviceIds: selectedDevices.join(','),
+      parameters: selectedParameters.join(','),
+      startDate: dateRange[0] ? dateRange[0].toISOString() : undefined,
+      endDate: dateRange[1] ? dateRange[1].toISOString() : undefined,
+      limit: 100000,
+    };
+    const token = localStorage.getItem('iot_token');
+    const response = await axios.get(`${API_BASE_URL}/data-dash`, {
+      params,
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+    const raw = response.data.data || [];
+    return raw.map(row => ({
+      ...row,
+      datetime: formatInUserTimezone(row.datetime),
+      timestamp: formatInUserTimezone(row.timestamp),
+    }));
+  };
+
+  const handleExportCSV = async () => {
+    try {
+      const exportData = await fetchDataForExport();
+      exportToCSV(exportData, columns);
+    } catch (e) {
+      console.error('Export CSV failed:', e);
+    }
+  };
+
+  const handleExportXLSX = async () => {
+    try {
+      const exportData = await fetchDataForExport();
+      exportToXLSX(exportData, columns);
+    } catch (e) {
+      console.error('Export XLSX failed:', e);
+    }
+  };
 
   // Improved filter area layout
   const filterChips = (
@@ -912,7 +953,7 @@ export default function DataDash() {
                     <Button 
                       variant="outlined" 
                       size="medium" 
-                      onClick={() => exportToCSV(data, columns)}
+                      onClick={handleExportCSV}
                       sx={{
                         borderRadius: 1.5,
                         textTransform: 'none',
@@ -932,7 +973,7 @@ export default function DataDash() {
                     <Button 
                       variant="contained" 
                       size="medium" 
-                      onClick={() => exportToXLSX(data, columns)}
+                      onClick={handleExportXLSX}
                       sx={{
                         borderRadius: 1.5,
                         textTransform: 'none',

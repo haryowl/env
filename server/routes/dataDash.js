@@ -11,12 +11,14 @@ router.use(authenticateToken);
 // GET /api/data-dash
 router.get(['/', ''], async (req, res) => {
   try {
-    const { deviceIds, parameters, startDate, endDate, groupBy } = req.query;
+    const { deviceIds, parameters, startDate, endDate, groupBy, limit: limitParam } = req.query;
     const ids = deviceIds ? (Array.isArray(deviceIds) ? deviceIds : deviceIds.split(',')) : [];
     const params = parameters ? (Array.isArray(parameters) ? parameters : parameters.split(',')) : [];
     const start = startDate ? new Date(startDate) : null;
     const end = endDate ? new Date(endDate) : null;
     const group = groupBy || null;
+    // Limit for display (default 500), export can request up to 100000 (e.g. 1 month at 2–5 min interval)
+    const limit = Math.min(Math.max(1, parseInt(limitParam, 10) || 500), 100000);
 
     // 1. Get all devices and their mapper assignments
     let deviceMap = {};
@@ -60,8 +62,9 @@ router.get(['/', ''], async (req, res) => {
       FROM sensor_readings sr
       ${whereClause}
       ORDER BY sr.timestamp DESC
-      LIMIT 2000
+      LIMIT $${paramIdx}
     `;
+    sqlParams.push(limit);
     const rawResult = await query(rawSql, sqlParams);
     const rawRows = rawResult.rows;
     console.log('Raw sensor readings:', rawRows.slice(0, 10));
