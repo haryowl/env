@@ -420,9 +420,57 @@ const Dashboard = ({ socket }) => {
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, color: 'text.primary', mb: 3 }}>
-        Dashboard
-      </Typography>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: { xs: 'flex-start', sm: 'center' },
+          flexDirection: { xs: 'column', sm: 'row' },
+          gap: 2,
+          mb: 3,
+        }}
+      >
+        <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, color: 'text.primary', mb: 0 }}>
+          Dashboard
+        </Typography>
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: { xs: 'flex-start', sm: 'flex-end' } }}>
+          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500, mb: 0.25 }}>
+            Device
+          </Typography>
+          <FormControl size="medium" sx={{ minWidth: { xs: '100%', sm: 260, md: 300 } }}>
+            <Select
+              value={realtimeDevice}
+              onChange={e => setRealtimeDevice(e.target.value)}
+              displayEmpty
+              sx={{
+                color: 'primary.main',
+                fontWeight: 600,
+                fontSize: '0.9rem',
+                '& .MuiOutlinedInput-notchedOutline': {
+                  borderColor: 'divider',
+                },
+                '&:hover .MuiOutlinedInput-notchedOutline': {
+                  borderColor: 'primary.main',
+                  borderWidth: '1px',
+                },
+                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                  borderColor: 'primary.main',
+                  borderWidth: '1.5px',
+                },
+                '& .MuiSvgIcon-root': {
+                  color: 'primary.main',
+                },
+              }}
+            >
+              {devices.map(d => (
+                <MenuItem key={d.device_id} value={d.device_id}>
+                  {d.name} ({d.device_id})
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Box>
+      </Box>
 
       {/* Statistics Cards - Only visible to admin/super_admin */}
       {isAdmin && (
@@ -545,7 +593,7 @@ const Dashboard = ({ socket }) => {
           <Box sx={{ 
             display: 'flex', 
             alignItems: 'center', 
-            justifyContent: 'space-between',
+            justifyContent: 'flex-start',
             px: 2,
             py: 1.5,
             bgcolor: 'background.paper',
@@ -557,43 +605,6 @@ const Dashboard = ({ socket }) => {
               <Typography variant="h6" sx={{ fontWeight: 600, color: 'primary.main', fontSize: '1.1rem' }}>
                 Realtime Data View
               </Typography>
-            </Box>
-            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500, mb: 0.25 }}>
-                Device
-              </Typography>
-              <FormControl size="medium" sx={{ minWidth: 280 }}>
-                <Select
-                  value={realtimeDevice}
-                  onChange={e => setRealtimeDevice(e.target.value)}
-                  displayEmpty
-                  sx={{
-                    color: 'primary.main',
-                    fontWeight: 600,
-                    fontSize: '0.9rem',
-                    '& .MuiOutlinedInput-notchedOutline': {
-                      borderColor: 'divider',
-                    },
-                    '&:hover .MuiOutlinedInput-notchedOutline': {
-                      borderColor: 'primary.main',
-                      borderWidth: '1px',
-                    },
-                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                      borderColor: 'primary.main',
-                      borderWidth: '1.5px',
-                    },
-                    '& .MuiSvgIcon-root': {
-                      color: 'primary.main',
-                    },
-                  }}
-                >
-                  {devices.map(d => (
-                    <MenuItem key={d.device_id} value={d.device_id}>
-                      {d.name} ({d.device_id})
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
             </Box>
           </Box>
           
