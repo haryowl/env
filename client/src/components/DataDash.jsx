@@ -1151,17 +1151,35 @@ export default function DataDash() {
                 <Typography variant="h6" sx={{ fontWeight: 600, color: theme.palette.text.primary, mb: 3 }}>
                   Summary Report
                 </Typography>
-                <Box sx={{ mb: 2 }}>
+                <Box sx={{ mb: 2, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.5 }}>
                   <FormControl size="small" sx={{ minWidth: 120 }}>
                     <InputLabel>Aggregation</InputLabel>
                     <Select value={aggregation} label="Aggregation" onChange={e => setAggregation(e.target.value)}>
-                  {aggregationOptions.map(opt => (
-                    <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-                  <Button variant="contained" onClick={fetchSummaryTableData} size="small" sx={{ ml: 2 }}>
+                      {aggregationOptions.map(opt => (
+                        <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <Button variant="contained" onClick={fetchSummaryTableData} size="small">
                     Generate
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => exportToCSV(summaryTableData, summaryTableColumns, `summary-report_${aggregation}_${new Date().toISOString().slice(0, 10)}.csv`)}
+                    disabled={!summaryTableData.length}
+                    sx={{ borderColor: theme.palette.primary.main, color: theme.palette.primary.main }}
+                  >
+                    Export CSV
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => exportToXLSX(summaryTableData, summaryTableColumns, `summary-report_${aggregation}_${new Date().toISOString().slice(0, 10)}.xlsx`)}
+                    disabled={!summaryTableData.length}
+                    sx={{ borderColor: theme.palette.primary.main, color: theme.palette.primary.main }}
+                  >
+                    Export Excel
                   </Button>
                 </Box>
                 {loadingSummary ? (
