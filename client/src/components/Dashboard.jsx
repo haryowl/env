@@ -101,26 +101,35 @@ const Dashboard = ({ socket }) => {
       }));
   }, [realtimeData]);
 
-  // Merge alert timestamps into chart data so we can show red dots at alert points (round to 1 min for matching)
+  // Merge alert timestamps into chart data: one red dot per alert at the closest chart point in time (per parameter)
   const chartDataWithAlerts = useMemo(() => {
     if (!memoizedChartData.length || !realtimeAlertLogs.length) return memoizedChartData;
-    const alertSet = new Set();
+    const dataParams = realtimeParams.filter(p => p !== 'datetime' && p !== 'timestamp');
+    const points = memoizedChartData.map(pt => ({ ...pt, _alerts: {} }));
+    const getPointTime = (pt) => new Date(pt.originalTimestamp).getTime();
+
     realtimeAlertLogs.forEach((log) => {
-      const t = new Date(log.detected_at).getTime();
-      const rounded = Math.floor(t / 60000) * 60000;
       const norm = normalizeParamForAlert(log.parameter);
-      if (norm) alertSet.add(`${norm}|${rounded}`);
-    });
-    return memoizedChartData.map((pt) => {
-      const ts = new Date(pt.originalTimestamp).getTime();
-      const rounded = Math.floor(ts / 60000) * 60000;
-      const _alerts = {};
-      visibleParams.forEach((p) => {
-        if (alertSet.has(`${normalizeParamForAlert(p)}|${rounded}`)) _alerts[p] = true;
+      if (!norm) return;
+      const paramKey = dataParams.find(p => normalizeParamForAlert(p) === norm);
+      if (!paramKey) return;
+      const logTime = new Date(log.detected_at).getTime();
+      let bestIdx = -1;
+      let bestDiff = Infinity;
+      points.forEach((pt, idx) => {
+        const v = pt[paramKey];
+        if (v === undefined || v === null || (typeof v === 'number' && !Number.isFinite(v))) return;
+        const d = Math.abs(logTime - getPointTime(pt));
+        if (d < bestDiff) {
+          bestDiff = d;
+          bestIdx = idx;
+        }
       });
-      return { ...pt, _alerts };
+      if (bestIdx >= 0) points[bestIdx]._alerts[paramKey] = true;
     });
-  }, [memoizedChartData, realtimeAlertLogs, visibleParams]);
+
+    return points;
+  }, [memoizedChartData, realtimeAlertLogs, realtimeParams]);
 
   const colorPalette = CHART_COLORS;
 
@@ -232,9 +241,10 @@ const Dashboard = ({ socket }) => {
     }
   }, [devices, realtimeDevice]);
 
-  // When realtimeParams change, reset visibleParams to all
+  // When realtimeParams change, reset visibleParams to all (exclude datetime/timestamp so they don't appear as a chart series)
   useEffect(() => {
-    setVisibleParams(realtimeParams);
+    const chartParams = realtimeParams.filter(p => p !== 'datetime' && p !== 'timestamp');
+    setVisibleParams(chartParams);
   }, [realtimeParams]);
 
   const loadDashboardData = async () => {
