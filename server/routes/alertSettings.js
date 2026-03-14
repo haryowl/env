@@ -42,42 +42,46 @@ router.post('/email-config', auth.authenticateToken, async (req, res) => {
 // Test email configuration
 router.post('/test-email', auth.authenticateToken, async (req, res) => {
   try {
-    const { smtp_host, smtp_port, smtp_secure, smtp_user, smtp_pass, from_email, from_name } = req.body;
+    const { smtp_host, smtp_port, smtp_secure, smtp_user, smtp_pass, from_email, from_name } = req.body || {};
     
     // Validate required fields
-    if (!smtp_host || !smtp_port || !smtp_user || !smtp_pass || !from_email || !from_name) {
+    if (!smtp_host || !smtp_user || !smtp_pass || !from_email || !from_name) {
       return res.status(400).json({ 
         error: 'Missing required email configuration fields',
         required: ['smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'from_email', 'from_name']
       });
     }
 
+    const port = parseInt(smtp_port, 10);
+    if (!port || port < 1 || port > 65535) {
+      return res.status(400).json({ error: 'Invalid SMTP port. Use 587 (TLS) or 465 (SSL).' });
+    }
+
     // Validate user email
     if (!req.user || !req.user.email) {
       return res.status(400).json({ 
-        error: 'User email not found. Please ensure your user account has a valid email address.'
+        error: 'User email not found. Please add an email to your user profile to receive the test.'
       });
     }
 
+    const secure = smtp_secure === true || smtp_secure === 'true';
     const transporter = nodemailer.createTransport({
-      host: smtp_host,
-      port: parseInt(smtp_port),
-      secure: smtp_secure === true,
+      host: String(smtp_host).trim(),
+      port,
+      secure,
       auth: {
-        user: smtp_user,
+        user: String(smtp_user).trim(),
         pass: smtp_pass
       },
-      // Add timeout and connection settings
-      connectionTimeout: 10000,
+      connectionTimeout: 15000,
       greetingTimeout: 10000,
-      socketTimeout: 10000
+      socketTimeout: 15000
     });
 
-    // Verify connection configuration
     await transporter.verify();
     
     await transporter.sendMail({
-      from: `"${from_name}" <${from_email}>`,
+      from: `"${String(from_name).replace(/"/g, '')}" <${from_email}>`,
       to: req.user.email,
       subject: 'Alert System Test Email',
       text: 'This is a test email from the IoT Alert System to verify your email configuration.',
@@ -86,16 +90,19 @@ router.post('/test-email', auth.authenticateToken, async (req, res) => {
     
     res.json({ message: 'Test email sent successfully' });
   } catch (error) {
-    console.error('Error sending test email:', error);
+    console.error('Test email error:', error.message, error.code || '', error.response ? error.response : '');
     
-    // Provide more specific error messages
     let errorMessage = 'Failed to send test email';
     if (error.code === 'EAUTH') {
-      errorMessage = 'Authentication failed. Please check your SMTP username and password.';
-    } else if (error.code === 'ECONNECTION') {
-      errorMessage = 'Connection failed. Please check your SMTP host and port.';
-    } else if (error.code === 'ETIMEDOUT') {
-      errorMessage = 'Connection timed out. Please check your SMTP settings.';
+      errorMessage = 'Authentication failed. Check SMTP username and password (e.g. use an App Password for Gmail).';
+    } else if (error.code === 'ECONNECTION' || error.code === 'ENOTFOUND') {
+      errorMessage = 'Connection failed. Check SMTP host and port (e.g. smtp.gmail.com:587).';
+    } else if (error.code === 'ETIMEDOUT' || error.code === 'ESOCKET') {
+      errorMessage = 'Connection timed out. Check firewall or try a different port.';
+    } else if (error.code === 'EENVELOPE') {
+      errorMessage = 'Invalid from/to address. Check From Email format.';
+    } else if (error.response) {
+      errorMessage = `SMTP rejected: ${error.response}`;
     } else if (error.message) {
       errorMessage = error.message;
     }

@@ -297,12 +297,21 @@ export default function AlertSettings({ user }) {
       if (response.ok) {
         setNotification({ open: true, message: 'Test email sent successfully', severity: 'success' });
       } else {
-        const errorData = await response.json();
-        const errorMessage = errorData.error || 'Failed to send test email';
+        let errorMessage = 'Failed to send test email';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          errorMessage = `Server error ${response.status}. Check SMTP settings.`;
+        }
         setNotification({ open: true, message: errorMessage, severity: 'error' });
       }
     } catch (error) {
-      setNotification({ open: true, message: 'Failed to send test email', severity: 'error' });
+      setNotification({ 
+        open: true, 
+        message: error.message || 'Network error. Check connection and try again.', 
+        severity: 'error' 
+      });
     }
   };
 
