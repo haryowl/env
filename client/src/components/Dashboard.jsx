@@ -67,6 +67,7 @@ const Dashboard = ({ socket }) => {
   const [realtimeLatest, setRealtimeLatest] = useState({});
   const [visibleParams, setVisibleParams] = useState([]);
   const [realtimeAlertLogs, setRealtimeAlertLogs] = useState([]);
+  const [realtimeAlertThresholds, setRealtimeAlertThresholds] = useState({}); // { normalizedParam: { min, max } } for realtime device
   const [realtimeChartRange, setRealtimeChartRange] = useState('48h'); // '2h' | '3h' | '6h' | '48h' (default)
   const { formatDisplayName, getUnit } = useFieldMetadata();
 
@@ -101,7 +102,7 @@ const Dashboard = ({ socket }) => {
       }));
   }, [realtimeData]);
 
-  // Merge alert timestamps into chart data: one red dot per alert at the closest chart point in time (per parameter)
+  // Merge alert timestamps into chart data: one red dot per alert at the closest chart point, only if that point's value is actually out of range (above max or below min)
   const chartDataWithAlerts = useMemo(() => {
     if (!memoizedChartData.length || !realtimeAlertLogs.length) return memoizedChartData;
     const dataParams = realtimeParams.filter(p => p !== 'datetime' && p !== 'timestamp');
@@ -113,6 +114,7 @@ const Dashboard = ({ socket }) => {
       if (!norm) return;
       const paramKey = dataParams.find(p => normalizeParamForAlert(p) === norm);
       if (!paramKey) return;
+      const thresholds = realtimeAlertThresholds[norm];
       const logTime = new Date(log.detected_at).getTime();
       let bestIdx = -1;
       let bestDiff = Infinity;
@@ -125,11 +127,17 @@ const Dashboard = ({ socket }) => {
           bestIdx = idx;
         }
       });
-      if (bestIdx >= 0) points[bestIdx]._alerts[paramKey] = true;
+      if (bestIdx >= 0 && thresholds) {
+        const val = points[bestIdx][paramKey];
+        const numVal = typeof val === 'number' ? val : parseFloat(val);
+        if (!Number.isFinite(numVal)) return;
+        const outOfRange = (thresholds.min != null && numVal < thresholds.min) || (thresholds.max != null && numVal > thresholds.max);
+        if (outOfRange) points[bestIdx]._alerts[paramKey] = true;
+      }
     });
 
     return points;
-  }, [memoizedChartData, realtimeAlertLogs, realtimeParams]);
+  }, [memoizedChartData, realtimeAlertLogs, realtimeParams, realtimeAlertThresholds]);
 
   const colorPalette = CHART_COLORS;
 
@@ -410,6 +418,37 @@ const Dashboard = ({ socket }) => {
       .then((data) => setRealtimeAlertLogs(data.logs || []))
       .catch(() => setRealtimeAlertLogs([]));
   }, [realtimeDevice, realtimeData]);
+
+  // Fetch alert definitions (min/max thresholds) for the realtime device so we only show red dots when value is actually out of range
+  useEffect(() => {
+    if (!realtimeDevice) {
+      setRealtimeAlertThresholds({});
+      return;
+    }
+    const token = localStorage.getItem('iot_token');
+    fetch(`${API_BASE_URL}/alerts`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => res.ok ? res.json() : Promise.resolve({ alerts: [] }))
+      .then((data) => {
+        const list = data.alerts || [];
+        const byParam = {};
+        list
+          .filter((a) => a.device_id === realtimeDevice)
+          .forEach((a) => {
+            const norm = normalizeParamForAlert(a.parameter);
+            if (!norm) return;
+            const min = a.min != null ? Number(a.min) : null;
+            const max = a.max != null ? Number(a.max) : null;
+            if (byParam[norm]) {
+              if (min != null && (byParam[norm].min == null || min < byParam[norm].min)) byParam[norm].min = min;
+              if (max != null && (byParam[norm].max == null || max > byParam[norm].max)) byParam[norm].max = max;
+            } else {
+              byParam[norm] = { min, max };
+            }
+          });
+        setRealtimeAlertThresholds(byParam);
+      })
+      .catch(() => setRealtimeAlertThresholds({}));
+  }, [realtimeDevice]);
 
   // Poll and socket for live updates
   useEffect(() => {
