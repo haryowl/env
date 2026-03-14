@@ -67,7 +67,16 @@ const Dashboard = ({ socket }) => {
   const [realtimeLatest, setRealtimeLatest] = useState({});
   const [visibleParams, setVisibleParams] = useState([]);
   const [realtimeAlertLogs, setRealtimeAlertLogs] = useState([]);
+  const [realtimeChartRange, setRealtimeChartRange] = useState('48h'); // '2h' | '3h' | '6h' | '48h' (default)
   const { formatDisplayName, getUnit } = useFieldMetadata();
+
+  const REALTIME_RANGE_OPTIONS = [
+    { value: '48h', label: 'Default' },
+    { value: '2h', label: 'Last 2 hours' },
+    { value: '3h', label: 'Last 3 hours' },
+    { value: '6h', label: 'Last 6 hours' },
+  ];
+  const realtimeRangeHours = useMemo(() => ({ '2h': 2, '3h': 3, '6h': 6, '48h': 48 })[realtimeChartRange] ?? 48, [realtimeChartRange]);
 
   // Normalize parameter name for matching (alert_logs may use spaces or underscores)
   const normalizeParamForAlert = (p) => (p || '').toString().toLowerCase().replace(/\s+/g, '_');
@@ -312,22 +321,23 @@ const Dashboard = ({ socket }) => {
     fetchMapper();
   }, [realtimeDevice]);
 
-  // Fetch mapped data from /data-dash for last 48 hours (ensures full today + yesterday for Parameter Overview avg comparison)
-  const fetchRealtimeData = async (deviceId, params) => {
+  // Fetch mapped data from /data-dash for the selected time range (chart view); Parameter Overview still uses full 48h when range is default
+  const fetchRealtimeData = async (deviceId, params, rangeHours = 48) => {
     if (!deviceId || !params || params.length === 0) {
       return;
     }
     try {
       const token = localStorage.getItem('iot_token');
-      const startDate = subHours(new Date(), 48).toISOString();
+      const startDate = subHours(new Date(), rangeHours).toISOString();
       const endDate = new Date().toISOString();
+      const limit = rangeHours <= 6 ? 1000 : 5000;
       const response = await axios.get(`${API_BASE_URL}/data-dash`, {
         params: {
           deviceIds: deviceId,
           parameters: params.join(','),
           startDate,
           endDate,
-          limit: 5000, // enough for 48h at 2–5 min interval (Parameter Overview today vs yesterday)
+          limit,
         },
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -396,11 +406,11 @@ const Dashboard = ({ socket }) => {
     if (!realtimeDevice || realtimeParams.length === 0) return;
     
     // Initial load
-    fetchRealtimeData(realtimeDevice, realtimeParams);
+    fetchRealtimeData(realtimeDevice, realtimeParams, realtimeRangeHours);
     
     // Poll every 10 seconds
     const interval = setInterval(() => {
-      fetchRealtimeData(realtimeDevice, realtimeParams);
+      fetchRealtimeData(realtimeDevice, realtimeParams, realtimeRangeHours);
     }, 10000);
     
     // WebSocket for real-time updates
@@ -433,7 +443,7 @@ const Dashboard = ({ socket }) => {
         socket.off('device_data', deviceDataHandler);
       }
     };
-  }, [realtimeDevice, realtimeParams, socket]);
+  }, [realtimeDevice, realtimeParams, realtimeRangeHours, socket]);
 
   // Calculate Y axis min/max for visible parameters (exclude non-numeric like 'datetime')
   const getYDomain = () => {
@@ -719,6 +729,31 @@ const Dashboard = ({ socket }) => {
                   </Grid>
                 );})}
               </Grid>
+                </Box>
+
+                {/* Time range filter for chart */}
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="h6" sx={{ 
+                    fontWeight: 600, 
+                    color: theme.palette.text.primary, 
+                    mb: 2,
+                    fontSize: '1.1rem'
+                  }}>
+                    Time range
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, p: 2, backgroundColor: 'rgba(0,0,0,0.02)', borderRadius: 1, border: '1px solid rgba(0,0,0,0.06)' }}>
+                    {REALTIME_RANGE_OPTIONS.map((opt) => (
+                      <Chip
+                        key={opt.value}
+                        label={opt.label}
+                        color={realtimeChartRange === opt.value ? 'primary' : 'default'}
+                        variant={realtimeChartRange === opt.value ? 'filled' : 'outlined'}
+                        clickable
+                        onClick={() => setRealtimeChartRange(opt.value)}
+                        sx={{ fontSize: '0.8125rem', fontWeight: 500, height: 32, borderRadius: 1.5, '& .MuiChip-label': { px: 1.5 } }}
+                      />
+                    ))}
+                  </Box>
                 </Box>
 
                 {/* Modern Parameter Controls */}
