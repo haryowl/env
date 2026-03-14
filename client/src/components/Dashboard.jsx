@@ -716,12 +716,14 @@ const Dashboard = ({ socket }) => {
           <Box sx={{ 
             display: 'flex', 
             alignItems: 'center', 
-            justifyContent: 'flex-start',
+            justifyContent: 'space-between',
             px: 2,
             py: 1.5,
             bgcolor: 'background.paper',
             borderBottom: '1px solid',
-            borderColor: 'primary.light'
+            borderColor: 'primary.light',
+            flexWrap: 'wrap',
+            gap: 1
           }}>
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
               <DataIcon sx={{ mr: 1.25, fontSize: 22, color: 'primary.main' }} />
@@ -729,6 +731,20 @@ const Dashboard = ({ socket }) => {
                 Realtime Data View
               </Typography>
             </Box>
+            <FormControl size="small" sx={{ minWidth: 160 }}>
+              <InputLabel id="realtime-time-range-label">Time range</InputLabel>
+              <Select
+                labelId="realtime-time-range-label"
+                value={realtimeChartRange}
+                label="Time range"
+                onChange={(e) => setRealtimeChartRange(e.target.value)}
+                sx={{ height: 36, fontSize: '0.875rem' }}
+              >
+                {REALTIME_RANGE_OPTIONS.map((opt) => (
+                  <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
           </Box>
           
           <Box sx={{ p: 3 }}>
@@ -778,31 +794,6 @@ const Dashboard = ({ socket }) => {
                   </Grid>
                 );})}
               </Grid>
-                </Box>
-
-                {/* Time range filter for chart */}
-                <Box sx={{ mb: 3 }}>
-                  <Typography variant="h6" sx={{ 
-                    fontWeight: 600, 
-                    color: theme.palette.text.primary, 
-                    mb: 2,
-                    fontSize: '1.1rem'
-                  }}>
-                    Time range
-                  </Typography>
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, p: 2, backgroundColor: 'rgba(0,0,0,0.02)', borderRadius: 1, border: '1px solid rgba(0,0,0,0.06)' }}>
-                    {REALTIME_RANGE_OPTIONS.map((opt) => (
-                      <Chip
-                        key={opt.value}
-                        label={opt.label}
-                        color={realtimeChartRange === opt.value ? 'primary' : 'default'}
-                        variant={realtimeChartRange === opt.value ? 'filled' : 'outlined'}
-                        clickable
-                        onClick={() => setRealtimeChartRange(opt.value)}
-                        sx={{ fontSize: '0.8125rem', fontWeight: 500, height: 32, borderRadius: 1.5, '& .MuiChip-label': { px: 1.5 } }}
-                      />
-                    ))}
-                  </Box>
                 </Box>
 
                 {/* Modern Parameter Controls */}
