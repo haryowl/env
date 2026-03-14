@@ -66,7 +66,11 @@ const Dashboard = ({ socket }) => {
   const [realtimeParams, setRealtimeParams] = useState([]);
   const [realtimeLatest, setRealtimeLatest] = useState({});
   const [visibleParams, setVisibleParams] = useState([]);
+  const [realtimeAlertLogs, setRealtimeAlertLogs] = useState([]);
   const { formatDisplayName, getUnit } = useFieldMetadata();
+
+  // Normalize parameter name for matching (alert_logs may use spaces or underscores)
+  const normalizeParamForAlert = (p) => (p || '').toString().toLowerCase().replace(/\s+/g, '_');
 
   // Check if user is admin or super_admin
   const isAdmin = useMemo(() => {
@@ -88,6 +92,27 @@ const Dashboard = ({ socket }) => {
       }));
   }, [realtimeData]);
 
+  // Merge alert timestamps into chart data so we can show red dots at alert points (round to 1 min for matching)
+  const chartDataWithAlerts = useMemo(() => {
+    if (!memoizedChartData.length || !realtimeAlertLogs.length) return memoizedChartData;
+    const alertSet = new Set();
+    realtimeAlertLogs.forEach((log) => {
+      const t = new Date(log.detected_at).getTime();
+      const rounded = Math.floor(t / 60000) * 60000;
+      const norm = normalizeParamForAlert(log.parameter);
+      if (norm) alertSet.add(`${norm}|${rounded}`);
+    });
+    return memoizedChartData.map((pt) => {
+      const ts = new Date(pt.originalTimestamp).getTime();
+      const rounded = Math.floor(ts / 60000) * 60000;
+      const _alerts = {};
+      visibleParams.forEach((p) => {
+        if (alertSet.has(`${normalizeParamForAlert(p)}|${rounded}`)) _alerts[p] = true;
+      });
+      return { ...pt, _alerts };
+    });
+  }, [memoizedChartData, realtimeAlertLogs, visibleParams]);
+
   const colorPalette = CHART_COLORS;
 
   // Function to get color for parameter based on name hash
@@ -102,6 +127,17 @@ const Dashboard = ({ socket }) => {
     return colorPalette[index];
   };
 
+  // Red dot shown at data points where an alert occurred for this parameter (a bit bigger for visibility)
+  const renderAlertDot = (param) => (props) => {
+    const { cx, cy, payload } = props;
+    if (payload._alerts && payload._alerts[param]) {
+      return (
+        <circle cx={cx} cy={cy} r={8} fill="#EF4444" stroke="#fff" strokeWidth={2} />
+      );
+    }
+    return null;
+  };
+
   // Memoized chart lines to prevent unnecessary re-renders
   const memoizedChartLines = useMemo(() => 
     visibleParams.map((param) => {
@@ -113,8 +149,8 @@ const Dashboard = ({ socket }) => {
           dataKey={param} 
           name={formatDisplayName(param, { withUnit: true })}
           stroke={color}
-          strokeWidth={3} 
-          dot={false}
+          strokeWidth={3}
+          dot={renderAlertDot(param)}
           activeDot={{ r: 6, strokeWidth: 2, fill: color }}
           isAnimationActive={false}
           connectNulls={false}
@@ -326,6 +362,34 @@ const Dashboard = ({ socket }) => {
       setRealtimeLatest({});
     }
   };
+
+  // Fetch alert logs for the realtime chart time range (so we can show red dots at alert points)
+  useEffect(() => {
+    if (!realtimeDevice || !realtimeData?.length) {
+      setRealtimeAlertLogs([]);
+      return;
+    }
+    const startDate = realtimeData.reduce((min, r) => {
+      const t = new Date(r.timestamp).getTime();
+      return t < min ? t : min;
+    }, Infinity);
+    const endDate = realtimeData.reduce((max, r) => {
+      const t = new Date(r.timestamp).getTime();
+      return t > max ? t : max;
+    }, -Infinity);
+    if (!Number.isFinite(startDate) || !Number.isFinite(endDate)) {
+      setRealtimeAlertLogs([]);
+      return;
+    }
+    const token = localStorage.getItem('iot_token');
+    fetch(
+      `${API_BASE_URL}/alert-logs?deviceId=${encodeURIComponent(realtimeDevice)}&startDate=${new Date(startDate).toISOString()}&endDate=${new Date(endDate).toISOString()}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+      .then((res) => res.ok ? res.json() : Promise.resolve({ logs: [] }))
+      .then((data) => setRealtimeAlertLogs(data.logs || []))
+      .catch(() => setRealtimeAlertLogs([]));
+  }, [realtimeDevice, realtimeData]);
 
   // Poll and socket for live updates
   useEffect(() => {
@@ -685,7 +749,7 @@ const Dashboard = ({ socket }) => {
                 {/* Chart */}
                 <Box sx={{ height: 400, ...CHART_CARD_SX }}>
                   <ResponsiveContainer key={`responsive-${visibleParams.join('-')}-${realtimeDevice}`} width="100%" height="100%">
-                    <LineChart data={memoizedChartData} margin={CHART_MARGIN}>
+                    <LineChart data={chartDataWithAlerts} margin={CHART_MARGIN}>
                       <CartesianGrid {...CARTESIAN_GRID_PROPS} />
                       <XAxis
                         dataKey="timestamp"
