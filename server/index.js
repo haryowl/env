@@ -60,6 +60,7 @@ const sensorDatabaseRoutes = require('./routes/sensorDatabase');
 const sensorSitesRoutes = require('./routes/sensorSites');
 const maintenanceRoutes = require('./routes/maintenance');
 const technicianRoutes = require('./routes/technician');
+const deviceDataRoutes = require('./routes/deviceData');
 
 const app = express();
 const server = http.createServer(app);
@@ -164,6 +165,8 @@ app.get('/health', async (req, res) => {
 console.log('Registering API routes...');
 app.use('/api/auth', authRoutes);
 console.log('✓ /api/auth route registered');
+app.use('/api/device-data', deviceDataRoutes);
+console.log('✓ /api/device-data route registered (HTTP ingestion)');
 app.use('/api/users', authenticateToken, filterDataByRole, userRoutes);
 console.log('✓ /api/users route registered');
 app.use('/api/roles', authenticateToken, filterDataByRole, roleRoutes);

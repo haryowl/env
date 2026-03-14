@@ -278,28 +278,51 @@ class MQTTService {
   }
 
   async createNewDevice(deviceId, topic, data) {
+    return this.createDeviceFromIngestion(deviceId, 'mqtt', data, { topics: [topic] });
+  }
+
+  async createDeviceFromIngestion(deviceId, protocol, data, extraConfig = {}) {
     try {
-      // Determine device type based on data structure
       const deviceType = this.determineDeviceType(data);
-      
-      // Create new device record
+      const config = protocol === 'mqtt' ? extraConfig : { source: 'http', ...extraConfig };
       await query(`
         INSERT INTO devices (device_id, device_type, protocol, name, config, status, created_at)
         VALUES ($1, $2, $3, $4, $5, $6, NOW())
       `, [
         deviceId,
         deviceType,
-        'mqtt',
-        `Auto-discovered ${deviceType}`,
-        JSON.stringify({ topics: [topic] }),
+        protocol,
+        `Auto-discovered ${deviceType} (${protocol})`,
+        JSON.stringify(config),
         'online'
       ]);
-
-      console.log(`Created new device: ${deviceId} (${deviceType})`);
-
+      console.log(`Created new device: ${deviceId} (${deviceType}, ${protocol})`);
     } catch (error) {
       console.error('Failed to create new device:', error);
     }
+  }
+
+  /**
+   * Ingest device data from HTTP or other non-MQTT source. Same pipeline as MQTT: process, store, alerts, emit.
+   * @param {string} deviceId - Device ID
+   * @param {object} data - JSON payload (datetime, sensor fields, etc.)
+   * @param {string} source - 'http' | 'mqtt' (for auto-create)
+   */
+  async ingestData(deviceId, data, source = 'http') {
+    let device = await getRow('SELECT * FROM devices WHERE device_id = $1', [deviceId]);
+    if (!device) {
+      await this.createDeviceFromIngestion(deviceId, source, data);
+      device = await getRow('SELECT * FROM devices WHERE device_id = $1', [deviceId]);
+      if (!device) {
+        throw new Error('Failed to create device');
+      }
+    }
+    const processedData = await processDeviceData(device, data);
+    await this.storeDeviceData(device, processedData);
+    await this.updateDeviceStatus(deviceId, 'online');
+    await this.evaluateAlertsWithRealTimeData(deviceId, processedData);
+    this.emitRealTimeData(deviceId, processedData);
+    return processedData;
   }
 
   determineDeviceType(data) {
