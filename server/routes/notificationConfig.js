@@ -95,20 +95,33 @@ router.get('/email-recipients', async (req, res) => {
   }
 });
 
+const isValidEmail = (e) => typeof e === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim()) && e.trim().length < 255;
+
 // POST /api/notification-config/email-recipients - Create email recipient
 router.post('/email-recipients', async (req, res) => {
   try {
-    const { email, name, is_active } = req.body;
+    const { email, name, is_active } = req.body || {};
+    const emailTrimmed = typeof email === 'string' ? email.trim() : '';
+    const nameTrimmed = typeof name === 'string' ? name.trim() : '';
+
+    if (!emailTrimmed) {
+      return res.status(400).json({ error: 'Email is required.' });
+    }
+    if (!isValidEmail(emailTrimmed)) {
+      return res.status(400).json({ error: 'Invalid email format. Use a valid address (e.g. user@domain.com).' });
+    }
+
     const result = await query(`
       INSERT INTO email_recipients (email, name, is_active, created_by)
       VALUES ($1, $2, $3, $4)
       RETURNING *
-    `, [email, name, is_active, req.user?.user_id]);
+    `, [emailTrimmed, nameTrimmed || null, is_active !== false, req.user?.user_id ?? null]);
     
     res.status(201).json({ recipient: result.rows[0] });
   } catch (error) {
     console.error('Failed to create email recipient:', error);
-    res.status(500).json({ error: 'Failed to create email recipient' });
+    const msg = error.code === '42P01' ? 'Email recipients table not found. Run database setup.' : (error.message || 'Failed to create email recipient');
+    res.status(500).json({ error: msg });
   }
 });
 
@@ -116,12 +129,22 @@ router.post('/email-recipients', async (req, res) => {
 router.put('/email-recipients/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { email, name, is_active } = req.body;
+    const { email, name, is_active } = req.body || {};
+    const emailTrimmed = typeof email === 'string' ? email.trim() : '';
+    const nameTrimmed = typeof name === 'string' ? name.trim() : '';
+
+    if (!emailTrimmed) {
+      return res.status(400).json({ error: 'Email is required.' });
+    }
+    if (!isValidEmail(emailTrimmed)) {
+      return res.status(400).json({ error: 'Invalid email format. Use a valid address (e.g. user@domain.com).' });
+    }
+
     const result = await query(`
       UPDATE email_recipients SET email = $1, name = $2, is_active = $3, updated_at = NOW()
       WHERE recipient_id = $4
       RETURNING *
-    `, [email, name, is_active, id]);
+    `, [emailTrimmed, nameTrimmed || null, is_active !== false, id]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Email recipient not found' });
@@ -129,7 +152,8 @@ router.put('/email-recipients/:id', async (req, res) => {
     res.json({ recipient: result.rows[0] });
   } catch (error) {
     console.error('Failed to update email recipient:', error);
-    res.status(500).json({ error: 'Failed to update email recipient' });
+    const msg = error.code === '42P01' ? 'Email recipients table not found.' : (error.message || 'Failed to update email recipient');
+    res.status(500).json({ error: msg });
   }
 });
 
