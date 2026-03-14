@@ -180,7 +180,7 @@ export default function DataDash() {
         parameters: selectedParameters.join(','),
         startDate: dateRange[0] ? dateRange[0].toISOString() : undefined,
         endDate: dateRange[1] ? dateRange[1].toISOString() : undefined,
-        limit: 500,
+        limit: 10000,
       };
       const token = localStorage.getItem('iot_token');
       const response = await axios.get(`${API_BASE_URL}/data-dash`, {
@@ -220,6 +220,7 @@ export default function DataDash() {
         startDate: dateRange[0] ? dateRange[0].toISOString() : undefined,
         endDate: dateRange[1] ? dateRange[1].toISOString() : undefined,
         groupBy: aggregation,
+        limit: 100000,
       };
       const token = localStorage.getItem('iot_token');
       const response = await axios.get(`${API_BASE_URL}/data-dash`, {
