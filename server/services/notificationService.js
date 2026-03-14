@@ -9,7 +9,7 @@ class NotificationService {
     this.defaultHttpConfig = null;
   }
 
-  // Initialize email transporter
+  // Initialize email transporter (from Notification Config: email_config table)
   async initializeEmailTransporter() {
     try {
       const config = await getRow('SELECT * FROM email_config WHERE is_default = true LIMIT 1');
@@ -27,10 +27,12 @@ class NotificationService {
       });
 
       this.defaultEmailConfig = config;
+      const port = parseInt(config.smtp_port, 10) || 587;
+      const secure = config.smtp_secure === true || config.smtp_secure === 'true' || port === 465;
       this.emailTransporter = nodemailer.createTransport({
         host: config.smtp_host,
-        port: config.smtp_port,
-        secure: config.ssl || false,
+        port,
+        secure,
         auth: {
           user: config.username,
           pass: config.password
@@ -45,18 +47,25 @@ class NotificationService {
     }
   }
 
-  // Send email notification
+  // Send email notification (uses Alert Settings: alert_email_config for SMTP + alert_email_recipients for who receives)
   async sendEmail(alertId, template, deviceName, parameter, value, min, max, lastUpdate, thresholdTime) {
     try {
-      if (!this.emailTransporter) {
-        await this.initializeEmailTransporter();
+      // Use Alert Settings SMTP config for alert emails (recipients are also from Alert Settings)
+      const alertConfig = await getRow('SELECT * FROM alert_email_config WHERE id = 1');
+      if (!alertConfig || !alertConfig.smtp_host) {
+        console.log('Alert email config not found or not configured. Enable and save SMTP in Alert Settings > Email Configuration.');
+        return;
       }
+      const port = parseInt(alertConfig.smtp_port, 10) || 587;
+      const secure = alertConfig.smtp_secure === true || alertConfig.smtp_secure === 'true' || port === 465;
+      const transporter = nodemailer.createTransport({
+        host: alertConfig.smtp_host,
+        port,
+        secure,
+        auth: { user: alertConfig.smtp_user, pass: alertConfig.smtp_pass }
+      });
 
-      if (!this.emailTransporter) {
-        throw new Error('Email transporter not available');
-      }
-
-      // Get email recipients for this alert
+      // Get email recipients for this alert (Alert Settings > Email Recipients with "Alerts to Receive")
       const recipients = await getRows(`
         SELECT email, name
         FROM alert_email_recipients
@@ -81,11 +90,13 @@ class NotificationService {
         thresholdTime
       });
 
+      const fromStr = `"${(alertConfig.from_name || 'Alert').replace(/"/g, '')}" <${alertConfig.from_email}>`;
+
       // Send email to each recipient
       for (const recipient of recipients) {
         try {
           const mailOptions = {
-            from: `"${this.defaultEmailConfig.from_name}" <${this.defaultEmailConfig.from_email}>`,
+            from: fromStr,
             to: recipient.email,
             subject: `IoT Alert: ${deviceName}`,
             text: processedTemplate,
@@ -100,7 +111,7 @@ class NotificationService {
                    </div>`
           };
 
-          await this.emailTransporter.sendMail(mailOptions);
+          await transporter.sendMail(mailOptions);
           
           // Log successful email
           await this.logNotification(alertId, 'email', recipient.email, 'sent', processedTemplate);
@@ -377,37 +388,55 @@ class NotificationService {
     }
   }
 
-  // Test email configuration
+  // Test email configuration (supports both Notification Config email_config and Alert Settings alert_email_config)
   async testEmailConfig(configId, testEmail) {
     try {
+      const trimmedTo = typeof testEmail === 'string' ? testEmail.trim() : '';
+      if (!trimmedTo || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedTo)) {
+        return { success: false, message: 'Please enter a valid test email address.' };
+      }
+
       let config;
       if (configId) {
-        config = await getRow('SELECT * FROM alert_email_config WHERE id = $1', [configId]);
+        // Notification Config: config_id refers to email_config.config_id
+        config = await getRow('SELECT * FROM email_config WHERE config_id = $1', [configId]);
+        if (config) {
+          config.smtp_user = config.username;
+          config.smtp_pass = config.password;
+          config.smtp_secure = config.smtp_secure === true || config.smtp_secure === 'true';
+        }
+        if (!config) {
+          config = await getRow('SELECT * FROM alert_email_config WHERE id = $1', [configId]);
+        }
       } else {
         config = await getRow('SELECT * FROM alert_email_config WHERE id = 1');
       }
 
-      if (!config) {
-        throw new Error('Email configuration not found');
+      if (!config || !config.smtp_host) {
+        return { success: false, message: 'Email configuration not found.' };
       }
 
+      const port = parseInt(config.smtp_port, 10) || 587;
+      const secure = config.smtp_secure === true || config.smtp_secure === 'true' || port === 465;
       const transporter = nodemailer.createTransport({
-        host: config.smtp_host,
-        port: config.smtp_port,
-        secure: config.smtp_secure,
+        host: String(config.smtp_host).trim(),
+        port,
+        secure,
         auth: {
-          user: config.smtp_user,
-          pass: config.smtp_pass
-        }
+          user: (config.smtp_user || config.username || '').toString().trim(),
+          pass: config.smtp_pass || config.password
+        },
+        connectionTimeout: 15000,
+        greetingTimeout: 10000
       });
 
-      // Verify connection
       await transporter.verify();
 
-      // Send test email
+      const fromName = (config.from_name || 'Alert').replace(/"/g, '');
+      const fromEmail = String(config.from_email || '').trim();
       const mailOptions = {
-        from: `"${config.from_name}" <${config.from_email}>`,
-        to: testEmail,
+        from: `"${fromName}" <${fromEmail}>`,
+        to: trimmedTo,
         subject: 'IoT Alert System - Test Email',
         text: 'This is a test email from your IoT Alert System. If you receive this, your email configuration is working correctly.',
         html: `
@@ -417,7 +446,7 @@ class NotificationService {
             <p>If you receive this email, your email configuration is working correctly.</p>
             <hr style="margin: 20px 0;">
             <p style="color: #666; font-size: 12px;">
-              SMTP Host: ${config.smtp_host}:${config.smtp_port}<br>
+              SMTP Host: ${config.smtp_host}:${port}<br>
               Sent at: ${new Date().toLocaleString()}
             </p>
           </div>
@@ -428,7 +457,13 @@ class NotificationService {
       return { success: true, message: 'Test email sent successfully' };
     } catch (error) {
       console.error('Test email failed:', error);
-      return { success: false, message: error.message };
+      let msg = error.message || 'Test failed';
+      if (error.code === 'ESOCKET' || error.message && error.message.includes('Greeting')) {
+        msg = 'Connection failed. For port 465 enable SSL/TLS. Check host, port, and firewall.';
+      } else if (error.code === 'EAUTH') {
+        msg = 'Authentication failed. Check username and password.';
+      }
+      return { success: false, message: msg };
     }
   }
 

@@ -199,13 +199,18 @@ router.post('/email-recipients', auth.authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Name and email are required' });
     }
 
+    const emailTrimmed = String(email).trim();
+    if (!isValidEmail(emailTrimmed)) {
+      return res.status(400).json({ error: 'Invalid email format. Use a valid address (e.g. user@domain.com).' });
+    }
+
     const alertsArray = Array.isArray(alerts) ? alerts : (alerts != null ? [alerts] : []);
     const alertsJson = JSON.stringify(alertsArray);
 
     try {
       const result = await db.query(
         'INSERT INTO alert_email_recipients (name, email, alerts, created_by) VALUES ($1, $2, $3::jsonb, $4) RETURNING id',
-        [String(name).trim(), String(email).trim(), alertsJson, req.user.user_id]
+        [String(name).trim(), emailTrimmed, alertsJson, req.user.user_id]
       );
       return res.json({ message: 'Email recipient added successfully', id: result.rows[0].id });
     } catch (insertError) {
@@ -213,7 +218,7 @@ router.post('/email-recipients', auth.authenticateToken, async (req, res) => {
       if (msg.includes('created_by') && (msg.includes('does not exist') || msg.includes('column'))) {
         const result = await db.query(
           'INSERT INTO alert_email_recipients (name, email, alerts) VALUES ($1, $2, $3::jsonb) RETURNING id',
-          [String(name).trim(), String(email).trim(), alertsJson]
+          [String(name).trim(), emailTrimmed, alertsJson]
         );
         return res.json({ message: 'Email recipient added successfully', id: result.rows[0].id });
       }
