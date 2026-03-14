@@ -39,6 +39,13 @@ router.post('/email-config', auth.authenticateToken, async (req, res) => {
   }
 });
 
+// Simple email format check (local part @ domain with at least one dot in domain)
+const isValidEmail = (email) => {
+  if (!email || typeof email !== 'string') return false;
+  const trimmed = email.trim();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed) && trimmed.length < 255;
+};
+
 // Test email configuration
 router.post('/test-email', auth.authenticateToken, async (req, res) => {
   try {
@@ -57,10 +64,21 @@ router.post('/test-email', auth.authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Invalid SMTP port. Use 587 (TLS) or 465 (SSL).' });
     }
 
-    // Validate user email
+    const fromEmailTrimmed = String(from_email).trim();
+    if (!isValidEmail(fromEmailTrimmed)) {
+      return res.status(400).json({ error: 'Invalid From Email format. Use a valid address (e.g. user@domain.com).' });
+    }
+
+    // Validate user email (recipient)
     if (!req.user || !req.user.email) {
       return res.status(400).json({ 
         error: 'User email not found. Please add an email to your user profile to receive the test.'
+      });
+    }
+    const toEmail = String(req.user.email).trim();
+    if (!isValidEmail(toEmail)) {
+      return res.status(400).json({ 
+        error: 'Your profile email is invalid. Update it in your user profile (e.g. Settings or User Management).'
       });
     }
 
@@ -80,9 +98,10 @@ router.post('/test-email', auth.authenticateToken, async (req, res) => {
 
     await transporter.verify();
     
+    const fromNameSafe = String(from_name).replace(/"/g, '').trim() || 'Alert';
     await transporter.sendMail({
-      from: `"${String(from_name).replace(/"/g, '')}" <${from_email}>`,
-      to: req.user.email,
+      from: `"${fromNameSafe}" <${fromEmailTrimmed}>`,
+      to: toEmail,
       subject: 'Alert System Test Email',
       text: 'This is a test email from the IoT Alert System to verify your email configuration.',
       html: '<p>This is a test email from the IoT Alert System to verify your email configuration.</p>'
@@ -100,7 +119,7 @@ router.post('/test-email', auth.authenticateToken, async (req, res) => {
     } else if (error.code === 'ETIMEDOUT' || error.code === 'ESOCKET') {
       errorMessage = 'Connection timed out. Check firewall or try a different port.';
     } else if (error.code === 'EENVELOPE') {
-      errorMessage = 'Invalid from/to address. Check From Email format.';
+      errorMessage = 'Invalid from or recipient email. Check From Email and your user profile email.';
     } else if (error.response) {
       errorMessage = `SMTP rejected: ${error.response}`;
     } else if (error.message) {
