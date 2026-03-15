@@ -3,7 +3,7 @@
  * Non-admin users can only access device data when today is between valid_from and valid_to.
  * Empty dates = never valid (no access until both are set).
  */
-const { query } = require('../config/database');
+const { query } = require('../server/config/database');
 
 async function addDeviceValidPeriodColumns() {
   try {
