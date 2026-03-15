@@ -626,8 +626,9 @@ const Dashboard = ({ socket }) => {
                 variant="caption"
                 sx={{
                   mt: 0.5,
-                  color: valid ? 'success.main' : 'error.main',
-                  fontWeight: 500,
+                  fontSize: '1rem',
+                  fontWeight: 700,
+                  color: valid ? '#1B5E20' : 'error.main',
                 }}
               >
                 {valid
