@@ -20,18 +20,22 @@ const createDeviceSchema = Joi.object({
   timezone: Joi.string().default('UTC'), // Default to UTC if not provided
   group_id: Joi.number().integer().optional(),
   config: Joi.object().optional(),
-  field_mappings: Joi.object().optional()
+  field_mappings: Joi.object().optional(),
+  valid_from: Joi.date().allow(null).optional(),
+  valid_to: Joi.date().allow(null).optional()
 });
 
 const updateDeviceSchema = Joi.object({
   name: Joi.string().optional(),
   description: Joi.string().optional(),
   location: Joi.string().optional(),
-  timezone: Joi.string().default('UTC'), // Default to UTC if not provided
+  timezone: Joi.string().default('UTC'),
   group_id: Joi.number().integer().optional(),
   config: Joi.object().optional(),
   field_mappings: Joi.object().optional(),
-  status: Joi.string().valid('online', 'offline', 'error', 'maintenance').optional()
+  status: Joi.string().valid('online', 'offline', 'error', 'maintenance').optional(),
+  valid_from: Joi.date().allow(null).optional(),
+  valid_to: Joi.date().allow(null).optional()
 });
 
 const devicePermissionSchema = Joi.object({
@@ -44,14 +48,28 @@ const devicePermissionSchema = Joi.object({
   }).required()
 });
 
-// Get devices for dropdowns (accessible by authenticated users)
+// Get devices for dropdowns (filterDeviceData applied at app level; returns valid_from/valid_to)
 router.get('/dropdown', authenticateToken, async (req, res) => {
   try {
+    let whereClause = "WHERE COALESCE(is_deleted, false) = false";
+    let queryParams = [];
+    if (req.allowedDeviceIds !== null) {
+      if (req.allowedDeviceIds && req.allowedDeviceIds.length > 0) {
+        const placeholders = req.allowedDeviceIds.map((_, i) => `$${i + 1}`).join(',');
+        whereClause += ` AND device_id IN (${placeholders})`;
+        queryParams = req.allowedDeviceIds;
+      } else {
+        return res.json([]);
+      }
+    }
+    await query('ALTER TABLE devices ADD COLUMN IF NOT EXISTS valid_from DATE');
+    await query('ALTER TABLE devices ADD COLUMN IF NOT EXISTS valid_to DATE');
     const devices = await getRows(`
-      SELECT device_id, name, device_type, protocol, status
-      FROM devices 
+      SELECT device_id, name, device_type, protocol, status, valid_from, valid_to
+      FROM devices
+      ${whereClause}
       ORDER BY name ASC
-    `);
+    `, queryParams);
     res.json(devices);
   } catch (error) {
     console.error('Get devices dropdown error:', error);
@@ -66,8 +84,10 @@ router.get('/dropdown', authenticateToken, async (req, res) => {
 // Get all devices (with pagination and filtering)
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    // Ensure soft delete column exists
+    // Ensure soft delete and valid period columns exist
     await query(`ALTER TABLE devices ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false`);
+    await query('ALTER TABLE devices ADD COLUMN IF NOT EXISTS valid_from DATE');
+    await query('ALTER TABLE devices ADD COLUMN IF NOT EXISTS valid_to DATE');
 
     const { 
       page = 1, 
@@ -325,7 +345,9 @@ router.post('/', authorizeRole(['super_admin', 'admin']), async (req, res) => {
       timezone,
       group_id,
       config,
-      field_mappings
+      field_mappings,
+      valid_from,
+      valid_to
     } = value;
 
     // Check if device already exists
@@ -341,18 +363,24 @@ router.post('/', authorizeRole(['super_admin', 'admin']), async (req, res) => {
       });
     }
 
+    // Ensure valid_from/valid_to columns exist
+    await query('ALTER TABLE devices ADD COLUMN IF NOT EXISTS valid_from DATE');
+    await query('ALTER TABLE devices ADD COLUMN IF NOT EXISTS valid_to DATE');
+
     // Create device
     const result = await query(`
       INSERT INTO devices (
         device_id, device_type, protocol, name, description, location, 
-        timezone, group_id, config, field_mappings, status, created_at
+        timezone, group_id, config, field_mappings, status, valid_from, valid_to, created_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'offline', NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'offline', $11, $12, NOW())
       RETURNING *
     `, [
       device_id, device_type, protocol, name, description, location,
       timezone || 'UTC', group_id, JSON.stringify(config || {}), 
-      JSON.stringify(field_mappings || {})
+      JSON.stringify(field_mappings || {}),
+      valid_from || null,
+      valid_to || null
     ]);
 
     const newDevice = result.rows[0];

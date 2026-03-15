@@ -33,6 +33,9 @@ import {
   Delete as DeleteIcon,
   Search as SearchIcon,
 } from '@mui/icons-material';
+import { DatePicker, LocalizationProvider } from '@mui/x-date-pickers';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { format, parseISO, isValid } from 'date-fns';
 
 import { API_BASE_URL } from '../config/api';
 import moment from 'moment-timezone';
@@ -58,6 +61,8 @@ const DeviceManager = () => {
     template_id: '',
     timezone: 'UTC',
     time_format: 'ISO8601',
+    valid_from: null,
+    valid_to: null,
   });
 
   useEffect(() => {
@@ -131,6 +136,12 @@ const DeviceManager = () => {
   };
 
   const handleOpenDialog = (device = null) => {
+    const parseDate = (d) => {
+      if (!d) return null;
+      if (d instanceof Date && isValid(d)) return d;
+      const parsed = parseISO(d);
+      return isValid(parsed) ? parsed : null;
+    };
     if (device) {
       setEditingDevice(device);
       setFormData({
@@ -141,8 +152,10 @@ const DeviceManager = () => {
         description: device.description || '',
         location: device.location || '',
         template_id: deviceAssignments[device.device_id]?.template_id || '',
-        timezone: deviceAssignments[device.device_id]?.timezone || 'UTC',
+        timezone: deviceAssignments[device.device_id]?.timezone || device.timezone || 'UTC',
         time_format: deviceAssignments[device.device_id]?.time_format || 'ISO8601',
+        valid_from: parseDate(device.valid_from),
+        valid_to: parseDate(device.valid_to),
       });
     } else {
       setEditingDevice(null);
@@ -156,6 +169,8 @@ const DeviceManager = () => {
         template_id: '',
         timezone: 'UTC',
         time_format: 'ISO8601',
+        valid_from: null,
+        valid_to: null,
       });
     }
     setDialogOpen(true);
@@ -174,15 +189,20 @@ const DeviceManager = () => {
       template_id: '',
       timezone: 'UTC',
       time_format: 'ISO8601',
+      valid_from: null,
+      valid_to: null,
     });
   };
 
   const handleInputChange = (field) => (event) => {
-    console.log('DeviceManager: handleInputChange called for field:', field, 'value:', event.target.value);
     setFormData(prev => ({
       ...prev,
       [field]: event.target.value,
     }));
+  };
+
+  const handleDateChange = (field) => (value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   const handleSubmit = async () => {
@@ -194,19 +214,28 @@ const DeviceManager = () => {
       
       const method = editingDevice ? 'PUT' : 'POST';
 
+      const formatDateForApi = (d) => (d && isValid(d) ? format(d, 'yyyy-MM-dd') : null);
+
       // For updates, only send allowed fields
       const requestData = editingDevice ? {
         name: formData.name,
         description: formData.description,
         location: formData.location,
         timezone: formData.timezone,
-      } : formData;
+        valid_from: formatDateForApi(formData.valid_from),
+        valid_to: formatDateForApi(formData.valid_to),
+      } : {
+        ...formData,
+        valid_from: formatDateForApi(formData.valid_from),
+        valid_to: formatDateForApi(formData.valid_to),
+      };
 
-      // Filter out empty strings to avoid validation errors
+      // Filter out empty strings (but allow null for valid_from/valid_to)
       const filteredRequestData = {};
       Object.keys(requestData).forEach(key => {
-        if (requestData[key] !== '' && requestData[key] !== null && requestData[key] !== undefined) {
-          filteredRequestData[key] = requestData[key];
+        const v = requestData[key];
+        if (v !== '' && v !== undefined) {
+          filteredRequestData[key] = v;
         }
       });
 
@@ -621,7 +650,27 @@ const DeviceManager = () => {
                 </Select>
               </FormControl>
             </Grid>
-            
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <LocalizationProvider dateAdapter={AdapterDateFns}>
+                <DatePicker
+                  label="Valid From"
+                  value={formData.valid_from}
+                  onChange={handleDateChange('valid_from')}
+                  slotProps={{ textField: { fullWidth: true } }}
+                />
+              </LocalizationProvider>
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <LocalizationProvider dateAdapter={AdapterDateFns}>
+                <DatePicker
+                  label="Valid To"
+                  value={formData.valid_to}
+                  onChange={handleDateChange('valid_to')}
+                  slotProps={{ textField: { fullWidth: true } }}
+                />
+              </LocalizationProvider>
+            </Grid>
+
             {/* Device Coordinate Manager */}
             {editingDevice && (
               <Grid size={{ xs: 12 }}>

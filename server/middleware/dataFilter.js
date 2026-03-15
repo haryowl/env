@@ -82,7 +82,8 @@ const filterDeviceData = async (req, res, next) => {
     
     if (hasFullAccess) {
       console.log('User has full access (super_admin/admin)');
-      req.allowedDeviceIds = null; // null means no filtering (full access)
+      req.allowedDeviceIds = null;
+      req.allowedDeviceIdsForData = null; // null = no date-period filtering
       return next();
     }
 
@@ -105,7 +106,8 @@ const filterDeviceData = async (req, res, next) => {
         const devicePerms = userRole.device_permissions;
         if (devicePerms && (devicePerms.all_devices?.read === true || devicePerms.all_groups?.read === true)) {
           console.log('Role has full device access');
-          req.allowedDeviceIds = null; // Full access
+          req.allowedDeviceIds = null;
+          req.allowedDeviceIdsForData = null;
           return next();
         }
       }
@@ -128,15 +130,26 @@ const filterDeviceData = async (req, res, next) => {
 
     // Remove duplicates
     const uniqueDeviceIds = [...new Set(allowedDeviceIds)];
-    
-    console.log('Allowed device IDs:', uniqueDeviceIds);
-    
+
+    // For non-admin: filter to only devices within valid access period (valid_from/valid_to)
+    // Empty dates = never valid
+    let deviceIdsForData = uniqueDeviceIds;
+    if (uniqueDeviceIds.length > 0) {
+      const validDevices = await getRows(`
+        SELECT device_id FROM devices
+        WHERE device_id = ANY($1)
+        AND valid_from IS NOT NULL AND valid_to IS NOT NULL
+        AND CURRENT_DATE >= valid_from AND CURRENT_DATE <= valid_to
+      `, [uniqueDeviceIds]);
+      deviceIdsForData = validDevices.map(r => r.device_id);
+    }
+    req.allowedDeviceIdsForData = deviceIdsForData;
     req.allowedDeviceIds = uniqueDeviceIds;
     next();
   } catch (error) {
     console.error('Device data filter error:', error);
-    // On error, fail open so dashboard/devices/data-dash continue to work (avoids empty devices / "failed to load" when middleware throws)
     req.allowedDeviceIds = null;
+    req.allowedDeviceIdsForData = null;
     next();
   }
 };

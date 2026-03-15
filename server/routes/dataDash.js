@@ -5,14 +5,20 @@ const parseDeviceDatetime = require('../services/parseDeviceDatetime');
 const { authenticateToken } = require('../middleware/auth');
 const router = express.Router();
 
-// Apply authentication middleware to all data-dash routes
+// Apply authentication middleware (filterDeviceData applied at app level)
 router.use(authenticateToken);
 
 // GET /api/data-dash
 router.get(['/', ''], async (req, res) => {
   try {
     const { deviceIds, parameters, startDate, endDate, groupBy, limit: limitParam } = req.query;
-    const ids = deviceIds ? (Array.isArray(deviceIds) ? deviceIds : deviceIds.split(',')) : [];
+    let ids = deviceIds ? (Array.isArray(deviceIds) ? deviceIds : deviceIds.split(',')) : [];
+    // For non-admin: only return data for devices in valid access period
+    if (req.allowedDeviceIdsForData !== null) {
+      ids = ids.filter(id => req.allowedDeviceIdsForData && req.allowedDeviceIdsForData.includes(id));
+    } else if (req.allowedDeviceIds !== null && req.allowedDeviceIds && req.allowedDeviceIds.length > 0) {
+      ids = ids.filter(id => req.allowedDeviceIds.includes(id));
+    }
     const params = parameters ? (Array.isArray(parameters) ? parameters : parameters.split(',')) : [];
     const start = startDate ? new Date(startDate) : null;
     const end = endDate ? new Date(endDate) : null;

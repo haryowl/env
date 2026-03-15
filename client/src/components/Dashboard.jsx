@@ -271,16 +271,17 @@ const Dashboard = ({ socket }) => {
         setOverview(overviewData.overview);
       }
 
-      // Load devices
-      const devicesResponse = await fetch(`${API_BASE_URL}/devices`, {
+      // Load devices (use dropdown to get all devices with valid_from/valid_to for access period display)
+      const devicesResponse = await fetch(`${API_BASE_URL}/devices/dropdown`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
-      
+
       if (devicesResponse.ok) {
         const devicesData = await devicesResponse.json();
-        const activeDevices = (devicesData.devices || []).filter(device => device.status !== 'offline' && device.status !== 'deleted');
+        const deviceList = Array.isArray(devicesData) ? devicesData : (devicesData.devices || []);
+        const activeDevices = deviceList.filter(device => device.status !== 'offline' && device.status !== 'deleted');
         setDevices(activeDevices);
       }
     } catch (error) {
@@ -292,14 +293,24 @@ const Dashboard = ({ socket }) => {
   };
 
   const handleDeviceUpdate = (data) => {
-    setDevices(prevDevices => 
-      prevDevices.map(device => 
-        device.id === data.device_id 
+    setDevices(prevDevices =>
+      prevDevices.map(device =>
+        device.device_id === data.device_id
           ? { ...device, status: data.status }
           : device
       )
     );
   };
+
+  // Check if device access is valid for non-admins (valid_from/valid_to period)
+  const isDeviceAccessValid = useCallback((device) => {
+    if (isAdmin) return true;
+    const from = device?.valid_from;
+    const to = device?.valid_to;
+    if (!from || !to) return false;
+    const today = new Date().toISOString().slice(0, 10);
+    return today >= (from?.slice?.(0, 10) ?? from) && today <= (to?.slice?.(0, 10) ?? to);
+  }, [isAdmin]);
 
   const handleDataUpdate = (data) => {
     // Update overview statistics if needed
@@ -585,13 +596,46 @@ const Dashboard = ({ socket }) => {
                 },
               }}
             >
-              {devices.map(d => (
-                <MenuItem key={d.device_id} value={d.device_id}>
-                  {d.name} ({d.device_id})
-                </MenuItem>
-              ))}
+              {devices.map(d => {
+                const valid = isDeviceAccessValid(d);
+                return (
+                  <MenuItem
+                    key={d.device_id}
+                    value={d.device_id}
+                    sx={{
+                      opacity: valid ? 1 : 0.6,
+                    }}
+                  >
+                    {d.name} ({d.device_id})
+                    {!valid && (
+                      <Typography component="span" variant="caption" color="error" sx={{ ml: 1 }}>
+                        – Access expired
+                      </Typography>
+                    )}
+                  </MenuItem>
+                );
+              })}
             </Select>
           </FormControl>
+          {!isAdmin && realtimeDevice && (() => {
+            const sel = devices.find(d => d.device_id === realtimeDevice);
+            if (!sel) return null;
+            const valid = isDeviceAccessValid(sel);
+            return (
+              <Typography
+                variant="caption"
+                sx={{
+                  mt: 0.5,
+                  color: valid ? 'success.main' : 'error.main',
+                  fontWeight: 500,
+                }}
+              >
+                {valid
+                  ? `Valid until ${sel.valid_to ? new Date(sel.valid_to).toLocaleDateString() : '–'}`
+                  : 'Access expired'}
+              </Typography>
+            );
+          })()}
         </Box>
       </Box>
 

@@ -22,6 +22,14 @@ router.get('/', authorizeDeviceAccess('read'), async (req, res) => {
       });
     }
 
+    // Non-admins: only allow data for devices within valid access period
+    if (req.allowedDeviceIdsForData !== null && (!req.allowedDeviceIdsForData || !req.allowedDeviceIdsForData.includes(device_id))) {
+      return res.status(403).json({
+        error: 'Access to this device data is not allowed',
+        code: 'DEVICE_ACCESS_EXPIRED'
+      });
+    }
+
     // Calculate time range
     let startTime, endTime;
     const now = new Date();
