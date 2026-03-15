@@ -233,6 +233,46 @@ router.post('/email-recipients', auth.authenticateToken, async (req, res) => {
   }
 });
 
+router.put('/email-recipients/:id', auth.authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, email, alerts } = req.body;
+
+    if (!name || !email) {
+      return res.status(400).json({ error: 'Name and email are required' });
+    }
+
+    const emailTrimmed = String(email).trim();
+    if (!isValidEmail(emailTrimmed)) {
+      return res.status(400).json({ error: 'Invalid email format. Use a valid address (e.g. user@domain.com).' });
+    }
+
+    const alertsArray = Array.isArray(alerts) ? alerts : (alerts != null ? [alerts] : []);
+    const alertsJson = JSON.stringify(alertsArray);
+
+    const isAdmin = req.user.role_name === 'super_admin' || req.user.role_name === 'admin';
+    let query = 'UPDATE alert_email_recipients SET name = $1, email = $2, alerts = $3::jsonb WHERE id = $4';
+    const params = [String(name).trim(), emailTrimmed, alertsJson, id];
+
+    if (!isAdmin) {
+      query += ' AND (created_by = $5 OR created_by IS NULL)';
+      params.push(req.user.user_id);
+    }
+
+    query += ' RETURNING id, name, email, alerts';
+
+    const result = await db.query(query, params);
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Email recipient not found or access denied' });
+    }
+
+    return res.json({ message: 'Email recipient updated successfully', recipient: result.rows[0] });
+  } catch (error) {
+    console.error('Error updating email recipient:', error);
+    res.status(500).json({ error: 'Failed to update email recipient' });
+  }
+});
+
 router.delete('/email-recipients/:id', auth.authenticateToken, async (req, res) => {
   try {
     // Check if user is admin/super_admin - if so, can delete any recipient

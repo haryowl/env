@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Card, CardContent, Button, Grid, TextField, 
   FormControl, InputLabel, Select, MenuItem, Switch, FormControlLabel,
-  Tabs, Tab, Divider, Alert, Snackbar, Chip, IconButton
+  Tabs, Tab, Divider, Alert, Snackbar, Chip, IconButton, Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import { API_BASE_URL } from '../config/api';
@@ -29,6 +29,7 @@ export default function AlertSettings({ user }) {
 
   // Email Recipients
   const [emailRecipients, setEmailRecipients] = useState([]);
+  const [editingRecipient, setEditingRecipient] = useState(null);
   const [newRecipient, setNewRecipient] = useState({
     email: '',
     name: '',
@@ -175,6 +176,37 @@ export default function AlertSettings({ user }) {
     }
   };
 
+  // Update email recipient
+  const updateEmailRecipient = async () => {
+    if (!editingRecipient) return;
+    try {
+      const token = localStorage.getItem('iot_token');
+      const response = await fetch(`${API_BASE_URL}/alert-settings/email-recipients/${editingRecipient.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: editingRecipient.name,
+          email: editingRecipient.email,
+          alerts: Array.isArray(editingRecipient.alerts) ? editingRecipient.alerts : []
+        })
+      });
+
+      if (response.ok) {
+        setNotification({ open: true, message: 'Recipient updated successfully', severity: 'success' });
+        setEditingRecipient(null);
+        loadConfigurations();
+      } else {
+        const data = await response.json().catch(() => ({}));
+        setNotification({ open: true, message: data.error || 'Failed to update recipient', severity: 'error' });
+      }
+    } catch (error) {
+      setNotification({ open: true, message: 'Failed to update recipient', severity: 'error' });
+    }
+  };
+
   // Delete email recipient
   const deleteEmailRecipient = async (id) => {
     try {
@@ -186,6 +218,7 @@ export default function AlertSettings({ user }) {
 
       if (response.ok) {
         setNotification({ open: true, message: 'Email recipient deleted successfully', severity: 'success' });
+        setEditingRecipient(null);
         loadConfigurations();
       } else {
         setNotification({ open: true, message: 'Failed to delete email recipient', severity: 'error' });
@@ -373,9 +406,14 @@ export default function AlertSettings({ user }) {
       headerName: 'Actions',
       flex: 1,
       renderCell: (params) => (
-        <Button size="small" color="error" onClick={() => deleteEmailRecipient(params.row.id)}>
-          Delete
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button size="small" variant="outlined" onClick={() => setEditingRecipient({ id: params.row.id, name: params.row.name, email: params.row.email, alerts: Array.isArray(params.row.alerts) ? params.row.alerts : [] })}>
+            Edit
+          </Button>
+          <Button size="small" color="error" onClick={() => deleteEmailRecipient(params.row.id)}>
+            Delete
+          </Button>
+        </Box>
       )
     },
   ];
@@ -569,6 +607,45 @@ export default function AlertSettings({ user }) {
                     disableSelectionOnClick
                   />
                 </div>
+
+                <Dialog open={!!editingRecipient} onClose={() => setEditingRecipient(null)} maxWidth="sm" fullWidth>
+                  <DialogTitle>Edit Recipient</DialogTitle>
+                  <DialogContent>
+                    {editingRecipient && (
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+                        <TextField
+                          label="Name"
+                          fullWidth
+                          value={editingRecipient.name || ''}
+                          onChange={(e) => setEditingRecipient({ ...editingRecipient, name: e.target.value })}
+                        />
+                        <TextField
+                          label="Email"
+                          fullWidth
+                          value={editingRecipient.email || ''}
+                          onChange={(e) => setEditingRecipient({ ...editingRecipient, email: e.target.value })}
+                        />
+                        <FormControl fullWidth>
+                          <InputLabel>Alerts to Receive</InputLabel>
+                          <Select
+                            multiple
+                            value={editingRecipient.alerts}
+                            onChange={(e) => setEditingRecipient({ ...editingRecipient, alerts: e.target.value })}
+                            label="Alerts to Receive"
+                          >
+                            {alerts.map(alert => (
+                              <MenuItem key={alert.alert_id} value={alert.alert_id}>{alert.name}</MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </Box>
+                    )}
+                  </DialogContent>
+                  <DialogActions>
+                    <Button onClick={() => setEditingRecipient(null)}>Cancel</Button>
+                    <Button variant="contained" onClick={updateEmailRecipient}>Save</Button>
+                  </DialogActions>
+                </Dialog>
               </CardContent>
             </Card>
           </Grid>
