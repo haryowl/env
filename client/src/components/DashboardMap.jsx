@@ -4,10 +4,6 @@ import {
   Card,
   CardContent,
   Typography,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Chip,
   Alert,
   CircularProgress,
@@ -222,29 +218,33 @@ const createDeviceIcon = (status, hasAlerts = false, name = '') => {
   });
 };
 
-// Modern map layer options with professional styling
+// Map layer options: swatch = visual preview only (labels in tooltips)
 const mapLayers = [
-  { 
-    value: 'dark', 
-    label: 'Dark Professional', 
+  {
+    value: 'dark',
+    label: 'Dark Professional',
+    swatch: 'linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #1e3a5f 100%)',
     url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
   },
-  { 
-    value: 'modern', 
-    label: 'Modern Light', 
+  {
+    value: 'modern',
+    label: 'Modern Light',
+    swatch: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #cbd5e1 100%)',
     url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
   },
-  { 
-    value: 'satellite', 
-    label: 'Satellite', 
+  {
+    value: 'satellite',
+    label: 'Satellite',
+    swatch: 'linear-gradient(135deg, #14532d 0%, #365314 35%, #1e3a8a 100%)',
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     attribution: '&copy; <a href="https://www.esri.com/">Esri</a>'
   },
-  { 
-    value: 'terrain', 
-    label: 'Terrain', 
+  {
+    value: 'terrain',
+    label: 'Terrain',
+    swatch: 'linear-gradient(135deg, #78716c 0%, #4ade80 45%, #a8a29e 100%)',
     url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
     attribution: '&copy; <a href="https://opentopomap.org/">OpenTopoMap</a> contributors'
   }
@@ -518,54 +518,70 @@ const DashboardMap = ({ socket }) => {
               Site Location
             </Typography>
           </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500, mb: 0.25 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>
                 Layer
               </Typography>
-              <FormControl size="small" sx={{ minWidth: 160 }}>
-                <Select
-                  value={selectedLayer}
-                  onChange={(e) => setSelectedLayer(e.target.value)}
-                  displayEmpty
-                  sx={{
-                    color: 'primary.main',
-                    fontWeight: 600,
-                    fontSize: '0.9rem',
-                    '& .MuiOutlinedInput-notchedOutline': {
-                      borderColor: 'divider',
-                    },
-                    '&:hover .MuiOutlinedInput-notchedOutline': {
-                      borderColor: 'primary.main',
-                      borderWidth: '1px',
-                    },
-                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                      borderColor: 'primary.main',
-                      borderWidth: '1.5px',
-                    },
-                    '& .MuiSvgIcon-root': {
-                      color: 'primary.main',
-                    },
-                  }}
-                >
-                  {mapLayers.map(layer => (
-                    <MenuItem key={layer.value} value={layer.value}>
-                      {layer.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.75,
+                  flexWrap: 'wrap',
+                  justifyContent: 'flex-end',
+                }}
+                role="group"
+                aria-label="Map base layer"
+              >
+                {mapLayers.map((layer) => {
+                  const selected = selectedLayer === layer.value;
+                  return (
+                    <Tooltip key={layer.value} title={layer.label} placement="bottom">
+                      <IconButton
+                        onClick={() => setSelectedLayer(layer.value)}
+                        size="small"
+                        aria-label={layer.label}
+                        aria-pressed={selected}
+                        sx={{
+                          p: '4px',
+                          borderRadius: '50%',
+                          border: '2px solid',
+                          borderColor: selected ? 'primary.main' : 'divider',
+                          bgcolor: 'background.paper',
+                          boxShadow: selected ? 2 : 0,
+                          transition: 'box-shadow 0.15s, border-color 0.15s',
+                          '&:hover': {
+                            borderColor: 'primary.light',
+                            bgcolor: 'action.hover',
+                          },
+                        }}
+                      >
+                        <Box
+                          sx={{
+                            width: 26,
+                            height: 26,
+                            borderRadius: '50%',
+                            background: layer.swatch,
+                            boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.08)',
+                          }}
+                        />
+                      </IconButton>
+                    </Tooltip>
+                  );
+                })}
+              </Box>
             </Box>
             <Tooltip title="Refresh">
-              <IconButton 
-                onClick={loadDevices} 
+              <IconButton
+                onClick={loadDevices}
                 size="small"
-                sx={{ 
+                sx={{
                   color: 'primary.main',
-                  mt: 2.5,
+                  alignSelf: 'center',
                   '&:hover': {
                     backgroundColor: 'action.hover',
-                  }
+                  },
                 }}
               >
                 <RefreshIcon />
