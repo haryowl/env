@@ -22,7 +22,7 @@ import {
   Cancel as CancelIcon,
 } from '@mui/icons-material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { FormControl, InputLabel, Select, MenuItem, CardActions, Button } from '@mui/material';
+import { FormControl, InputLabel, Select, MenuItem, CardActions, Button, TextField, ToggleButton, ToggleButtonGroup } from '@mui/material';
 import axios from 'axios';
 import { subHours } from 'date-fns';
 import moment from 'moment-timezone';
@@ -67,6 +67,7 @@ const Dashboard = ({ socket }) => {
   const [realtimeLatest, setRealtimeLatest] = useState({});
   const [visibleParams, setVisibleParams] = useState([]);
   const [activeRealtimeParam, setActiveRealtimeParam] = useState('');
+  const [realtimeParamSearch, setRealtimeParamSearch] = useState('');
   const [realtimeAlertLogs, setRealtimeAlertLogs] = useState([]);
   const [realtimeAlertThresholds, setRealtimeAlertThresholds] = useState({}); // { normalizedParam: { min, max } } for realtime device
   const [realtimeChartRange, setRealtimeChartRange] = useState('48h'); // '2h' | '3h' | '6h' | '48h' (default)
@@ -139,6 +140,91 @@ const Dashboard = ({ socket }) => {
 
     return points;
   }, [memoizedChartData, realtimeAlertLogs, realtimeParams, realtimeAlertThresholds]);
+
+  const selectableRealtimeParams = useMemo(() => {
+    const list = realtimeParams.filter(p => p !== 'datetime' && p !== 'timestamp');
+    const q = (realtimeParamSearch || '').trim().toLowerCase();
+    if (!q) return list;
+    return list.filter((p) => {
+      const label = formatDisplayName(p, { withUnit: true });
+      return p.toLowerCase().includes(q) || (label || '').toLowerCase().includes(q);
+    });
+  }, [realtimeParams, realtimeParamSearch, formatDisplayName]);
+
+  const toggleVisibleParam = useCallback((param) => {
+    setVisibleParams((v) => (v.includes(param) ? v.filter((p) => p !== param) : [...v, param]));
+  }, []);
+
+  const focusParam = useCallback((param) => {
+    setActiveRealtimeParam((prev) => (prev === param ? '' : param));
+  }, []);
+
+  const getTooltipRows = useCallback((payload = []) => {
+    const rows = (payload || [])
+      .filter((p) => p && p.dataKey && visibleParams.includes(p.dataKey))
+      .map((p) => {
+        const raw = p.value;
+        const n = typeof raw === 'number' ? raw : parseFloat(String(raw));
+        const sortVal = Number.isFinite(n) ? n : -Infinity;
+        return {
+          key: p.dataKey,
+          color: p.color || getParameterColor(p.dataKey),
+          label: formatDisplayName(p.dataKey, { withUnit: true }),
+          valueText: formatParameterValue(p.dataKey, raw, 3),
+          sortVal,
+        };
+      })
+      .sort((a, b) => b.sortVal - a.sortVal);
+    return rows;
+  }, [visibleParams, getParameterColor, formatDisplayName, formatParameterValue]);
+
+  const RealtimeTooltip = useCallback(({ active, payload, label }) => {
+    if (!active) return null;
+    const rows = getTooltipRows(payload);
+    if (!rows.length) return null;
+    return (
+      <Box
+        sx={{
+          ...TOOLTIP_CONTENT_STYLE,
+          padding: 1.25,
+          borderRadius: 1.5,
+          minWidth: 260,
+        }}
+      >
+        <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', mb: 0.75 }}>
+          {formatInUserTimezone(label)}
+        </Typography>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+          {rows.map((r) => (
+            <Box
+              key={r.key}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 1,
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: r.color, flexShrink: 0 }} />
+                <Typography sx={{ fontSize: '0.82rem', fontWeight: 650, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {r.label}
+                </Typography>
+              </Box>
+              <Typography sx={{ fontSize: '0.82rem', fontWeight: 800, flexShrink: 0 }}>
+                {r.valueText}
+              </Typography>
+            </Box>
+          ))}
+        </Box>
+        {activeRealtimeParam && (
+          <Typography variant="caption" sx={{ display: 'block', mt: 0.75, color: 'text.secondary', fontWeight: 600 }}>
+            Focus: {formatDisplayName(activeRealtimeParam, { withUnit: true })}
+          </Typography>
+        )}
+      </Box>
+    );
+  }, [getTooltipRows, activeRealtimeParam, formatDisplayName]);
 
   const colorPalette = CHART_COLORS;
 
@@ -956,26 +1042,63 @@ const Dashboard = ({ socket }) => {
                       </Button>
                     </Box>
                   </Box>
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, p: 2, backgroundColor: 'rgba(0,0,0,0.02)', borderRadius: 1, border: '1px solid rgba(0,0,0,0.06)' }}>
-                    {realtimeParams.filter(p => p !== 'datetime' && p !== 'timestamp').map((param) => (
-                  <Chip
-                    key={param}
-                    label={formatDisplayName(param, { withUnit: true })}
-                    color={visibleParams.includes(param) ? 'primary' : 'default'}
-                    variant={visibleParams.includes(param) ? 'filled' : 'outlined'}
-                    clickable
-                    onClick={() => setVisibleParams(v => v.includes(param) ? v.filter(p => p !== param) : [...v, param])}
-                    sx={{ 
-                      fontSize: '0.8125rem', 
-                      fontWeight: 500, 
-                      height: 32, 
-                      borderRadius: 1.5, 
-                      opacity: activeRealtimeParam && activeRealtimeParam !== param ? 0.6 : 1,
-                      '& .MuiChip-label': { px: 1.5 } 
+                  <Box
+                    sx={{
+                      p: 2,
+                      backgroundColor: 'rgba(0,0,0,0.02)',
+                      borderRadius: 1,
+                      border: '1px solid rgba(0,0,0,0.06)',
                     }}
-                  />
-                ))}
-              </Box>
+                  >
+                    <TextField
+                      size="small"
+                      placeholder="Search parameter…"
+                      value={realtimeParamSearch}
+                      onChange={(e) => setRealtimeParamSearch(e.target.value)}
+                      sx={{ mb: 1.5, maxWidth: 360 }}
+                    />
+                    <ToggleButtonGroup
+                      value={visibleParams}
+                      onChange={(_, newValue) => setVisibleParams(newValue)}
+                      size="small"
+                      sx={{ flexWrap: 'wrap', gap: 1, '& .MuiToggleButtonGroup-grouped': { border: 'none' } }}
+                    >
+                      {selectableRealtimeParams.map((param) => {
+                        const color = getParameterColor(param);
+                        const selected = visibleParams.includes(param);
+                        const dim = activeRealtimeParam && activeRealtimeParam !== param;
+                        return (
+                          <ToggleButton
+                            key={param}
+                            value={param}
+                            selected={selected}
+                            onClick={() => toggleVisibleParam(param)}
+                            onDoubleClick={() => focusParam(param)}
+                            sx={{
+                              textTransform: 'none',
+                              borderRadius: 2,
+                              px: 1.25,
+                              py: 0.75,
+                              minHeight: 34,
+                              gap: 1,
+                              opacity: dim ? 0.55 : 1,
+                              bgcolor: selected ? `${color}18` : 'transparent',
+                              border: `1px solid ${selected ? `${color}55` : 'rgba(0,0,0,0.14)'}`,
+                              '&:hover': { bgcolor: selected ? `${color}24` : 'rgba(0,0,0,0.04)' },
+                            }}
+                          >
+                            <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: color }} />
+                            <Typography sx={{ fontSize: '0.82rem', fontWeight: 650 }}>
+                              {formatDisplayName(param, { withUnit: true })}
+                            </Typography>
+                          </ToggleButton>
+                        );
+                      })}
+                    </ToggleButtonGroup>
+                    <Typography variant="caption" sx={{ display: 'block', mt: 1.25, color: 'text.secondary' }}>
+                      Tip: double‑click a toggle to focus its line.
+                    </Typography>
+                  </Box>
                 </Box>
 
                 {/* Chart */}
@@ -994,13 +1117,8 @@ const Dashboard = ({ socket }) => {
                       />
                       <YAxis type="number" tick={AXIS_TICK_STYLE} domain={([dataMin, dataMax]) => (dataMin === 0 ? [0, dataMax] : [dataMin, dataMax])} allowDataOverflow />
                       <Tooltip
-                        contentStyle={TOOLTIP_CONTENT_STYLE}
-                        formatter={(value, name, props) => {
-                          const dataKey = props?.dataKey || name;
-                          if (dataKey === 'datetime' || dataKey === 'timestamp') return [formatInUserTimezone(value), dataKey];
-                          return [formatParameterValue(dataKey, value, 3), formatDisplayName(dataKey, { withUnit: true })];
-                        }}
-                        labelFormatter={(label) => formatInUserTimezone(label)}
+                        content={RealtimeTooltip}
+                        cursor={{ stroke: 'rgba(2, 132, 199, 0.45)', strokeWidth: 1 }}
                       />
                       <Legend wrapperStyle={LEGEND_WRAPPER_STYLE} formatter={(value, entry) => formatDisplayName(entry?.dataKey || value, { withUnit: true })} />
                       {memoizedChartLines}
