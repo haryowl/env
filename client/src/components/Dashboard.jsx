@@ -187,6 +187,48 @@ const Dashboard = ({ socket }) => {
       );
     }), [visibleParams, formatDisplayName, activeRealtimeParam]);
 
+  // Phase-II: sparkline + delta per parameter (computed from realtimeData)
+  const realtimeCardMetrics = useMemo(() => {
+    const params = realtimeParams.filter(p => p !== 'datetime' && p !== 'timestamp');
+    const out = {};
+    if (!Array.isArray(realtimeData) || realtimeData.length === 0 || params.length === 0) {
+      params.forEach(p => { out[p] = { spark: [], deltaPct: null }; });
+      return out;
+    }
+
+    // Ensure chronological order (oldest -> newest)
+    const rows = [...realtimeData].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    const getNum = (v) => {
+      if (v === null || v === undefined || v === '') return null;
+      const n = typeof v === 'number' ? v : parseFloat(String(v));
+      return Number.isFinite(n) ? n : null;
+    };
+
+    const sparkPoints = 30; // last N points displayed
+    const win = 10; // delta computed as avg(last win) vs avg(prev win)
+
+    params.forEach((p) => {
+      const series = rows
+        .map(r => ({ t: r.timestamp, v: getNum(r[p]) }))
+        .filter(pt => pt.v !== null);
+
+      const sparkSlice = series.slice(Math.max(0, series.length - sparkPoints));
+      const spark = sparkSlice.map((pt, idx) => ({ idx, value: pt.v }));
+
+      let deltaPct = null;
+      if (series.length >= win * 2) {
+        const prev = series.slice(series.length - win * 2, series.length - win).map(x => x.v);
+        const curr = series.slice(series.length - win).map(x => x.v);
+        const avgPrev = prev.reduce((a, b) => a + b, 0) / prev.length;
+        const avgCurr = curr.reduce((a, b) => a + b, 0) / curr.length;
+        if (avgPrev !== 0) deltaPct = ((avgCurr - avgPrev) / avgPrev) * 100;
+        else deltaPct = null;
+      }
+      out[p] = { spark, deltaPct };
+    });
+    return out;
+  }, [realtimeData, realtimeParams]);
+
   const formatParameterValue = useCallback(
     (param, value, precision = 2, includeUnit = true) => {
       if (value === null || value === undefined || value === '') {
@@ -816,6 +858,9 @@ const Dashboard = ({ socket }) => {
                       const formattedLabel = formatDisplayName(param, { withUnit: true });
                       const formattedValue = formatParameterValue(param, realtimeLatest[param]);
                       const isFocused = activeRealtimeParam === param;
+                      const metric = realtimeCardMetrics[param] || { spark: [], deltaPct: null };
+                      const delta = metric.deltaPct;
+                      const deltaColor = delta == null ? 'text.secondary' : (delta >= 0 ? 'success.main' : 'error.main');
                       return (
                       <Grid size={{ xs: 6, sm: 4, md: 2 }} key={param}>
                         <Card sx={{
@@ -825,7 +870,7 @@ const Dashboard = ({ socket }) => {
                           border: `1px solid ${colorPalette[idx % colorPalette.length]}30`,
                           bgcolor: `${colorPalette[idx % colorPalette.length]}10`,
                           transition: 'all 0.2s ease',
-                          height: 100,
+                          height: 118,
                           display: 'flex',
                           flexDirection: 'column',
                           justifyContent: 'center',
@@ -845,6 +890,30 @@ const Dashboard = ({ socket }) => {
                           <Typography variant="h5" sx={{ fontWeight: 700, color: colorPalette[idx % colorPalette.length], fontSize: '1.25rem', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {formattedValue}
                           </Typography>
+                          <Box sx={{ mt: 0.75, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                            <Typography variant="caption" sx={{ fontWeight: 700, color: deltaColor }}>
+                              {delta == null ? '—' : `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}%`}
+                            </Typography>
+                            <Box sx={{ flex: 1, height: 22, minWidth: 60 }}>
+                              {metric.spark.length >= 2 ? (
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <LineChart data={metric.spark} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
+                                    <Line
+                                      type="monotone"
+                                      dataKey="value"
+                                      stroke={colorPalette[idx % colorPalette.length]}
+                                      strokeWidth={2}
+                                      dot={false}
+                                      isAnimationActive={false}
+                                      opacity={0.9}
+                                    />
+                                  </LineChart>
+                                </ResponsiveContainer>
+                              ) : (
+                                <Box sx={{ height: 22 }} />
+                              )}
+                            </Box>
+                          </Box>
                           </Box>
                     </Card>
                   </Grid>
