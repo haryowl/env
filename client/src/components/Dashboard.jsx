@@ -36,6 +36,8 @@ import DynamicParameterCards from './DynamicParameterCards';
 import FullWidthParameterCards from './FullWidthParameterCards';
 import SingleRowParameterCards from './SingleRowParameterCards';
 import DashboardParameterDoughnuts from './DashboardParameterDoughnuts';
+import PageHeader from './PageHeader';
+import SectionHeader from './SectionHeader';
 import { useFont } from '../contexts/FontContext';
 import { getOptimalTextColor } from '../utils/colorUtils';
 import { useTheme as useMuiTheme } from '@mui/material/styles';
@@ -749,90 +751,71 @@ const Dashboard = ({ socket }) => {
 
   return (
     <Box>
-      <Box
-        sx={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: { xs: 'flex-start', sm: 'center' },
-          flexDirection: { xs: 'column', sm: 'row' },
-          gap: 2,
-          mb: 3,
-        }}
-      >
-        <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, color: 'text.primary', mb: 0 }}>
-          Dashboard
-        </Typography>
-        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: { xs: 'flex-start', sm: 'flex-end' } }}>
-          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500, mb: 0.25 }}>
-            Device
-          </Typography>
-          <FormControl size="medium" sx={{ minWidth: { xs: '100%', sm: 260, md: 300 } }}>
-            <Select
-              value={realtimeDevice}
-              onChange={e => setRealtimeDevice(e.target.value)}
-              displayEmpty
-              sx={{
-                color: 'primary.main',
-                fontWeight: 600,
-                fontSize: '0.9rem',
-                '& .MuiOutlinedInput-notchedOutline': {
-                  borderColor: 'divider',
-                },
-                '&:hover .MuiOutlinedInput-notchedOutline': {
-                  borderColor: 'primary.main',
-                  borderWidth: '1px',
-                },
-                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                  borderColor: 'primary.main',
-                  borderWidth: '1.5px',
-                },
-                '& .MuiSvgIcon-root': {
-                  color: 'primary.main',
-                },
-              }}
-            >
-              {devices.map(d => {
-                const valid = isDeviceAccessValid(d);
+      <Box sx={{ mb: 3 }}>
+        <PageHeader
+          icon={<DevicesIcon sx={{ fontSize: 18 }} />}
+          title="Dashboard"
+          subtitle="Overview, device status, and realtime monitoring"
+          right={(
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: { xs: 'flex-start', sm: 'flex-end' } }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
+                Device
+              </Typography>
+              <FormControl size="medium" sx={{ minWidth: { xs: '100%', sm: 260, md: 320 }, mt: 0.5 }}>
+                <Select
+                  value={realtimeDevice}
+                  onChange={e => setRealtimeDevice(e.target.value)}
+                  displayEmpty
+                  sx={{
+                    height: 36,
+                    fontWeight: 700,
+                    fontSize: '0.9rem',
+                    '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(0,0,0,0.14)' },
+                    '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'primary.main' },
+                  }}
+                >
+                  {devices.map(d => {
+                    const valid = isDeviceAccessValid(d);
+                    return (
+                      <MenuItem
+                        key={d.device_id}
+                        value={d.device_id}
+                        sx={{ opacity: valid ? 1 : 0.6 }}
+                      >
+                        {d.name} ({d.device_id})
+                        {!valid && (
+                          <Typography component="span" variant="caption" color="error" sx={{ ml: 1 }}>
+                            – Access expired
+                          </Typography>
+                        )}
+                      </MenuItem>
+                    );
+                  })}
+                </Select>
+              </FormControl>
+              {!isAdmin && realtimeDevice && (() => {
+                const sel = devices.find(d => d.device_id === realtimeDevice);
+                if (!sel) return null;
+                const valid = isDeviceAccessValid(sel);
                 return (
-                  <MenuItem
-                    key={d.device_id}
-                    value={d.device_id}
+                  <Typography
+                    variant="caption"
                     sx={{
-                      opacity: valid ? 1 : 0.6,
+                      mt: 0.5,
+                      fontSize: '0.95rem',
+                      fontWeight: 800,
+                      color: valid ? '#1B5E20' : 'error.main',
                     }}
                   >
-                    {d.name} ({d.device_id})
-                    {!valid && (
-                      <Typography component="span" variant="caption" color="error" sx={{ ml: 1 }}>
-                        – Access expired
-                      </Typography>
-                    )}
-                  </MenuItem>
+                    {valid
+                      ? `Valid until ${sel.valid_to ? new Date(sel.valid_to).toLocaleDateString() : '–'}`
+                      : 'Access expired'}
+                  </Typography>
                 );
-              })}
-            </Select>
-          </FormControl>
-          {!isAdmin && realtimeDevice && (() => {
-            const sel = devices.find(d => d.device_id === realtimeDevice);
-            if (!sel) return null;
-            const valid = isDeviceAccessValid(sel);
-            return (
-              <Typography
-                variant="caption"
-                sx={{
-                  mt: 0.5,
-                  fontSize: '1rem',
-                  fontWeight: 700,
-                  color: valid ? '#1B5E20' : 'error.main',
-                }}
-              >
-                {valid
-                  ? `Valid until ${sel.valid_to ? new Date(sel.valid_to).toLocaleDateString() : '–'}`
-                  : 'Access expired'}
-              </Typography>
-            );
-          })()}
-        </Box>
+              })()}
+            </Box>
+          )}
+        />
       </Box>
 
       {/* Statistics Cards - Only visible to admin/super_admin */}
@@ -921,9 +904,13 @@ const Dashboard = ({ socket }) => {
       )}
 
       {/* Parameter Overview - visible to all users */}
-      <Typography variant="h5" sx={{ mb: 2, mt: 3, fontWeight: 600 }}>
-        Parameter Overview
-      </Typography>
+      <Box sx={{ mb: 2, mt: 3 }}>
+        <SectionHeader
+          icon={<DataIcon sx={{ fontSize: 18 }} />}
+          title="Parameter Overview"
+          subtitle="Today vs yesterday average share (center shows current value)"
+        />
+      </Box>
       {realtimeParams.length > 0 ? (
         <DashboardParameterDoughnuts
           data={realtimeLatest}
