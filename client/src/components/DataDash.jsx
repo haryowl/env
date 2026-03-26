@@ -334,22 +334,22 @@ export default function DataDash() {
         title="Data Filters"
         subtitle="Select devices, parameters, and time range"
       />
-      <CardContent sx={{ p: 1.5 }}>
+      <CardContent sx={{ p: 1.25 }}>
         <Box
           sx={{
             display: 'grid',
             gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr 1fr' },
-            gap: 2,
+            gap: 1.25,
             width: '100%',
             minWidth: 0,
             '& > *': { minWidth: 0 },
           }}
         >
           <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 500, color: theme.palette.text.secondary, minHeight: 20, display: 'flex', alignItems: 'center' }}>
+            <Typography variant="subtitle2" sx={{ mb: 0.75, fontWeight: 700, fontSize: '0.8rem', color: theme.palette.text.secondary, minHeight: 18, display: 'flex', alignItems: 'center' }}>
               Devices
             </Typography>
-              <FormControl fullWidth variant="outlined" size="medium" sx={{ width: '100%', maxWidth: '100%', minWidth: 0, '& .MuiInputBase-root': { minHeight: 56 } }}>
+              <FormControl fullWidth variant="outlined" size="small" sx={{ width: '100%', maxWidth: '100%', minWidth: 0, '& .MuiInputBase-root': { minHeight: 42 } }}>
             <Select
               multiple
               value={selectedDevices}
@@ -386,8 +386,8 @@ export default function DataDash() {
                     borderRadius: 1.5,
                     '& .MuiSelect-select': { 
                       color: theme.palette.text.primary,
-                      padding: '12px 16px',
-                      fontSize: '0.9rem',
+                      padding: '10px 12px',
+                      fontSize: '0.84rem',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
@@ -417,10 +417,10 @@ export default function DataDash() {
             </Box>
 
           <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 500, color: theme.palette.text.secondary, minHeight: 20, display: 'flex', alignItems: 'center' }}>
+            <Typography variant="subtitle2" sx={{ mb: 0.75, fontWeight: 700, fontSize: '0.8rem', color: theme.palette.text.secondary, minHeight: 18, display: 'flex', alignItems: 'center' }}>
               Parameters
             </Typography>
-              <FormControl fullWidth variant="outlined" size="medium" sx={{ width: '100%', maxWidth: '100%', minWidth: 0, '& .MuiInputBase-root': { minHeight: 56 } }}>
+              <FormControl fullWidth variant="outlined" size="small" sx={{ width: '100%', maxWidth: '100%', minWidth: 0, '& .MuiInputBase-root': { minHeight: 42 } }}>
             <Select
               multiple
               value={selectedParameters}
@@ -457,8 +457,8 @@ export default function DataDash() {
                     borderRadius: 1.5,
                     '& .MuiSelect-select': { 
                       color: theme.palette.text.primary,
-                      padding: '12px 16px',
-                      fontSize: '0.9rem',
+                      padding: '10px 12px',
+                      fontSize: '0.84rem',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
@@ -492,18 +492,18 @@ export default function DataDash() {
 
           <LocalizationProvider dateAdapter={AdapterDateFns}>
             <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 500, color: theme.palette.text.secondary, minHeight: 20, display: 'flex', alignItems: 'center' }}>
+              <Typography variant="subtitle2" sx={{ mb: 0.75, fontWeight: 700, fontSize: '0.8rem', color: theme.palette.text.secondary, minHeight: 18, display: 'flex', alignItems: 'center' }}>
                 Start Date & Time
               </Typography>
               <DateTimePicker
                 value={dateRange[0]}
                 onChange={date => setDateRange([date, dateRange[1]])}
-                renderInput={params => <TextField {...params} fullWidth size="medium" label={null} InputLabelProps={{ shrink: false }} sx={{ 
-                  '& .MuiInputBase-root': { minHeight: 56 },
+                renderInput={params => <TextField {...params} fullWidth size="small" label={null} InputLabelProps={{ shrink: false }} sx={{ 
+                  '& .MuiInputBase-root': { minHeight: 42 },
                   '& .MuiInputBase-input': { 
                     color: theme.palette.text.primary,
-                    padding: '12px 16px',
-                    fontSize: '0.9rem'
+                    padding: '10px 12px',
+                    fontSize: '0.84rem'
                   },
                   '& .MuiOutlinedInput-notchedOutline': { 
                     borderColor: 'rgba(0,0,0,0.14)',
@@ -521,18 +521,18 @@ export default function DataDash() {
               />
             </Box>
             <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 500, color: theme.palette.text.secondary, minHeight: 20, display: 'flex', alignItems: 'center' }}>
+              <Typography variant="subtitle2" sx={{ mb: 0.75, fontWeight: 700, fontSize: '0.8rem', color: theme.palette.text.secondary, minHeight: 18, display: 'flex', alignItems: 'center' }}>
                 End Date & Time
               </Typography>
               <DateTimePicker
                 value={dateRange[1]}
                 onChange={date => setDateRange([dateRange[0], date])}
-                renderInput={params => <TextField {...params} fullWidth size="medium" label={null} InputLabelProps={{ shrink: false }} sx={{ 
-                  '& .MuiInputBase-root': { minHeight: 56 },
+                renderInput={params => <TextField {...params} fullWidth size="small" label={null} InputLabelProps={{ shrink: false }} sx={{ 
+                  '& .MuiInputBase-root': { minHeight: 42 },
                   '& .MuiInputBase-input': { 
                     color: theme.palette.text.primary,
-                    padding: '12px 16px',
-                    fontSize: '0.9rem'
+                    padding: '10px 12px',
+                    fontSize: '0.84rem'
                   },
                   '& .MuiOutlinedInput-notchedOutline': { 
                     borderColor: 'rgba(0,0,0,0.14)',

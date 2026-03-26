@@ -554,11 +554,12 @@ const QuickView = () => {
             )}
           />
           
-          <Grid container spacing={2} sx={{ p: 1.5 }}>
+          <Grid container spacing={1.25} sx={{ p: 1.25 }}>
             <Grid item xs={12} md={3}>
-              <FormControl fullWidth>
+              <FormControl fullWidth size="small">
                 <InputLabel sx={{ 
-                  fontWeight: 600,
+                  fontWeight: 700,
+                  fontSize: '0.82rem',
                   '&.Mui-focused': { color: '#007BA7' }
                 }}>
                   Device
@@ -569,6 +570,8 @@ const QuickView = () => {
                   label="Device"
                   sx={{
                     borderRadius: 1.5,
+                    minHeight: 40,
+                    fontSize: '0.84rem',
                     '& .MuiOutlinedInput-notchedOutline': {
                       borderColor: 'rgba(0,0,0,0.14)',
                       borderWidth: 1
@@ -594,9 +597,10 @@ const QuickView = () => {
               </FormControl>
             </Grid>
             <Grid item xs={12} md={3}>
-              <FormControl fullWidth>
+              <FormControl fullWidth size="small">
                 <InputLabel sx={{ 
-                  fontWeight: 600,
+                  fontWeight: 700,
+                  fontSize: '0.82rem',
                   '&.Mui-focused': { color: '#007BA7' }
                 }}>
                   Time Period
@@ -607,6 +611,8 @@ const QuickView = () => {
                   label="Time Period"
                   sx={{
                     borderRadius: 1.5,
+                    minHeight: 40,
+                    fontSize: '0.84rem',
                     '& .MuiOutlinedInput-notchedOutline': {
                       borderColor: 'rgba(0,0,0,0.14)',
                       borderWidth: 1
@@ -640,9 +646,11 @@ const QuickView = () => {
                         <TextField 
                           {...params} 
                           fullWidth 
+                          size="small"
                           sx={{
                             '& .MuiOutlinedInput-root': {
                               borderRadius: 1.5,
+                              minHeight: 40,
                               '& fieldset': {
                                 borderColor: 'rgba(0,0,0,0.14)',
                                 borderWidth: 1
@@ -673,9 +681,11 @@ const QuickView = () => {
                         <TextField 
                           {...params} 
                           fullWidth 
+                          size="small"
                           sx={{
                             '& .MuiOutlinedInput-root': {
                               borderRadius: 1.5,
+                              minHeight: 40,
                               '& fieldset': {
                                 borderColor: 'rgba(0,0,0,0.14)',
                                 borderWidth: 1
@@ -702,9 +712,9 @@ const QuickView = () => {
               <Box sx={{ 
                 display: 'flex',
                 alignItems: 'center',
-                gap: 2,
-                minHeight: 56,
-                px: 1.5,
+                gap: 1.25,
+                minHeight: 44,
+                px: 1,
                 py: 0,
                 borderRadius: 1.5,
                 bgcolor: 'action.hover',
@@ -712,7 +722,8 @@ const QuickView = () => {
                 borderColor: 'divider'
               }}>
                 <Typography variant="subtitle2" sx={{ 
-                  fontWeight: 600, 
+                  fontWeight: 700, 
+                  fontSize: '0.8rem',
                   color: theme.palette.text.primary,
                   flexShrink: 0
                 }}>
@@ -736,7 +747,7 @@ const QuickView = () => {
                       py: 0.5,
                       px: 1.25,
                       minHeight: 30,
-                      fontSize: '0.82rem',
+                      fontSize: '0.78rem',
                       '&:hover': {
                         bgcolor: 'action.selected',
                         borderColor: 'primary.main'
@@ -753,11 +764,11 @@ const QuickView = () => {
                   }}
                 >
                   <ToggleButton value="realtime" sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                    <TimelineIcon sx={{ fontSize: 18 }} />
+                    <TimelineIcon sx={{ fontSize: 16 }} />
                     Real-time
                   </ToggleButton>
                   <ToggleButton value="history" sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                    <RefreshIcon sx={{ fontSize: 18 }} />
+                    <RefreshIcon sx={{ fontSize: 16 }} />
                     Historical Data
                   </ToggleButton>
                 </ToggleButtonGroup>
