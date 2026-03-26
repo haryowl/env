@@ -20,6 +20,7 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import * as XLSX from 'xlsx';
 import { min as d3min, max as d3max } from 'd3-array';
 import moment from 'moment-timezone';
+import PageHeader from './PageHeader';
 
 // Utility: Format datetime in user's selected timezone
 const getUserTimezone = () => localStorage.getItem('iot_timezone') || moment.tz.guess() || 'UTC';
@@ -847,19 +848,11 @@ export default function DataDash() {
       p: { xs: 2, md: 4 }
     }}>
       <Box sx={{ mb: 2 }}>
-        <Typography variant="h3" sx={{ 
-          fontWeight: 800, 
-          background: 'linear-gradient(135deg, #007BA7 0%, #0099CC 100%)',
-          backgroundClip: 'text',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          mb: 0.5
-        }}>
-          Data Dash
-        </Typography>
-        <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, fontSize: '1.1rem' }}>
-          Advanced IoT Data Analytics & Visualization
-        </Typography>
+        <PageHeader
+          icon={<DeviceHubIcon sx={{ fontSize: 18 }} />}
+          title="Data Dash"
+          subtitle="Advanced IoT data analytics and visualization"
+        />
       </Box>
       
       {filterControls}

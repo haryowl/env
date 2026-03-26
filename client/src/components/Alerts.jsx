@@ -4,6 +4,8 @@ import { DataGrid } from '@mui/x-data-grid';
 import { API_BASE_URL } from '../config/api';
 import moment from 'moment-timezone';
 import { CHART_CARD_SX } from '../utils/chartStyles';
+import PageHeader from './PageHeader';
+import NotificationsIcon from '@mui/icons-material/Notifications';
 
 // Utility: Format datetime in user's selected timezone
 const getUserTimezone = () => localStorage.getItem('iot_timezone') || moment.tz.guess() || 'UTC';
@@ -381,7 +383,13 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
   return (
     <Box sx={{ p: { xs: 1, md: 3 } }}>
       {/* Snackbar removed, now global in App.jsx */}
-      <Typography variant="h4" sx={{ mb: 2, fontWeight: 700, letterSpacing: 1 }}>Alerts</Typography>
+      <Box sx={{ mb: 2 }}>
+        <PageHeader
+          icon={<NotificationsIcon sx={{ fontSize: 18 }} />}
+          title="Alerts"
+          subtitle="Manage alert rules and review alert logs"
+        />
+      </Box>
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>
         <Tab label="Alert Management" />
         <Tab label="Alert Logs" />
