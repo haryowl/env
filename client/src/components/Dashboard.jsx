@@ -921,34 +921,61 @@ const Dashboard = ({ socket }) => {
             display: 'flex', 
             alignItems: 'center', 
             justifyContent: 'space-between',
-            px: 2,
-            py: 1.5,
+            px: 2.25,
+            py: 1.25,
             bgcolor: 'background.paper',
             borderBottom: '1px solid',
-            borderColor: 'primary.light',
+            borderColor: 'divider',
             flexWrap: 'wrap',
             gap: 1
           }}>
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <DataIcon sx={{ mr: 1.25, fontSize: 22, color: 'primary.main' }} />
-              <Typography variant="h6" sx={{ fontWeight: 600, color: 'primary.main', fontSize: '1.1rem' }}>
-                Realtime Data View
-              </Typography>
-            </Box>
-            <FormControl size="small" sx={{ minWidth: 160 }}>
-              <InputLabel id="realtime-time-range-label">Time range</InputLabel>
-              <Select
-                labelId="realtime-time-range-label"
-                value={realtimeChartRange}
-                label="Time range"
-                onChange={(e) => setRealtimeChartRange(e.target.value)}
-                sx={{ height: 36, fontSize: '0.875rem' }}
+              <Box
+                sx={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  mr: 1.25,
+                  bgcolor: 'rgba(37, 99, 235, 0.10)',
+                  color: 'primary.main',
+                }}
               >
-                {REALTIME_RANGE_OPTIONS.map((opt) => (
-                  <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+                <DataIcon sx={{ fontSize: 18 }} />
+              </Box>
+              <Box>
+                <Typography sx={{ fontWeight: 800, color: 'text.primary', fontSize: '1rem', lineHeight: 1.1 }}>
+                Realtime Data View
+                </Typography>
+                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+                  Monitor live parameters and alerts
+                </Typography>
+              </Box>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
+                Time range
+              </Typography>
+              <FormControl size="small" sx={{ minWidth: 170 }}>
+                <Select
+                  value={realtimeChartRange}
+                  onChange={(e) => setRealtimeChartRange(e.target.value)}
+                  sx={{
+                    height: 34,
+                    fontSize: '0.875rem',
+                    fontWeight: 700,
+                    '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(0,0,0,0.14)' },
+                    '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'primary.main' },
+                  }}
+                >
+                  {REALTIME_RANGE_OPTIONS.map((opt) => (
+                    <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
           </Box>
           
           <Box sx={{ p: 3 }}>
