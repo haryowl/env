@@ -48,6 +48,7 @@ import { formatInUserTimezone, getUserTimezone } from '../utils/timezoneUtils';
 import moment from 'moment-timezone';
 import { CHART_CARD_SX } from '../utils/chartStyles';
 import PageHeader from './PageHeader';
+import SectionHeader from './SectionHeader';
 
 const QuickView = () => {
   const theme = useTheme();
@@ -529,41 +530,29 @@ const QuickView = () => {
       {/* Data Filters - Quick View style */}
       <Card sx={{ mb: 4, borderRadius: 1, ...CHART_CARD_SX, p: 0 }}>
         <CardContent sx={{ p: 0 }}>
-          <Box sx={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: 1.5,
-            px: 2,
-            py: 1.5,
-            bgcolor: 'background.paper',
-            borderBottom: '1px solid',
-            borderColor: 'divider'
-          }}>
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <FilterIcon sx={{ mr: 1.25, fontSize: 22, color: 'primary.main' }} />
-              <Typography variant="h6" sx={{ fontWeight: 600, color: 'primary.main', fontSize: '1.1rem' }}>
-                Data Filters
-              </Typography>
-            </Box>
-            <Box sx={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: 1,
-              px: 1.5,
-              py: 1,
-              borderRadius: 1,
-              bgcolor: 'action.hover',
-              border: '1px solid',
-              borderColor: 'divider'
-            }}>
-              <AccessTimeIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
-              <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                Current Timezone: {getUserTimezone()} | Local Time: {formatInUserTimezone(new Date().toISOString(), 'YYYY-MM-DD HH:mm:ss')}
-              </Typography>
-            </Box>
-          </Box>
+          <SectionHeader
+            icon={<FilterIcon sx={{ fontSize: 18 }} />}
+            title="Data Filters"
+            subtitle="Select device, time window, and view mode"
+            right={(
+              <Box sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+                px: 1.25,
+                py: 0.75,
+                borderRadius: 1,
+                bgcolor: 'action.hover',
+                border: '1px solid',
+                borderColor: 'divider'
+              }}>
+                <AccessTimeIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                  {getUserTimezone()} · {formatInUserTimezone(new Date().toISOString(), 'YYYY-MM-DD HH:mm:ss')}
+                </Typography>
+              </Box>
+            )}
+          />
           
           <Grid container spacing={2} sx={{ p: 1.5 }}>
             <Grid item xs={12} md={3}>
@@ -839,20 +828,12 @@ const QuickView = () => {
           {/* Parameter Charts Section */}
           {parameters.length > 0 && (
             <Box sx={{ mb: 4 }}>
-              <Box sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                px: 2,
-                py: 1.5,
-                mb: 2,
-                bgcolor: 'background.paper',
-                borderBottom: '1px solid',
-                borderBottomColor: 'primary.light'
-              }}>
-                <ScienceIcon sx={{ mr: 1.25, fontSize: 22, color: 'primary.main' }} />
-                <Typography variant="h6" sx={{ fontWeight: 600, color: 'primary.main', fontSize: '1.1rem' }}>
-                  Parameter Analytics
-                </Typography>
+              <Box sx={{ mb: 2 }}>
+                <SectionHeader
+                  icon={<ScienceIcon sx={{ fontSize: 18 }} />}
+                  title="Parameter Analytics"
+                  subtitle="Trends, thresholds, and comparisons"
+                />
               </Box>
               
               <Box 

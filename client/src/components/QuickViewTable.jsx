@@ -32,6 +32,7 @@ import {
 } from '@mui/icons-material';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
+import SectionHeader from './SectionHeader';
 
 const QuickViewTable = ({ data, parameters, deviceName, alertConfigs = [], getExportData }) => {
   const theme = useTheme();
@@ -201,94 +202,39 @@ const QuickViewTable = ({ data, parameters, deviceName, alertConfigs = [], getEx
       }
     }}>
       <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', p: 3 }}>
-        {/* Modern Header */}
-        <Box sx={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          mb: 3,
-          p: 2,
-          borderRadius: '4px',
-          background: 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)',
-          color: 'white'
-        }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <TableChartIcon sx={{ fontSize: 28 }} />
-            <Box>
-              <Typography variant="h6" component="h3" sx={{ 
-                fontWeight: 700,
-                color: 'white',
-                textShadow: '0 2px 4px rgba(0,0,0,0.2)'
-              }}>
-                Data Table
-              </Typography>
-              <Typography variant="body2" sx={{ 
-                color: 'rgba(255, 255, 255, 0.9)',
-                fontWeight: 500
-              }}>
-                {deviceName} - Parameter Values
-              </Typography>
-            </Box>
-          </Box>
-          <Stack direction="row" spacing={1} alignItems="center">
-            <FormControl size="small" sx={{ 
-              minWidth: 140,
-              '& .MuiInputLabel-root': {
-                color: 'rgba(255, 255, 255, 0.9) !important',
-                fontWeight: 600,
-                '&.Mui-focused': { 
-                  color: 'white !important' 
-                }
-              }
-            }}>
-              <InputLabel sx={{ 
-                fontWeight: 600,
-                color: 'rgba(255, 255, 255, 0.9) !important',
-                '&.Mui-focused': { color: 'white !important' }
-              }}>
-                View Amount
-              </InputLabel>
-              <Select
-                value={rowsPerPage}
-                onChange={handleChangeRowsPerPage}
-                label="View Amount"
-                MenuProps={{
-                  PaperProps: {
-                    sx: {
-                      backgroundColor: '#ffffff !important',
-                      color: '#1f2937 !important',
-                      border: '2px solid rgba(107, 70, 193, 0.2)',
-                      borderRadius: '4px',
-                      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
-                      '& .MuiMenuItem-root': {
-                        backgroundColor: '#ffffff !important',
-                        color: '#1f2937 !important',
-                        fontWeight: 500,
-                        '&:hover': {
-                          backgroundColor: 'rgba(107, 70, 193, 0.1) !important'
+        <Box sx={{ mb: 2 }}>
+          <SectionHeader
+            icon={<TableChartIcon sx={{ fontSize: 18 }} />}
+            title="Data Table"
+            subtitle={deviceName ? `${deviceName} · parameter values` : 'Parameter values'}
+            right={(
+              <Stack direction="row" spacing={1} alignItems="center">
+                <FormControl size="small" sx={{ minWidth: 140 }}>
+                  <InputLabel sx={{ fontWeight: 700 }}>View Amount</InputLabel>
+                  <Select
+                    value={rowsPerPage}
+                    onChange={handleChangeRowsPerPage}
+                    label="View Amount"
+                    MenuProps={{
+                      PaperProps: {
+                        sx: {
+                          backgroundColor: '#ffffff !important',
+                          color: '#1f2937 !important',
+                          border: '2px solid rgba(107, 70, 193, 0.2)',
+                          borderRadius: '4px',
+                          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
+                          '& .MuiMenuItem-root': {
+                            backgroundColor: '#ffffff !important',
+                            color: '#1f2937 !important',
+                            fontWeight: 500,
+                            '&:hover': {
+                              backgroundColor: 'rgba(107, 70, 193, 0.1) !important'
+                            }
+                          }
                         }
                       }
-                    }
-                  }
-                }}
-                sx={{
-                  color: 'white',
-                  '& .MuiOutlinedInput-notchedOutline': {
-                    borderColor: 'rgba(255, 255, 255, 0.3)',
-                    borderWidth: 2
-                  },
-                  '&:hover .MuiOutlinedInput-notchedOutline': {
-                    borderColor: 'rgba(255, 255, 255, 0.5)'
-                  },
-                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                    borderColor: 'white',
-                    borderWidth: 2
-                  },
-                  '& .MuiSelect-icon': {
-                    color: 'white'
-                  }
-                }}
-              >
+                    }}
+                  >
                 <MenuItem 
                   value={10}
                   sx={{
@@ -337,26 +283,24 @@ const QuickViewTable = ({ data, parameters, deviceName, alertConfigs = [], getEx
                 >
                   100 rows
                 </MenuItem>
-              </Select>
-            </FormControl>
-            <Tooltip title="Export Table Data">
-              <IconButton 
-                size="small"
-                onClick={handleExportTableData}
-                disabled={!tableData.length}
-                sx={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                  color: 'white',
-                  '&:hover': {
-                    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-                    transform: 'translateY(-1px)'
-                  }
-                }}
-              >
-                <FileDownloadIcon />
-              </IconButton>
-            </Tooltip>
-          </Stack>
+                  </Select>
+                </FormControl>
+                <Tooltip title="Export Table Data">
+                  <IconButton 
+                    size="small"
+                    onClick={handleExportTableData}
+                    disabled={!tableData.length}
+                    sx={{
+                      color: 'primary.main',
+                      '&:hover': { backgroundColor: 'action.hover' }
+                    }}
+                  >
+                    <FileDownloadIcon />
+                  </IconButton>
+                </Tooltip>
+              </Stack>
+            )}
+          />
         </Box>
 
         {/* Modern Table */}

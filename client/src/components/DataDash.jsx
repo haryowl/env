@@ -21,6 +21,7 @@ import * as XLSX from 'xlsx';
 import { min as d3min, max as d3max } from 'd3-array';
 import moment from 'moment-timezone';
 import PageHeader from './PageHeader';
+import SectionHeader from './SectionHeader';
 
 // Utility: Format datetime in user's selected timezone
 const getUserTimezone = () => localStorage.getItem('iot_timezone') || moment.tz.guess() || 'UTC';
@@ -328,20 +329,11 @@ export default function DataDash() {
 
   const filterControls = (
     <Card sx={{ mb: 2, borderRadius: 1, ...CHART_CARD_SX, overflow: 'visible', p: 0 }}>
-      <Box sx={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        px: 2,
-        py: 1.5,
-        bgcolor: 'background.paper',
-        borderBottom: '1px solid',
-        borderBottomColor: 'primary.light'
-      }}>
-        <DeviceHubIcon sx={{ mr: 1.25, fontSize: 22, color: 'primary.main' }} />
-        <Typography variant="h6" sx={{ fontWeight: 600, color: 'primary.main', fontSize: '1.1rem' }}>
-          Data Filters
-        </Typography>
-      </Box>
+      <SectionHeader
+        icon={<DeviceHubIcon sx={{ fontSize: 18 }} />}
+        title="Data Filters"
+        subtitle="Select devices, parameters, and time range"
+      />
       <CardContent sx={{ p: 1.5 }}>
         <Box
           sx={{
@@ -860,36 +852,23 @@ export default function DataDash() {
       {!loading && data.length > 0 && (
         <Card sx={{ mt: 2, borderRadius: 1, ...CHART_CARD_SX }}>
           <CardContent sx={{ p: 0 }}>
-            <Box 
-              sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'space-between',
-                px: 1,
-                py: 1,
-                pb: summaryExpanded ? 0.75 : 1,
-                cursor: 'pointer',
-                '&:hover': {
-                  backgroundColor: 'rgba(107, 70, 193, 0.02)'
-                }
-              }}
-              onClick={() => setSummaryExpanded(!summaryExpanded)}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <ScienceIcon sx={{ color: theme.palette.primary.main, mr: 1, fontSize: 20 }} />
-                <Typography variant="h6" sx={{ fontWeight: 700, color: theme.palette.text.primary, fontSize: '1.1rem' }}>
-                  Data Summary
-                </Typography>
-              </Box>
-              <IconButton 
-                sx={{ 
-                  color: theme.palette.primary.main,
-                  transition: 'transform 0.2s ease-in-out',
-                  transform: summaryExpanded ? 'rotate(180deg)' : 'rotate(0deg)'
-                }}
-              >
-                <ExpandMoreIcon />
-              </IconButton>
+            <Box onClick={() => setSummaryExpanded(!summaryExpanded)} sx={{ cursor: 'pointer' }}>
+              <SectionHeader
+                icon={<ScienceIcon sx={{ fontSize: 18 }} />}
+                title="Data Summary"
+                subtitle="Max, min, and average for selected parameters"
+                right={(
+                  <IconButton 
+                    sx={{ 
+                      color: theme.palette.primary.main,
+                      transition: 'transform 0.2s ease-in-out',
+                      transform: summaryExpanded ? 'rotate(180deg)' : 'rotate(0deg)'
+                    }}
+                  >
+                    <ExpandMoreIcon />
+                  </IconButton>
+                )}
+              />
             </Box>
             
             <Collapse in={summaryExpanded} timeout="auto" unmountOnExit>
@@ -903,28 +882,24 @@ export default function DataDash() {
       
       <Card sx={{ borderRadius: 1, ...CHART_CARD_SX, overflow: 'hidden', mt: 4 }}>
         <CardContent sx={{ p: 0 }}>
-          <Box sx={{ 
-            background: 'linear-gradient(135deg, #007BA7 0%, #0099CC 100%)',
-            px: 1,
-            py: 1
-          }}>
+          <Box sx={{ px: 1, py: 0.5, bgcolor: 'background.paper', borderBottom: '1px solid', borderColor: 'divider' }}>
             <Tabs 
               value={summaryTab} 
               onChange={(_, v) => setSummaryTab(v)}
               sx={{
                 '& .MuiTab-root': {
-                  color: 'rgba(255, 255, 255, 0.7)',
-                  fontSize: '1rem',
-                  fontWeight: 500,
+                  color: 'text.secondary',
+                  fontSize: '0.95rem',
+                  fontWeight: 700,
                   textTransform: 'none',
                   minHeight: 48,
                   '&.Mui-selected': {
-                    color: '#ffffff',
-                    fontWeight: 600
+                    color: 'text.primary',
+                    fontWeight: 800
                   }
                 },
                 '& .MuiTabs-indicator': {
-                  backgroundColor: '#ffffff',
+                  backgroundColor: 'primary.main',
                   height: 3,
                   borderRadius: '2px'
                 }

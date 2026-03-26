@@ -28,6 +28,7 @@ import {
 import { formatInUserTimezone } from '../utils/timezoneUtils';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import { CHART_CARD_SX, CHART_MARGIN, CARTESIAN_GRID_PROPS, AXIS_TICK_STYLE, TOOLTIP_CONTENT_STYLE } from '../utils/chartStyles';
+import SectionHeader from './SectionHeader';
 
 const QuickViewAlertChart = ({ alertData, deviceName }) => {
   const theme = useTheme();
@@ -198,61 +199,34 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
   return (
     <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 500, ...CHART_CARD_SX, transition: 'all 0.2s ease', '&:hover': { boxShadow: '0 4px 20px rgba(0,0,0,0.08)' } }}>
       <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: '100%', p: 3 }}>
-        {/* Modern Header */}
-        <Box sx={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          mb: 3,
-          p: 2,
-          borderRadius: 1.5,
-          background: 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)',
-          color: 'white'
-        }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <TimelineIcon sx={{ fontSize: 28 }} />
-            <Box>
-              <Typography variant="h6" component="h3" sx={{ 
-                fontWeight: 700,
-                color: 'white',
-                textShadow: '0 2px 4px rgba(0,0,0,0.2)'
-              }}>
-                Alert Timeline
-              </Typography>
-              <Typography variant="body2" sx={{ 
-                color: 'rgba(255, 255, 255, 0.9)',
-                fontWeight: 500
-              }}>
-                {deviceName} - Parameter Threshold Violations
-              </Typography>
-            </Box>
-          </Box>
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            {stats.totalAlerts > 0 && (
-              <Chip 
-                label={`${stats.totalAlerts} Total Alerts`}
-                sx={{ 
-                  fontWeight: 700,
-                  backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                  color: '#EF4444',
-                  border: '2px solid rgba(255, 255, 255, 0.3)'
-                }}
-                icon={<WarningIcon sx={{ color: '#EF4444' }} />}
-              />
+        <Box sx={{ mb: 2 }}>
+          <SectionHeader
+            icon={<TimelineIcon sx={{ fontSize: 18 }} />}
+            title="Alert Timeline"
+            subtitle={deviceName ? `${deviceName} · threshold violations` : 'Threshold violations'}
+            right={(
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                {stats.totalAlerts > 0 && (
+                  <Chip
+                    label={`${stats.totalAlerts} total`}
+                    size="small"
+                    sx={{ fontWeight: 800 }}
+                    icon={<WarningIcon sx={{ color: '#EF4444' }} />}
+                  />
+                )}
+                {stats.criticalHours > 0 && (
+                  <Chip
+                    label={`${stats.criticalHours} critical`}
+                    size="small"
+                    color="error"
+                    variant="outlined"
+                    sx={{ fontWeight: 800 }}
+                    icon={<ErrorIcon color="error" />}
+                  />
+                )}
+              </Box>
             )}
-            {stats.criticalHours > 0 && (
-              <Chip 
-                label={`${stats.criticalHours} Critical Hours`}
-                sx={{ 
-                  fontWeight: 600,
-                  backgroundColor: 'rgba(139, 92, 246, 0.9)',
-                  color: 'white',
-                  border: '2px solid rgba(255, 255, 255, 0.3)'
-                }}
-                icon={<ErrorIcon sx={{ color: 'white' }} />}
-              />
-            )}
-          </Box>
+          />
         </Box>
 
         {/* Modern Statistics */}
