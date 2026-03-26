@@ -22,7 +22,7 @@ import {
   Cancel as CancelIcon,
 } from '@mui/icons-material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { FormControl, InputLabel, Select, MenuItem, CardActions } from '@mui/material';
+import { FormControl, InputLabel, Select, MenuItem, CardActions, Button } from '@mui/material';
 import axios from 'axios';
 import { subHours } from 'date-fns';
 import moment from 'moment-timezone';
@@ -66,6 +66,7 @@ const Dashboard = ({ socket }) => {
   const [realtimeParams, setRealtimeParams] = useState([]);
   const [realtimeLatest, setRealtimeLatest] = useState({});
   const [visibleParams, setVisibleParams] = useState([]);
+  const [activeRealtimeParam, setActiveRealtimeParam] = useState('');
   const [realtimeAlertLogs, setRealtimeAlertLogs] = useState([]);
   const [realtimeAlertThresholds, setRealtimeAlertThresholds] = useState({}); // { normalizedParam: { min, max } } for realtime device
   const [realtimeChartRange, setRealtimeChartRange] = useState('48h'); // '2h' | '3h' | '6h' | '48h' (default)
@@ -168,6 +169,7 @@ const Dashboard = ({ socket }) => {
   const memoizedChartLines = useMemo(() => 
     visibleParams.map((param) => {
       const color = getParameterColor(param);
+      const focused = !activeRealtimeParam || activeRealtimeParam === param;
       return (
         <Line 
           key={param} 
@@ -175,14 +177,15 @@ const Dashboard = ({ socket }) => {
           dataKey={param} 
           name={formatDisplayName(param, { withUnit: true })}
           stroke={color}
-          strokeWidth={3}
+          strokeWidth={focused ? 3 : 1.5}
+          strokeOpacity={focused ? 1 : 0.28}
           dot={renderAlertDot(param)}
-          activeDot={{ r: 6, strokeWidth: 2, fill: color }}
+          activeDot={{ r: focused ? 6 : 4, strokeWidth: 2, fill: color }}
           isAnimationActive={false}
           connectNulls={false}
         />
       );
-    }), [visibleParams, formatDisplayName]);
+    }), [visibleParams, formatDisplayName, activeRealtimeParam]);
 
   const formatParameterValue = useCallback(
     (param, value, precision = 2, includeUnit = true) => {
@@ -253,6 +256,7 @@ const Dashboard = ({ socket }) => {
   useEffect(() => {
     const chartParams = realtimeParams.filter(p => p !== 'datetime' && p !== 'timestamp');
     setVisibleParams(chartParams);
+    setActiveRealtimeParam('');
   }, [realtimeParams]);
 
   const loadDashboardData = async () => {
@@ -811,28 +815,37 @@ const Dashboard = ({ socket }) => {
                     {realtimeParams.filter(p => p !== 'datetime' && p !== 'timestamp').map((param, idx) => {
                       const formattedLabel = formatDisplayName(param, { withUnit: true });
                       const formattedValue = formatParameterValue(param, realtimeLatest[param]);
+                      const isFocused = activeRealtimeParam === param;
                       return (
                       <Grid size={{ xs: 6, sm: 4, md: 2 }} key={param}>
                         <Card sx={{
                           p: 2,
                           textAlign: 'center',
                           borderRadius: 1,
-                          border: `1px solid ${colorPalette[idx % colorPalette.length]}20`,
-                          bgcolor: `${colorPalette[idx % colorPalette.length]}08`,
+                          border: `1px solid ${colorPalette[idx % colorPalette.length]}30`,
+                          bgcolor: `${colorPalette[idx % colorPalette.length]}10`,
                           transition: 'all 0.2s ease',
                           height: 100,
                           display: 'flex',
                           flexDirection: 'column',
                           justifyContent: 'center',
                           overflow: 'hidden',
+                          cursor: 'pointer',
+                          boxShadow: isFocused ? `0 0 0 2px ${colorPalette[idx % colorPalette.length]}70` : 'none',
+                          transform: isFocused ? 'translateY(-1px)' : 'none',
                           '&:hover': { boxShadow: `0 4px 12px ${colorPalette[idx % colorPalette.length]}25` }
                         }}>
+                          <Box
+                            onClick={() => setActiveRealtimeParam(prev => (prev === param ? '' : param))}
+                            sx={{ width: '100%' }}
+                          >
                           <Typography variant="subtitle2" sx={{ color: 'text.secondary', fontWeight: 500, mb: 1, fontSize: '0.8125rem', minHeight: '2.5em', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {formattedLabel}
                           </Typography>
                           <Typography variant="h5" sx={{ fontWeight: 700, color: colorPalette[idx % colorPalette.length], fontSize: '1.25rem', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {formattedValue}
                           </Typography>
+                          </Box>
                     </Card>
                   </Grid>
                 );})}
@@ -849,6 +862,31 @@ const Dashboard = ({ socket }) => {
                   }}>
                     Chart Controls
                   </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, gap: 1, flexWrap: 'wrap' }}>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+                      Click a metric card to focus a line. Use chips to show/hide lines.
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={() => {
+                          const chartParams = realtimeParams.filter(p => p !== 'datetime' && p !== 'timestamp');
+                          setVisibleParams(chartParams);
+                          setActiveRealtimeParam('');
+                        }}
+                      >
+                        Show all
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="text"
+                        onClick={() => setActiveRealtimeParam('')}
+                      >
+                        Clear focus
+                      </Button>
+                    </Box>
+                  </Box>
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, p: 2, backgroundColor: 'rgba(0,0,0,0.02)', borderRadius: 1, border: '1px solid rgba(0,0,0,0.06)' }}>
                     {realtimeParams.filter(p => p !== 'datetime' && p !== 'timestamp').map((param) => (
                   <Chip
@@ -858,7 +896,14 @@ const Dashboard = ({ socket }) => {
                     variant={visibleParams.includes(param) ? 'filled' : 'outlined'}
                     clickable
                     onClick={() => setVisibleParams(v => v.includes(param) ? v.filter(p => p !== param) : [...v, param])}
-                    sx={{ fontSize: '0.8125rem', fontWeight: 500, height: 32, borderRadius: 1.5, '& .MuiChip-label': { px: 1.5 } }}
+                    sx={{ 
+                      fontSize: '0.8125rem', 
+                      fontWeight: 500, 
+                      height: 32, 
+                      borderRadius: 1.5, 
+                      opacity: activeRealtimeParam && activeRealtimeParam !== param ? 0.6 : 1,
+                      '& .MuiChip-label': { px: 1.5 } 
+                    }}
                   />
                 ))}
               </Box>
