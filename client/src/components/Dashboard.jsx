@@ -1089,13 +1089,13 @@ const Dashboard = ({ socket }) => {
                   <Typography variant="h6" sx={{ 
                     fontWeight: 600, 
                     color: theme.palette.text.primary, 
-                    mb: 2,
-                    fontSize: '1.1rem'
+                    mb: 1.25,
+                    fontSize: '1rem'
                   }}>
                     Chart Controls
                   </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, gap: 1, flexWrap: 'wrap' }}>
-                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.75, gap: 1, flexWrap: 'wrap' }}>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.72rem' }}>
                       Click a metric card to focus a line. Use chips to show/hide lines.
                     </Typography>
                     <Box sx={{ display: 'flex', gap: 1 }}>
@@ -1107,6 +1107,7 @@ const Dashboard = ({ socket }) => {
                           setVisibleParams(chartParams);
                           setActiveRealtimeParam('');
                         }}
+                        sx={{ py: 0.25, minHeight: 28, fontSize: '0.75rem' }}
                       >
                         Show all
                       </Button>
@@ -1114,6 +1115,7 @@ const Dashboard = ({ socket }) => {
                         size="small"
                         variant="text"
                         onClick={() => setActiveRealtimeParam('')}
+                        sx={{ py: 0.25, minHeight: 28, fontSize: '0.75rem' }}
                       >
                         Clear focus
                       </Button>
@@ -1121,7 +1123,7 @@ const Dashboard = ({ socket }) => {
                   </Box>
                   <Box
                     sx={{
-                      p: 2,
+                      p: 1.5,
                       backgroundColor: 'rgba(0,0,0,0.02)',
                       borderRadius: 1,
                       border: '1px solid rgba(0,0,0,0.06)',
@@ -1132,7 +1134,7 @@ const Dashboard = ({ socket }) => {
                       placeholder="Search parameter…"
                       value={realtimeParamSearch}
                       onChange={(e) => setRealtimeParamSearch(e.target.value)}
-                      sx={{ mb: 1.5, maxWidth: 360 }}
+                      sx={{ mb: 1, maxWidth: 320, '& input': { fontSize: '0.82rem' } }}
                     />
                     <ToggleButtonGroup
                       value={visibleParams}
@@ -1154,9 +1156,9 @@ const Dashboard = ({ socket }) => {
                             sx={{
                               textTransform: 'none',
                               borderRadius: 2,
-                              px: 1.25,
-                              py: 0.75,
-                              minHeight: 34,
+                              px: 1,
+                              py: 0.5,
+                              minHeight: 30,
                               gap: 1,
                               opacity: dim ? 0.55 : 1,
                               bgcolor: selected ? `${color}18` : 'transparent',
@@ -1165,14 +1167,14 @@ const Dashboard = ({ socket }) => {
                             }}
                           >
                             <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: color }} />
-                            <Typography sx={{ fontSize: '0.82rem', fontWeight: 650 }}>
+                            <Typography sx={{ fontSize: '0.78rem', fontWeight: 650 }}>
                               {formatDisplayName(param, { withUnit: true })}
                             </Typography>
                           </ToggleButton>
                         );
                       })}
                     </ToggleButtonGroup>
-                    <Typography variant="caption" sx={{ display: 'block', mt: 1.25, color: 'text.secondary' }}>
+                    <Typography variant="caption" sx={{ display: 'block', mt: 0.75, color: 'text.secondary', fontSize: '0.72rem' }}>
                       Tip: double‑click a toggle to focus its line.
                     </Typography>
                   </Box>
