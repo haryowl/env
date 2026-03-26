@@ -50,6 +50,7 @@ import {
   Sensors as SensorsIcon,
   Build as BuildIcon,
   Assignment as AssignmentIcon,
+  DonutLarge as DonutLargeIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation, NavLink } from 'react-router-dom';
 import { usePermissions } from '../hooks/usePermissions.jsx';
@@ -174,6 +175,7 @@ const Layout = ({ children, user, userContext, onLogout }) => {
         { text: 'Data', icon: <ShowChartIcon />, path: '/data', menuPath: '/data' },
         { text: 'Data Dash', icon: <TableChartIcon />, path: '/data-dash', menuPath: '/data-dash' },
         { text: 'Data Dash 2', icon: <DashboardIcon />, path: '/data-dash-2', menuPath: '/data-dash-2' },
+        { text: 'Comparison', icon: <DonutLargeIcon />, path: '/comparison-dashboard', menuPath: '/comparison-dashboard' },
         { text: 'Theme Demo', icon: <PaletteIcon />, path: '/theme-demo', menuPath: '/theme-demo' },
         { text: 'Color Customizer', icon: <ColorLensIcon />, path: '/color-customizer', menuPath: '/color-customizer' },
         { text: 'Parameter Colors', icon: <ScienceIcon />, path: '/parameter-colors', menuPath: '/parameter-colors' },

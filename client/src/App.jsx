@@ -19,6 +19,7 @@ import Settings from './components/Settings';
 import Layout from './components/Layout';
 import DataDash from './components/DataDash';
 import DataDash2 from './components/DataDash2';
+import ComparisonDoughnutDashboard from './components/ComparisonDoughnutDashboard';
 import Alerts from './components/Alerts';
 import AlertSettings from './components/AlertSettings';
 import NotificationConfig from './components/NotificationConfig';
@@ -305,6 +306,7 @@ function App() {
                 <Route path="/data" element={<DataViewer />} />
                 <Route path="/data-dash" element={<DataDash />} />
                 <Route path="/data-dash-2" element={<DataDash2 />} />
+                <Route path="/comparison-dashboard" element={<ComparisonDoughnutDashboard />} />
                 <Route path="/alerts" element={<Alerts socket={socket} devices={devices} alerts={alerts} />} />
                 <Route path="/alert-settings" element={<AlertSettings user={user} />} />
                 <Route path="/notification-config" element={<NotificationConfig />} />
