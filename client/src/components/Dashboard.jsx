@@ -35,7 +35,7 @@ import KPICards from './KPICards';
 import DynamicParameterCards from './DynamicParameterCards';
 import FullWidthParameterCards from './FullWidthParameterCards';
 import SingleRowParameterCards from './SingleRowParameterCards';
-import NewParameterCards from './NewParameterCards';
+import DashboardParameterDoughnuts from './DashboardParameterDoughnuts';
 import { useFont } from '../contexts/FontContext';
 import { getOptimalTextColor } from '../utils/colorUtils';
 import { useTheme as useMuiTheme } from '@mui/material/styles';
@@ -730,14 +730,12 @@ const Dashboard = ({ socket }) => {
         Parameter Overview
       </Typography>
       {realtimeParams.length > 0 ? (
-        <NewParameterCards
+        <DashboardParameterDoughnuts
           data={realtimeLatest}
-          parameterColors={parameterColors}
           realtimeParams={realtimeParams}
           realtimeData={realtimeData}
           deviceId={realtimeDevice}
           formatDisplayName={formatDisplayName}
-          getUnit={getUnit}
         />
       ) : (
         <Alert severity="info" sx={{ mb: 2 }}>
