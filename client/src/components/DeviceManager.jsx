@@ -32,6 +32,7 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon,
   Search as SearchIcon,
+  Devices as DevicesIcon,
 } from '@mui/icons-material';
 import { DatePicker, LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -41,6 +42,7 @@ import { API_BASE_URL } from '../config/api';
 import moment from 'moment-timezone';
 import { TIMEZONE_OPTIONS } from '../utils/timezoneUtils';
 import DeviceCoordinateManager from './DeviceCoordinateManager';
+import PageHeader from './PageHeader';
 
 const DeviceManager = () => {
   const [devices, setDevices] = useState([]);
@@ -382,27 +384,22 @@ const DeviceManager = () => {
 
   return (
     <Box sx={{ width: '100%', overflow: 'hidden' }}>
-      <Box 
-        display="flex" 
-        justifyContent="space-between" 
-        alignItems="center" 
-        mb={3}
-        sx={{ 
-          flexDirection: { xs: 'column', sm: 'row' },
-          gap: { xs: 2, sm: 0 }
-        }}
-      >
-        <Typography variant="h4" sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}>
-          Device Management
-        </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => handleOpenDialog()}
-          sx={{ minWidth: { xs: '100%', sm: 'auto' } }}
-        >
-          Add Device
-        </Button>
+      <Box sx={{ mb: 3 }}>
+        <PageHeader
+          icon={<DevicesIcon sx={{ fontSize: 18 }} />}
+          title="Device Management"
+          subtitle="Manage devices, validity period, and mapping assignments"
+          right={(
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => handleOpenDialog()}
+              sx={{ minWidth: { xs: '100%', sm: 'auto' } }}
+            >
+              Add Device
+            </Button>
+          )}
+        />
       </Box>
 
       {error && (

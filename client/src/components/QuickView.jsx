@@ -47,6 +47,7 @@ import { exportToPDF, exportToExcel } from '../utils/exportUtils';
 import { formatInUserTimezone, getUserTimezone } from '../utils/timezoneUtils';
 import moment from 'moment-timezone';
 import { CHART_CARD_SX } from '../utils/chartStyles';
+import PageHeader from './PageHeader';
 
 const QuickView = () => {
   const theme = useTheme();
@@ -498,53 +499,31 @@ const QuickView = () => {
       minHeight: '100vh', 
       p: { xs: 2, md: 4 }
     }}>
-      {/* Page Header - Site Location style */}
-      <Box sx={{ 
-        mb: 4, 
-        bgcolor: 'background.paper', 
-        borderRadius: 1, 
-        border: '1px solid',
-        borderColor: 'primary.light',
-        overflow: 'hidden'
-      }}>
-        <Box sx={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'space-between',
-          px: 2,
-          py: 1.5,
-          borderBottom: '1px solid',
-          borderColor: 'primary.light'
-        }}>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <SpeedIcon sx={{ mr: 1.25, fontSize: 28, color: 'primary.main' }} />
-            <Box>
-              <Typography variant="h5" sx={{ fontWeight: 600, color: 'primary.main', fontSize: '1.25rem' }}>
-                Quick View
-              </Typography>
-              <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.875rem', mt: 0.25 }}>
-                Real-time IoT Data Analytics & Monitoring Dashboard
-              </Typography>
-            </Box>
-          </Box>
-          <Stack direction="row" spacing={1}>
-            <Tooltip title="Refresh Data">
-              <IconButton onClick={handleRefresh} disabled={loading} sx={{ color: 'primary.main', '&:hover': { bgcolor: 'action.hover' }, '&:disabled': { color: 'action.disabled' } }}>
-                <RefreshIcon />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Export to PDF">
-              <IconButton onClick={handleExportPDF} sx={{ color: 'error.main', '&:hover': { bgcolor: 'action.hover' } }}>
-                <PdfIcon />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Export to Excel">
-              <IconButton onClick={handleExportExcel} sx={{ color: 'success.main', '&:hover': { bgcolor: 'action.hover' } }}>
-                <ExcelIcon />
-              </IconButton>
-            </Tooltip>
-          </Stack>
-        </Box>
+      <Box sx={{ mb: 4 }}>
+        <PageHeader
+          icon={<SpeedIcon sx={{ fontSize: 18 }} />}
+          title="Quick View"
+          subtitle="Real-time IoT data analytics and monitoring"
+          right={(
+            <Stack direction="row" spacing={1}>
+              <Tooltip title="Refresh Data">
+                <IconButton onClick={handleRefresh} disabled={loading} sx={{ color: 'primary.main', '&:hover': { bgcolor: 'action.hover' }, '&:disabled': { color: 'action.disabled' } }}>
+                  <RefreshIcon />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Export to PDF">
+                <IconButton onClick={handleExportPDF} sx={{ color: 'error.main', '&:hover': { bgcolor: 'action.hover' } }}>
+                  <PdfIcon />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Export to Excel">
+                <IconButton onClick={handleExportExcel} sx={{ color: 'success.main', '&:hover': { bgcolor: 'action.hover' } }}>
+                  <ExcelIcon />
+                </IconButton>
+              </Tooltip>
+            </Stack>
+          )}
+        />
       </Box>
 
       {/* Data Filters - Quick View style */}

@@ -380,8 +380,8 @@ const Dashboard = ({ socket }) => {
     
     loadParameterColors();
     
-    // Listen for parameter color changes
-    const colorInterval = setInterval(loadParameterColors, 1000);
+    // Listen for parameter color changes (throttled; paused when tab hidden)
+    let colorInterval = null;
     
     // Set up real-time updates
     if (socket) {
@@ -389,12 +389,46 @@ const Dashboard = ({ socket }) => {
       socket.on('data_update', handleDataUpdate);
     }
 
-    // Refresh data every 30 seconds
-    const dataInterval = setInterval(loadDashboardData, 30000);
+    // Refresh data every 30 seconds (paused when tab hidden)
+    let dataInterval = null;
+
+    const startIntervals = () => {
+      if (!colorInterval) colorInterval = setInterval(loadParameterColors, 3000);
+      if (!dataInterval) dataInterval = setInterval(loadDashboardData, 30000);
+    };
+    const stopIntervals = () => {
+      if (colorInterval) {
+        clearInterval(colorInterval);
+        colorInterval = null;
+      }
+      if (dataInterval) {
+        clearInterval(dataInterval);
+        dataInterval = null;
+      }
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') stopIntervals();
+      else {
+        startIntervals();
+        // refresh once when returning
+        loadDashboardData();
+      }
+    };
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibility);
+    }
+    // Start intervals immediately if visible
+    if (typeof document === 'undefined' || document.visibilityState !== 'hidden') {
+      startIntervals();
+    }
 
     return () => {
-      clearInterval(colorInterval);
-      clearInterval(dataInterval);
+      stopIntervals();
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibility);
+      }
       if (socket) {
         socket.off('device_status_update', handleDeviceUpdate);
         socket.off('data_update', handleDataUpdate);
