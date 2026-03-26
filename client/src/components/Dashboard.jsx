@@ -21,7 +21,7 @@ import {
   CheckCircle as CheckCircleIcon,
   Cancel as CancelIcon,
 } from '@mui/icons-material';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Brush } from 'recharts';
 import { FormControl, InputLabel, Select, MenuItem, CardActions, Button, TextField, ToggleButton, ToggleButtonGroup } from '@mui/material';
 import axios from 'axios';
 import { subHours } from 'date-fns';
@@ -1158,7 +1158,7 @@ const Dashboard = ({ socket }) => {
                 </Box>
 
                 {/* Chart */}
-                <Box sx={{ height: 400, ...CHART_CARD_SX }}>
+                <Box sx={{ height: 420, ...CHART_CARD_SX }}>
                   <ResponsiveContainer key={`responsive-${visibleParams.join('-')}-${realtimeDevice}`} width="100%" height="100%">
                     <LineChart data={chartDataWithAlerts} margin={CHART_MARGIN}>
                       <CartesianGrid {...CARTESIAN_GRID_PROPS} />
@@ -1176,10 +1176,41 @@ const Dashboard = ({ socket }) => {
                         content={RealtimeTooltip}
                         cursor={{ stroke: 'rgba(2, 132, 199, 0.45)', strokeWidth: 1 }}
                       />
-                      <Legend wrapperStyle={LEGEND_WRAPPER_STYLE} formatter={(value, entry) => formatDisplayName(entry?.dataKey || value, { withUnit: true })} />
+                      <Legend
+                        wrapperStyle={LEGEND_WRAPPER_STYLE}
+                        formatter={(value, entry) => formatDisplayName(entry?.dataKey || value, { withUnit: true })}
+                        onClick={(e) => {
+                          const key = e?.dataKey || e?.value;
+                          if (!key) return;
+                          toggleVisibleParam(key);
+                        }}
+                        onDoubleClick={(e) => {
+                          const key = e?.dataKey || e?.value;
+                          if (!key) return;
+                          focusParam(key);
+                        }}
+                      />
                       {memoizedChartLines}
+                      <Brush
+                        dataKey="timestamp"
+                        height={24}
+                        stroke="rgba(2, 132, 199, 0.55)"
+                        travellerWidth={10}
+                        tickFormatter={() => ''}
+                      />
                     </LineChart>
                   </ResponsiveContainer>
+                </Box>
+                <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1.25, flexWrap: 'wrap' }}>
+                  <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>
+                    <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#EF4444', border: '2px solid #fff', boxShadow: '0 0 0 1px rgba(239,68,68,0.35)' }} />
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 650 }}>
+                      Alert dot = threshold breach
+                    </Typography>
+                  </Box>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                    Tip: click legend to hide/show; double‑click to focus.
+                  </Typography>
                 </Box>
             </>
           )}
