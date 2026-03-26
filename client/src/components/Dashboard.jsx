@@ -160,7 +160,37 @@ const Dashboard = ({ socket }) => {
   }, []);
 
   const getTooltipRows = useCallback((payload = []) => {
-    const rows = (payload || [])
+    const hashColor = (param) => {
+      const s = String(param || '');
+      let hash = 0;
+      for (let i = 0; i < s.length; i++) {
+        hash = ((hash << 5) - hash) + s.charCodeAt(i);
+        hash &= hash;
+      }
+      const colors = CHART_COLORS;
+      return colors[Math.abs(hash) % colors.length];
+    };
+
+    const fmtValue = (param, value, precision = 3) => {
+      if (value === null || value === undefined || value === '') return '-';
+      const unit = getUnit(param);
+      const withUnit = unit ? ` ${unit}` : '';
+      if (typeof value === 'number') {
+        const formatted = Number.isFinite(value) ? value.toFixed(precision) : String(value);
+        return `${formatted}${withUnit}`;
+      }
+      if (typeof value === 'string') {
+        const numeric = parseFloat(value);
+        if (!Number.isNaN(numeric)) {
+          const formatted = Number.isFinite(numeric) ? numeric.toFixed(precision) : String(numeric);
+          return `${formatted}${withUnit}`;
+        }
+        return `${value}${withUnit}`;
+      }
+      return `${String(value)}${withUnit}`;
+    };
+
+    return (payload || [])
       .filter((p) => p && p.dataKey && visibleParams.includes(p.dataKey))
       .map((p) => {
         const raw = p.value;
@@ -168,15 +198,14 @@ const Dashboard = ({ socket }) => {
         const sortVal = Number.isFinite(n) ? n : -Infinity;
         return {
           key: p.dataKey,
-          color: p.color || getParameterColor(p.dataKey),
+          color: p.color || hashColor(p.dataKey),
           label: formatDisplayName(p.dataKey, { withUnit: true }),
-          valueText: formatParameterValue(p.dataKey, raw, 3),
+          valueText: fmtValue(p.dataKey, raw, 3),
           sortVal,
         };
       })
       .sort((a, b) => b.sortVal - a.sortVal);
-    return rows;
-  }, [visibleParams, getParameterColor, formatDisplayName, formatParameterValue]);
+  }, [visibleParams, formatDisplayName, getUnit]);
 
   const RealtimeTooltip = useCallback(({ active, payload, label }) => {
     if (!active) return null;
