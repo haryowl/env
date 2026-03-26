@@ -501,95 +501,6 @@ const DashboardMap = ({ socket }) => {
       overflow: 'hidden'
     }}>
       <CardContent sx={{ p: 0 }}>
-        {/* Site Location header - clean layout per design */}
-        <Box sx={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'space-between',
-          px: 2,
-          py: 1.5,
-          bgcolor: 'background.paper',
-          borderBottom: '1px solid',
-          borderColor: 'primary.light'
-        }}>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <LocationIcon sx={{ mr: 1.25, fontSize: 22, color: 'primary.main' }} />
-            <Typography variant="h6" sx={{ fontWeight: 600, color: 'primary.main', fontSize: '1.1rem' }}>
-              Site Location
-            </Typography>
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
-              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>
-                Layer
-              </Typography>
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 0.75,
-                  flexWrap: 'wrap',
-                  justifyContent: 'flex-end',
-                }}
-                role="group"
-                aria-label="Map base layer"
-              >
-                {mapLayers.map((layer) => {
-                  const selected = selectedLayer === layer.value;
-                  return (
-                    <Tooltip key={layer.value} title={layer.label} placement="bottom">
-                      <IconButton
-                        onClick={() => setSelectedLayer(layer.value)}
-                        size="small"
-                        aria-label={layer.label}
-                        aria-pressed={selected}
-                        sx={{
-                          p: '4px',
-                          borderRadius: '50%',
-                          border: '2px solid',
-                          borderColor: selected ? 'primary.main' : 'divider',
-                          bgcolor: 'background.paper',
-                          boxShadow: selected ? 2 : 0,
-                          transition: 'box-shadow 0.15s, border-color 0.15s',
-                          '&:hover': {
-                            borderColor: 'primary.light',
-                            bgcolor: 'action.hover',
-                          },
-                        }}
-                      >
-                        <Box
-                          sx={{
-                            width: 26,
-                            height: 26,
-                            borderRadius: '50%',
-                            background: layer.swatch,
-                            boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.08)',
-                          }}
-                        />
-                      </IconButton>
-                    </Tooltip>
-                  );
-                })}
-              </Box>
-            </Box>
-            <Tooltip title="Refresh">
-              <IconButton
-                onClick={loadDevices}
-                size="small"
-                sx={{
-                  color: 'primary.main',
-                  alignSelf: 'center',
-                  '&:hover': {
-                    backgroundColor: 'action.hover',
-                  },
-                }}
-              >
-                <RefreshIcon />
-              </IconButton>
-            </Tooltip>
-          </Box>
-        </Box>
-
         <Box sx={{ p: 3 }}>
 
         {error && (
@@ -631,6 +542,98 @@ const DashboardMap = ({ socket }) => {
             <LocationIcon sx={{ fontSize: 18, color: 'primary.main' }} />
             <Typography component="span" sx={{ fontWeight: 500, fontSize: '0.8rem' }}>
               {devicesWithCoordinates.length} devices on map
+            </Typography>
+          </Box>
+
+          {/* Map controls - top right (layer swatches + refresh) */}
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 10,
+              right: 12,
+              zIndex: 1000,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 0.75,
+            }}
+            role="group"
+            aria-label="Map controls"
+          >
+            {mapLayers.map((layer) => {
+              const selected = selectedLayer === layer.value;
+              return (
+                <Tooltip key={layer.value} title={layer.label} placement="bottom">
+                  <IconButton
+                    onClick={() => setSelectedLayer(layer.value)}
+                    size="small"
+                    aria-label={layer.label}
+                    aria-pressed={selected}
+                    sx={{
+                      p: '4px',
+                      borderRadius: '50%',
+                      border: '2px solid',
+                      borderColor: selected ? 'primary.main' : 'rgba(255,255,255,0.65)',
+                      bgcolor: 'rgba(255,255,255,0.06)',
+                      backdropFilter: 'blur(6px)',
+                      boxShadow: selected ? 2 : 0,
+                      '&:hover': {
+                        bgcolor: 'rgba(255,255,255,0.12)',
+                      },
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        width: 18,
+                        height: 18,
+                        borderRadius: '50%',
+                        background: layer.swatch,
+                        boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.18)',
+                      }}
+                    />
+                  </IconButton>
+                </Tooltip>
+              );
+            })}
+            <Tooltip title="Refresh">
+              <IconButton
+                onClick={loadDevices}
+                size="small"
+                sx={{
+                  color: 'rgba(255,255,255,0.9)',
+                  bgcolor: 'rgba(255,255,255,0.06)',
+                  backdropFilter: 'blur(6px)',
+                  border: '1px solid rgba(255,255,255,0.35)',
+                  '&:hover': { bgcolor: 'rgba(255,255,255,0.12)' },
+                }}
+              >
+                <RefreshIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
+
+          {/* Site Location label - bottom left (overlay) */}
+          <Box
+            sx={{
+              position: 'absolute',
+              bottom: 10,
+              left: 12,
+              zIndex: 1000,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 0.75,
+              px: 1.25,
+              py: 0.75,
+              borderRadius: 1,
+              color: 'rgba(255,255,255,0.9)',
+              fontWeight: 600,
+              bgcolor: 'rgba(0,0,0,0.35)',
+              backdropFilter: 'blur(6px)',
+              border: '1px solid rgba(255,255,255,0.18)',
+            }}
+          >
+            <LocationIcon sx={{ fontSize: 18, color: 'rgba(56, 189, 248, 0.95)' }} />
+            <Typography component="span" sx={{ fontWeight: 600, fontSize: '0.85rem' }}>
+              Site Location
             </Typography>
           </Box>
           <MapContainer
