@@ -570,15 +570,15 @@ const QuickView = () => {
                   sx={{
                     borderRadius: 1.5,
                     '& .MuiOutlinedInput-notchedOutline': {
-                      borderColor: 'rgba(107, 70, 193, 0.3)',
-                      borderWidth: 2
+                      borderColor: 'rgba(0,0,0,0.14)',
+                      borderWidth: 1
                     },
                     '&:hover .MuiOutlinedInput-notchedOutline': {
-                      borderColor: '#007BA7'
+                      borderColor: 'primary.main'
                     },
                     '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                      borderColor: '#007BA7',
-                      borderWidth: 2
+                      borderColor: 'primary.main',
+                      borderWidth: 1.5
                     }
                   }}
                 >
@@ -608,15 +608,15 @@ const QuickView = () => {
                   sx={{
                     borderRadius: 1.5,
                     '& .MuiOutlinedInput-notchedOutline': {
-                      borderColor: 'rgba(107, 70, 193, 0.3)',
-                      borderWidth: 2
+                      borderColor: 'rgba(0,0,0,0.14)',
+                      borderWidth: 1
                     },
                     '&:hover .MuiOutlinedInput-notchedOutline': {
-                      borderColor: '#007BA7'
+                      borderColor: 'primary.main'
                     },
                     '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                      borderColor: '#007BA7',
-                      borderWidth: 2
+                      borderColor: 'primary.main',
+                      borderWidth: 1.5
                     }
                   }}
                 >
@@ -644,15 +644,15 @@ const QuickView = () => {
                             '& .MuiOutlinedInput-root': {
                               borderRadius: 1.5,
                               '& fieldset': {
-                                borderColor: 'rgba(107, 70, 193, 0.3)',
-                                borderWidth: 2
+                                borderColor: 'rgba(0,0,0,0.14)',
+                                borderWidth: 1
                               },
                               '&:hover fieldset': {
-                                borderColor: '#007BA7'
+                                borderColor: 'primary.main'
                               },
                               '&.Mui-focused fieldset': {
-                                borderColor: '#007BA7',
-                                borderWidth: 2
+                                borderColor: 'primary.main',
+                                borderWidth: 1.5
                               }
                             }
                           }}
@@ -677,15 +677,15 @@ const QuickView = () => {
                             '& .MuiOutlinedInput-root': {
                               borderRadius: 1.5,
                               '& fieldset': {
-                                borderColor: 'rgba(107, 70, 193, 0.3)',
-                                borderWidth: 2
+                                borderColor: 'rgba(0,0,0,0.14)',
+                                borderWidth: 1
                               },
                               '&:hover fieldset': {
-                                borderColor: '#007BA7'
+                                borderColor: 'primary.main'
                               },
                               '&.Mui-focused fieldset': {
-                                borderColor: '#007BA7',
-                                borderWidth: 2
+                                borderColor: 'primary.main',
+                                borderWidth: 1.5
                               }
                             }
                           }}
@@ -731,11 +731,12 @@ const QuickView = () => {
                       border: '1px solid',
                       borderColor: 'divider',
                       color: 'text.secondary',
-                      fontWeight: 500,
+                      fontWeight: 700,
                       textTransform: 'none',
-                      py: 0.75,
-                      px: 1.5,
-                      minHeight: 32,
+                      py: 0.5,
+                      px: 1.25,
+                      minHeight: 30,
+                      fontSize: '0.82rem',
                       '&:hover': {
                         bgcolor: 'action.selected',
                         borderColor: 'primary.main'

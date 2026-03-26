@@ -394,15 +394,15 @@ export default function DataDash() {
                       maxWidth: '100%'
                     },
                     '& .MuiOutlinedInput-notchedOutline': { 
-                      borderColor: 'rgba(107, 70, 193, 0.2)',
-                      borderWidth: '2px'
+                      borderColor: 'rgba(0,0,0,0.14)',
+                      borderWidth: '1px'
                     },
                     '&:hover .MuiOutlinedInput-notchedOutline': { 
                       borderColor: theme.palette.primary.main 
                     },
                     '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
                       borderColor: theme.palette.primary.main,
-                      borderWidth: '2px'
+                      borderWidth: '1.5px'
                     }
                   }}
             >
@@ -465,15 +465,15 @@ export default function DataDash() {
                       maxWidth: '100%'
                     },
                     '& .MuiOutlinedInput-notchedOutline': { 
-                      borderColor: 'rgba(107, 70, 193, 0.2)',
-                      borderWidth: '2px'
+                      borderColor: 'rgba(0,0,0,0.14)',
+                      borderWidth: '1px'
                     },
                     '&:hover .MuiOutlinedInput-notchedOutline': { 
                       borderColor: theme.palette.primary.main 
                     },
                     '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
                       borderColor: theme.palette.primary.main,
-                      borderWidth: '2px'
+                      borderWidth: '1.5px'
                     }
                   }}
             >
@@ -506,15 +506,15 @@ export default function DataDash() {
                     fontSize: '0.9rem'
                   },
                   '& .MuiOutlinedInput-notchedOutline': { 
-                    borderColor: 'rgba(107, 70, 193, 0.2)',
-                    borderWidth: '2px'
+                    borderColor: 'rgba(0,0,0,0.14)',
+                    borderWidth: '1px'
                   },
                   '&:hover .MuiOutlinedInput-notchedOutline': {
                     borderColor: theme.palette.primary.main
                   },
                   '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
                     borderColor: theme.palette.primary.main,
-                    borderWidth: '2px'
+                    borderWidth: '1.5px'
                   },
                   borderRadius: '4px'
                 }} />}
@@ -535,15 +535,15 @@ export default function DataDash() {
                     fontSize: '0.9rem'
                   },
                   '& .MuiOutlinedInput-notchedOutline': { 
-                    borderColor: 'rgba(107, 70, 193, 0.2)',
-                    borderWidth: '2px'
+                    borderColor: 'rgba(0,0,0,0.14)',
+                    borderWidth: '1px'
                   },
                   '&:hover .MuiOutlinedInput-notchedOutline': {
                     borderColor: theme.palette.primary.main
                   },
                   '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
                     borderColor: theme.palette.primary.main,
-                    borderWidth: '2px'
+                    borderWidth: '1.5px'
                   },
                   borderRadius: '4px'
                 }} />}
@@ -558,18 +558,16 @@ export default function DataDash() {
             onClick={fetchData} 
             size="large"
             sx={{
-              background: 'linear-gradient(135deg, #007BA7 0%, #0099CC 100%)',
               borderRadius: 1.5,
               px: 4,
-              py: 1.5,
-              fontSize: '0.95rem',
-              fontWeight: 600,
+              py: 1.25,
+              fontSize: '0.9rem',
+              fontWeight: 800,
               textTransform: 'none',
-              boxShadow: '0 4px 16px rgba(107, 70, 193, 0.3)',
+              boxShadow: '0 6px 18px rgba(2, 132, 199, 0.20)',
               mb: 2,
               '&:hover': {
-                background: 'linear-gradient(135deg, #005577 0%, #006B9A 100%)',
-                boxShadow: '0 6px 20px rgba(107, 70, 193, 0.4)',
+                boxShadow: '0 10px 24px rgba(2, 132, 199, 0.28)',
                 transform: 'translateY(-2px)',
                 transition: 'all 0.2s ease-in-out'
               }
