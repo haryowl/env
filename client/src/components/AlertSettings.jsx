@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Box, Typography, Card, CardContent, Button, Grid, TextField, 
+  Box, Typography, Card, CardContent, Button, Grid, TextField,
   FormControl, InputLabel, Select, MenuItem, Switch, FormControlLabel,
   Tabs, Tab, Divider, Alert, Snackbar, Chip, IconButton, Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
-import { DataGrid } from '@mui/x-data-grid';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import { DataGrid, GridActionsCellItem } from '@mui/x-data-grid';
 import { API_BASE_URL } from '../config/api';
 
 export default function AlertSettings({ user }) {
@@ -343,6 +346,9 @@ export default function AlertSettings({ user }) {
 
   // Delete HTTP endpoint
   const deleteHttpEndpoint = async (id) => {
+    if (!window.confirm('Delete this HTTP endpoint? This cannot be undone.')) {
+      return;
+    }
     try {
       const token = localStorage.getItem('iot_token');
       const response = await fetch(`${API_BASE_URL}/alert-settings/http-endpoints/${id}`, {
@@ -486,34 +492,53 @@ export default function AlertSettings({ user }) {
   ];
 
   const httpEndpointColumns = [
-    { field: 'url', headerName: 'URL', flex: 2 },
-    { field: 'method', headerName: 'Method', flex: 0.5 },
-    { field: 'alerts', headerName: 'Alerts', flex: 1.5, renderCell: (params) => (
-      <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-        {Array.isArray(params.value) ? params.value.map(alertId => {
-          const alert = alerts.find(a => a.id === alertId || a.alert_id === alertId);
-          return alert ? <Chip key={alertId} label={alert.name} size="small" /> : null;
-        }) : <Typography variant="body2" color="text.secondary">No alerts assigned</Typography>}
-      </Box>
-    )},
+    { field: 'url', headerName: 'URL', flex: 2, minWidth: 160 },
+    { field: 'method', headerName: 'Method', width: 88, minWidth: 88 },
     {
-      field: 'actions',
-      headerName: 'Actions',
+      field: 'alerts',
+      headerName: 'Alerts',
       flex: 1,
+      minWidth: 120,
       renderCell: (params) => (
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-          <Button size="small" onClick={() => testHttpEndpoint(params.row)}>
-            Test
-          </Button>
-          <Button size="small" variant="outlined" onClick={() => openEditHttpEndpoint(params.row)}>
-            Edit
-          </Button>
-          <Button size="small" color="error" onClick={() => deleteHttpEndpoint(params.row.id)}>
-            Delete
-          </Button>
+        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', py: 0.5 }}>
+          {Array.isArray(params.value) ? params.value.map(alertId => {
+            const alert = alerts.find(a => a.id === alertId || a.alert_id === alertId);
+            return alert ? <Chip key={alertId} label={alert.name} size="small" /> : null;
+          }) : <Typography variant="body2" color="text.secondary">No alerts assigned</Typography>}
         </Box>
       )
     },
+    {
+      field: 'actions',
+      headerName: 'Actions',
+      type: 'actions',
+      width: 132,
+      minWidth: 132,
+      sortable: false,
+      filterable: false,
+      disableColumnMenu: true,
+      getActions: (params) => [
+        <GridActionsCellItem
+          key="test"
+          icon={<PlayArrowIcon fontSize="small" />}
+          label="Test"
+          onClick={() => testHttpEndpoint(params.row)}
+        />,
+        <GridActionsCellItem
+          key="edit"
+          icon={<EditIcon fontSize="small" />}
+          label="Edit"
+          onClick={() => openEditHttpEndpoint(params.row)}
+        />,
+        <GridActionsCellItem
+          key="delete"
+          icon={<DeleteOutlineIcon fontSize="small" />}
+          label="Delete"
+          onClick={() => deleteHttpEndpoint(params.row.id)}
+          sx={{ color: 'error.main' }}
+        />
+      ]
+    }
   ];
 
   return (
@@ -726,7 +751,7 @@ export default function AlertSettings({ user }) {
         <>
         <Grid container spacing={3}>
           {/* HTTP Configuration */}
-          <Grid item xs={12} md={6}>
+          <Grid item xs={12}>
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>HTTP Configuration</Typography>
@@ -809,19 +834,20 @@ export default function AlertSettings({ user }) {
             </Card>
           </Grid>
 
-          {/* HTTP Endpoints List */}
-          <Grid item xs={12} md={6}>
+          {/* HTTP Endpoints List — full width so Actions column is not clipped */}
+          <Grid item xs={12}>
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>HTTP Endpoints</Typography>
                 {isAdmin ? (
-                  <div style={{ height: 400 }}>
+                  <div style={{ height: 400, width: '100%' }}>
                     <DataGrid
                       rows={httpConfig.endpoints}
                       columns={httpEndpointColumns}
-                      pageSize={5}
-                      rowsPerPageOptions={[5]}
-                      disableSelectionOnClick
+                      getRowId={(row) => row.id}
+                      initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
+                      pageSizeOptions={[5, 10, 25, 100]}
+                      disableRowSelectionOnClick
                     />
                   </div>
                 ) : (
