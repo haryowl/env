@@ -362,18 +362,88 @@ router.post('/http-config', auth.authenticateToken, async (req, res) => {
   }
 });
 
+function parseHttpBodyTemplate(raw) {
+  if (raw === undefined || raw === null) return null;
+  if (typeof raw === 'object') return raw;
+  const s = String(raw).trim();
+  if (!s) return null;
+  try {
+    return JSON.parse(s);
+  } catch (e) {
+    const err = new Error('body_template must be valid JSON');
+    err.cause = e;
+    throw err;
+  }
+}
+
 // HTTP Endpoints
 router.post('/http-endpoints', auth.authenticateToken, async (req, res) => {
   try {
-    const { url, method, headers, alerts } = req.body;
+    const { url, method, headers, alerts, body_template } = req.body;
+    let bodyJson = null;
+    try {
+      bodyJson = parseHttpBodyTemplate(body_template);
+    } catch (parseErr) {
+      return res.status(400).json({ error: parseErr.message });
+    }
     const result = await db.query(
-      'INSERT INTO alert_http_endpoints (url, method, headers, alerts) VALUES ($1, $2, $3, $4) RETURNING id',
-      [url, method, JSON.stringify(headers || {}), JSON.stringify(alerts || [])]
+      `INSERT INTO alert_http_endpoints (url, method, headers, alerts, body_template)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+      [url, method, JSON.stringify(headers || {}), JSON.stringify(alerts || []), bodyJson]
     );
     res.json({ message: 'HTTP endpoint added successfully', id: result.rows[0].id });
   } catch (error) {
     console.error('Error adding HTTP endpoint:', error);
     res.status(500).json({ error: 'Failed to add HTTP endpoint' });
+  }
+});
+
+router.patch('/http-endpoints/:id', auth.authenticateToken, async (req, res) => {
+  try {
+    const existingResult = await db.query('SELECT * FROM alert_http_endpoints WHERE id = $1', [req.params.id]);
+    if (existingResult.rows.length === 0) {
+      return res.status(404).json({ error: 'HTTP endpoint not found' });
+    }
+    const existing = existingResult.rows[0];
+
+    const url = req.body.url !== undefined ? req.body.url : existing.url;
+    const method = req.body.method !== undefined ? req.body.method : existing.method;
+
+    let headersObj = existing.headers;
+    if (req.body.headers !== undefined) {
+      headersObj = req.body.headers;
+    }
+    if (typeof headersObj !== 'object' || headersObj === null) {
+      headersObj = {};
+    }
+
+    let alertsArr = existing.alerts;
+    if (req.body.alerts !== undefined) {
+      alertsArr = req.body.alerts;
+    }
+    if (!Array.isArray(alertsArr)) {
+      alertsArr = [];
+    }
+
+    let bodyJson = existing.body_template;
+    if (req.body.body_template !== undefined) {
+      try {
+        bodyJson = parseHttpBodyTemplate(req.body.body_template);
+      } catch (parseErr) {
+        return res.status(400).json({ error: parseErr.message });
+      }
+    }
+
+    await db.query(
+      `UPDATE alert_http_endpoints
+       SET url = $1, method = $2, headers = $3, alerts = $4, body_template = $5, updated_at = NOW()
+       WHERE id = $6`,
+      [url, method, JSON.stringify(headersObj), JSON.stringify(alertsArr), bodyJson, req.params.id]
+    );
+    res.json({ message: 'HTTP endpoint updated successfully' });
+  } catch (error) {
+    console.error('Error updating HTTP endpoint:', error);
+    res.status(500).json({ error: 'Failed to update HTTP endpoint' });
   }
 });
 
@@ -390,14 +460,36 @@ router.delete('/http-endpoints/:id', auth.authenticateToken, async (req, res) =>
 // Test HTTP endpoint
 router.post('/test-http', auth.authenticateToken, async (req, res) => {
   try {
-    const { url, method, headers } = req.body;
-    
-    const testData = {
-      test: true,
+    const { url, method, headers, body_template } = req.body;
+    const { NotificationService } = require('../services/notificationService');
+
+    const sampleCtx = {
+      alert_id: 0,
+      device: 'TestDevice',
+      parameter: 'temperature',
+      value: 42,
+      min: 0,
+      max: 100,
+      message: 'This is a test notification from the IoT Alert System',
       timestamp: new Date().toISOString(),
-      message: 'This is a test notification from the IoT Alert System'
+      type: 'iot_alert',
+      lastUpdate: new Date().toISOString(),
+      thresholdTime: new Date().toISOString()
     };
-    
+
+    let bodyJson;
+    try {
+      bodyJson = NotificationService.buildHttpPayloadFromTemplate(body_template, sampleCtx);
+    } catch (e) {
+      return res.status(400).json({ error: e.message || 'Invalid body template' });
+    }
+
+    const testData = bodyJson ?? {
+      test: true,
+      timestamp: sampleCtx.timestamp,
+      message: sampleCtx.message
+    };
+
     const response = await fetch(url, {
       method: method || 'POST',
       headers: {

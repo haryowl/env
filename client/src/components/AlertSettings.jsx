@@ -45,8 +45,10 @@ export default function AlertSettings({ user }) {
     url: '',
     method: 'POST',
     headers: {},
-    alerts: [] // Which alerts this endpoint should receive
+    alerts: [], // Which alerts this endpoint should receive
+    body_template: '' // optional JSON; placeholders {{device}}, {{value}}, etc.
   });
+  const [editingHttpEndpoint, setEditingHttpEndpoint] = useState(null);
 
   // Notification Logs
   const [notificationLogs, setNotificationLogs] = useState([]);
@@ -271,13 +273,71 @@ export default function AlertSettings({ user }) {
 
       if (response.ok) {
         setNotification({ open: true, message: 'HTTP endpoint added successfully', severity: 'success' });
-        setNewEndpoint({ url: '', method: 'POST', headers: {}, alerts: [] });
+        setNewEndpoint({ url: '', method: 'POST', headers: {}, alerts: [], body_template: '' });
         loadConfigurations();
       } else {
         setNotification({ open: true, message: 'Failed to add HTTP endpoint', severity: 'error' });
       }
     } catch (error) {
       setNotification({ open: true, message: 'Failed to add HTTP endpoint', severity: 'error' });
+    }
+  };
+
+  const openEditHttpEndpoint = (row) => {
+    setEditingHttpEndpoint({
+      id: row.id,
+      url: row.url || '',
+      method: row.method || 'POST',
+      alerts: Array.isArray(row.alerts) ? row.alerts : [],
+      body_template:
+        row.body_template == null || row.body_template === ''
+          ? ''
+          : typeof row.body_template === 'string'
+            ? row.body_template
+            : JSON.stringify(row.body_template, null, 2)
+    });
+  };
+
+  const updateHttpEndpoint = async () => {
+    if (!editingHttpEndpoint?.url) {
+      setNotification({ open: true, message: 'URL is required', severity: 'warning' });
+      return;
+    }
+    try {
+      const token = localStorage.getItem('iot_token');
+      const response = await fetch(
+        `${API_BASE_URL}/alert-settings/http-endpoints/${editingHttpEndpoint.id}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            url: editingHttpEndpoint.url,
+            method: editingHttpEndpoint.method,
+            alerts: editingHttpEndpoint.alerts,
+            body_template: editingHttpEndpoint.body_template
+          })
+        }
+      );
+
+      if (response.ok) {
+        setNotification({ open: true, message: 'HTTP endpoint updated successfully', severity: 'success' });
+        setEditingHttpEndpoint(null);
+        loadConfigurations();
+      } else {
+        let msg = 'Failed to update HTTP endpoint';
+        try {
+          const err = await response.json();
+          msg = err.error || msg;
+        } catch {
+          /* ignore */
+        }
+        setNotification({ open: true, message: msg, severity: 'error' });
+      }
+    } catch (error) {
+      setNotification({ open: true, message: 'Failed to update HTTP endpoint', severity: 'error' });
     }
   };
 
@@ -364,7 +424,14 @@ export default function AlertSettings({ user }) {
       if (response.ok) {
         setNotification({ open: true, message: 'HTTP endpoint test successful', severity: 'success' });
       } else {
-        setNotification({ open: true, message: 'HTTP endpoint test failed', severity: 'error' });
+        let msg = 'HTTP endpoint test failed';
+        try {
+          const err = await response.json();
+          msg = err.error || msg;
+        } catch {
+          msg = `${msg} (${response.status})`;
+        }
+        setNotification({ open: true, message: msg, severity: 'error' });
       }
     } catch (error) {
       setNotification({ open: true, message: 'HTTP endpoint test failed', severity: 'error' });
@@ -434,9 +501,12 @@ export default function AlertSettings({ user }) {
       headerName: 'Actions',
       flex: 1,
       renderCell: (params) => (
-        <Box sx={{ display: 'flex', gap: 1 }}>
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
           <Button size="small" onClick={() => testHttpEndpoint(params.row)}>
             Test
+          </Button>
+          <Button size="small" variant="outlined" onClick={() => openEditHttpEndpoint(params.row)}>
+            Edit
           </Button>
           <Button size="small" color="error" onClick={() => deleteHttpEndpoint(params.row.id)}>
             Delete
@@ -653,6 +723,7 @@ export default function AlertSettings({ user }) {
       )}
 
       {tab === 1 && (
+        <>
         <Grid container spacing={3}>
           {/* HTTP Configuration */}
           <Grid item xs={12} md={6}>
@@ -708,6 +779,18 @@ export default function AlertSettings({ user }) {
                           ))}
                         </Select>
                       </FormControl>
+                      <TextField
+                        label="Custom JSON body (optional)"
+                        fullWidth
+                        multiline
+                        minRows={6}
+                        value={newEndpoint.body_template}
+                        onChange={(e) => setNewEndpoint({ ...newEndpoint, body_template: e.target.value })}
+                        placeholder={`{\n  "event": "alert",\n  "device": "{{device}}",\n  "reading": "{{value}}"\n}`}
+                        helperText="Leave empty for the default payload. Valid JSON with placeholders: {{alert_id}}, {{device}}, {{parameter}}, {{value}}, {{min}}, {{max}}, {{message}}, {{timestamp}}, {{type}}, {{lastUpdate}}, {{thresholdTime}}. A property whose entire value is exactly {{value}} (etc.) keeps a JSON number or null."
+                        sx={{ mb: 1 }}
+                        InputProps={{ sx: { fontFamily: 'monospace', fontSize: '0.85rem' } }}
+                      />
                       <Button variant="contained" onClick={addHttpEndpoint}>
                         Add Endpoint
                       </Button>
@@ -750,6 +833,70 @@ export default function AlertSettings({ user }) {
             </Card>
           </Grid>
         </Grid>
+
+        <Dialog open={Boolean(editingHttpEndpoint)} onClose={() => setEditingHttpEndpoint(null)} maxWidth="md" fullWidth>
+          <DialogTitle>Edit HTTP endpoint</DialogTitle>
+          <DialogContent>
+            {editingHttpEndpoint && (
+              <Box sx={{ pt: 1 }}>
+                <TextField
+                  label="URL"
+                  fullWidth
+                  value={editingHttpEndpoint.url}
+                  onChange={(e) => setEditingHttpEndpoint({ ...editingHttpEndpoint, url: e.target.value })}
+                  sx={{ mb: 1 }}
+                />
+                <FormControl fullWidth sx={{ mb: 1 }}>
+                  <InputLabel>Method</InputLabel>
+                  <Select
+                    value={editingHttpEndpoint.method}
+                    onChange={(e) => setEditingHttpEndpoint({ ...editingHttpEndpoint, method: e.target.value })}
+                    label="Method"
+                  >
+                    <MenuItem value="GET">GET</MenuItem>
+                    <MenuItem value="POST">POST</MenuItem>
+                    <MenuItem value="PUT">PUT</MenuItem>
+                    <MenuItem value="PATCH">PATCH</MenuItem>
+                  </Select>
+                </FormControl>
+                <FormControl fullWidth sx={{ mb: 1 }}>
+                  <InputLabel>Alerts to Send</InputLabel>
+                  <Select
+                    multiple
+                    value={editingHttpEndpoint.alerts}
+                    onChange={(e) => setEditingHttpEndpoint({ ...editingHttpEndpoint, alerts: e.target.value })}
+                    label="Alerts to Send"
+                  >
+                    {alerts.map((alert) => (
+                      <MenuItem key={alert.alert_id} value={alert.alert_id}>
+                        {alert.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <TextField
+                  label="Custom JSON body (optional)"
+                  fullWidth
+                  multiline
+                  minRows={8}
+                  value={editingHttpEndpoint.body_template}
+                  onChange={(e) =>
+                    setEditingHttpEndpoint({ ...editingHttpEndpoint, body_template: e.target.value })
+                  }
+                  helperText="Leave empty for the default IoT payload. Same placeholder rules as when adding an endpoint."
+                  InputProps={{ sx: { fontFamily: 'monospace', fontSize: '0.85rem' } }}
+                />
+              </Box>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setEditingHttpEndpoint(null)}>Cancel</Button>
+            <Button variant="contained" onClick={updateHttpEndpoint}>
+              Save
+            </Button>
+          </DialogActions>
+        </Dialog>
+        </>
       )}
 
       {tab === 2 && (

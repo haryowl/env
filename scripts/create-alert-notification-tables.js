@@ -61,6 +61,7 @@ const createAlertNotificationTables = async () => {
         method VARCHAR(10) DEFAULT 'POST',
         headers JSONB DEFAULT '{}',
         alerts JSONB DEFAULT '[]',
+        body_template JSONB,
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW()
       );

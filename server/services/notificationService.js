@@ -128,6 +128,66 @@ class NotificationService {
     }
   }
 
+  /**
+   * Build webhook JSON from optional body_template (JSON with {{key}} placeholders).
+   * A string value that is exactly "{{device}}" becomes the string device name.
+   * A string value that is exactly "{{value}}" becomes the numeric/null alert value (same for min, max, alert_id).
+   * Inside larger strings, {{key}} is replaced with string form (empty if missing).
+   * Returns null when bodyTemplate is empty → caller uses default IoT payload.
+   */
+  buildHttpPayloadFromTemplate(bodyTemplate, ctx) {
+    if (bodyTemplate === undefined || bodyTemplate === null) return null;
+    if (typeof bodyTemplate === 'string' && !String(bodyTemplate).trim()) return null;
+
+    let parsed = bodyTemplate;
+    if (typeof bodyTemplate === 'string') {
+      parsed = JSON.parse(bodyTemplate);
+    }
+    return this.deepSubstituteHttpBodyTemplate(parsed, ctx);
+  }
+
+  deepSubstituteHttpBodyTemplate(node, ctx) {
+    if (node === null || node === undefined) return null;
+    if (typeof node === 'string') {
+      const single = /^\{\{(\w+)\}\}$/.exec(node);
+      if (single) {
+        const key = single[1];
+        if (!Object.prototype.hasOwnProperty.call(ctx, key)) return null;
+        return ctx[key];
+      }
+      return node.replace(/\{\{(\w+)\}\}/g, (_, key) => {
+        const v = ctx[key];
+        if (v === null || v === undefined) return '';
+        return String(v);
+      });
+    }
+    if (Array.isArray(node)) {
+      return node.map((n) => this.deepSubstituteHttpBodyTemplate(n, ctx));
+    }
+    if (typeof node === 'object') {
+      const out = {};
+      for (const k of Object.keys(node)) {
+        out[k] = this.deepSubstituteHttpBodyTemplate(node[k], ctx);
+      }
+      return out;
+    }
+    return node;
+  }
+
+  resolveHttpPayload(config, ctx, defaultPayload) {
+    if (config.body_template === undefined || config.body_template === null) {
+      return defaultPayload;
+    }
+    try {
+      const custom = this.buildHttpPayloadFromTemplate(config.body_template, ctx);
+      if (custom === null || custom === undefined) return defaultPayload;
+      return custom;
+    } catch (e) {
+      console.error(`Invalid body_template for HTTP endpoint ${config.id} (${config.url}):`, e.message);
+      return defaultPayload;
+    }
+  }
+
   // Send HTTP notification
   async sendHttpNotification(alertId, template, deviceName, parameter, value, min, max, lastUpdate, thresholdTime) {
     try {
@@ -154,21 +214,37 @@ class NotificationService {
         thresholdTime
       });
 
+      const timestamp = new Date().toISOString();
+      const ctx = {
+        alert_id: alertId,
+        device: deviceName,
+        parameter,
+        value: value ?? null,
+        min: min ?? null,
+        max: max ?? null,
+        message: processedTemplate,
+        timestamp,
+        type: 'iot_alert',
+        lastUpdate: lastUpdate ?? '',
+        thresholdTime: thresholdTime ?? ''
+      };
+
+      const defaultPayload = {
+        alert_id: alertId,
+        device: deviceName,
+        parameter,
+        value,
+        min,
+        max,
+        message: processedTemplate,
+        timestamp,
+        type: 'iot_alert'
+      };
+
       // Send HTTP request to each configuration
       for (const config of configs) {
-        try {
-          const payload = {
-            alert_id: alertId,
-            device: deviceName,
-            parameter,
-            value,
-            min,
-            max,
-            message: processedTemplate,
-            timestamp: new Date().toISOString(),
-            type: 'iot_alert'
-          };
-
+        const sendOnce = async () => {
+          const payload = this.resolveHttpPayload(config, ctx, defaultPayload);
           const requestConfig = {
             method: config.method.toLowerCase(),
             url: config.url,
@@ -179,51 +255,28 @@ class NotificationService {
             timeout: config.timeout || 30000,
             data: payload
           };
+          return axios(requestConfig);
+        };
 
-          const response = await axios(requestConfig);
-          
-          // Log successful HTTP notification
+        try {
+          await sendOnce();
+
           await this.logNotification(alertId, 'http', config.url, 'sent', processedTemplate);
-          
+
           console.log(`HTTP notification sent successfully to ${config.url}`);
         } catch (error) {
           console.error(`Failed to send HTTP notification to ${config.url}:`, error);
-          
-          // Retry logic
+
           let retryCount = 0;
           const maxRetries = config.retry_count || 3;
           const retryDelay = config.retry_delay || 5000;
-          
+
           while (retryCount < maxRetries) {
             try {
               await new Promise(resolve => setTimeout(resolve, retryDelay));
-              
-              const payload = {
-                alert_id: alertId,
-                device: deviceName,
-                parameter,
-                value,
-                min,
-                max,
-                message: processedTemplate,
-                timestamp: new Date().toISOString(),
-                type: 'iot_alert'
-              };
 
-              const requestConfig = {
-                method: config.method.toLowerCase(),
-                url: config.url,
-                headers: {
-                  'Content-Type': 'application/json',
-                  ...config.headers
-                },
-                timeout: config.timeout || 30000,
-                data: payload
-              };
+              await sendOnce();
 
-              const response = await axios(requestConfig);
-              
-              // Log successful retry
               await this.logNotification(alertId, 'http', config.url, 'sent', processedTemplate);
               console.log(`HTTP notification sent successfully to ${config.url} after retry ${retryCount + 1}`);
               break;
@@ -481,11 +534,35 @@ class NotificationService {
         throw new Error('HTTP configuration not found');
       }
 
-      const testPayload = {
-        test: true,
+      const sampleCtx = {
+        alert_id: 0,
+        device: 'TestDevice',
+        parameter: 'temperature',
+        value: 42,
+        min: 0,
+        max: 100,
         message: 'This is a test notification from your IoT Alert System',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        type: 'iot_alert',
+        lastUpdate: new Date().toISOString(),
+        thresholdTime: new Date().toISOString()
       };
+
+      const fallbackPayload = {
+        test: true,
+        message: sampleCtx.message,
+        timestamp: sampleCtx.timestamp
+      };
+
+      let testPayload;
+      try {
+        testPayload = this.buildHttpPayloadFromTemplate(config.body_template, sampleCtx);
+      } catch (e) {
+        throw new Error(`Invalid body_template: ${e.message}`);
+      }
+      if (testPayload === null || testPayload === undefined) {
+        testPayload = fallbackPayload;
+      }
 
       const requestConfig = {
         method: config.method.toLowerCase(),
