@@ -6,6 +6,11 @@ const mqttService = require('../services/mqttService');
 const { authenticateToken } = require('../middleware/auth'); // Added missing import
 const { filterDeviceData } = require('../middleware/dataFilter');
 const mathFormulaService = require('../services/mathFormulaService');
+const {
+  getDeviceOnlineStaleMinutes,
+  sqlLateralLastDataAt,
+  sqlUiStatusCase,
+} = require('../utils/deviceOnlineFromData');
 
 const router = express.Router();
 
@@ -51,24 +56,30 @@ const devicePermissionSchema = Joi.object({
 // Get devices for dropdowns (filterDeviceData applied at app level; returns valid_from/valid_to)
 router.get('/dropdown', authenticateToken, async (req, res) => {
   try {
-    let whereClause = "WHERE COALESCE(is_deleted, false) = false";
+    const staleMins = getDeviceOnlineStaleMinutes();
+    let whereClause = 'WHERE COALESCE(d.is_deleted, false) = false';
     let queryParams = [];
     if (req.allowedDeviceIds !== null) {
       if (req.allowedDeviceIds && req.allowedDeviceIds.length > 0) {
         const placeholders = req.allowedDeviceIds.map((_, i) => `$${i + 1}`).join(',');
-        whereClause += ` AND device_id IN (${placeholders})`;
-        queryParams = req.allowedDeviceIds;
+        whereClause += ` AND d.device_id IN (${placeholders})`;
+        queryParams = [...req.allowedDeviceIds];
       } else {
         return res.json([]);
       }
     }
+    const staleIdx = queryParams.length + 1;
+    queryParams.push(staleMins);
     await query('ALTER TABLE devices ADD COLUMN IF NOT EXISTS valid_from DATE');
     await query('ALTER TABLE devices ADD COLUMN IF NOT EXISTS valid_to DATE');
     const devices = await getRows(`
-      SELECT device_id, name, device_type, protocol, status, valid_from, valid_to
-      FROM devices
+      SELECT d.device_id, d.name, d.device_type, d.protocol, d.valid_from, d.valid_to,
+        eff.last_data_at AS last_data_at,
+        ${sqlUiStatusCase(staleIdx)} AS status
+      FROM devices d
+      ${sqlLateralLastDataAt()}
       ${whereClause}
-      ORDER BY name ASC
+      ORDER BY d.name ASC
     `, queryParams);
     res.json(devices);
   } catch (error) {
@@ -152,6 +163,13 @@ router.get('/', authenticateToken, async (req, res) => {
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
+    const staleMins = getDeviceOnlineStaleMinutes();
+    const staleParam = paramCount;
+    const userParam = paramCount + 1;
+    const limitParam = paramCount + 2;
+    const offsetParam = paramCount + 3;
+    const listParams = [...params, staleMins, req.user.user_id, limit, offset];
+
     // Get total count
     const countResult = await getRow(`
       SELECT COUNT(*) as total
@@ -159,22 +177,34 @@ router.get('/', authenticateToken, async (req, res) => {
       ${whereClause}
     `, params);
 
-    // Get devices with pagination
+    // Get devices with pagination (status reflects data freshness unless maintenance/error)
     const devices = await getRows(`
       SELECT 
         d.*,
+        eff.last_data_at AS freshest_data_at,
+        ${sqlUiStatusCase(staleParam)} AS ui_status,
         dg.name as group_name,
         COALESCE(udp.permissions, '{}'::jsonb) as user_permissions
       FROM devices d
+      ${sqlLateralLastDataAt()}
       LEFT JOIN device_groups dg ON d.group_id = dg.group_id
-      LEFT JOIN user_device_permissions udp ON d.device_id = udp.device_id AND udp.user_id = $${paramCount}
+      LEFT JOIN user_device_permissions udp ON d.device_id = udp.device_id AND udp.user_id = $${userParam}
       ${whereClause}
       ORDER BY d.name ASC
-      LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
-    `, [...params, req.user.user_id, limit, offset]);
+      LIMIT $${limitParam} OFFSET $${offsetParam}
+    `, listParams);
+
+    const devicesOut = devices.map((row) => {
+      const { ui_status, freshest_data_at, ...rest } = row;
+      return {
+        ...rest,
+        status: ui_status,
+        last_data_at: freshest_data_at,
+      };
+    });
 
     res.json({
-      devices,
+      devices: devicesOut,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -231,15 +261,20 @@ router.get('/with-coordinates', authenticateToken, filterDeviceData, async (req,
       // Empty array means no access
       return res.json({ devices: [] });
     }
+
+    const staleMins = getDeviceOnlineStaleMinutes();
+    const staleIdx = queryParams.length + 1;
+    const coordParams = [...queryParams, staleMins];
     
     // Get devices with coordinates - filtered by user permissions
     const devices = await getRows(`
       SELECT 
         d.device_id,
         d.name,
-        d.status,
+        ${sqlUiStatusCase(staleIdx)} AS status,
         d.created_at,
         d.updated_at,
+        eff.last_data_at AS last_data_at,
         -- Try to get manual coordinates first
         (SELECT latitude FROM device_coordinates WHERE device_id = d.device_id AND source = 'manual' ORDER BY updated_at DESC LIMIT 1) as manual_latitude,
         (SELECT longitude FROM device_coordinates WHERE device_id = d.device_id AND source = 'manual' ORDER BY updated_at DESC LIMIT 1) as manual_longitude,
@@ -250,9 +285,10 @@ router.get('/with-coordinates', authenticateToken, filterDeviceData, async (req,
         (SELECT field_value::numeric FROM device_data WHERE device_id = d.device_id AND field_name = 'lng' ORDER BY timestamp DESC LIMIT 1) as device_lng,
         (SELECT field_value::numeric FROM device_data WHERE device_id = d.device_id AND field_name = 'lon' ORDER BY timestamp DESC LIMIT 1) as device_lon
       FROM devices d
+      ${sqlLateralLastDataAt()}
       ${whereClause}
       ORDER BY d.name ASC
-    `, queryParams);
+    `, coordParams);
 
     // Process the results to determine final coordinates
     const processedDevices = devices.map(device => {
@@ -266,6 +302,7 @@ router.get('/with-coordinates', authenticateToken, filterDeviceData, async (req,
         status: device.status,
         created_at: device.created_at,
         updated_at: device.updated_at,
+        last_data_at: device.last_data_at,
         latitude: latitude,
         longitude: longitude
       };
@@ -715,6 +752,7 @@ router.get('/:deviceId/latest-data', authenticateToken, async (req, res) => {
 
     // Get latest data: query by source_field (how it's stored), return keyed by target_field (for display)
     const latestData = {};
+    let lastUpdatedAt = null;
 
     for (const m of dataMappings) {
       const srcField = sourceKey(m);
@@ -727,6 +765,10 @@ router.get('/:deviceId/latest-data', authenticateToken, async (req, res) => {
       `, [deviceId, srcField]);
 
       if (result) {
+        const ts = result.timestamp ? new Date(result.timestamp).getTime() : null;
+        if (ts != null && (!lastUpdatedAt || ts > lastUpdatedAt)) {
+          lastUpdatedAt = ts;
+        }
         let value = result.value;
         if (typeof value === 'string') {
           const numValue = parseFloat(value);
@@ -743,7 +785,10 @@ router.get('/:deviceId/latest-data', authenticateToken, async (req, res) => {
       }
     }
 
-    res.json({ data: latestData });
+    res.json({
+      data: latestData,
+      last_updated_at: lastUpdatedAt != null ? new Date(lastUpdatedAt).toISOString() : null,
+    });
   } catch (error) {
     console.error('Get latest device data error:', error);
     res.status(500).json({

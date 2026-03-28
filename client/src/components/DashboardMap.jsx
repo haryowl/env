@@ -131,6 +131,9 @@ const createDeviceIcon = (status, hasAlerts = false, name = '') => {
     color = '#EF4444';
     className = 'custom-device-marker alert-blink';
     pulseColor = 'rgba(239, 68, 68, 0.35)';
+  } else if (status === 'offline') {
+    color = '#6B7280';
+    pulseColor = 'rgba(107, 114, 128, 0.2)';
   } else if (status !== 'online') {
     color = '#F59E0B';
     pulseColor = 'rgba(245, 158, 11, 0.25)';
@@ -333,6 +336,7 @@ const DashboardMap = ({ socket }) => {
   const [error, setError] = useState('');
   const [selectedLayer, setSelectedLayer] = useState('dark');
   const [deviceData, setDeviceData] = useState({});
+  const [deviceLastUpdated, setDeviceLastUpdated] = useState({});
   const [deviceAlerts, setDeviceAlerts] = useState({});
   const [alertThresholdsByDevice, setAlertThresholdsByDevice] = useState({});
   const [centerCoords, setCenterCoords] = useState(null);
@@ -422,6 +426,10 @@ const DashboardMap = ({ socket }) => {
         const data = await response.json();
         const latest = data.data || {};
         setDeviceData(prev => ({ ...prev, [deviceId]: latest }));
+        setDeviceLastUpdated((prev) => ({
+          ...prev,
+          [deviceId]: data.last_updated_at || null,
+        }));
         setDeviceAlerts(prev => {
           const thresholds = alertThresholdsByDevice[deviceId] || [];
           const outOfRange = isLatestDataOutOfRange(latest, thresholds);
@@ -450,7 +458,7 @@ const DashboardMap = ({ socket }) => {
       });
     }
 
-    const interval = setInterval(loadDevices, 10 * 60 * 1000);
+    const interval = setInterval(loadDevices, 2 * 60 * 1000);
     return () => {
       clearInterval(interval);
       if (socket) socket.off('device_status_update');
@@ -681,16 +689,6 @@ const DashboardMap = ({ socket }) => {
                       >
                         {device.name}
                       </Typography>
-                      <Typography 
-                        variant="body2" 
-                        sx={{ 
-                          color: theme.palette.text.secondary,
-                          mb: 0.4,
-                          fontSize: '0.8rem'
-                        }}
-                      >
-                        ID: {device.device_id}
-                      </Typography>
                       <Box sx={{ display: 'flex', gap: 0.5, mb: 0.4 }}>
                         <Chip 
                           label={device.status} 
@@ -711,21 +709,25 @@ const DashboardMap = ({ socket }) => {
                           />
                         )}
                       </Box>
-                      <Typography 
-                        variant="body2" 
-                        sx={{ 
+                      <Typography
+                        variant="body2"
+                        sx={{
                           color: theme.palette.text.secondary,
-                          mb: 0.3,
-                          fontSize: '0.8rem'
+                          fontSize: '0.78rem',
+                          mb: 0.5,
                         }}
                       >
-                        Coordinates: {device.latitude}, {device.longitude}
+                        Last update:{' '}
+                        {(deviceLastUpdated[device.device_id] ?? device.last_data_at)
+                          ? formatInUserTimezone(
+                              deviceLastUpdated[device.device_id] ?? device.last_data_at
+                            )
+                          : 'no data yet'}
                       </Typography>
-                      
                       <Typography 
                         variant="subtitle2" 
                         sx={{ 
-                          mt: 1, 
+                          mt: 0.5, 
                           mb: 0.3,
                           color: theme.palette.text.primary,
                           fontWeight: 'bold',
