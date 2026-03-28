@@ -8,12 +8,11 @@ const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
-// Allowed origins for CORS and Socket.IO (comma-separated; default includes localhost and common hosts)
+// Allowed origins for CORS, CSP connect-src, and Socket.IO.
+// Env CORS_ORIGINS is merged with defaults so a minimal production list does not strip CSP entries
+// needed when the built client still calls an IP or alternate hostname.
 const getAllowedOrigins = () => {
-  if (process.env.CORS_ORIGINS) {
-    return process.env.CORS_ORIGINS.split(',').map(s => s.trim()).filter(Boolean);
-  }
-  return [
+  const defaults = [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
     'http://localhost:5173',
@@ -21,8 +20,15 @@ const getAllowedOrigins = () => {
     'http://81.17.100.7:3000',
     'http://109.123.255.169:3000',
     'http://env.aksadata.id',
-    'https://env.aksadata.id'
+    'https://env.aksadata.id',
+    'http://env.aksadata.id:3000',
+    'https://env.aksadata.id:3000',
   ];
+  if (process.env.CORS_ORIGINS) {
+    const fromEnv = process.env.CORS_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean);
+    return [...new Set([...defaults, ...fromEnv])];
+  }
+  return defaults;
 };
 const allowedOrigins = getAllowedOrigins();
 
