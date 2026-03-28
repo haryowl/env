@@ -3,8 +3,24 @@ const { authorizeRole, authenticateToken } = require('../middleware/auth');
 const { getRow, getRows, query } = require('../config/database');
 const Joi = require('joi');
 const bcrypt = require('bcryptjs');
+const { ensureTenantsSchema } = require('../utils/ensureTenantsSchema');
+const { validatePostLogoutRedirectUrl } = require('../utils/postLogoutRedirect');
 
 const router = express.Router();
+
+router.use(async (req, res, next) => {
+  try {
+    await ensureTenantsSchema();
+  } catch (e) {
+    console.error('ensureTenantsSchema (users):', e);
+    return res.status(500).json({
+      error: 'Database initialization failed',
+      code: 'DB_INIT_ERROR',
+      details: e.message,
+    });
+  }
+  next();
+});
 
 // GET /api/users/me/context - Get current user's assigned company/site context
 // Note: This router is already mounted behind authenticateToken in server/index.js
@@ -78,7 +94,9 @@ const createUserSchema = Joi.object({
   email: Joi.string().email().required(),
   password: Joi.string().min(8).required(),
   role: Joi.string().required(),
-  status: Joi.string().valid('active', 'inactive', 'suspended').default('active')
+  status: Joi.string().valid('active', 'inactive', 'suspended').default('active'),
+  tenant_id: Joi.number().integer().allow(null).optional(),
+  post_logout_redirect_url: Joi.string().allow('', null).max(2048).optional(),
 });
 
 // Get all users (admin only)
@@ -127,8 +145,11 @@ router.get('/:userId', authorizeRole(['super_admin', 'admin']), async (req, res)
     const { userId } = req.params;
 
     const user = await getRow(`
-      SELECT user_id, username, email, role, status, timezone, preferences, created_at, last_login
-      FROM users WHERE user_id = $1
+      SELECT u.user_id, u.username, u.email, u.role, u.status, u.timezone, u.preferences, u.created_at, u.last_login,
+             u.tenant_id, t.name AS tenant_name, u.post_logout_redirect_url
+      FROM users u
+      LEFT JOIN tenants t ON u.tenant_id = t.tenant_id
+      WHERE u.user_id = $1
     `, [userId]);
 
     if (!user) {
@@ -164,6 +185,23 @@ router.post('/', authorizeRole(['super_admin', 'admin']), async (req, res) => {
       });
     }
     const { username, email, password, role } = value;
+    const tenantId = value.tenant_id !== undefined && value.tenant_id !== '' ? value.tenant_id : null;
+    let postLogoutUrl = value.post_logout_redirect_url;
+    if (postLogoutUrl === '' || postLogoutUrl === undefined) postLogoutUrl = null;
+    else {
+      const urlCheck = validatePostLogoutRedirectUrl(postLogoutUrl);
+      if (!urlCheck.ok) {
+        return res.status(400).json({ error: urlCheck.error, code: 'INVALID_LOGOUT_URL' });
+      }
+      postLogoutUrl = urlCheck.url;
+    }
+
+    if (tenantId != null) {
+      const tenant = await getRow('SELECT tenant_id FROM tenants WHERE tenant_id = $1', [tenantId]);
+      if (!tenant) {
+        return res.status(400).json({ error: 'Tenant not found', code: 'TENANT_NOT_FOUND' });
+      }
+    }
     
     console.log('Validated data:', { username, email, role, passwordLength: password.length });
     
@@ -204,10 +242,10 @@ router.post('/', authorizeRole(['super_admin', 'admin']), async (req, res) => {
     
     // Insert user with status
     const result = await query(`
-      INSERT INTO users (username, email, password_hash, role, status, created_at)
-      VALUES ($1, $2, $3, $4, $5, NOW())
-      RETURNING user_id, username, email, role, status, created_at
-    `, [username, email, passwordHash, role, value.status || 'active']);
+      INSERT INTO users (username, email, password_hash, role, status, created_at, tenant_id, post_logout_redirect_url)
+      VALUES ($1, $2, $3, $4, $5, NOW(), $6, $7)
+      RETURNING user_id, username, email, role, status, created_at, tenant_id, post_logout_redirect_url
+    `, [username, email, passwordHash, role, value.status || 'active', tenantId, postLogoutUrl]);
     
     const newUser = result.rows[0];
     console.log('User created successfully:', newUser);
@@ -420,7 +458,7 @@ router.post('/bulk-remove', authorizeRole(['super_admin', 'admin']), async (req,
 router.put('/:userId', authorizeRole(['super_admin', 'admin']), async (req, res) => {
   try {
     const { userId } = req.params;
-    const { username, email, role, status, timezone, preferences } = req.body;
+    const { username, email, role, status, timezone, preferences, tenant_id, post_logout_redirect_url } = req.body;
 
     // Check if user exists
     const existingUser = await getRow(
@@ -470,6 +508,35 @@ router.put('/:userId', authorizeRole(['super_admin', 'admin']), async (req, res)
       updateValues.push(JSON.stringify(preferences));
     }
 
+    if (tenant_id !== undefined) {
+      if (tenant_id === null || tenant_id === '') {
+        updateFields.push(`tenant_id = $${paramCount++}`);
+        updateValues.push(null);
+      } else {
+        const tenant = await getRow('SELECT tenant_id FROM tenants WHERE tenant_id = $1', [tenant_id]);
+        if (!tenant) {
+          return res.status(400).json({ error: 'Tenant not found', code: 'TENANT_NOT_FOUND' });
+        }
+        updateFields.push(`tenant_id = $${paramCount++}`);
+        updateValues.push(tenant_id);
+      }
+    }
+
+    if (post_logout_redirect_url !== undefined) {
+      let pUrl = post_logout_redirect_url;
+      if (pUrl === '' || pUrl === null) {
+        updateFields.push(`post_logout_redirect_url = $${paramCount++}`);
+        updateValues.push(null);
+      } else {
+        const urlCheck = validatePostLogoutRedirectUrl(pUrl);
+        if (!urlCheck.ok) {
+          return res.status(400).json({ error: urlCheck.error, code: 'INVALID_LOGOUT_URL' });
+        }
+        updateFields.push(`post_logout_redirect_url = $${paramCount++}`);
+        updateValues.push(urlCheck.url);
+      }
+    }
+
     if (updateFields.length === 0) {
       return res.status(400).json({
         error: 'No fields to update',
@@ -484,7 +551,7 @@ router.put('/:userId', authorizeRole(['super_admin', 'admin']), async (req, res)
       UPDATE users 
       SET ${updateFields.join(', ')}
       WHERE user_id = $${paramCount}
-      RETURNING user_id, username, email, role, status, timezone, preferences
+      RETURNING user_id, username, email, role, status, timezone, preferences, tenant_id, post_logout_redirect_url
     `, updateValues);
 
     // CRITICAL: If role was updated, also sync the user_roles table

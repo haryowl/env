@@ -60,6 +60,28 @@ const authenticateToken = async (req, res, next) => {
   }
 };
 
+/** Sets req.user when a valid Bearer token is present; otherwise continues without error (for logout, etc.). */
+const authenticateTokenOptional = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.split(' ')[1];
+    if (!token) return next();
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await getRow(
+      'SELECT user_id, username, email, role, status, timezone, preferences FROM users WHERE user_id = $1',
+      [decoded.userId]
+    );
+
+    if (user && user.status === 'active') {
+      req.user = user;
+    }
+    next();
+  } catch (_) {
+    next();
+  }
+};
+
 // Role-based authorization middleware
 const authorizeRole = (allowedRoles) => {
   return async (req, res, next) => {
@@ -426,6 +448,7 @@ const validateSession = async (req, res, next) => {
 
 module.exports = {
   authenticateToken,
+  authenticateTokenOptional,
   authorizeRole,
   authorizeMenuAccess,
   authorizeDeviceAccess,

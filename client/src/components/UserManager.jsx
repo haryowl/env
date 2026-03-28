@@ -20,15 +20,31 @@ function UserManager() {
   }
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [tenants, setTenants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [openDialog, setOpenDialog] = useState(false);
-  const [form, setForm] = useState({ username: '', email: '', password: '', role: 'viewer' });
+  const [form, setForm] = useState({
+    username: '',
+    email: '',
+    password: '',
+    role: 'viewer',
+    tenant_id: '',
+    post_logout_redirect_url: '',
+  });
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editForm, setEditForm] = useState({ user_id: '', username: '', email: '', role: '', status: '' });
+  const [editForm, setEditForm] = useState({
+    user_id: '',
+    username: '',
+    email: '',
+    role: '',
+    status: '',
+    tenant_id: '',
+    post_logout_redirect_url: '',
+  });
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState('');
   const [editSuccess, setEditSuccess] = useState('');
@@ -41,7 +57,23 @@ function UserManager() {
   useEffect(() => {
     fetchUsers();
     fetchRoles();
+    fetchTenants();
   }, []);
+
+  const fetchTenants = async () => {
+    try {
+      const token = localStorage.getItem('iot_token');
+      const res = await fetch(`${API_BASE_URL}/tenants`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTenants(data.tenants || []);
+      }
+    } catch (e) {
+      console.warn('Tenants list not loaded:', e);
+    }
+  };
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -97,13 +129,25 @@ function UserManager() {
     setFormSuccess('');
     try {
       const token = localStorage.getItem('iot_token');
+      const payload = {
+        username: form.username,
+        email: form.email,
+        password: form.password,
+        role: form.role,
+        ...(form.tenant_id !== '' && form.tenant_id != null
+          ? { tenant_id: Number(form.tenant_id) }
+          : {}),
+        ...(form.post_logout_redirect_url.trim()
+          ? { post_logout_redirect_url: form.post_logout_redirect_url.trim() }
+          : {}),
+      };
       const res = await fetch(`${API_BASE_URL}/users`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(form)
+        body: JSON.stringify(payload)
       });
       if (res.ok) {
         setFormSuccess('User created successfully');
@@ -127,7 +171,9 @@ function UserManager() {
       username: user.username,
       email: user.email,
       role: user.role,
-      status: user.status
+      status: user.status,
+      tenant_id: user.tenant_id != null ? String(user.tenant_id) : '',
+      post_logout_redirect_url: user.post_logout_redirect_url || '',
     });
     setEditError('');
     setEditSuccess('');
@@ -156,7 +202,9 @@ function UserManager() {
           username: editForm.username,
           email: editForm.email,
           role: editForm.role,
-          status: editForm.status
+          status: editForm.status,
+          tenant_id: editForm.tenant_id === '' ? null : Number(editForm.tenant_id),
+          post_logout_redirect_url: editForm.post_logout_redirect_url.trim() || null,
         })
       });
       if (res.ok) {
@@ -263,6 +311,31 @@ function UserManager() {
                 ))}
               </Select>
             </FormControl>
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Tenant (optional)</InputLabel>
+              <Select
+                name="tenant_id"
+                value={form.tenant_id}
+                onChange={handleFormChange}
+                label="Tenant (optional)"
+              >
+                <MenuItem value="">None</MenuItem>
+                {tenants.map((t) => (
+                  <MenuItem key={t.tenant_id} value={String(t.tenant_id)}>
+                    {t.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <TextField
+              label="Post-logout URL override (optional)"
+              name="post_logout_redirect_url"
+              value={form.post_logout_redirect_url}
+              onChange={handleFormChange}
+              fullWidth
+              margin="normal"
+              helperText="Overrides tenant default after sign out"
+            />
             {formError && <Typography color="error" sx={{ mt: 1 }}>{formError}</Typography>}
             {formSuccess && <Typography color="success.main" sx={{ mt: 1 }}>{formSuccess}</Typography>}
           </Box>
@@ -288,6 +361,7 @@ function UserManager() {
                 <TableCell>Username</TableCell>
                 <TableCell>Email</TableCell>
                 <TableCell>Role</TableCell>
+                <TableCell>Tenant</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
@@ -298,6 +372,7 @@ function UserManager() {
                   <TableCell>{user.username}</TableCell>
                   <TableCell>{user.email}</TableCell>
                   <TableCell>{user.role}</TableCell>
+                  <TableCell>{user.tenant_name || '—'}</TableCell>
                   <TableCell>{user.status}</TableCell>
                   <TableCell align="right">
                     <IconButton onClick={() => handleOpenEditDialog(user)} size="small">
@@ -363,6 +438,31 @@ function UserManager() {
                 <MenuItem value="inactive">Inactive</MenuItem>
               </Select>
             </FormControl>
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Tenant</InputLabel>
+              <Select
+                name="tenant_id"
+                value={editForm.tenant_id}
+                onChange={handleEditFormChange}
+                label="Tenant"
+              >
+                <MenuItem value="">None</MenuItem>
+                {tenants.map((t) => (
+                  <MenuItem key={t.tenant_id} value={String(t.tenant_id)}>
+                    {t.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <TextField
+              label="Post-logout URL override"
+              name="post_logout_redirect_url"
+              value={editForm.post_logout_redirect_url}
+              onChange={handleEditFormChange}
+              fullWidth
+              margin="normal"
+              helperText="Leave empty to use tenant default only"
+            />
             {editError && <Typography color="error" sx={{ mt: 1 }}>{editError}</Typography>}
             {editSuccess && <Typography color="success.main" sx={{ mt: 1 }}>{editSuccess}</Typography>}
           </Box>

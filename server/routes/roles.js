@@ -12,6 +12,7 @@ const getMenuName = (menuPath) => {
     '/quick-view': 'Quick View',
     '/devices': 'Devices',
     '/users': 'Users',
+    '/tenants': 'Tenants',
     '/roles': 'Roles',
     '/field-creator': 'Field Creator',
     '/mapper': 'Device Mapper',
@@ -114,6 +115,7 @@ router.get('/templates', authorizeRole(['super_admin', 'admin']), async (req, re
           '/quick-view': { access: true, read: true, create: true, update: true, delete: true },
           '/devices': { access: true, read: true, create: true, update: true, delete: true },
           '/users': { access: true, read: true, create: true, update: true, delete: true },
+          '/tenants': { access: true, read: true, create: true, update: true, delete: true },
           '/roles': { access: true, read: true, create: true, update: true, delete: true },
           '/field-creator': { access: true, read: true, create: true, update: true, delete: true },
           '/mapper': { access: true, read: true, create: true, update: true, delete: true },
@@ -149,6 +151,7 @@ router.get('/templates', authorizeRole(['super_admin', 'admin']), async (req, re
           '/quick-view': { access: true, read: true, create: true, update: true, delete: true },
           '/devices': { access: true, read: true, create: true, update: true, delete: true },
           '/users': { access: true, read: true, create: true, update: true, delete: false },
+          '/tenants': { access: true, read: true, create: true, update: true, delete: true },
           '/roles': { access: false, read: false, create: false, update: false, delete: false },
           '/field-creator': { access: true, read: true, create: true, update: true, delete: true },
           '/mapper': { access: true, read: true, create: true, update: true, delete: true },
@@ -315,6 +318,7 @@ router.post('/from-template', authorizeRole(['super_admin']), async (req, res) =
           '/quick-view': { access: true, read: true, create: true, update: true, delete: true },
           '/devices': { access: true, read: true, create: true, update: true, delete: true },
           '/users': { access: true, read: true, create: true, update: true, delete: true },
+          '/tenants': { access: true, read: true, create: true, update: true, delete: true },
           '/roles': { access: true, read: true, create: true, update: true, delete: true },
           '/field-creator': { access: true, read: true, create: true, update: true, delete: true },
           '/mapper': { access: true, read: true, create: true, update: true, delete: true },
@@ -350,6 +354,7 @@ router.post('/from-template', authorizeRole(['super_admin']), async (req, res) =
           '/quick-view': { access: true, read: true, create: true, update: true, delete: true },
           '/devices': { access: true, read: true, create: true, update: true, delete: true },
           '/users': { access: true, read: true, create: true, update: true, delete: false },
+          '/tenants': { access: true, read: true, create: true, update: true, delete: true },
           '/roles': { access: false, read: false, create: false, update: false, delete: false },
           '/field-creator': { access: true, read: true, create: true, update: true, delete: true },
           '/mapper': { access: true, read: true, create: true, update: true, delete: true },
@@ -1280,6 +1285,12 @@ router.get('/menus/available', authorizeRole(['super_admin', 'admin']), async (r
         path: '/users',
         name: 'Users',
         description: 'User management and administration',
+        category: 'Management'
+      },
+      {
+        path: '/tenants',
+        name: 'Tenants',
+        description: 'Tenant defaults for post-logout redirect',
         category: 'Management'
       },
       {

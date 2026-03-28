@@ -5,9 +5,12 @@ const {
   hashPassword, 
   comparePassword, 
   updateLastLogin,
-  createRateLimiter 
+  createRateLimiter,
+  authenticateTokenOptional
 } = require('../middleware/auth');
 const { getRow, query } = require('../config/database');
+const { ensureTenantsSchema } = require('../utils/ensureTenantsSchema');
+const { resolveLogoutRedirectFromUserRow } = require('../utils/postLogoutRedirect');
 const moment = require('moment-timezone'); // Added missing import
 
 const router = express.Router();
@@ -317,24 +320,40 @@ router.put('/profile', async (req, res) => {
   }
 });
 
-// Logout endpoint (client-side token removal)
-router.post('/logout', async (req, res) => {
+// Logout: optional Bearer token; returns redirectUrl from tenant default + user override (validated).
+router.post('/logout', authenticateTokenOptional, async (req, res) => {
   try {
-    // In a stateless JWT system, logout is handled client-side
-    // But we can log the logout event
     const userId = req.user?.user_id;
-    
+    let redirectUrl = null;
+
     if (userId) {
       await query(`
         INSERT INTO system_logs (level, message, metadata, user_id)
         VALUES ('info', 'User logged out', '{}', $1)
       `, [userId]);
+
+      try {
+        await ensureTenantsSchema();
+        const row = await getRow(
+          `
+          SELECT u.post_logout_redirect_url,
+                 t.post_logout_redirect_url AS tenant_post_logout_redirect_url
+          FROM users u
+          LEFT JOIN tenants t ON u.tenant_id = t.tenant_id
+          WHERE u.user_id = $1
+        `,
+          [userId]
+        );
+        redirectUrl = resolveLogoutRedirectFromUserRow(row);
+      } catch (schemaErr) {
+        console.error('Logout redirect resolution skipped:', schemaErr.message);
+      }
     }
 
     res.json({
-      message: 'Logout successful'
+      message: 'Logout successful',
+      redirectUrl: redirectUrl || null,
     });
-
   } catch (error) {
     console.error('Logout error:', error);
     res.status(500).json({

@@ -51,6 +51,7 @@ import {
   Build as BuildIcon,
   Assignment as AssignmentIcon,
   DonutLarge as DonutLargeIcon,
+  Domain as DomainIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation, NavLink } from 'react-router-dom';
 import { usePermissions } from '../hooks/usePermissions.jsx';
@@ -213,6 +214,7 @@ const Layout = ({ children, user, userContext, onLogout }) => {
       icon: <SettingsIcon />,
       items: [
         { text: 'Users', icon: <PeopleIcon />, path: '/users', menuPath: '/users' },
+        { text: 'Tenants', icon: <DomainIcon />, path: '/tenants', menuPath: '/tenants' },
         { text: 'Roles', icon: <SecurityIcon />, path: '/roles', menuPath: '/roles' },
         { text: 'Field Creator', icon: <CreateIcon />, path: '/field-creator', menuPath: '/field-creator' },
         { text: 'Alert Settings', icon: <SettingsIcon />, path: '/alert-settings', menuPath: '/alert-settings' },

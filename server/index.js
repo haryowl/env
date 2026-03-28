@@ -54,6 +54,7 @@ const alertLogsRoutes = require('./routes/alertLogs');
 const notificationConfigRoutes = require('./routes/notificationConfig');
 const alertSettingsRoutes = require('./routes/alertSettings');
 const scheduledExportsRoutes = require('./routes/scheduledExports');
+const tenantsRoutes = require('./routes/tenants');
 const companiesRoutes = require('./routes/companies');
 const sitesRoutes = require('./routes/sites');
 const sensorDatabaseRoutes = require('./routes/sensorDatabase');
@@ -197,6 +198,7 @@ app.use('/api/alert-settings', authenticateToken, filterDataByRole, alertSetting
 console.log('✓ /api/alert-settings route registered');
 app.use('/api/scheduled-exports', authenticateToken, filterDataByRole, scheduledExportsRoutes);
 console.log('✓ /api/scheduled-exports route registered');
+app.use('/api/tenants', authenticateToken, filterDataByRole, tenantsRoutes);
 app.use('/api/companies', authenticateToken, filterDataByRole, companiesRoutes);
 console.log('✓ /api/companies route registered');
 app.use('/api/sites', authenticateToken, filterDataByRole, sitesRoutes);

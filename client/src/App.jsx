@@ -10,6 +10,7 @@ import Dashboard from './components/Dashboard';
 import QuickView from './components/QuickView';
 import DeviceManager from './components/DeviceManager';
 import UserManager from './components/UserManager.jsx';
+import TenantManager from './components/TenantManager.jsx';
 import RoleManager from './components/RoleManager.jsx';
 import FieldCreator from './components/FieldCreator';
 import DeviceMapper from './components/DeviceMapper';
@@ -222,7 +223,14 @@ function App() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    let redirectUrl = null;
+    try {
+      const authService = new AuthService();
+      redirectUrl = await authService.logout();
+    } catch (e) {
+      console.error('Logout request failed:', e);
+    }
     if (socket) {
       socket.disconnect();
     }
@@ -230,6 +238,9 @@ function App() {
     setSocket(null);
     localStorage.removeItem('iot_token');
     localStorage.removeItem('iot_user');
+    if (redirectUrl) {
+      window.location.assign(redirectUrl);
+    }
   };
 
   const handleFontChange = (newFontType) => {
@@ -299,6 +310,7 @@ function App() {
                 <Route path="/quick-view" element={<QuickView />} />
                 <Route path="/devices" element={<DeviceManager />} />
                 <Route path="/users" element={<UserManager />} />
+                <Route path="/tenants" element={<TenantManager />} />
                 <Route path="/roles" element={<RoleManager />} />
                 <Route path="/field-creator" element={<FieldCreator />} />
                 <Route path="/mapper" element={<DeviceMapper />} />

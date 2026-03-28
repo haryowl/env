@@ -27,16 +27,20 @@ export class AuthService {
     try {
       const token = localStorage.getItem('iot_token');
       if (token) {
-        await fetch(`${API_BASE_URL}/auth/logout`, {
+        const response = await fetch(`${API_BASE_URL}/auth/logout`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
           },
         });
+        const data = await response.json().catch(() => ({}));
+        return data.redirectUrl || null;
       }
     } catch (error) {
       console.error('Logout error:', error);
     }
+    return null;
   }
 
   getToken() {
