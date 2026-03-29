@@ -4,6 +4,7 @@ const { getRow, getRows, query } = require('../config/database');
 const Joi = require('joi');
 const bcrypt = require('bcryptjs');
 const { ensureTenantsSchema } = require('../utils/ensureTenantsSchema');
+const { ensureUsersSchema } = require('../utils/ensureUsersSchema');
 const { validatePostLogoutRedirectUrl } = require('../utils/postLogoutRedirect');
 
 const router = express.Router();
@@ -11,8 +12,9 @@ const router = express.Router();
 router.use(async (req, res, next) => {
   try {
     await ensureTenantsSchema();
+    await ensureUsersSchema();
   } catch (e) {
-    console.error('ensureTenantsSchema (users):', e);
+    console.error('ensureTenantsSchema/ensureUsersSchema (users):', e);
     return res.status(500).json({
       error: 'Database initialization failed',
       code: 'DB_INIT_ERROR',
@@ -273,9 +275,24 @@ router.post('/', authorizeRole(['super_admin', 'admin']), async (req, res) => {
     });
   } catch (error) {
     console.error('Create user error:', error);
+    if (error.code === '23514') {
+      return res.status(400).json({
+        error:
+          'Database rejected this user row (often an old CHECK on users.role). Restart the server after deploy, or run: ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;',
+        code: 'USER_ROW_CHECK_FAILED',
+        pgCode: error.code,
+      });
+    }
+    if (error.code === '23505') {
+      return res.status(409).json({
+        error: 'Username or email already exists',
+        code: 'USER_EXISTS',
+      });
+    }
     res.status(500).json({
       error: 'Failed to create user',
-      code: 'CREATE_USER_ERROR'
+      code: 'CREATE_USER_ERROR',
+      details: error.message,
     });
   }
 });

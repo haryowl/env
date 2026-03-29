@@ -111,7 +111,14 @@ function UserManager() {
   };
 
   const handleOpenDialog = () => {
-    setForm({ username: '', email: '', password: '', role: 'viewer' });
+    setForm({
+      username: '',
+      email: '',
+      password: '',
+      role: 'viewer',
+      tenant_id: '',
+      post_logout_redirect_url: '',
+    });
     setFormError('');
     setFormSuccess('');
     setOpenDialog(true);
@@ -156,13 +163,29 @@ function UserManager() {
           setOpenDialog(false);
         }, 1000);
       } else {
-        const data = await res.json();
-        setFormError(data.error || 'Failed to create user');
+        let data = {};
+        try {
+          data = await res.json();
+        } catch {
+          setFormError(`Request failed (${res.status}). Check server logs.`);
+        }
+        if (data && Object.keys(data).length > 0) {
+          const joiHint = Array.isArray(data.details)
+            ? data.details.map((d) => d.message).join(' ')
+            : '';
+          const parts = [
+            joiHint,
+            data.error,
+            data.details && typeof data.details === 'string' ? data.details : null,
+          ].filter(Boolean);
+          setFormError(parts.join(' — ') || 'Failed to create user');
+        }
       }
     } catch (e) {
-      setFormError('Failed to create user');
+      setFormError(e.message || 'Failed to create user');
+    } finally {
+      setFormLoading(false);
     }
-    setFormLoading(false);
   };
 
   const handleOpenEditDialog = (user) => {
