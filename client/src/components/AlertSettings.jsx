@@ -47,7 +47,7 @@ export default function AlertSettings({ user }) {
   const [newEndpoint, setNewEndpoint] = useState({
     url: '',
     method: 'POST',
-    headers: {},
+    headersJson: '{}', // extra HTTP headers as JSON (e.g. Authorization for Wablas)
     alerts: [], // Which alerts this endpoint should receive
     body_template: '' // optional JSON; placeholders {{device}}, {{value}}, etc.
   });
@@ -263,6 +263,15 @@ export default function AlertSettings({ user }) {
       return;
     }
 
+    let headersObj = {};
+    try {
+      const raw = (newEndpoint.headersJson || '').trim();
+      if (raw) headersObj = JSON.parse(raw);
+    } catch {
+      setNotification({ open: true, message: 'HTTP headers must be valid JSON (object).', severity: 'warning' });
+      return;
+    }
+
     try {
       const token = localStorage.getItem('iot_token');
       const response = await fetch(`${API_BASE_URL}/alert-settings/http-endpoints`, {
@@ -271,12 +280,18 @@ export default function AlertSettings({ user }) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(newEndpoint)
+        body: JSON.stringify({
+          url: newEndpoint.url,
+          method: newEndpoint.method,
+          headers: headersObj,
+          alerts: newEndpoint.alerts,
+          body_template: newEndpoint.body_template
+        })
       });
 
       if (response.ok) {
         setNotification({ open: true, message: 'HTTP endpoint added successfully', severity: 'success' });
-        setNewEndpoint({ url: '', method: 'POST', headers: {}, alerts: [], body_template: '' });
+        setNewEndpoint({ url: '', method: 'POST', headersJson: '{}', alerts: [], body_template: '' });
         loadConfigurations();
       } else {
         setNotification({ open: true, message: 'Failed to add HTTP endpoint', severity: 'error' });
@@ -287,11 +302,16 @@ export default function AlertSettings({ user }) {
   };
 
   const openEditHttpEndpoint = (row) => {
+    let headersJson = '{}';
+    if (row.headers != null && typeof row.headers === 'object') {
+      headersJson = JSON.stringify(row.headers, null, 2);
+    }
     setEditingHttpEndpoint({
       id: row.id,
       url: row.url || '',
       method: row.method || 'POST',
       alerts: Array.isArray(row.alerts) ? row.alerts : [],
+      headersJson,
       body_template:
         row.body_template == null || row.body_template === ''
           ? ''
@@ -306,6 +326,16 @@ export default function AlertSettings({ user }) {
       setNotification({ open: true, message: 'URL is required', severity: 'warning' });
       return;
     }
+
+    let headersObj = {};
+    try {
+      const raw = (editingHttpEndpoint.headersJson || '').trim();
+      if (raw) headersObj = JSON.parse(raw);
+    } catch {
+      setNotification({ open: true, message: 'HTTP headers must be valid JSON (object).', severity: 'warning' });
+      return;
+    }
+
     try {
       const token = localStorage.getItem('iot_token');
       const response = await fetch(
@@ -320,6 +350,7 @@ export default function AlertSettings({ user }) {
             url: editingHttpEndpoint.url,
             method: editingHttpEndpoint.method,
             alerts: editingHttpEndpoint.alerts,
+            headers: headersObj,
             body_template: editingHttpEndpoint.body_template
           })
         }
@@ -805,6 +836,18 @@ export default function AlertSettings({ user }) {
                         </Select>
                       </FormControl>
                       <TextField
+                        label="HTTP headers (JSON, optional)"
+                        fullWidth
+                        multiline
+                        minRows={3}
+                        value={newEndpoint.headersJson}
+                        onChange={(e) => setNewEndpoint({ ...newEndpoint, headersJson: e.target.value })}
+                        placeholder={`{\n  "Authorization": "your-wablas-token-here"\n}`}
+                        helperText="Merged with Content-Type: application/json. Use for API keys (e.g. Wablas)."
+                        sx={{ mb: 1 }}
+                        InputProps={{ sx: { fontFamily: 'monospace', fontSize: '0.85rem' } }}
+                      />
+                      <TextField
                         label="Custom JSON body (optional)"
                         fullWidth
                         multiline
@@ -900,6 +943,19 @@ export default function AlertSettings({ user }) {
                     ))}
                   </Select>
                 </FormControl>
+                <TextField
+                  label="HTTP headers (JSON, optional)"
+                  fullWidth
+                  multiline
+                  minRows={3}
+                  value={editingHttpEndpoint.headersJson}
+                  onChange={(e) =>
+                    setEditingHttpEndpoint({ ...editingHttpEndpoint, headersJson: e.target.value })
+                  }
+                  helperText="Merged with Content-Type: application/json."
+                  sx={{ mb: 1 }}
+                  InputProps={{ sx: { fontFamily: 'monospace', fontSize: '0.85rem' } }}
+                />
                 <TextField
                   label="Custom JSON body (optional)"
                   fullWidth
