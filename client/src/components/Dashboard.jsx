@@ -12,6 +12,8 @@ import {
   ListItemIcon,
   CircularProgress,
   Alert,
+  Collapse,
+  IconButton,
 } from '@mui/material';
 import {
   Devices as DevicesIcon,
@@ -20,6 +22,9 @@ import {
   DataUsage as DataIcon,
   CheckCircle as CheckCircleIcon,
   Cancel as CancelIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
+  Map as MapIcon,
 } from '@mui/icons-material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Brush } from 'recharts';
 import { FormControl, InputLabel, Select, MenuItem, CardActions, Button, TextField, ToggleButton, ToggleButtonGroup } from '@mui/material';
@@ -82,6 +87,37 @@ const Dashboard = ({ socket }) => {
     { value: '6h', label: 'Last 6 hours' },
   ];
   const realtimeRangeHours = useMemo(() => ({ '2h': 2, '3h': 3, '6h': 6, '48h': 48 })[realtimeChartRange] ?? 48, [realtimeChartRange]);
+
+  const [paramOverviewOpen, setParamOverviewOpen] = useState(() => {
+    try {
+      return localStorage.getItem('dashboard_param_overview_open') !== '0';
+    } catch {
+      return true;
+    }
+  });
+  const [mapSectionOpen, setMapSectionOpen] = useState(() => {
+    try {
+      return localStorage.getItem('dashboard_map_open') !== '0';
+    } catch {
+      return true;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('dashboard_param_overview_open', paramOverviewOpen ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  }, [paramOverviewOpen]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('dashboard_map_open', mapSectionOpen ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  }, [mapSectionOpen]);
 
   // Normalize parameter name for matching (alert_logs may use spaces or underscores)
   const normalizeParamForAlert = (p) => (p || '').toString().toLowerCase().replace(/\s+/g, '_');
@@ -903,30 +939,67 @@ const Dashboard = ({ socket }) => {
       </Grid>
       )}
 
-      {/* Parameter Overview - visible to all users */}
-      <Box sx={{ mb: 2, mt: 3 }}>
+      {/* Parameter Overview - visible to all users; collapsible */}
+      <Box sx={{ mb: paramOverviewOpen ? 2 : 0, mt: 3 }}>
         <SectionHeader
           icon={<DataIcon sx={{ fontSize: 18 }} />}
           title="Parameter Overview"
           subtitle="Today vs yesterday average share (center shows current value)"
+          right={
+            <IconButton
+              size="small"
+              onClick={() => setParamOverviewOpen((v) => !v)}
+              aria-expanded={paramOverviewOpen}
+              aria-label={paramOverviewOpen ? 'Hide parameter overview' : 'Show parameter overview'}
+              edge="end"
+            >
+              {paramOverviewOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+            </IconButton>
+          }
         />
       </Box>
-      {realtimeParams.length > 0 ? (
-        <DashboardParameterDoughnuts
-          data={realtimeLatest}
-          realtimeParams={realtimeParams}
-          realtimeData={realtimeData}
-          deviceId={realtimeDevice}
-          formatDisplayName={formatDisplayName}
-        />
-      ) : (
-        <Alert severity="info" sx={{ mb: 2 }}>
-          No realtime parameters available. Please select a device with mapped parameters.
-        </Alert>
-      )}
+      <Collapse in={paramOverviewOpen}>
+        <Box>
+          {realtimeParams.length > 0 ? (
+            <DashboardParameterDoughnuts
+              data={realtimeLatest}
+              realtimeParams={realtimeParams}
+              realtimeData={realtimeData}
+              deviceId={realtimeDevice}
+              formatDisplayName={formatDisplayName}
+            />
+          ) : (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              No realtime parameters available. Please select a device with mapped parameters.
+            </Alert>
+          )}
+        </Box>
+      </Collapse>
 
-      {/* Device Map Section */}
-      <DashboardMap socket={socket} />
+      {/* Device Map Section — collapsible */}
+      <Box sx={{ mt: 3 }}>
+        <SectionHeader
+          icon={<MapIcon sx={{ fontSize: 18 }} />}
+          title="Device locations"
+          subtitle="Map view of devices with GPS coordinates"
+          right={
+            <IconButton
+              size="small"
+              onClick={() => setMapSectionOpen((v) => !v)}
+              aria-expanded={mapSectionOpen}
+              aria-label={mapSectionOpen ? 'Hide map' : 'Show map'}
+              edge="end"
+            >
+              {mapSectionOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+            </IconButton>
+          }
+        />
+      </Box>
+      <Collapse in={mapSectionOpen}>
+        <Box>
+          <DashboardMap socket={socket} cardSx={{ mt: 0, mb: 2 }} />
+        </Box>
+      </Collapse>
 
       {/* Realtime Data View Section - Site Location style header */}
       <Card sx={{ 

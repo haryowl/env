@@ -328,7 +328,7 @@ const isLatestDataOutOfRange = (latestData, thresholds) => {
   return false;
 };
 
-const DashboardMap = ({ socket }) => {
+const DashboardMap = ({ socket, cardSx = {} }) => {
   const theme = useTheme();
   const { formatDisplayName } = useFieldMetadata();
   const [devices, setDevices] = useState([]);
@@ -489,7 +489,7 @@ const DashboardMap = ({ socket }) => {
 
   if (loading) {
     return (
-      <Card sx={{ mt: 3, mb: 3, borderRadius: 1, ...CHART_CARD_SX }}>
+      <Card sx={{ mt: 3, mb: 3, borderRadius: 1, ...CHART_CARD_SX, ...cardSx }}>
         <CardContent>
           <Box display="flex" justifyContent="center" alignItems="center" minHeight={400}>
             <CircularProgress />
@@ -506,7 +506,8 @@ const DashboardMap = ({ socket }) => {
       borderRadius: 1,
       ...CHART_CARD_SX,
       boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)',
-      overflow: 'hidden'
+      overflow: 'hidden',
+      ...cardSx,
     }}>
       <CardContent sx={{ p: 0 }}>
         <Box sx={{ p: 3 }}>
