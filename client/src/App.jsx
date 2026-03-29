@@ -34,6 +34,7 @@ import CompanySite from './components/CompanySite';
 import SensorManagement from './components/SensorManagement';
 import Maintenance from './components/Maintenance';
 import TechnicianDashboard from './components/TechnicianDashboard';
+import SystemInfo from './components/SystemInfo';
 import ErrorBoundary from './components/ErrorBoundary';
 
 // Services
@@ -332,6 +333,7 @@ function App() {
                 <Route path="/sensor-management" element={<SensorManagement />} />
                 <Route path="/maintenance" element={<Maintenance />} />
                 <Route path="/technician" element={<TechnicianDashboard />} />
+                <Route path="/system-info" element={<SystemInfo />} />
                 <Route path="/settings" element={<Settings user={user} onFontChange={handleFontChange} />} />
               </Routes>
             </Layout>

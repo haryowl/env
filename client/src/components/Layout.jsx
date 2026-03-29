@@ -52,6 +52,7 @@ import {
   Assignment as AssignmentIcon,
   DonutLarge as DonutLargeIcon,
   Domain as DomainIcon,
+  Memory as MemoryIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation, NavLink } from 'react-router-dom';
 import { usePermissions } from '../hooks/usePermissions.jsx';
@@ -220,6 +221,7 @@ const Layout = ({ children, user, userContext, onLogout }) => {
         { text: 'Alert Settings', icon: <SettingsIcon />, path: '/alert-settings', menuPath: '/alert-settings' },
         { text: 'Notification Config', icon: <NotificationsIcon />, path: '/notification-config', menuPath: '/notification-config' },
         { text: 'Scheduled Exports', icon: <ScheduleSendIcon />, path: '/scheduled-exports', menuPath: '/scheduled-exports' },
+        { text: 'System Information', icon: <MemoryIcon />, path: '/system-info', menuPath: '/system-info' },
         { text: 'Settings', icon: <SettingsIcon />, path: '/settings', menuPath: '/settings' },
       ]
     }

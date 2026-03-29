@@ -29,7 +29,8 @@ const getMenuName = (menuPath) => {
     '/sensor-management': 'Sensor Management',
     '/maintenance': 'Maintenance',
     '/technician': 'Technician Dashboard',
-    '/settings': 'Settings'
+    '/settings': 'Settings',
+    '/system-info': 'System Information'
   };
   return menuMap[menuPath] || menuPath;
 };
@@ -128,7 +129,8 @@ router.get('/templates', authorizeRole(['super_admin', 'admin']), async (req, re
           '/alert-settings': { access: true, read: true, create: true, update: true, delete: true },
           '/notification-config': { access: true, read: true, create: true, update: true, delete: true },
           '/scheduled-exports': { access: true, read: true, create: true, update: true, delete: true },
-          '/settings': { access: true, read: true, create: true, update: true, delete: true }
+          '/settings': { access: true, read: true, create: true, update: true, delete: true },
+          '/system-info': { access: true, read: true, create: true, update: true, delete: true }
         },
         device_permissions: {
           read: true,
@@ -167,7 +169,8 @@ router.get('/templates', authorizeRole(['super_admin', 'admin']), async (req, re
           '/company-site': { access: true, read: true, create: true, update: true, delete: true },
           '/sensor-management': { access: true, read: true, create: true, update: true, delete: true },
           '/maintenance': { access: true, read: true, create: true, update: true, delete: true },
-          '/settings': { access: true, read: false, create: false, update: true, delete: false }
+          '/settings': { access: true, read: false, create: false, update: true, delete: false },
+          '/system-info': { access: true, read: true, create: false, update: false, delete: false }
         },
         device_permissions: {
           read: true,
@@ -201,7 +204,8 @@ router.get('/templates', authorizeRole(['super_admin', 'admin']), async (req, re
           '/alerts': { access: true, read: true, create: false, update: false, delete: false },
           '/alert-settings': { access: true, read: true, create: false, update: false, delete: false },
           '/notification-config': { access: true, read: true, create: false, update: false, delete: false },
-          '/settings': { access: false, read: false, create: false, update: false, delete: false }
+          '/settings': { access: false, read: false, create: false, update: false, delete: false },
+          '/system-info': { access: false, read: false, create: false, update: false, delete: false }
         },
         device_permissions: {
           read: true,
@@ -235,7 +239,8 @@ router.get('/templates', authorizeRole(['super_admin', 'admin']), async (req, re
           '/alerts': { access: true, read: true, create: false, update: false, delete: false },
           '/alert-settings': { access: true, read: true, create: false, update: false, delete: false },
           '/notification-config': { access: false, read: false, create: false, update: false, delete: false },
-          '/settings': { access: false, read: false, create: false, update: false, delete: false }
+          '/settings': { access: false, read: false, create: false, update: false, delete: false },
+          '/system-info': { access: false, read: false, create: false, update: false, delete: false }
         },
         device_permissions: {
           read: true,
@@ -269,7 +274,8 @@ router.get('/templates', authorizeRole(['super_admin', 'admin']), async (req, re
           '/alerts': { access: true, read: true, create: false, update: false, delete: false },
           '/alert-settings': { access: true, read: true, create: false, update: false, delete: false },
           '/notification-config': { access: true, read: true, create: false, update: false, delete: false },
-          '/settings': { access: false, read: false, create: false, update: false, delete: false }
+          '/settings': { access: false, read: false, create: false, update: false, delete: false },
+          '/system-info': { access: false, read: false, create: false, update: false, delete: false }
         },
         device_permissions: {
           read: true,
@@ -331,7 +337,8 @@ router.post('/from-template', authorizeRole(['super_admin']), async (req, res) =
           '/alert-settings': { access: true, read: true, create: true, update: true, delete: true },
           '/notification-config': { access: true, read: true, create: true, update: true, delete: true },
           '/scheduled-exports': { access: true, read: true, create: true, update: true, delete: true },
-          '/settings': { access: true, read: true, create: true, update: true, delete: true }
+          '/settings': { access: true, read: true, create: true, update: true, delete: true },
+          '/system-info': { access: true, read: true, create: true, update: true, delete: true }
         },
         device_permissions: {
           read: true,
@@ -370,7 +377,8 @@ router.post('/from-template', authorizeRole(['super_admin']), async (req, res) =
           '/company-site': { access: true, read: true, create: true, update: true, delete: true },
           '/sensor-management': { access: true, read: true, create: true, update: true, delete: true },
           '/maintenance': { access: true, read: true, create: true, update: true, delete: true },
-          '/settings': { access: true, read: false, create: false, update: true, delete: false }
+          '/settings': { access: true, read: false, create: false, update: true, delete: false },
+          '/system-info': { access: true, read: true, create: false, update: false, delete: false }
         },
         device_permissions: {
           read: true,
@@ -404,7 +412,8 @@ router.post('/from-template', authorizeRole(['super_admin']), async (req, res) =
           '/alerts': { access: true, read: true, create: false, update: false, delete: false },
           '/alert-settings': { access: true, read: true, create: false, update: false, delete: false },
           '/notification-config': { access: true, read: true, create: false, update: false, delete: false },
-          '/settings': { access: false, read: false, create: false, update: false, delete: false }
+          '/settings': { access: false, read: false, create: false, update: false, delete: false },
+          '/system-info': { access: false, read: false, create: false, update: false, delete: false }
         },
         device_permissions: {
           read: true,
@@ -438,7 +447,8 @@ router.post('/from-template', authorizeRole(['super_admin']), async (req, res) =
           '/alerts': { access: true, read: true, create: false, update: false, delete: false },
           '/alert-settings': { access: true, read: true, create: false, update: false, delete: false },
           '/notification-config': { access: false, read: false, create: false, update: false, delete: false },
-          '/settings': { access: false, read: false, create: false, update: false, delete: false }
+          '/settings': { access: false, read: false, create: false, update: false, delete: false },
+          '/system-info': { access: false, read: false, create: false, update: false, delete: false }
         },
         device_permissions: {
           read: true,
@@ -472,7 +482,8 @@ router.post('/from-template', authorizeRole(['super_admin']), async (req, res) =
           '/alerts': { access: true, read: true, create: false, update: false, delete: false },
           '/alert-settings': { access: true, read: true, create: false, update: false, delete: false },
           '/notification-config': { access: true, read: true, create: false, update: false, delete: false },
-          '/settings': { access: false, read: false, create: false, update: false, delete: false }
+          '/settings': { access: false, read: false, create: false, update: false, delete: false },
+          '/system-info': { access: false, read: false, create: false, update: false, delete: false }
         },
         device_permissions: {
           read: true,
@@ -1387,6 +1398,12 @@ router.get('/menus/available', authorizeRole(['super_admin', 'admin']), async (r
         path: '/settings',
         name: 'Settings',
         description: 'System settings and preferences',
+        category: 'System'
+      },
+      {
+        path: '/system-info',
+        name: 'System Information',
+        description: 'Server OS, CPU, memory, disk, and process metrics',
         category: 'System'
       }
     ];

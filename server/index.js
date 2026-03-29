@@ -68,6 +68,7 @@ const sensorSitesRoutes = require('./routes/sensorSites');
 const maintenanceRoutes = require('./routes/maintenance');
 const technicianRoutes = require('./routes/technician');
 const deviceDataRoutes = require('./routes/deviceData');
+const systemInfoRoutes = require('./routes/systemInfo');
 
 const app = express();
 const server = http.createServer(app);
@@ -217,6 +218,8 @@ app.use('/api/maintenance', authenticateToken, filterDataByRole, maintenanceRout
 console.log('✓ /api/maintenance route registered');
 app.use('/api/technician', authenticateToken, technicianRoutes);
 console.log('✓ /api/technician route registered');
+app.use('/api/system-info', authenticateToken, filterDataByRole, systemInfoRoutes);
+console.log('✓ /api/system-info route registered');
 console.log('All API routes registered successfully');
 
 // Serve the main application - React SPA if built, else simple public page

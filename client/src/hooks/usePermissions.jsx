@@ -117,7 +117,8 @@ export const PermissionProvider = ({ children }) => {
       '/alerts': { access: false, read: false, create: false, update: false, delete: false },
       '/alert-settings': { access: false, read: false, create: false, update: false, delete: false },
       '/notification-config': { access: false, read: false, create: false, update: false, delete: false },
-      '/settings': { access: false, read: false, create: false, update: false, delete: false }
+      '/settings': { access: false, read: false, create: false, update: false, delete: false },
+      '/system-info': { access: false, read: false, create: false, update: false, delete: false }
     };
 
     // Dynamic role-based permissions - no more hardcoded switches!
@@ -145,7 +146,8 @@ export const PermissionProvider = ({ children }) => {
         '/sensor-management': { access: true, read: true, create: true, update: true, delete: true },
         '/maintenance': { access: true, read: true, create: true, update: true, delete: true },
         '/technician': { access: true, read: true, create: true, update: true, delete: true },
-        '/settings': { access: true, read: true, create: true, update: true, delete: true }
+        '/settings': { access: true, read: true, create: true, update: true, delete: true },
+        '/system-info': { access: true, read: true, create: true, update: true, delete: true }
       },
       'admin': {
         // Admin access - can manage most things but not roles
@@ -170,7 +172,8 @@ export const PermissionProvider = ({ children }) => {
         '/sensor-management': { access: true, read: true, create: true, update: true, delete: true },
         '/maintenance': { access: true, read: true, create: true, update: true, delete: true },
         '/technician': { access: true, read: true, create: true, update: true, delete: true },
-        '/settings': { access: true, read: false, create: false, update: true, delete: false }
+        '/settings': { access: true, read: false, create: false, update: true, delete: false },
+        '/system-info': { access: true, read: true, create: false, update: false, delete: false }
       },
       'demo': {
         // Demo access - limited but functional
