@@ -833,7 +833,10 @@ export default function DataDash() {
   return (
     <Box sx={{ 
       fontFamily: 'Inter, sans-serif', 
-      background: 'linear-gradient(135deg, #f8fafc 0%, #ffffff 100%)', 
+      bgcolor: 'background.default',
+      backgroundImage: theme.palette.mode === 'light'
+        ? 'linear-gradient(135deg, rgba(248,250,252,1) 0%, rgba(255,255,255,1) 100%)'
+        : 'none',
       minHeight: '100vh', 
       p: { xs: 2, md: 4 }
     }}>
@@ -964,7 +967,10 @@ export default function DataDash() {
                     justifyContent: 'center', 
                     alignItems: 'center', 
                     minHeight: 300,
-                    background: 'linear-gradient(135deg, #f8fafc 0%, #ffffff 100%)',
+                    bgcolor: 'background.paper',
+                    backgroundImage: theme.palette.mode === 'light'
+                      ? 'linear-gradient(135deg, rgba(248,250,252,1) 0%, rgba(255,255,255,1) 100%)'
+                      : 'none',
                     borderRadius: 1.5,
                     border: '2px dashed rgba(107, 70, 193, 0.2)'
                   }}>
@@ -1004,7 +1010,7 @@ export default function DataDash() {
                         }
                       },
                       '& .MuiDataGrid-columnHeaders': { 
-                        backgroundColor: 'linear-gradient(135deg, #f8fafc 0%, #ffffff 100%)',
+                        bgcolor: 'background.paper',
                         fontWeight: 700, 
                         fontSize: '0.9rem',
                         borderBottom: '2px solid rgba(107, 70, 193, 0.1)',
@@ -1020,7 +1026,7 @@ export default function DataDash() {
                         color: theme.palette.text.primary
                       },
                       '& .MuiDataGrid-footerContainer': { 
-                        backgroundColor: 'rgba(248, 250, 252, 0.8)',
+                        bgcolor: 'background.paper',
                         borderTop: '2px solid rgba(107, 70, 193, 0.1)'
                       },
                       '& .MuiTablePagination-root': {
@@ -1043,7 +1049,10 @@ export default function DataDash() {
                     justifyContent: 'center', 
                     alignItems: 'center', 
                     minHeight: 400,
-                    background: 'linear-gradient(135deg, #f8fafc 0%, #ffffff 100%)',
+                    bgcolor: 'background.paper',
+                    backgroundImage: theme.palette.mode === 'light'
+                      ? 'linear-gradient(135deg, rgba(248,250,252,1) 0%, rgba(255,255,255,1) 100%)'
+                      : 'none',
                     borderRadius: 1.5,
                     border: '2px dashed rgba(107, 70, 193, 0.2)'
                   }}>

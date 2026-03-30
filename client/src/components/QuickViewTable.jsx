@@ -191,14 +191,18 @@ const QuickViewTable = ({ data, parameters, deviceName, alertConfigs = [], getEx
       display: 'flex', 
       flexDirection: 'column',
       borderRadius: '4px',
-      background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-      border: '1px solid rgba(107, 70, 193, 0.1)',
+      bgcolor: theme.palette.background.paper,
+      backgroundImage: theme.palette.mode === 'light'
+        ? 'linear-gradient(135deg, rgba(255,255,255,1) 0%, rgba(248,250,252,1) 100%)'
+        : 'none',
+      border: '1px solid',
+      borderColor: 'divider',
       boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)',
       transition: 'all 0.3s ease-in-out',
       '&:hover': {
         transform: 'translateY(-4px)',
         boxShadow: '0 12px 40px rgba(107, 70, 193, 0.15)',
-        border: '1px solid rgba(107, 70, 193, 0.2)'
+        borderColor: theme.palette.mode === 'light' ? 'rgba(107, 70, 193, 0.2)' : 'divider',
       }
     }}>
       <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', p: 3 }}>
@@ -218,17 +222,18 @@ const QuickViewTable = ({ data, parameters, deviceName, alertConfigs = [], getEx
                     MenuProps={{
                       PaperProps: {
                         sx: {
-                          backgroundColor: '#ffffff !important',
-                          color: '#1f2937 !important',
-                          border: '2px solid rgba(107, 70, 193, 0.2)',
+                          bgcolor: theme.palette.background.paper,
+                          color: theme.palette.text.primary,
+                          border: '1px solid',
+                          borderColor: 'divider',
                           borderRadius: '4px',
                           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
                           '& .MuiMenuItem-root': {
-                            backgroundColor: '#ffffff !important',
-                            color: '#1f2937 !important',
+                            bgcolor: 'transparent',
+                            color: theme.palette.text.primary,
                             fontWeight: 500,
                             '&:hover': {
-                              backgroundColor: 'rgba(107, 70, 193, 0.1) !important'
+                              bgcolor: 'action.hover',
                             }
                           }
                         }
@@ -238,10 +243,9 @@ const QuickViewTable = ({ data, parameters, deviceName, alertConfigs = [], getEx
                 <MenuItem 
                   value={10}
                   sx={{
-                    color: '#1f2937 !important',
                     fontWeight: 500,
                     '&:hover': {
-                      backgroundColor: 'rgba(107, 70, 193, 0.1) !important'
+                      bgcolor: 'action.hover',
                     }
                   }}
                 >
@@ -250,10 +254,9 @@ const QuickViewTable = ({ data, parameters, deviceName, alertConfigs = [], getEx
                 <MenuItem 
                   value={25}
                   sx={{
-                    color: '#1f2937 !important',
                     fontWeight: 500,
                     '&:hover': {
-                      backgroundColor: 'rgba(107, 70, 193, 0.1) !important'
+                      bgcolor: 'action.hover',
                     }
                   }}
                 >
@@ -262,10 +265,9 @@ const QuickViewTable = ({ data, parameters, deviceName, alertConfigs = [], getEx
                 <MenuItem 
                   value={50}
                   sx={{
-                    color: '#1f2937 !important',
                     fontWeight: 500,
                     '&:hover': {
-                      backgroundColor: 'rgba(107, 70, 193, 0.1) !important'
+                      bgcolor: 'action.hover',
                     }
                   }}
                 >
@@ -274,10 +276,9 @@ const QuickViewTable = ({ data, parameters, deviceName, alertConfigs = [], getEx
                 <MenuItem 
                   value={100}
                   sx={{
-                    color: '#1f2937 !important',
                     fontWeight: 500,
                     '&:hover': {
-                      backgroundColor: 'rgba(107, 70, 193, 0.1) !important'
+                      bgcolor: 'action.hover',
                     }
                   }}
                 >
