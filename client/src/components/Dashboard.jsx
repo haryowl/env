@@ -34,7 +34,7 @@ import moment from 'moment-timezone';
 import { min as d3min, max as d3max } from 'd3-array';
 
 import { API_BASE_URL } from '../config/api';
-import { CHART_COLORS, CARTESIAN_GRID_PROPS, AXIS_TICK_STYLE, CHART_MARGIN, TOOLTIP_CONTENT_STYLE, LEGEND_WRAPPER_STYLE, getChartCardSx } from '../utils/chartStyles';
+import { CHART_COLORS, CARTESIAN_GRID_PROPS, AXIS_TICK_STYLE, CHART_MARGIN, getTooltipContentStyle, LEGEND_WRAPPER_STYLE, getChartCardSx } from '../utils/chartStyles';
 import DashboardMap from './DashboardMap';
 import KPICards from './KPICards';
 import DynamicParameterCards from './DynamicParameterCards';
@@ -252,13 +252,13 @@ const Dashboard = ({ socket }) => {
     return (
       <Box
         sx={{
-          ...TOOLTIP_CONTENT_STYLE,
-          padding: 1.25,
+          ...getTooltipContentStyle(theme),
+          p: 1.25,
           borderRadius: 1.5,
           minWidth: 260,
         }}
       >
-        <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', mb: 0.75 }}>
+        <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', mb: 0.75, color: 'text.primary' }}>
           {formatInUserTimezone(label)}
         </Typography>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
@@ -274,11 +274,11 @@ const Dashboard = ({ socket }) => {
             >
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
                 <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: r.color, flexShrink: 0 }} />
-                <Typography sx={{ fontSize: '0.82rem', fontWeight: 650, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <Typography sx={{ fontSize: '0.82rem', fontWeight: 650, color: 'text.primary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {r.label}
                 </Typography>
               </Box>
-              <Typography sx={{ fontSize: '0.82rem', fontWeight: 800, flexShrink: 0 }}>
+              <Typography sx={{ fontSize: '0.82rem', fontWeight: 800, flexShrink: 0, color: 'text.primary' }}>
                 {r.valueText}
               </Typography>
             </Box>
@@ -291,7 +291,7 @@ const Dashboard = ({ socket }) => {
         )}
       </Box>
     );
-  }, [getTooltipRows, activeRealtimeParam, formatDisplayName]);
+  }, [getTooltipRows, activeRealtimeParam, formatDisplayName, theme]);
 
   const colorPalette = CHART_COLORS;
 
