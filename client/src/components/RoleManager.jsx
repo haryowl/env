@@ -50,6 +50,7 @@ const RoleManager = () => {
   const { canAccessMenu, canCreate, canUpdate, canDelete } = usePermissions();
   const [roles, setRoles] = useState([]);
   const [templates, setTemplates] = useState([]);
+  const [availableMenus, setAvailableMenus] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [openDialog, setOpenDialog] = useState(false);
@@ -85,7 +86,43 @@ const RoleManager = () => {
     fetchRoles();
     fetchTemplates();
     fetchDevices();
+    fetchAvailableMenus();
   }, []);
+
+  const buildDefaultMenuPermissions = (menus) => {
+    const out = {};
+    (menus || []).forEach((m) => {
+      if (!m?.path) return;
+      out[m.path] = { access: false, read: false, create: false, update: false, delete: false };
+    });
+    return out;
+  };
+
+  const mergeMenuPermissions = (base, override) => {
+    const out = { ...(base || {}) };
+    Object.entries(override || {}).forEach(([path, perms]) => {
+      out[path] = { ...(out[path] || {}), ...(perms || {}) };
+    });
+    return out;
+  };
+
+  const fetchAvailableMenus = async () => {
+    try {
+      const token = localStorage.getItem('iot_token');
+      const res = await fetch(`${API_BASE_URL}/roles/menus/available`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAvailableMenus(data.menus || []);
+      }
+    } catch (e) {
+      console.warn('Available menus not loaded:', e);
+    }
+  };
 
   const fetchRoles = async () => {
     try {
@@ -267,9 +304,11 @@ const RoleManager = () => {
           description: data.role.description || ''
         });
         
-        // Populate edit permissions with role permissions
+        // Populate edit permissions; ensure ALL menus are present so options like Scheduled Exports appear
+        const defaultMenus = buildDefaultMenuPermissions(availableMenus);
+        const mergedMenus = mergeMenuPermissions(defaultMenus, data.role.menu_permissions || {});
         setEditPermissions({
-          menu_permissions: data.role.menu_permissions || {},
+          menu_permissions: mergedMenus,
           device_permissions: data.role.device_permissions || {}
         });
         setEditSpecificDevicePermissions(data.role.specific_device_permissions ? { ...data.role.specific_device_permissions } : {});
@@ -293,7 +332,7 @@ const RoleManager = () => {
       template_name: ''
     });
     setPermissions({
-      menu_permissions: {},
+      menu_permissions: buildDefaultMenuPermissions(availableMenus),
       device_permissions: {}
     });
     setSelectedDevices([]);
