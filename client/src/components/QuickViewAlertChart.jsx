@@ -40,7 +40,7 @@ import {
 } from '@mui/icons-material';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
-import { CHART_CARD_SX, CHART_MARGIN, CARTESIAN_GRID_PROPS, AXIS_TICK_STYLE, TOOLTIP_CONTENT_STYLE } from '../utils/chartStyles';
+import { getChartCardSx, CHART_MARGIN, getCartesianGridProps, getAxisTickStyle, getTooltipContentStyle } from '../utils/chartStyles';
 import SectionHeader from './SectionHeader';
 
 const QuickViewAlertChart = ({ alertData, deviceName }) => {
@@ -161,7 +161,7 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
       const severityColors = getSeverityColors(data.severity);
       
       return (
-        <Box sx={{ ...TOOLTIP_CONTENT_STYLE, border: `1px solid ${severityColors.border}`, p: 2 }}>
+        <Box sx={{ ...getTooltipContentStyle(theme), border: `1px solid ${severityColors.border}`, p: 2 }}>
           <Typography variant="body2" sx={{ 
             fontWeight: 600, 
             color: theme.palette.text.primary,
@@ -292,7 +292,7 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
   }, [normalizedAlerts]);
 
   return (
-    <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 500, ...CHART_CARD_SX, transition: 'all 0.2s ease', '&:hover': { boxShadow: '0 4px 20px rgba(0,0,0,0.08)' } }}>
+    <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 500, ...getChartCardSx(theme), transition: 'all 0.2s ease', '&:hover': { boxShadow: '0 4px 20px rgba(0,0,0,0.08)' } }}>
       <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: '100%', p: 3 }}>
         <Box sx={{ mb: 2 }}>
           <SectionHeader
@@ -524,14 +524,14 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
         {/* Modern Chart */}
         <Box sx={{ 
           flexGrow: 1, 
-          minHeight: 300, height: '400px', width: '100%', p: 2, position: 'relative', overflow: 'hidden', ...CHART_CARD_SX
+          minHeight: 300, height: '400px', width: '100%', p: 2, position: 'relative', overflow: 'hidden', ...getChartCardSx(theme)
         }}>
           {timelineData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={timelineData} margin={{ ...CHART_MARGIN, bottom: 56 }}>
-                <CartesianGrid {...CARTESIAN_GRID_PROPS} />
-                <XAxis dataKey="hour" stroke="rgba(0,0,0,0.2)" tick={AXIS_TICK_STYLE} angle={-45} textAnchor="end" height={56} />
-                <YAxis stroke="rgba(0,0,0,0.2)" tick={AXIS_TICK_STYLE} />
+                <CartesianGrid {...getCartesianGridProps(theme)} />
+                <XAxis dataKey="hour" stroke={theme.palette.divider} tick={getAxisTickStyle(theme)} angle={-45} textAnchor="end" height={56} />
+                <YAxis stroke={theme.palette.divider} tick={getAxisTickStyle(theme)} />
                 <RechartsTooltip content={<CustomTooltip />} />
                 
                 <Bar

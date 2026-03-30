@@ -75,13 +75,55 @@ export const LEGEND_WRAPPER_STYLE = {
   fontFamily: '"Inter", "Roboto", sans-serif',
 };
 
-// Card-style container for chart (sx object)
-export const CHART_CARD_SX = {
-  borderRadius: 1,
-  border: '1px solid rgba(0, 0, 0, 0.06)',
-  background: 'linear-gradient(180deg, #ffffff 0%, #F8FAFC 100%)',
-  p: 1,
-};
+/**
+ * Theme-aware card shell for charts, filter panels, and data sections.
+ * In dark mode uses paper (no white gradient) so nested inputs stay readable.
+ */
+export function getChartCardSx(theme) {
+  const isLight = theme.palette.mode === 'light';
+  return {
+    borderRadius: 1,
+    border: `1px solid ${theme.palette.divider}`,
+    background: isLight
+      ? 'linear-gradient(180deg, #ffffff 0%, #F8FAFC 100%)'
+      : theme.palette.background.paper,
+    p: 1,
+  };
+}
+
+/** Recharts grid lines – visible on dark and light backgrounds */
+export function getCartesianGridProps(theme) {
+  const isDark = theme.palette.mode === 'dark';
+  return {
+    strokeDasharray: '3 3',
+    stroke: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.06)',
+    vertical: true,
+    horizontal: true,
+  };
+}
+
+/** Axis tick fill for Recharts */
+export function getAxisTickStyle(theme) {
+  return {
+    fontSize: 11,
+    fontFamily: '"Inter", "Roboto", sans-serif',
+    fill: theme.palette.text.secondary,
+  };
+}
+
+/** Recharts default tooltip contentStyle */
+export function getTooltipContentStyle(theme) {
+  return {
+    fontFamily: '"Inter", "Roboto", sans-serif',
+    fontSize: 12,
+    borderRadius: 4,
+    border: `1px solid ${theme.palette.divider}`,
+    boxShadow: theme.palette.mode === 'dark' ? '0 4px 20px rgba(0, 0, 0, 0.45)' : '0 4px 20px rgba(0, 0, 0, 0.1)',
+    padding: '10px 14px',
+    backgroundColor: theme.palette.background.paper,
+    color: theme.palette.text.primary,
+  };
+}
 
 // Section header gradient (sx) – primary blue/teal, minimal margin
 export const SECTION_HEADER_SX = {

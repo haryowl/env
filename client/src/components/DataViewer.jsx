@@ -23,6 +23,7 @@ import {
   Paper,
   Tabs,
   Tab,
+  useTheme,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
@@ -48,9 +49,10 @@ import {
 import { API_BASE_URL } from '../config/api';
 import moment from 'moment-timezone';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
-import { CHART_CARD_SX, CHART_MARGIN, CARTESIAN_GRID_PROPS, AXIS_TICK_STYLE, CHART_COLORS } from '../utils/chartStyles';
+import { getChartCardSx, CHART_MARGIN, CARTESIAN_GRID_PROPS, AXIS_TICK_STYLE, CHART_COLORS } from '../utils/chartStyles';
 
 const DataViewer = () => {
+  const theme = useTheme();
   const [devices, setDevices] = useState([]);
   const [selectedDevice, setSelectedDevice] = useState('');
   const [timeRange, setTimeRange] = useState('24h');
@@ -186,7 +188,7 @@ const DataViewer = () => {
     return (
       <Grid container spacing={3}>
         <Grid size={{ xs: 12 }}>
-          <Card sx={CHART_CARD_SX}>
+          <Card sx={getChartCardSx(theme)}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
                 Sensor Data Over Time
@@ -215,7 +217,7 @@ const DataViewer = () => {
         </Grid>
 
         <Grid size={{ xs: 12, md: 6 }}>
-          <Card sx={CHART_CARD_SX}>
+          <Card sx={getChartCardSx(theme)}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
                 Latest Values
@@ -241,7 +243,7 @@ const DataViewer = () => {
         </Grid>
 
         <Grid size={{ xs: 12, md: 6 }}>
-          <Card sx={CHART_CARD_SX}>
+          <Card sx={getChartCardSx(theme)}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
                 Data Distribution
@@ -276,7 +278,7 @@ const DataViewer = () => {
 
   const renderDataTable = () => {
     return (
-      <Card sx={CHART_CARD_SX}>
+      <Card sx={getChartCardSx(theme)}>
         <CardContent>
           <Typography variant="h6" gutterBottom>
             Raw Data
@@ -348,7 +350,7 @@ const DataViewer = () => {
         </Alert>
       )}
 
-      <Card sx={{ mb: 3, borderRadius: 1, ...CHART_CARD_SX }}>
+      <Card sx={{ mb: 3, borderRadius: 1, ...getChartCardSx(theme) }}>
         <CardContent sx={{ p: 1.5 }}>
           <Grid container spacing={2} alignItems="center">
             <Grid size={{ xs: 12, sm: 4 }}>
@@ -443,7 +445,7 @@ const DataViewer = () => {
       )}
 
       {!selectedDevice && (
-        <Card sx={CHART_CARD_SX}>
+        <Card sx={getChartCardSx(theme)}>
           <CardContent>
             <Box textAlign="center" py={4}>
               <ShowChartIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />

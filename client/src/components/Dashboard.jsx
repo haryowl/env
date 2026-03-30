@@ -34,7 +34,7 @@ import moment from 'moment-timezone';
 import { min as d3min, max as d3max } from 'd3-array';
 
 import { API_BASE_URL } from '../config/api';
-import { CHART_COLORS, CARTESIAN_GRID_PROPS, AXIS_TICK_STYLE, CHART_MARGIN, TOOLTIP_CONTENT_STYLE, LEGEND_WRAPPER_STYLE, CHART_CARD_SX } from '../utils/chartStyles';
+import { CHART_COLORS, CARTESIAN_GRID_PROPS, AXIS_TICK_STYLE, CHART_MARGIN, TOOLTIP_CONTENT_STYLE, LEGEND_WRAPPER_STYLE, getChartCardSx } from '../utils/chartStyles';
 import DashboardMap from './DashboardMap';
 import KPICards from './KPICards';
 import DynamicParameterCards from './DynamicParameterCards';
@@ -1254,7 +1254,7 @@ const Dashboard = ({ socket }) => {
                 </Box>
 
                 {/* Chart */}
-                <Box sx={{ height: 420, ...CHART_CARD_SX }}>
+                <Box sx={{ height: 420, ...getChartCardSx(theme) }}>
                   <ResponsiveContainer key={`responsive-${visibleParams.join('-')}-${realtimeDevice}`} width="100%" height="100%">
                     <LineChart data={chartDataWithAlerts} margin={CHART_MARGIN}>
                       <CartesianGrid {...CARTESIAN_GRID_PROPS} />

@@ -15,6 +15,7 @@ import {
   ToggleButtonGroup,
   Stack,
   Chip,
+  useTheme,
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import {
@@ -27,7 +28,7 @@ import {
 } from 'recharts';
 import moment from 'moment-timezone';
 import { API_BASE_URL } from '../config/api';
-import { CHART_CARD_SX } from '../utils/chartStyles';
+import { getChartCardSx } from '../utils/chartStyles';
 
 const getUserTimezone = () => localStorage.getItem('iot_timezone') || moment.tz.guess() || 'UTC';
 
@@ -87,6 +88,7 @@ function aggregateDays(rows, param, tz) {
 }
 
 export default function ComparisonDoughnutDashboard() {
+  const theme = useTheme();
   const [devices, setDevices] = useState([]);
   const [deviceId, setDeviceId] = useState('');
   const [paramList, setParamList] = useState([]);
@@ -333,7 +335,7 @@ export default function ComparisonDoughnutDashboard() {
         show day-over-day % change below.
       </Typography>
 
-      <Card sx={{ ...CHART_CARD_SX, mb: 2 }}>
+      <Card sx={{ ...getChartCardSx(theme), mb: 2 }}>
         <CardContent>
           <Stack spacing={2}>
             <FormControl fullWidth size="small">
@@ -443,7 +445,7 @@ export default function ComparisonDoughnutDashboard() {
       )}
 
       {chartData.length === 2 && (
-        <Card sx={CHART_CARD_SX}>
+        <Card sx={getChartCardSx(theme)}>
           <CardContent>
             <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
               Doughnut (share of total)

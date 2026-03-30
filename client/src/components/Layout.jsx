@@ -494,10 +494,11 @@ const Layout = ({ children, user, userContext, onLogout }) => {
             easing: theme.transitions.easing.sharp,
             duration: theme.transitions.duration.leavingScreen,
           }),
-          backgroundColor: 'white',
+          backgroundColor: theme.palette.background.paper,
           color: 'text.primary',
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06)',
-          borderBottom: '1px solid rgba(0, 0, 0, 0.06)',
+          boxShadow: theme.palette.mode === 'dark' ? '0 1px 3px rgba(0, 0, 0, 0.35)' : '0 1px 3px rgba(0, 0, 0, 0.06)',
+          borderBottom: '1px solid',
+          borderColor: 'divider',
         }}
       >
         <Toolbar sx={{ minHeight: { xs: '56px', sm: '64px' }, px: { xs: 1, sm: 2 }, position: 'relative' }}>

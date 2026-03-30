@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { Box, Typography, Card, CardContent, Button, Grid, Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Select, MenuItem, FormControl, InputLabel, Checkbox, ListItemText, Switch, Tabs, Tab } from '@mui/material';
+import { Box, Typography, Card, CardContent, Button, Grid, Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Select, MenuItem, FormControl, InputLabel, Checkbox, ListItemText, Switch, Tabs, Tab, useTheme } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import { API_BASE_URL } from '../config/api';
 import moment from 'moment-timezone';
-import { CHART_CARD_SX } from '../utils/chartStyles';
+import { getChartCardSx } from '../utils/chartStyles';
 import PageHeader from './PageHeader';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 
@@ -15,6 +15,7 @@ const formatInUserTimezone = (dt, fmt = 'YYYY-MM-DD HH:mm:ss') => {
 };
 
 export default function Alerts({ socket, devices = [], alerts = [], onAlertsChange }) {
+  const theme = useTheme();
   const [parameters, setParameters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -395,7 +396,7 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
         <Tab label="Alert Logs" />
       </Tabs>
       {tab === 0 && (
-        <Card sx={{ mb: 3, borderRadius: 1, ...CHART_CARD_SX }}>
+        <Card sx={{ mb: 3, borderRadius: 1, ...getChartCardSx(theme) }}>
           <CardContent>
             <Typography variant="h6" gutterBottom>Alert Management</Typography>
             <Button variant="contained" color="primary" sx={{ mb: 2 }} onClick={() => handleOpenDialog()}>Create New Alert</Button>
@@ -406,7 +407,7 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
         </Card>
       )}
       {tab === 1 && (
-        <Card sx={{ mb: 3, borderRadius: 1, ...CHART_CARD_SX }}>
+        <Card sx={{ mb: 3, borderRadius: 1, ...getChartCardSx(theme) }}>
           <CardContent>
             <Typography variant="h6" gutterBottom>Alert Logs</Typography>
             <div style={{ height: 350, width: '100%' }}>

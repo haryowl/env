@@ -26,7 +26,7 @@ import {
 } from '@mui/icons-material';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
-import { CHART_CARD_SX, CHART_MARGIN, CARTESIAN_GRID_PROPS, AXIS_TICK_STYLE, getParameterColorIndex, CHART_COLORS } from '../utils/chartStyles';
+import { getChartCardSx, CHART_MARGIN, getCartesianGridProps, getAxisTickStyle, getParameterColorIndex, CHART_COLORS } from '../utils/chartStyles';
 
 const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) => {
   const theme = useTheme();
@@ -109,11 +109,12 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
       return (
         <Box
           sx={{
-            backgroundColor: 'rgba(255, 255, 255, 0.98)',
-            border: `1px solid ${isOutOfRange ? '#EF4444' : 'rgba(0,0,0,0.08)'}`,
+            bgcolor: 'background.paper',
+            border: '1px solid',
+            borderColor: isOutOfRange ? '#EF4444' : 'divider',
             borderRadius: 1,
             p: 2,
-            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+            boxShadow: theme.palette.mode === 'dark' ? '0 4px 20px rgba(0, 0, 0, 0.35)' : '0 4px 20px rgba(0, 0, 0, 0.1)',
             fontFamily: '"Inter", "Roboto", sans-serif'
           }}
         >
@@ -347,13 +348,13 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
         </Box>
 
         {/* Modern Chart */}
-        <Box ref={chartRef} sx={{ flexGrow: 1, minHeight: 250, height: '100%', width: '100%', ...CHART_CARD_SX, position: 'relative', overflow: 'hidden' }}>
+        <Box ref={chartRef} sx={{ flexGrow: 1, minHeight: 250, height: '100%', width: '100%', ...getChartCardSx(theme), position: 'relative', overflow: 'hidden' }}>
           {chartData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData} margin={CHART_MARGIN}>
-                <CartesianGrid {...CARTESIAN_GRID_PROPS} />
-                <XAxis dataKey="datetime" stroke="rgba(0,0,0,0.2)" tick={AXIS_TICK_STYLE} />
-                <YAxis stroke="rgba(0,0,0,0.2)" tick={AXIS_TICK_STYLE} domain={yAxisDomain} />
+                <CartesianGrid {...getCartesianGridProps(theme)} />
+                <XAxis dataKey="datetime" stroke={theme.palette.divider} tick={getAxisTickStyle(theme)} />
+                <YAxis stroke={theme.palette.divider} tick={getAxisTickStyle(theme)} domain={yAxisDomain} />
                 <RechartsTooltip content={<CustomTooltip />} />
                 
                 {/* Modern threshold lines */}
@@ -406,7 +407,7 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
                     r: 6, 
                     stroke: colorScheme.line,
                     strokeWidth: 2,
-                    fill: '#ffffff',
+                    fill: theme.palette.background.paper,
                     filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))'
                   }}
                   isAnimationActive={false}

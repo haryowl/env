@@ -9,7 +9,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Leg
 import axios from 'axios';
 import { API_BASE_URL } from '../config/api';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
-import { CHART_CARD_SX, CHART_MARGIN, CARTESIAN_GRID_PROPS, AXIS_TICK_STYLE, TOOLTIP_CONTENT_STYLE, LEGEND_WRAPPER_STYLE, getParameterColor as getChartParamColor } from '../utils/chartStyles';
+import { getChartCardSx, CHART_MARGIN, CARTESIAN_GRID_PROPS, AXIS_TICK_STYLE, getTooltipContentStyle, LEGEND_WRAPPER_STYLE, getParameterColor as getChartParamColor } from '../utils/chartStyles';
 import SpeedIcon from '@mui/icons-material/Speed';
 import OpacityIcon from '@mui/icons-material/Opacity';
 import ScienceIcon from '@mui/icons-material/Science';
@@ -328,7 +328,7 @@ export default function DataDash() {
   );
 
   const filterControls = (
-    <Card sx={{ mb: 2, borderRadius: 1, ...CHART_CARD_SX, overflow: 'visible', p: 0 }}>
+    <Card sx={{ mb: 2, borderRadius: 1, ...getChartCardSx(theme), overflow: 'visible', p: 0 }}>
       <SectionHeader
         icon={<DeviceHubIcon sx={{ fontSize: 18 }} />}
         title="Data Filters"
@@ -851,7 +851,7 @@ export default function DataDash() {
       {filterControls}
       
       {!loading && data.length > 0 && (
-        <Card sx={{ mt: 2, borderRadius: 1, ...CHART_CARD_SX }}>
+        <Card sx={{ mt: 2, borderRadius: 1, ...getChartCardSx(theme) }}>
           <CardContent sx={{ p: 0 }}>
             <Box onClick={() => setSummaryExpanded(!summaryExpanded)} sx={{ cursor: 'pointer' }}>
               <SectionHeader
@@ -881,7 +881,7 @@ export default function DataDash() {
         </Card>
       )}
       
-      <Card sx={{ borderRadius: 1, ...CHART_CARD_SX, overflow: 'hidden', mt: 4 }}>
+      <Card sx={{ borderRadius: 1, ...getChartCardSx(theme), overflow: 'hidden', mt: 4 }}>
         <CardContent sx={{ p: 0 }}>
           <Box sx={{ px: 1, py: 0.5, bgcolor: 'background.paper', borderBottom: '1px solid', borderColor: 'divider' }}>
             <Tabs 
@@ -932,7 +932,7 @@ export default function DataDash() {
                         color: theme.palette.primary.main,
                         '&:hover': {
                           backgroundColor: theme.palette.primary.main,
-                          color: '#ffffff',
+                          color: theme.palette.primary.contrastText,
                           transform: 'translateY(-1px)',
                           transition: 'all 0.2s ease-in-out'
                         }
@@ -1064,7 +1064,7 @@ export default function DataDash() {
                     </Box>
             </Box>
                 ) : (
-                  <Card sx={{ ...CHART_CARD_SX }}>
+                  <Card sx={{ ...getChartCardSx(theme) }}>
                     <CardContent sx={{ p: 3 }}>
               <ResponsiveContainer width="100%" height={400}>
                 <LineChart data={data} margin={CHART_MARGIN}>
@@ -1081,7 +1081,7 @@ export default function DataDash() {
                           />
                           <YAxis tick={AXIS_TICK_STYLE} domain={getYDomain()} />
                           <ReTooltip
-                            contentStyle={TOOLTIP_CONTENT_STYLE}
+                            contentStyle={getTooltipContentStyle(theme)}
                             formatter={(value, name, props) => {
                               const dataKey = props?.dataKey || name;
                               if (dataKey === 'datetime' || dataKey === 'timestamp') {
@@ -1164,7 +1164,10 @@ export default function DataDash() {
                     justifyContent: 'center', 
                     alignItems: 'center', 
                     minHeight: 300,
-                    background: 'linear-gradient(135deg, #f8fafc 0%, #ffffff 100%)',
+                    bgcolor: 'background.paper',
+                    backgroundImage: theme.palette.mode === 'light'
+                      ? 'linear-gradient(135deg, rgba(248,250,252,1) 0%, rgba(255,255,255,1) 100%)'
+                      : 'none',
                     borderRadius: 1.5,
                     border: '2px dashed rgba(107, 70, 193, 0.2)'
                   }}>
@@ -1204,7 +1207,7 @@ export default function DataDash() {
                         }
                       },
                       '& .MuiDataGrid-columnHeaders': { 
-                        backgroundColor: 'linear-gradient(135deg, #f8fafc 0%, #ffffff 100%)',
+                        bgcolor: 'background.paper',
                         fontWeight: 700, 
                         fontSize: '0.9rem',
                         borderBottom: '2px solid rgba(107, 70, 193, 0.1)',
@@ -1216,11 +1219,12 @@ export default function DataDash() {
                       '& .MuiDataGrid-cell': { 
                         py: 1.5, 
                         fontSize: '0.85rem',
-                        borderBottom: '1px solid rgba(0, 0, 0, 0.05)',
+                        borderBottom: '1px solid',
+                        borderColor: 'divider',
                         color: theme.palette.text.primary
                       },
                       '& .MuiDataGrid-footerContainer': { 
-                        backgroundColor: 'rgba(248, 250, 252, 0.8)',
+                        bgcolor: 'background.paper',
                         borderTop: '2px solid rgba(107, 70, 193, 0.1)'
                       },
                       '& .MuiTablePagination-root': {
@@ -1237,7 +1241,7 @@ export default function DataDash() {
       
       
       {!loading && data.length === 0 && (
-        <Card sx={{ mt: 4, borderRadius: 1, ...CHART_CARD_SX }}>
+        <Card sx={{ mt: 4, borderRadius: 1, ...getChartCardSx(theme) }}>
           <CardContent sx={{ p: 4, textAlign: 'center' }}>
             <DeviceHubIcon sx={{ fontSize: 80, mb: 2, color: 'rgba(107, 70, 193, 0.3)' }} />
             <Typography variant="h6" sx={{ color: theme.palette.text.secondary, mb: 1 }}>

@@ -46,7 +46,7 @@ import QuickViewTable from './QuickViewTable';
 import { exportToPDF, exportToExcel } from '../utils/exportUtils';
 import { formatInUserTimezone, getUserTimezone } from '../utils/timezoneUtils';
 import moment from 'moment-timezone';
-import { CHART_CARD_SX } from '../utils/chartStyles';
+import { getChartCardSx } from '../utils/chartStyles';
 import PageHeader from './PageHeader';
 import SectionHeader from './SectionHeader';
 
@@ -496,7 +496,10 @@ const QuickView = () => {
   return (
     <Box sx={{ 
       fontFamily: 'Inter, sans-serif', 
-      background: 'linear-gradient(135deg, #f8fafc 0%, #ffffff 100%)', 
+      bgcolor: 'background.default',
+      backgroundImage: theme.palette.mode === 'light'
+        ? 'linear-gradient(135deg, rgba(248,250,252,1) 0%, rgba(255,255,255,1) 100%)'
+        : 'none',
       minHeight: '100vh', 
       p: { xs: 2, md: 4 }
     }}>
@@ -528,7 +531,7 @@ const QuickView = () => {
       </Box>
 
       {/* Data Filters - Quick View style */}
-      <Card sx={{ mb: 4, borderRadius: 1, ...CHART_CARD_SX, p: 0 }}>
+      <Card sx={{ mb: 4, borderRadius: 1, ...getChartCardSx(theme), p: 0 }}>
         <CardContent sx={{ p: 0 }}>
           <SectionHeader
             icon={<FilterIcon sx={{ fontSize: 18 }} />}
@@ -805,8 +808,12 @@ const QuickView = () => {
         <Card sx={{ 
           mb: 4,
           borderRadius: 1.5,
-          background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-          border: '1px solid rgba(107, 70, 193, 0.1)',
+          bgcolor: 'background.paper',
+          backgroundImage: theme.palette.mode === 'light'
+            ? 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)'
+            : 'none',
+          border: '1px solid',
+          borderColor: 'divider',
           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)'
         }}>
           <CardContent sx={{ p: 2, textAlign: 'center' }}>
@@ -901,8 +908,12 @@ const QuickView = () => {
       {!selectedDevice && !loading && (
         <Card sx={{ 
           borderRadius: 1.5,
-          background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-          border: '1px solid rgba(107, 70, 193, 0.1)',
+          bgcolor: 'background.paper',
+          backgroundImage: theme.palette.mode === 'light'
+            ? 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)'
+            : 'none',
+          border: '1px solid',
+          borderColor: 'divider',
           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)'
         }}>
           <CardContent sx={{ p: 2, textAlign: 'center' }}>
@@ -931,8 +942,12 @@ const QuickView = () => {
       {selectedDevice && parameters.length === 0 && !loading && (
         <Card sx={{ 
           borderRadius: 1.5,
-          background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-          border: '1px solid rgba(107, 70, 193, 0.1)',
+          bgcolor: 'background.paper',
+          backgroundImage: theme.palette.mode === 'light'
+            ? 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)'
+            : 'none',
+          border: '1px solid',
+          borderColor: 'divider',
           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)'
         }}>
           <CardContent sx={{ p: 2, textAlign: 'center' }}>
