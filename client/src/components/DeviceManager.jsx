@@ -85,8 +85,9 @@ const DeviceManager = () => {
 
       if (response.ok) {
         const data = await response.json();
-        const activeDevices = (data.devices || []).filter(device => device.status !== 'offline' && device.status !== 'deleted');
-        setDevices(activeDevices);
+        // Keep offline devices visible; only exclude soft-deleted.
+        const visibleDevices = (data.devices || []).filter((device) => device?.status !== 'deleted' && device?.is_deleted !== true);
+        setDevices(visibleDevices);
       } else {
         setError('Failed to load devices');
       }

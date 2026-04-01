@@ -514,8 +514,9 @@ const Dashboard = ({ socket }) => {
       if (devicesResponse.ok) {
         const devicesData = await devicesResponse.json();
         const deviceList = Array.isArray(devicesData) ? devicesData : (devicesData.devices || []);
-        const activeDevices = deviceList.filter(device => device.status !== 'offline' && device.status !== 'deleted');
-        setDevices(activeDevices);
+        // Keep offline devices visible; only exclude soft-deleted.
+        const visibleDevices = deviceList.filter((device) => device?.status !== 'deleted' && device?.is_deleted !== true);
+        setDevices(visibleDevices);
       }
     } catch (error) {
       console.error('Failed to load dashboard data:', error);

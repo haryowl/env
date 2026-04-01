@@ -176,10 +176,12 @@ const QuickView = () => {
       
       if (response.ok) {
         const data = await response.json();
-        const activeDevices = (data.devices || []).filter(device => device.status !== 'offline' && device.status !== 'deleted');
-        setDevices(activeDevices);
-        if (activeDevices.length > 0) {
-          setSelectedDevice(activeDevices[0].device_id);
+        // Keep offline devices visible; only exclude soft-deleted.
+        const visibleDevices = (data.devices || []).filter((device) => device?.status !== 'deleted' && device?.is_deleted !== true);
+        setDevices(visibleDevices);
+        if (visibleDevices.length > 0) {
+          const preferred = visibleDevices.find((d) => d.status === 'online') || visibleDevices[0];
+          setSelectedDevice(preferred.device_id);
         } else {
           setSelectedDevice('');
         }

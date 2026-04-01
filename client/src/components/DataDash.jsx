@@ -129,8 +129,9 @@ export default function DataDash() {
       try {
         const token = localStorage.getItem('iot_token');
         const res = await axios.get(`${API_BASE_URL}/devices`, { headers: { 'Authorization': `Bearer ${token}` } });
-        const activeDevices = (res.data.devices || []).filter(device => device.status !== 'offline' && device.status !== 'deleted');
-        setDevices(activeDevices);
+        // Keep offline devices visible; only exclude soft-deleted.
+        const visibleDevices = (res.data.devices || []).filter((device) => device?.status !== 'deleted' && device?.is_deleted !== true);
+        setDevices(visibleDevices);
       } catch (e) { setDevices([]); }
     };
     fetchDevices();
