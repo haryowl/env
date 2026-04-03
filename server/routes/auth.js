@@ -67,7 +67,7 @@ router.post('/login', authLimiter, async (req, res) => {
 
     // Find user by username or email
     const user = await getRow(
-      'SELECT user_id, username, email, password_hash, role, status, timezone FROM users WHERE username = $1 OR email = $1',
+      'SELECT user_id, username, email, password_hash, role, status, timezone, profile_picture FROM users WHERE username = $1 OR email = $1',
       [username]
     );
 

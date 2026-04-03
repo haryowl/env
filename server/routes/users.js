@@ -6,8 +6,70 @@ const bcrypt = require('bcryptjs');
 const { ensureTenantsSchema } = require('../utils/ensureTenantsSchema');
 const { ensureUsersSchema } = require('../utils/ensureUsersSchema');
 const { validatePostLogoutRedirectUrl } = require('../utils/postLogoutRedirect');
+const path = require('path');
+const fs = require('fs').promises;
+const multer = require('multer');
 
 const router = express.Router();
+
+function profileUploadsDiskPath(webPath) {
+  if (!webPath || typeof webPath !== 'string') return null;
+  if (!webPath.startsWith('/uploads/profile-pictures/')) return null;
+  return path.join(__dirname, '..', webPath.replace(/^\//, ''));
+}
+
+const profilePictureStorage = multer.diskStorage({
+  destination: async (req, file, cb) => {
+    const dir = path.join(__dirname, '../uploads/profile-pictures');
+    try {
+      await fs.mkdir(dir, { recursive: true });
+      cb(null, dir);
+    } catch (e) {
+      cb(e);
+    }
+  },
+  filename: (req, file, cb) => {
+    const uid = req.params.userId;
+    const ext = (path.extname(file.originalname) || '.jpg').toLowerCase();
+    const safeExt = ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext) ? ext : '.jpg';
+    cb(null, `user-${uid}-${Date.now()}${safeExt}`);
+  },
+});
+
+const profileUpload = multer({
+  storage: profilePictureStorage,
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (/^image\/(jpeg|png|gif|webp)$/i.test(file.mimetype)) cb(null, true);
+    else cb(new Error('Only JPEG, PNG, GIF, or WebP images are allowed'));
+  },
+});
+
+function canManageProfilePicture(req, res, next) {
+  const targetId = parseInt(req.params.userId, 10);
+  if (Number.isNaN(targetId)) {
+    return res.status(400).json({ error: 'Invalid user id', code: 'INVALID_USER_ID' });
+  }
+  const role = req.user?.role;
+  const isAdmin = role === 'super_admin' || role === 'admin';
+  if (isAdmin || req.user.user_id === targetId) return next();
+  return res.status(403).json({ error: 'Not allowed to change this profile picture', code: 'FORBIDDEN' });
+}
+
+function handleProfileUpload(req, res, next) {
+  profileUpload.single('picture')(req, res, (err) => {
+    if (err) {
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({ error: 'File too large (max 2 MB)', code: 'FILE_TOO_LARGE' });
+        }
+        return res.status(400).json({ error: err.message, code: 'UPLOAD_ERROR' });
+      }
+      return res.status(400).json({ error: err.message || 'Upload failed', code: 'UPLOAD_ERROR' });
+    }
+    next();
+  });
+}
 
 router.use(async (req, res, next) => {
   try {
@@ -105,9 +167,11 @@ const createUserSchema = Joi.object({
 router.get('/', authorizeRole(['super_admin', 'admin']), async (req, res) => {
   try {
     const users = await getRows(`
-      SELECT user_id, username, email, role, status, timezone, created_at, last_login
-      FROM users 
-      ORDER BY created_at DESC
+      SELECT u.user_id, u.username, u.email, u.role, u.status, u.timezone, u.created_at, u.last_login,
+             u.tenant_id, u.profile_picture, t.name AS tenant_name
+      FROM users u
+      LEFT JOIN tenants t ON u.tenant_id = t.tenant_id
+      ORDER BY u.created_at DESC
     `);
 
     res.json({ users });
@@ -141,6 +205,63 @@ router.get('/dropdown', authenticateToken, async (req, res) => {
   }
 });
 
+// Upload profile picture (admin/super_admin any user; others only self)
+router.post(
+  '/:userId/profile-picture',
+  canManageProfilePicture,
+  handleProfileUpload,
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'No image file uploaded', code: 'NO_FILE' });
+      }
+      const userId = parseInt(req.params.userId, 10);
+      const userRow = await getRow(
+        'SELECT user_id, profile_picture FROM users WHERE user_id = $1',
+        [userId]
+      );
+      if (!userRow) {
+        await fs.unlink(req.file.path).catch(() => {});
+        return res.status(404).json({ error: 'User not found', code: 'USER_NOT_FOUND' });
+      }
+      const oldDisk = profileUploadsDiskPath(userRow.profile_picture);
+      const publicPath = `/uploads/profile-pictures/${req.file.filename}`;
+      await query('UPDATE users SET profile_picture = $1 WHERE user_id = $2', [publicPath, userId]);
+      if (oldDisk) {
+        await fs.unlink(oldDisk).catch(() => {});
+      }
+      res.json({ message: 'Profile picture updated', profile_picture: publicPath });
+    } catch (err) {
+      console.error('Profile picture upload error:', err);
+      if (req.file?.path) await fs.unlink(req.file.path).catch(() => {});
+      res.status(500).json({ error: 'Failed to upload profile picture', code: 'UPLOAD_ERROR' });
+    }
+  }
+);
+
+router.delete('/:userId/profile-picture', canManageProfilePicture, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId, 10);
+    const userRow = await getRow(
+      'SELECT user_id, profile_picture FROM users WHERE user_id = $1',
+      [userId]
+    );
+    if (!userRow) {
+      return res.status(404).json({ error: 'User not found', code: 'USER_NOT_FOUND' });
+    }
+    if (!userRow.profile_picture) {
+      return res.json({ message: 'No profile picture', profile_picture: null });
+    }
+    const disk = profileUploadsDiskPath(userRow.profile_picture);
+    await query('UPDATE users SET profile_picture = NULL WHERE user_id = $1', [userId]);
+    if (disk) await fs.unlink(disk).catch(() => {});
+    res.json({ message: 'Profile picture removed', profile_picture: null });
+  } catch (e) {
+    console.error('Profile picture delete error:', e);
+    res.status(500).json({ error: 'Failed to remove profile picture', code: 'DELETE_PICTURE_ERROR' });
+  }
+});
+
 // Get single user
 router.get('/:userId', authorizeRole(['super_admin', 'admin']), async (req, res) => {
   try {
@@ -148,7 +269,7 @@ router.get('/:userId', authorizeRole(['super_admin', 'admin']), async (req, res)
 
     const user = await getRow(`
       SELECT u.user_id, u.username, u.email, u.role, u.status, u.timezone, u.preferences, u.created_at, u.last_login,
-             u.tenant_id, t.name AS tenant_name, u.post_logout_redirect_url
+             u.tenant_id, t.name AS tenant_name, u.post_logout_redirect_url, u.profile_picture
       FROM users u
       LEFT JOIN tenants t ON u.tenant_id = t.tenant_id
       WHERE u.user_id = $1
@@ -568,7 +689,7 @@ router.put('/:userId', authorizeRole(['super_admin', 'admin']), async (req, res)
       UPDATE users 
       SET ${updateFields.join(', ')}
       WHERE user_id = $${paramCount}
-      RETURNING user_id, username, email, role, status, timezone, preferences, tenant_id, post_logout_redirect_url
+      RETURNING user_id, username, email, role, status, timezone, preferences, tenant_id, post_logout_redirect_url, profile_picture
     `, updateValues);
 
     // CRITICAL: If role was updated, also sync the user_roles table

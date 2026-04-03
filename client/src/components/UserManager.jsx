@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem, Select, InputLabel, FormControl, IconButton, Alert } from '@mui/material';
+import React, { useEffect, useState, useRef } from 'react';
+import { Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem, Select, InputLabel, FormControl, IconButton, Alert, Avatar, Stack } from '@mui/material';
 import { API_BASE_URL } from '../config/api';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { usePermissions } from '../hooks/usePermissions.jsx';
+import { broadcastUserProfilePicture, resolveProfilePictureUrl } from '../utils/profilePicture';
 
 function UserManager() {
   const { canAccessMenu } = usePermissions();
@@ -53,6 +54,8 @@ function UserManager() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [deleteSuccess, setDeleteSuccess] = useState('');
+  const [pictureUploading, setPictureUploading] = useState(false);
+  const profilePicInputRef = useRef(null);
 
   useEffect(() => {
     fetchUsers();
@@ -197,6 +200,7 @@ function UserManager() {
       status: user.status,
       tenant_id: user.tenant_id != null ? String(user.tenant_id) : '',
       post_logout_redirect_url: user.post_logout_redirect_url || '',
+      profile_picture: user.profile_picture || null,
     });
     setEditError('');
     setEditSuccess('');
@@ -207,6 +211,76 @@ function UserManager() {
   };
   const handleEditFormChange = (e) => {
     setEditForm({ ...editForm, [e.target.name]: e.target.value });
+  };
+
+  const uploadEditProfilePicture = async (file) => {
+    if (!file || !editForm.user_id) return;
+    setPictureUploading(true);
+    setEditError('');
+    setEditSuccess('');
+    try {
+      const token = localStorage.getItem('iot_token');
+      const fd = new FormData();
+      fd.append('picture', file);
+      const res = await fetch(`${API_BASE_URL}/users/${editForm.user_id}/profile-picture`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setEditForm((f) => ({ ...f, profile_picture: data.profile_picture }));
+        try {
+          const me = JSON.parse(localStorage.getItem('iot_user') || '{}');
+          if (String(me.user_id) === String(editForm.user_id)) {
+            broadcastUserProfilePicture(data.profile_picture);
+          }
+        } catch {
+          /* ignore */
+        }
+        setEditSuccess('Profile photo updated');
+        fetchUsers();
+      } else {
+        setEditError(data.error || 'Failed to upload photo');
+      }
+    } catch {
+      setEditError('Failed to upload photo');
+    }
+    setPictureUploading(false);
+    if (profilePicInputRef.current) profilePicInputRef.current.value = '';
+  };
+
+  const removeEditProfilePicture = async () => {
+    if (!editForm.user_id) return;
+    setPictureUploading(true);
+    setEditError('');
+    setEditSuccess('');
+    try {
+      const token = localStorage.getItem('iot_token');
+      const res = await fetch(`${API_BASE_URL}/users/${editForm.user_id}/profile-picture`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setEditForm((f) => ({ ...f, profile_picture: null }));
+        try {
+          const me = JSON.parse(localStorage.getItem('iot_user') || '{}');
+          if (String(me.user_id) === String(editForm.user_id)) {
+            broadcastUserProfilePicture(null);
+          }
+        } catch {
+          /* ignore */
+        }
+        setEditSuccess('Profile photo removed');
+        fetchUsers();
+      } else {
+        setEditError(data.error || 'Failed to remove photo');
+      }
+    } catch {
+      setEditError('Failed to remove photo');
+    }
+    setPictureUploading(false);
   };
   const handleEditFormSubmit = async (e) => {
     e.preventDefault();
@@ -415,6 +489,47 @@ function UserManager() {
         <DialogTitle>Edit User</DialogTitle>
         <DialogContent>
           <Box component="form" onSubmit={handleEditFormSubmit} sx={{ mt: 1, minWidth: 300 }}>
+            <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
+              <Avatar
+                src={resolveProfilePictureUrl(editForm.profile_picture) || undefined}
+                sx={{ width: 64, height: 64 }}
+              />
+              <Box>
+                <input
+                  ref={profilePicInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  hidden
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) uploadEditProfilePicture(f);
+                  }}
+                />
+                <Button
+                  variant="outlined"
+                  size="small"
+                  disabled={pictureUploading}
+                  onClick={() => profilePicInputRef.current?.click()}
+                >
+                  {pictureUploading ? <CircularProgress size={18} /> : 'Upload photo'}
+                </Button>
+                {editForm.profile_picture ? (
+                  <Button
+                    variant="text"
+                    size="small"
+                    color="error"
+                    disabled={pictureUploading}
+                    onClick={removeEditProfilePicture}
+                    sx={{ ml: 1 }}
+                  >
+                    Remove
+                  </Button>
+                ) : null}
+                <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5, maxWidth: 260 }}>
+                  Square image recommended, at least 256×256 px. Max 2 MB (JPEG, PNG, GIF, WebP).
+                </Typography>
+              </Box>
+            </Stack>
             <TextField
               label="Username"
               name="username"

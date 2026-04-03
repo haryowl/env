@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import FontSettings from './FontSettings';
 import ThemeSelector from './ThemeSelector';
 import ColorCustomizer from './ColorCustomizer';
@@ -14,6 +14,8 @@ import {
   TextField,
   Button,
   Grid,
+  Stack,
+  Avatar,
   Alert,
   CircularProgress,
   FormControl,
@@ -37,10 +39,13 @@ import {
 } from '@mui/icons-material';
 
 import { API_BASE_URL } from '../config/api';
+import { broadcastUserProfilePicture, resolveProfilePictureUrl } from '../utils/profilePicture';
 import moment from 'moment-timezone';
 import { TIMEZONE_OPTIONS, getUserTimezone } from '../utils/timezoneUtils';
 
 const Settings = ({ user, onFontChange }) => {
+  const profilePicRef = useRef(null);
+  const [picBusy, setPicBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -167,6 +172,58 @@ const Settings = ({ user, onFontChange }) => {
     }
   };
 
+  const uploadMyProfilePicture = async (file) => {
+    if (!file || !user?.id) return;
+    setPicBusy(true);
+    setError('');
+    setSuccess('');
+    try {
+      const token = localStorage.getItem('iot_token');
+      const fd = new FormData();
+      fd.append('picture', file);
+      const res = await fetch(`${API_BASE_URL}/users/${user.id}/profile-picture`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        broadcastUserProfilePicture(data.profile_picture);
+        setSuccess('Profile photo updated');
+      } else {
+        setError(data.error || 'Failed to upload photo');
+      }
+    } catch {
+      setError('Failed to upload photo');
+    }
+    setPicBusy(false);
+    if (profilePicRef.current) profilePicRef.current.value = '';
+  };
+
+  const removeMyProfilePicture = async () => {
+    if (!user?.id) return;
+    setPicBusy(true);
+    setError('');
+    setSuccess('');
+    try {
+      const token = localStorage.getItem('iot_token');
+      const res = await fetch(`${API_BASE_URL}/users/${user.id}/profile-picture`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        broadcastUserProfilePicture(null);
+        setSuccess('Profile photo removed');
+      } else {
+        setError(data.error || 'Failed to remove photo');
+      }
+    } catch {
+      setError('Failed to remove photo');
+    }
+    setPicBusy(false);
+  };
+
   const handlePreferencesSave = async () => {
     setLoading(true);
     setError('');
@@ -235,6 +292,49 @@ const Settings = ({ user, onFontChange }) => {
                         disabled
                         helperText="Username cannot be changed"
                       />
+                    </Grid>
+                    <Grid size={{ xs: 12 }}>
+                      <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+                        <Avatar
+                          src={resolveProfilePictureUrl(user?.profile_picture) || undefined}
+                          sx={{ width: 72, height: 72 }}
+                        />
+                        <Box>
+                          <input
+                            ref={profilePicRef}
+                            type="file"
+                            accept="image/jpeg,image/png,image/gif,image/webp"
+                            hidden
+                            onChange={(e) => {
+                              const f = e.target.files?.[0];
+                              if (f) uploadMyProfilePicture(f);
+                            }}
+                          />
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            disabled={picBusy}
+                            onClick={() => profilePicRef.current?.click()}
+                          >
+                            {picBusy ? <CircularProgress size={18} /> : 'Upload profile photo'}
+                          </Button>
+                          {user?.profile_picture ? (
+                            <Button
+                              variant="text"
+                              size="small"
+                              color="error"
+                              disabled={picBusy}
+                              onClick={removeMyProfilePicture}
+                              sx={{ ml: 1 }}
+                            >
+                              Remove photo
+                            </Button>
+                          ) : null}
+                          <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5, maxWidth: 320 }}>
+                            Shown in the sidebar and header. Square image recommended, at least 256×256 px. Max 2 MB.
+                          </Typography>
+                        </Box>
+                      </Stack>
                     </Grid>
                     <Grid size={{ xs: 12 }}>
                       <TextField

@@ -103,6 +103,25 @@ function App() {
     setLoading(false);
   }, []);
 
+  useEffect(() => {
+    const onUserStorageSync = () => {
+      try {
+        const raw = localStorage.getItem('iot_user');
+        if (!raw) return;
+        const u = JSON.parse(raw);
+        setUser((prev) =>
+          prev && String(prev.user_id) === String(u.user_id)
+            ? { ...prev, ...u, id: u.user_id }
+            : prev
+        );
+      } catch {
+        /* ignore */
+      }
+    };
+    window.addEventListener('iot-user-updated', onUserStorageSync);
+    return () => window.removeEventListener('iot-user-updated', onUserStorageSync);
+  }, []);
+
   // Fetch logged-in user's company/site context for header display
   useEffect(() => {
     const fetchUserContext = async () => {

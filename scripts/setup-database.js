@@ -65,7 +65,8 @@ const setupDatabase = async () => {
         created_at TIMESTAMPTZ DEFAULT NOW(),
         last_login TIMESTAMPTZ,
         timezone VARCHAR(50) DEFAULT 'UTC',
-        preferences JSONB DEFAULT '{}'
+        preferences JSONB DEFAULT '{}',
+        profile_picture VARCHAR(512)
       );
     `);
 

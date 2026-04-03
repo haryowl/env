@@ -45,10 +45,12 @@ import {
   persistExpandedSections,
   getSectionTitlesForPath,
 } from '../config/navigationConfig';
+import { resolveProfilePictureUrl } from '../utils/profilePicture';
 
 const drawerWidth = 240;
 
 const Layout = ({ children, user, userContext, onLogout }) => {
+  const avatarSrc = resolveProfilePictureUrl(user?.profile_picture);
   const theme = useMuiTheme();
   const { customColors, currentTheme } = useUserTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -270,13 +272,17 @@ const Layout = ({ children, user, userContext, onLogout }) => {
         borderBottom: `1px solid ${sidebarGradients.border}`
       }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Avatar sx={{ 
-            bgcolor: 'rgba(255,255,255,0.2)', 
-            width: 40, 
-            height: 40,
-            border: '2px solid rgba(255,255,255,0.3)'
-          }}>
-            <AccountCircle />
+          <Avatar
+            src={avatarSrc || undefined}
+            alt=""
+            sx={{
+              bgcolor: 'rgba(255,255,255,0.2)',
+              width: 40,
+              height: 40,
+              border: '2px solid rgba(255,255,255,0.3)',
+            }}
+          >
+            {!avatarSrc ? <AccountCircle /> : null}
           </Avatar>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography variant="subtitle2" sx={{ 
@@ -577,9 +583,13 @@ const Layout = ({ children, user, userContext, onLogout }) => {
               aria-controls="menu-appbar"
               aria-haspopup="true"
               onClick={handleUserMenuOpen}
-              sx={{ color: 'text.primary' }}
+              sx={{ color: 'text.primary', p: 0.5 }}
             >
-              <AccountCircle />
+              {avatarSrc ? (
+                <Avatar src={avatarSrc} alt="" sx={{ width: 32, height: 32 }} />
+              ) : (
+                <AccountCircle sx={{ fontSize: 32 }} />
+              )}
             </IconButton>
             
             <Menu
