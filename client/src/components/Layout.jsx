@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   AppBar,
@@ -23,41 +23,28 @@ import {
 } from '@mui/material';
 import {
   Menu as MenuIcon,
-  Dashboard as DashboardIcon,
-  Devices as DevicesIcon,
-  People as PeopleIcon,
   Security as SecurityIcon,
-  Map as MapIcon,
-  ShowChart as ShowChartIcon,
   Settings as SettingsIcon,
   AccountCircle,
   Logout,
   ChevronLeft as ChevronLeftIcon,
-  Radio as RadioIcon,
-  Create as CreateIcon,
-  TableChart as TableChartIcon,
   Notifications as NotificationsIcon,
-  Visibility as VisibilityIcon,
   Home as HomeIcon,
   ChevronRight as ChevronRightIcon,
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
-  Palette as PaletteIcon,
-  ColorLens as ColorLensIcon,
-  Science as ScienceIcon,
-  ScheduleSend as ScheduleSendIcon,
-  Business as BusinessIcon,
-  Sensors as SensorsIcon,
-  Build as BuildIcon,
-  Assignment as AssignmentIcon,
-  DonutLarge as DonutLargeIcon,
-  Domain as DomainIcon,
-  Memory as MemoryIcon,
 } from '@mui/icons-material';
-import { useNavigate, useLocation, NavLink } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { usePermissions } from '../hooks/usePermissions.jsx';
 import { useUserTheme } from '../contexts/UserThemeContext';
 import ThemeSelector from './ThemeSelector';
+import {
+  MENU_SECTIONS,
+  getFlatMenuItems,
+  loadStoredExpandedSections,
+  persistExpandedSections,
+  getSectionTitlesForPath,
+} from '../config/navigationConfig';
 
 const drawerWidth = 240;
 
@@ -129,10 +116,23 @@ const Layout = ({ children, user, userContext, onLogout }) => {
   const sidebarGradients = getSidebarGradients();
   const [drawerOpen, setDrawerOpen] = useState(!isMobile);
   const [anchorEl, setAnchorEl] = useState(null);
-  const [expandedSections, setExpandedSections] = useState({});
+  const [expandedSections, setExpandedSections] = useState(() => loadStoredExpandedSections() || {});
   const navigate = useNavigate();
   const location = useLocation();
   const { canAccessMenu, loading: permissionsLoading } = usePermissions();
+
+  // Keep the section that contains the current route expanded (merge with user toggles / sessionStorage).
+  useEffect(() => {
+    const titles = getSectionTitlesForPath(location.pathname);
+    if (titles.length === 0) return;
+    setExpandedSections((prev) => {
+      const next = { ...prev };
+      titles.forEach((t) => {
+        next[t] = true;
+      });
+      return next;
+    });
+  }, [location.pathname]);
 
   const assignedSites = Array.isArray(userContext?.sites) ? userContext.sites : [];
   const assignmentLabel = (() => {
@@ -167,68 +167,8 @@ const Layout = ({ children, user, userContext, onLogout }) => {
         .join('\n')
     : '';
 
-  const menuSections = [
-    {
-      title: 'Data',
-      icon: <ShowChartIcon />,
-      items: [
-        { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', menuPath: '/dashboard' },
-        { text: 'Quick View', icon: <VisibilityIcon />, path: '/quick-view', menuPath: '/quick-view' },
-        { text: 'Data', icon: <ShowChartIcon />, path: '/data', menuPath: '/data' },
-        { text: 'Data Dash', icon: <TableChartIcon />, path: '/data-dash', menuPath: '/data-dash' },
-        { text: 'Data Dash 2', icon: <DashboardIcon />, path: '/data-dash-2', menuPath: '/data-dash-2' },
-        { text: 'Comparison', icon: <DonutLargeIcon />, path: '/comparison-dashboard', menuPath: '/comparison-dashboard' },
-        { text: 'Theme Demo', icon: <PaletteIcon />, path: '/theme-demo', menuPath: '/theme-demo' },
-        { text: 'Color Customizer', icon: <ColorLensIcon />, path: '/color-customizer', menuPath: '/color-customizer' },
-        { text: 'Parameter Colors', icon: <ScienceIcon />, path: '/parameter-colors', menuPath: '/parameter-colors' },
-        { text: 'Parameter Demo', icon: <ScienceIcon />, path: '/parameter-demo', menuPath: '/parameter-demo' },
-        { text: 'ALERT', icon: <NotificationsIcon color="error" />, path: '/alerts', menuPath: '/alerts' },
-      ]
-    },
-    {
-      title: 'Device',
-      icon: <DevicesIcon />,
-      items: [
-        { text: 'Devices', icon: <DevicesIcon />, path: '/devices', menuPath: '/devices' },
-        { text: 'Device Mapper', icon: <MapIcon />, path: '/mapper', menuPath: '/mapper' },
-        { text: 'Listeners', icon: <RadioIcon />, path: '/listeners', menuPath: '/listeners' },
-      ]
-    },
-    {
-      title: 'In Addition',
-      icon: <AssignmentIcon />,
-      items: [
-        { text: 'Company and Site', icon: <BusinessIcon />, path: '/company-site', menuPath: '/company-site' },
-        { text: 'Sensor Management', icon: <SensorsIcon />, path: '/sensor-management', menuPath: '/sensor-management' },
-        { text: 'Maintenance', icon: <BuildIcon />, path: '/maintenance', menuPath: '/maintenance' },
-      ]
-    },
-    {
-      title: 'Field Operations',
-      icon: <BuildIcon />,
-      items: [
-        { text: 'Technician Dashboard', icon: <BuildIcon />, path: '/technician', menuPath: '/technician' },
-      ]
-    },
-    {
-      title: 'System Administration',
-      icon: <SettingsIcon />,
-      items: [
-        { text: 'Users', icon: <PeopleIcon />, path: '/users', menuPath: '/users' },
-        { text: 'Tenants', icon: <DomainIcon />, path: '/tenants', menuPath: '/tenants' },
-        { text: 'Roles', icon: <SecurityIcon />, path: '/roles', menuPath: '/roles' },
-        { text: 'Field Creator', icon: <CreateIcon />, path: '/field-creator', menuPath: '/field-creator' },
-        { text: 'Alert Settings', icon: <SettingsIcon />, path: '/alert-settings', menuPath: '/alert-settings' },
-        { text: 'Notification Config', icon: <NotificationsIcon />, path: '/notification-config', menuPath: '/notification-config' },
-        { text: 'Scheduled Exports', icon: <ScheduleSendIcon />, path: '/scheduled-exports', menuPath: '/scheduled-exports' },
-        { text: 'System Information', icon: <MemoryIcon />, path: '/system-info', menuPath: '/system-info' },
-        { text: 'Settings', icon: <SettingsIcon />, path: '/settings', menuPath: '/settings' },
-      ]
-    }
-  ];
-
   // Filter menu sections based on user permissions
-  const filteredMenuSections = permissionsLoading ? [] : menuSections.map(section => ({
+  const filteredMenuSections = permissionsLoading ? [] : MENU_SECTIONS.map(section => ({
     ...section,
     items: section.items.filter(item => canAccessMenu(item.menuPath))
   })).filter(section => section.items.length > 0);
@@ -241,9 +181,7 @@ const Layout = ({ children, user, userContext, onLogout }) => {
     let currentPath = '';
     pathSegments.forEach((segment, index) => {
       currentPath += `/${segment}`;
-      const menuItem = menuSections
-        .flatMap(section => section.items)
-        .find(item => item.path === currentPath);
+      const menuItem = getFlatMenuItems().find((item) => item.path === currentPath);
       
       if (menuItem) {
         breadcrumbs.push({
@@ -259,10 +197,11 @@ const Layout = ({ children, user, userContext, onLogout }) => {
 
   // Helper function to toggle section expansion
   const toggleSection = (sectionTitle) => {
-    setExpandedSections(prev => ({
-      ...prev,
-      [sectionTitle]: !prev[sectionTitle]
-    }));
+    setExpandedSections((prev) => {
+      const next = { ...prev, [sectionTitle]: !prev[sectionTitle] };
+      persistExpandedSections(next);
+      return next;
+    });
   };
 
   const handleDrawerToggle = () => {
@@ -296,7 +235,7 @@ const Layout = ({ children, user, userContext, onLogout }) => {
   };
 
   const drawer = (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       {/* Logo Section */}
       <Box sx={{ 
         p: 2, 
@@ -360,7 +299,7 @@ const Layout = ({ children, user, userContext, onLogout }) => {
       </Box>
 
       {/* Navigation Menu */}
-      <List sx={{ flexGrow: 1, px: 1, py: 2 }}>
+      <List sx={{ flexGrow: 1, minHeight: 0, overflow: 'auto', WebkitOverflowScrolling: 'touch', px: 1, py: 2 }}>
         {permissionsLoading ? (
           <ListItem>
             <ListItemIcon>

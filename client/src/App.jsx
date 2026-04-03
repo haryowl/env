@@ -36,6 +36,7 @@ import Maintenance from './components/Maintenance';
 import TechnicianDashboard from './components/TechnicianDashboard';
 import SystemInfo from './components/SystemInfo';
 import ErrorBoundary from './components/ErrorBoundary';
+import ProtectedRoute from './components/ProtectedRoute';
 
 // Services
 import { AuthService } from './services/authService';
@@ -47,6 +48,12 @@ import { API_BASE_URL } from './config/api';
 // Hooks
 import { PermissionProvider, usePermissions } from './hooks/usePermissions.jsx';
 
+function HomeRedirect({ user }) {
+  if (user?.role === 'technician') {
+    return <Navigate to="/technician" replace />;
+  }
+  return <Navigate to="/dashboard" replace />;
+}
 
 function App() {
   const [user, setUser] = useState(null);
@@ -306,35 +313,35 @@ function App() {
           <Router>
             <Layout user={user} userContext={userContext} onLogout={handleLogout}>
               <Routes>
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                <Route path="/dashboard" element={<Dashboard socket={socket} />} />
-                <Route path="/quick-view" element={<QuickView />} />
-                <Route path="/devices" element={<DeviceManager />} />
-                <Route path="/users" element={<UserManager />} />
-                <Route path="/tenants" element={<TenantManager />} />
-                <Route path="/roles" element={<RoleManager />} />
-                <Route path="/field-creator" element={<FieldCreator />} />
-                <Route path="/mapper" element={<DeviceMapper />} />
-                <Route path="/listeners" element={<Listeners socket={socket} />} />
-                <Route path="/data" element={<DataViewer />} />
-                <Route path="/data-dash" element={<DataDash />} />
-                <Route path="/data-dash-2" element={<DataDash2 />} />
-                <Route path="/comparison-dashboard" element={<ComparisonDoughnutDashboard />} />
-                <Route path="/alerts" element={<Alerts socket={socket} devices={devices} alerts={alerts} />} />
-                <Route path="/alert-settings" element={<AlertSettings user={user} />} />
-                <Route path="/notification-config" element={<NotificationConfig />} />
-                <Route path="/theme-demo" element={<ThemeDemo />} />
-                <Route path="/color-customizer" element={<ColorCustomizer onColorChange={() => window.location.reload()} />} />
-                <Route path="/parameter-colors" element={<ParameterColorCustomizer onParameterColorsChange={() => window.location.reload()} />} />
-                <Route path="/parameter-demo" element={<ParameterColorDemo />} />
-                <Route path="/font-customizer" element={<FontColorCustomizer />} />
-                <Route path="/scheduled-exports" element={<ScheduledExports />} />
-                <Route path="/company-site" element={<CompanySite />} />
-                <Route path="/sensor-management" element={<SensorManagement />} />
-                <Route path="/maintenance" element={<Maintenance />} />
-                <Route path="/technician" element={<TechnicianDashboard />} />
-                <Route path="/system-info" element={<SystemInfo />} />
-                <Route path="/settings" element={<Settings user={user} onFontChange={handleFontChange} />} />
+                <Route path="/" element={<HomeRedirect user={user} />} />
+                <Route path="/dashboard" element={<ProtectedRoute><Dashboard socket={socket} /></ProtectedRoute>} />
+                <Route path="/quick-view" element={<ProtectedRoute><QuickView /></ProtectedRoute>} />
+                <Route path="/devices" element={<ProtectedRoute><DeviceManager /></ProtectedRoute>} />
+                <Route path="/users" element={<ProtectedRoute><UserManager /></ProtectedRoute>} />
+                <Route path="/tenants" element={<ProtectedRoute><TenantManager /></ProtectedRoute>} />
+                <Route path="/roles" element={<ProtectedRoute><RoleManager /></ProtectedRoute>} />
+                <Route path="/field-creator" element={<ProtectedRoute><FieldCreator /></ProtectedRoute>} />
+                <Route path="/mapper" element={<ProtectedRoute><DeviceMapper /></ProtectedRoute>} />
+                <Route path="/listeners" element={<ProtectedRoute><Listeners socket={socket} /></ProtectedRoute>} />
+                <Route path="/data" element={<ProtectedRoute><DataViewer /></ProtectedRoute>} />
+                <Route path="/data-dash" element={<ProtectedRoute><DataDash /></ProtectedRoute>} />
+                <Route path="/data-dash-2" element={<ProtectedRoute><DataDash2 /></ProtectedRoute>} />
+                <Route path="/comparison-dashboard" element={<ProtectedRoute><ComparisonDoughnutDashboard /></ProtectedRoute>} />
+                <Route path="/alerts" element={<ProtectedRoute><Alerts socket={socket} devices={devices} alerts={alerts} /></ProtectedRoute>} />
+                <Route path="/alert-settings" element={<ProtectedRoute><AlertSettings user={user} /></ProtectedRoute>} />
+                <Route path="/notification-config" element={<ProtectedRoute><NotificationConfig /></ProtectedRoute>} />
+                <Route path="/theme-demo" element={<ProtectedRoute><ThemeDemo /></ProtectedRoute>} />
+                <Route path="/color-customizer" element={<ProtectedRoute><ColorCustomizer onColorChange={() => window.location.reload()} /></ProtectedRoute>} />
+                <Route path="/parameter-colors" element={<ProtectedRoute><ParameterColorCustomizer onParameterColorsChange={() => window.location.reload()} /></ProtectedRoute>} />
+                <Route path="/parameter-demo" element={<ProtectedRoute><ParameterColorDemo /></ProtectedRoute>} />
+                <Route path="/font-customizer" element={<ProtectedRoute><FontColorCustomizer /></ProtectedRoute>} />
+                <Route path="/scheduled-exports" element={<ProtectedRoute><ScheduledExports /></ProtectedRoute>} />
+                <Route path="/company-site" element={<ProtectedRoute><CompanySite /></ProtectedRoute>} />
+                <Route path="/sensor-management" element={<ProtectedRoute><SensorManagement /></ProtectedRoute>} />
+                <Route path="/maintenance" element={<ProtectedRoute><Maintenance /></ProtectedRoute>} />
+                <Route path="/technician" element={<ProtectedRoute><TechnicianDashboard /></ProtectedRoute>} />
+                <Route path="/system-info" element={<ProtectedRoute><SystemInfo /></ProtectedRoute>} />
+                <Route path="/settings" element={<ProtectedRoute><Settings user={user} onFontChange={handleFontChange} /></ProtectedRoute>} />
               </Routes>
             </Layout>
           </Router>

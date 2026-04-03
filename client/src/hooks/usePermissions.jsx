@@ -51,7 +51,7 @@ export const PermissionProvider = ({ children }) => {
 
         if (response.ok) {
           const data = await response.json();
-          console.log('🔍 API Permissions Response:', data);
+          if (import.meta.env.DEV) console.log('API Permissions Response:', data);
           if (data.success && data.permissions) {
             const defaultMenus = getDefaultMenuPermissions(user.role);
             const apiMenus = data.permissions.menu_permissions || {};
@@ -65,7 +65,7 @@ export const PermissionProvider = ({ children }) => {
               menuPermissions: mergedMenuPermissions,
               devicePermissions: data.permissions.device_permissions || {}
             };
-            console.log('🔍 Processed Permissions:', permissions);
+            if (import.meta.env.DEV) console.log('Processed Permissions:', permissions);
             setUserPermissions(permissions);
             setLoading(false);
             return;
@@ -118,7 +118,8 @@ export const PermissionProvider = ({ children }) => {
       '/alert-settings': { access: false, read: false, create: false, update: false, delete: false },
       '/notification-config': { access: false, read: false, create: false, update: false, delete: false },
       '/settings': { access: false, read: false, create: false, update: false, delete: false },
-      '/system-info': { access: false, read: false, create: false, update: false, delete: false }
+      '/system-info': { access: false, read: false, create: false, update: false, delete: false },
+      '/font-customizer': { access: false, read: false, create: false, update: false, delete: false }
     };
 
     // Dynamic role-based permissions - no more hardcoded switches!
@@ -147,7 +148,8 @@ export const PermissionProvider = ({ children }) => {
         '/maintenance': { access: true, read: true, create: true, update: true, delete: true },
         '/technician': { access: true, read: true, create: true, update: true, delete: true },
         '/settings': { access: true, read: true, create: true, update: true, delete: true },
-        '/system-info': { access: true, read: true, create: true, update: true, delete: true }
+        '/system-info': { access: true, read: true, create: true, update: true, delete: true },
+        '/font-customizer': { access: true, read: true, create: true, update: true, delete: true }
       },
       'admin': {
         // Admin access - can manage most things but not roles
@@ -173,7 +175,8 @@ export const PermissionProvider = ({ children }) => {
         '/maintenance': { access: true, read: true, create: true, update: true, delete: true },
         '/technician': { access: true, read: true, create: true, update: true, delete: true },
         '/settings': { access: true, read: false, create: false, update: true, delete: false },
-        '/system-info': { access: true, read: true, create: false, update: false, delete: false }
+        '/system-info': { access: true, read: true, create: false, update: false, delete: false },
+        '/font-customizer': { access: true, read: true, create: false, update: true, delete: false }
       },
       'demo': {
         // Demo access - limited but functional
@@ -192,7 +195,8 @@ export const PermissionProvider = ({ children }) => {
         '/alerts': { access: true, read: true, create: false, update: false, delete: false },
         '/alert-settings': { access: true, read: true, create: false, update: false, delete: false },
         '/notification-config': { access: true, read: true, create: false, update: false, delete: false },
-        '/settings': { access: false, read: false, create: false, update: false, delete: false }
+        '/settings': { access: false, read: false, create: false, update: false, delete: false },
+        '/font-customizer': { access: false, read: false, create: false, update: false, delete: false }
       },
       'operator': {
         // Operator access - can configure devices and manage maintenance
@@ -210,7 +214,8 @@ export const PermissionProvider = ({ children }) => {
         '/scheduled-exports': { access: true, read: true, create: false, update: true, delete: false },
         '/maintenance': { access: true, read: true, create: true, update: true, delete: true },
         '/company-site': { access: true, read: true, create: true, update: true, delete: true },
-        '/sensor-management': { access: true, read: true, create: true, update: true, delete: true }
+        '/sensor-management': { access: true, read: true, create: true, update: true, delete: true },
+        '/font-customizer': { access: false, read: false, create: false, update: false, delete: false }
       },
       'viewer': {
         // Read-only access
@@ -226,7 +231,8 @@ export const PermissionProvider = ({ children }) => {
         '/scheduled-exports': { access: true, read: true, create: false, update: false, delete: false },
         '/maintenance': { access: true, read: true, create: false, update: false, delete: false },
         '/company-site': { access: true, read: true, create: false, update: false, delete: false },
-        '/sensor-management': { access: true, read: true, create: false, update: false, delete: false }
+        '/sensor-management': { access: true, read: true, create: false, update: false, delete: false },
+        '/font-customizer': { access: false, read: false, create: false, update: false, delete: false }
       },
       'technician': {
         // Technician access - ONLY Field Operations
@@ -246,7 +252,8 @@ export const PermissionProvider = ({ children }) => {
         '/scheduled-exports': { access: true, read: true, create: false, update: true, delete: false },
         '/maintenance': { access: true, read: true, create: true, update: true, delete: true },
         '/company-site': { access: true, read: true, create: true, update: true, delete: true },
-        '/sensor-management': { access: true, read: true, create: true, update: true, delete: true }
+        '/sensor-management': { access: true, read: true, create: true, update: true, delete: true },
+        '/font-customizer': { access: false, read: false, create: false, update: false, delete: false }
       }
     };
 
@@ -302,11 +309,7 @@ export const PermissionProvider = ({ children }) => {
     return userPermissions.devicePermissions[permission] || false;
   };
 
-  const canAccessMenu = (menuPath) => {
-    const result = hasMenuPermission(menuPath, 'access');
-    console.log(`🔍 canAccessMenu(${menuPath}):`, result, 'userPermissions:', userPermissions);
-    return result;
-  };
+  const canAccessMenu = (menuPath) => hasMenuPermission(menuPath, 'access');
 
   const canCreate = (menuPath) => {
     return hasMenuPermission(menuPath, 'create');
