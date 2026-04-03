@@ -788,11 +788,30 @@ const Dashboard = ({ socket }) => {
 
   return (
     <Box>
-      <Box sx={{ mb: 3 }}>
+      {/* Sticky “freeze pane”: title + device selector stay visible while the rest of the dashboard scrolls */}
+      <Box
+        sx={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 8,
+          mb: 3,
+          bgcolor: 'background.paper',
+          borderRadius: 1,
+          boxShadow: (t) =>
+            t.palette.mode === 'dark'
+              ? '0 4px 20px rgba(0,0,0,0.35)'
+              : '0 4px 20px rgba(0,0,0,0.06)',
+        }}
+      >
         <PageHeader
           icon={<DevicesIcon sx={{ fontSize: 18 }} />}
           title="Dashboard"
           subtitle="Overview, device status, and realtime monitoring"
+          sx={{
+            border: 'none',
+            boxShadow: 'none',
+            borderRadius: 1,
+          }}
           right={(
             <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: { xs: 'flex-start', sm: 'flex-end' } }}>
               <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
