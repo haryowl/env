@@ -11,8 +11,6 @@ import {
   Button,
   CircularProgress,
   Alert,
-  ToggleButton,
-  ToggleButtonGroup,
   Stack,
   Chip,
   useTheme,
@@ -32,10 +30,17 @@ import { getChartCardSx } from '../utils/chartStyles';
 
 const getUserTimezone = () => localStorage.getItem('iot_timezone') || moment.tz.guess() || 'UTC';
 
-const MODES = [
-  { id: 'realtime_ab', label: 'Realtime A vs B' },
-  { id: 'sum_day', label: 'Sum today vs yesterday' },
-  { id: 'avg_day', label: 'Avg today vs yesterday' },
+const METRIC_OPTIONS = [
+  { id: 'realtime', label: 'Realtime A vs B' },
+  { id: 'sum', label: 'Sum of samples' },
+  { id: 'avg', label: 'Average of samples' },
+  { id: 'accum', label: 'Accumulation (last − first in period)' },
+];
+
+const PERIOD_OPTIONS = [
+  { id: 'day', label: 'Today vs yesterday' },
+  { id: 'week', label: 'This week vs last week' },
+  { id: 'month', label: 'This month vs last month' },
 ];
 
 const COLORS = {
@@ -51,6 +56,12 @@ function parseNum(v) {
   if (v === null || v === undefined || v === '') return NaN;
   const n = typeof v === 'number' ? v : parseFloat(String(v));
   return Number.isFinite(n) ? n : NaN;
+}
+
+function rowMoment(row, tz) {
+  const raw = row.datetime || row.timestamp;
+  if (!raw) return null;
+  return moment.utc(raw).tz(tz);
 }
 
 /** Bucket rows by calendar day in tz; sum and count per day for one parameter */
@@ -87,12 +98,166 @@ function aggregateDays(rows, param, tz) {
   };
 }
 
+function rowsInClosedRange(rows, tz, start, end) {
+  return rows.filter((r) => {
+    const m = rowMoment(r, tz);
+    return m && m.isSameOrAfter(start) && m.isSameOrBefore(end);
+  });
+}
+
+function sumAvgInRange(rows, param, tz, start, end) {
+  let sum = 0;
+  let n = 0;
+  for (const row of rowsInClosedRange(rows, tz, start, end)) {
+    const v = parseNum(row[param]);
+    if (Number.isNaN(v)) continue;
+    sum += v;
+    n += 1;
+  }
+  return { sum, n, avg: n > 0 ? sum / n : 0 };
+}
+
+/** Monotonic-style delta: last reading in window minus first (by time). */
+function accumInRange(rows, param, tz, start, end) {
+  const list = rowsInClosedRange(rows, tz, start, end)
+    .map((r) => {
+      const m = rowMoment(r, tz);
+      const v = parseNum(r[param]);
+      return m && Number.isFinite(v) ? { t: m.valueOf(), v } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.t - b.t);
+  if (list.length < 2) {
+    return { delta: 0, n: list.length, ok: list.length >= 2 };
+  }
+  return { delta: list[list.length - 1].v - list[0].v, n: list.length, ok: true };
+}
+
+/** Start/end moments for “current” vs “previous” windows (inclusive). */
+function getComparisonWindows(tz, periodPair) {
+  const now = moment.tz(tz);
+  if (periodPair === 'day') {
+    const todayStart = now.clone().startOf('day');
+    const yestStart = todayStart.clone().subtract(1, 'day');
+    const yestEnd = todayStart.clone().subtract(1, 'millisecond');
+    return {
+      curStart: todayStart,
+      curEnd: now.clone(),
+      prevStart: yestStart,
+      prevEnd: yestEnd,
+      curLabel: 'Today',
+      prevLabel: 'Yesterday',
+    };
+  }
+  if (periodPair === 'week') {
+    const thisWeekStart = now.clone().startOf('isoWeek');
+    const prevWeekStart = thisWeekStart.clone().subtract(1, 'week');
+    const prevWeekEnd = thisWeekStart.clone().subtract(1, 'millisecond');
+    return {
+      curStart: thisWeekStart,
+      curEnd: now.clone(),
+      prevStart: prevWeekStart,
+      prevEnd: prevWeekEnd,
+      curLabel: 'This week',
+      prevLabel: 'Last week',
+    };
+  }
+  const thisMonthStart = now.clone().startOf('month');
+  const prevMonthStart = thisMonthStart.clone().subtract(1, 'month');
+  const prevMonthEnd = thisMonthStart.clone().subtract(1, 'millisecond');
+  return {
+    curStart: thisMonthStart,
+    curEnd: now.clone(),
+    prevStart: prevMonthStart,
+    prevEnd: prevMonthEnd,
+    curLabel: 'This month',
+    prevLabel: 'Last month',
+  };
+}
+
+function getFetchBounds(tz, periodPair) {
+  const w = getComparisonWindows(tz, periodPair);
+  return { start: w.prevStart.clone(), end: w.curEnd.clone() };
+}
+
+/**
+ * @returns {{ v1: number, v2: number, label1: string, label2: string, n1: number, n2: number, accumWarning?: string }}
+ */
+function computeHistoricalPair(rows, param, tz, metricKind, periodPair) {
+  const w = getComparisonWindows(tz, periodPair);
+  const p = param;
+  const metricLabel =
+    metricKind === 'sum' ? 'sum' : metricKind === 'avg' ? 'avg' : 'accumulation';
+
+  if (periodPair === 'day' && (metricKind === 'sum' || metricKind === 'avg')) {
+    const agg = aggregateDays(rows, p, tz);
+    const isSum = metricKind === 'sum';
+    const v1 = isSum ? agg.sumToday : agg.avgToday;
+    const v2 = isSum ? agg.sumYest : agg.avgYest;
+    const n1 = agg.nToday;
+    const n2 = agg.nYest;
+    return {
+      v1,
+      v2,
+      label1: `${w.curLabel} (${p} ${metricLabel})`,
+      label2: `${w.prevLabel} (${p} ${metricLabel})`,
+      n1,
+      n2,
+    };
+  }
+
+  if (metricKind === 'sum') {
+    const a = sumAvgInRange(rows, p, tz, w.curStart, w.curEnd);
+    const b = sumAvgInRange(rows, p, tz, w.prevStart, w.prevEnd);
+    return {
+      v1: a.sum,
+      v2: b.sum,
+      label1: `${w.curLabel} (${p} sum)`,
+      label2: `${w.prevLabel} (${p} sum)`,
+      n1: a.n,
+      n2: b.n,
+    };
+  }
+
+  if (metricKind === 'avg') {
+    const a = sumAvgInRange(rows, p, tz, w.curStart, w.curEnd);
+    const b = sumAvgInRange(rows, p, tz, w.prevStart, w.prevEnd);
+    return {
+      v1: a.avg,
+      v2: b.avg,
+      label1: `${w.curLabel} (${p} avg)`,
+      label2: `${w.prevLabel} (${p} avg)`,
+      n1: a.n,
+      n2: b.n,
+    };
+  }
+
+  // accumulation
+  const a = accumInRange(rows, p, tz, w.curStart, w.curEnd);
+  const b = accumInRange(rows, p, tz, w.prevStart, w.prevEnd);
+  let accumWarning;
+  if (!a.ok || !b.ok) {
+    accumWarning =
+      'Accumulation needs at least two readings in each period (monotonic totalizers). Single-point windows count as 0 delta.';
+  }
+  return {
+    v1: a.delta,
+    v2: b.delta,
+    label1: `${w.curLabel} (${p} Δ)`,
+    label2: `${w.prevLabel} (${p} Δ)`,
+    n1: a.n,
+    n2: b.n,
+    accumWarning,
+  };
+}
+
 export default function ComparisonDoughnutDashboard() {
   const theme = useTheme();
   const [devices, setDevices] = useState([]);
   const [deviceId, setDeviceId] = useState('');
   const [paramList, setParamList] = useState([]);
-  const [mode, setMode] = useState('realtime_ab');
+  const [metricKind, setMetricKind] = useState('realtime');
+  const [periodPair, setPeriodPair] = useState('day');
   const [paramA, setParamA] = useState('');
   const [paramB, setParamB] = useState('');
   const [paramSingle, setParamSingle] = useState('');
@@ -102,6 +267,7 @@ export default function ComparisonDoughnutDashboard() {
   const [chartData, setChartData] = useState([]);
   const [caption, setCaption] = useState('');
   const [deltaPct, setDeltaPct] = useState(null);
+  const [notice, setNotice] = useState('');
 
   const tz = useMemo(() => getUserTimezone(), []);
 
@@ -114,7 +280,7 @@ export default function ComparisonDoughnutDashboard() {
       if (!res.ok) return;
       const data = await res.json();
       const list = Array.isArray(data) ? data : [];
-      setDevices(list.filter((d) => d.status !== 'deleted'));
+      setDevices(list.filter((d) => d?.status !== 'deleted' && d?.is_deleted !== true));
     } catch (e) {
       console.error(e);
     }
@@ -174,33 +340,35 @@ export default function ComparisonDoughnutDashboard() {
     return json.data || {};
   }, [deviceId]);
 
-  const fetchDataDashRange = useCallback(async (param) => {
-    const token = localStorage.getItem('iot_token');
-    const start = moment.tz(tz).subtract(1, 'day').startOf('day').toISOString();
-    const end = moment.tz(tz).endOf('day').toISOString();
-    const params = new URLSearchParams({
-      deviceIds: deviceId,
-      parameters: param,
-      startDate: start,
-      endDate: end,
-      limit: '50000',
-    });
-    const res = await fetch(`${API_BASE_URL}/data-dash?${params}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Failed to load historical data');
-    }
-    const json = await res.json();
-    return json.data || [];
-  }, [deviceId, tz]);
+  const fetchDataDashWindow = useCallback(
+    async (param, startIso, endIso) => {
+      const token = localStorage.getItem('iot_token');
+      const params = new URLSearchParams({
+        deviceIds: deviceId,
+        parameters: param,
+        startDate: startIso,
+        endDate: endIso,
+        limit: '100000',
+      });
+      const res = await fetch(`${API_BASE_URL}/data-dash?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to load historical data');
+      }
+      const json = await res.json();
+      return json.data || [];
+    },
+    [deviceId]
+  );
 
   const runLoadRef = useRef(async () => {});
 
   const runLoad = useCallback(async () => {
     setError('');
     setCaption('');
+    setNotice('');
     setDeltaPct(null);
     setChartData([]);
 
@@ -209,7 +377,7 @@ export default function ComparisonDoughnutDashboard() {
       return;
     }
 
-    if (mode === 'realtime_ab') {
+    if (metricKind === 'realtime') {
       if (!paramA || !paramB || paramA === paramB) {
         setError('Select two different parameters');
         return;
@@ -223,7 +391,7 @@ export default function ComparisonDoughnutDashboard() {
 
     setLoading(true);
     try {
-      if (mode === 'realtime_ab') {
+      if (metricKind === 'realtime') {
         const data = await fetchRealtime();
         const A = parseNum(data[paramA]);
         const B = parseNum(data[paramB]);
@@ -246,48 +414,39 @@ export default function ComparisonDoughnutDashboard() {
         ]);
         setCaption(`Share of total (A + B): ${paramA} ${segA.toFixed(1)}% · ${paramB} ${segB.toFixed(1)}%`);
       } else {
-        const rows = await fetchDataDashRange(paramSingle);
-        const agg = aggregateDays(rows, paramSingle, tz);
-        const S1 = mode === 'sum_day' ? agg.sumToday : agg.avgToday;
-        const S2 = mode === 'sum_day' ? agg.sumYest : agg.avgYest;
-        const labelToday =
-          mode === 'sum_day' ? `Today (${paramSingle} sum)` : `Today (${paramSingle} avg)`;
-        const labelYest =
-          mode === 'sum_day'
-            ? `Yesterday (${paramSingle} sum)`
-            : `Yesterday (${paramSingle} avg)`;
+        const { start, end } = getFetchBounds(tz, periodPair);
+        const rows = await fetchDataDashWindow(
+          paramSingle,
+          start.toISOString(),
+          end.toISOString()
+        );
+        const pair = computeHistoricalPair(rows, paramSingle, tz, metricKind, periodPair);
+        const { v1: S1, v2: S2, label1, label2, n1, n2, accumWarning } = pair;
 
-        if (mode === 'sum_day' && agg.nToday === 0 && agg.nYest === 0) {
-          setError('No data in the selected days for this parameter');
-          setLoading(false);
-          return;
-        }
-        if (mode === 'avg_day' && agg.nToday === 0 && agg.nYest === 0) {
-          setError('No data in the selected days for this parameter');
+        if (accumWarning) setNotice(accumWarning);
+
+        if (n1 === 0 && n2 === 0) {
+          setError('No data in the selected range for this parameter');
           setLoading(false);
           return;
         }
 
         const T = S1 + S2;
-        if (T <= 0) {
-          setError('Cannot compute chart (both sides are zero)');
+        if (!Number.isFinite(S1) || !Number.isFinite(S2) || !Number.isFinite(T) || T <= 0) {
+          setError('Cannot compute chart (values must sum to a positive total)');
           setLoading(false);
           return;
         }
         const p1 = (S1 / T) * 100;
         const p2 = (S2 / T) * 100;
         setChartData([
-          { name: labelToday, value: S1, pct: p1 },
-          { name: labelYest, value: S2, pct: p2 },
+          { name: label1, value: S1, pct: p1 },
+          { name: label2, value: S2, pct: p2 },
         ]);
         setCaption(
-          `${labelToday}: ${S1.toFixed(3)} · ${labelYest}: ${S2.toFixed(3)}`
+          `${label1}: ${S1.toFixed(3)} · ${label2}: ${S2.toFixed(3)}`
         );
-        if (S2 !== 0) {
-          setDeltaPct(((S1 - S2) / S2) * 100);
-        } else {
-          setDeltaPct(null);
-        }
+        setDeltaPct(S2 !== 0 ? ((S1 - S2) / S2) * 100 : null);
       }
     } catch (e) {
       setError(e.message || 'Load failed');
@@ -296,33 +455,34 @@ export default function ComparisonDoughnutDashboard() {
     }
   }, [
     deviceId,
-    mode,
+    metricKind,
+    periodPair,
     paramA,
     paramB,
     paramSingle,
     fetchRealtime,
-    fetchDataDashRange,
+    fetchDataDashWindow,
     tz,
   ]);
 
   runLoadRef.current = runLoad;
 
   useEffect(() => {
-    if (mode !== 'realtime_ab' || !deviceId || !paramA || !paramB || paramA === paramB) return;
+    if (metricKind !== 'realtime' || !deviceId || !paramA || !paramB || paramA === paramB) return;
     const id = setInterval(() => runLoadRef.current(), 60000);
     return () => clearInterval(id);
-  }, [mode, deviceId, paramA, paramB]);
+  }, [metricKind, deviceId, paramA, paramB]);
 
   const cellColors = useMemo(() => {
     if (chartData.length !== 2) return [COLORS.primary, COLORS.secondary];
     const [a, b] = chartData;
-    if (mode === 'realtime_ab') {
+    if (metricKind === 'realtime') {
       return a.value >= b.value
         ? [COLORS.dominant, COLORS.other]
         : [COLORS.other, COLORS.dominant];
     }
     return [COLORS.today, COLORS.yesterday];
-  }, [chartData, mode]);
+  }, [chartData, metricKind]);
 
   return (
     <Box sx={{ p: 2, maxWidth: 960, mx: 'auto' }}>
@@ -330,9 +490,11 @@ export default function ComparisonDoughnutDashboard() {
         Comparison metrics
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        One doughnut chart: switch mode to compare realtime parameters or today vs
-        yesterday (sum or average). Segments are shares of the pair total; day modes
-        show day-over-day % change below.
+        Compare two numbers as shares of their total. <strong>Realtime</strong> uses latest
+        A vs B. <strong>Sum / Average</strong> use all samples in each window (day, ISO week, or
+        calendar month vs the previous period). <strong>Accumulation</strong> is for monotonic
+        totalizers: each slice is (last reading − first reading) in that window — e.g. midnight
+        100 → midnight 150 gives a daily accumulation of 50 for that day.
       </Typography>
 
       <Card sx={{ ...getChartCardSx(theme), mb: 2 }}>
@@ -353,27 +515,37 @@ export default function ComparisonDoughnutDashboard() {
               </Select>
             </FormControl>
 
-            <Box>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                Comparison mode
-              </Typography>
-              <ToggleButtonGroup
-                exclusive
-                color="primary"
-                size="small"
-                value={mode}
-                onChange={(_, v) => v && setMode(v)}
-                sx={{ flexWrap: 'wrap' }}
+            <FormControl fullWidth size="small">
+              <InputLabel>Metric</InputLabel>
+              <Select
+                label="Metric"
+                value={metricKind}
+                onChange={(e) => setMetricKind(e.target.value)}
               >
-                {MODES.map((m) => (
-                  <ToggleButton key={m.id} value={m.id}>
+                {METRIC_OPTIONS.map((m) => (
+                  <MenuItem key={m.id} value={m.id}>
                     {m.label}
-                  </ToggleButton>
+                  </MenuItem>
                 ))}
-              </ToggleButtonGroup>
-            </Box>
+              </Select>
+            </FormControl>
 
-            {mode === 'realtime_ab' ? (
+            <FormControl fullWidth size="small" disabled={metricKind === 'realtime'}>
+              <InputLabel>Period</InputLabel>
+              <Select
+                label="Period"
+                value={periodPair}
+                onChange={(e) => setPeriodPair(e.target.value)}
+              >
+                {PERIOD_OPTIONS.map((p) => (
+                  <MenuItem key={p.id} value={p.id}>
+                    {p.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {metricKind === 'realtime' ? (
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                 <FormControl fullWidth size="small">
                   <InputLabel>Parameter A</InputLabel>
@@ -444,6 +616,12 @@ export default function ComparisonDoughnutDashboard() {
         </Alert>
       )}
 
+      {notice && !error && (
+        <Alert severity="info" sx={{ mb: 2 }} onClose={() => setNotice('')}>
+          {notice}
+        </Alert>
+      )}
+
       {chartData.length === 2 && (
         <Card sx={getChartCardSx(theme)}>
           <CardContent>
@@ -483,10 +661,10 @@ export default function ComparisonDoughnutDashboard() {
                 {caption}
               </Typography>
             )}
-            {deltaPct !== null && mode !== 'realtime_ab' && (
+            {deltaPct !== null && metricKind !== 'realtime' && (
               <Chip
                 sx={{ mt: 1 }}
-                label={`Δ vs yesterday: ${deltaPct >= 0 ? '+' : ''}${deltaPct.toFixed(1)}%`}
+                label={`Δ vs previous period: ${deltaPct >= 0 ? '+' : ''}${deltaPct.toFixed(1)}%`}
                 color={deltaPct >= 0 ? 'success' : 'error'}
                 variant="outlined"
               />
