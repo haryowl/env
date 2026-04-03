@@ -1,13 +1,26 @@
 import { API_BASE_URL } from '../config/api';
 
-/** Turn stored path (e.g. /uploads/profile-pictures/...) into a full URL for <img src>. */
+/**
+ * Turn stored path into a full URL for <img src>.
+ * New paths use /api/uploads/... so reverse proxies that only forward /api still serve images.
+ * Legacy /uploads/... is rewritten to /api/uploads/... for the same reason.
+ */
 export function resolveProfilePictureUrl(storedPath) {
   if (!storedPath) return null;
   if (/^https?:\/\//i.test(storedPath)) return storedPath;
+  let p = storedPath.startsWith('/') ? storedPath : `/${storedPath}`;
+  if (p.startsWith('/uploads/')) {
+    p = `/api${p}`;
+  }
   const api = API_BASE_URL.replace(/\/$/, '');
-  const origin = api.endsWith('/api') ? api.slice(0, -4) : api.replace(/\/api$/, '');
-  const p = storedPath.startsWith('/') ? storedPath : `/${storedPath}`;
-  return `${origin}${p}`;
+  if (api.startsWith('http://') || api.startsWith('https://')) {
+    const origin = api.endsWith('/api') ? api.slice(0, -4) : api.replace(/\/api$/, '');
+    return `${origin}${p}`;
+  }
+  if (typeof window !== 'undefined') {
+    return `${window.location.origin}${p}`;
+  }
+  return p;
 }
 
 /** Update cached session user and notify App to refresh avatar. */

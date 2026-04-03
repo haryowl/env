@@ -131,8 +131,11 @@ if (process.env.NODE_ENV === 'production') {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Static files
-app.use('/uploads', express.static('uploads'));
+// Static files (profile photos, maintenance images, etc.)
+const uploadsAbs = path.join(__dirname, 'uploads');
+app.use('/uploads', express.static(uploadsAbs));
+// Same tree under /api/uploads so proxies that only forward /api still serve files
+app.use('/api/uploads', express.static(uploadsAbs));
 const clientDist = path.join(__dirname, '../client/dist');
 const publicDir = path.join(__dirname, '../public');
 // Serve built React app (full UI) if it exists; else fall back to simple public page
@@ -225,7 +228,11 @@ console.log('All API routes registered successfully');
 // Serve the main application - React SPA if built, else simple public page
 // SPA fallback: serve index.html for all non-API/health/uploads GET requests (client-side routing)
 app.get('*', (req, res, next) => {
-  if (req.path.startsWith('/api') || req.path.startsWith('/health') || req.path.startsWith('/uploads')) {
+  if (
+    req.path.startsWith('/api') ||
+    req.path.startsWith('/health') ||
+    req.path.startsWith('/uploads')
+  ) {
     return next();
   }
   if (fs.existsSync(clientDist)) {

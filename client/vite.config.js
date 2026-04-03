@@ -17,6 +17,12 @@ export default defineConfig({
         target: proxyTarget,
         changeOrigin: true,
         secure: false
+      },
+      // Needed if profile_picture still uses /uploads/... in DB or cache (legacy URLs)
+      '/uploads': {
+        target: proxyTarget,
+        changeOrigin: true,
+        secure: false
       }
     }
   }

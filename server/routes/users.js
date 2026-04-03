@@ -14,8 +14,14 @@ const router = express.Router();
 
 function profileUploadsDiskPath(webPath) {
   if (!webPath || typeof webPath !== 'string') return null;
-  if (!webPath.startsWith('/uploads/profile-pictures/')) return null;
-  return path.join(__dirname, '..', webPath.replace(/^\//, ''));
+  let rel = null;
+  if (webPath.startsWith('/api/uploads/profile-pictures/')) {
+    rel = webPath.slice('/api/uploads/'.length);
+  } else if (webPath.startsWith('/uploads/profile-pictures/')) {
+    rel = webPath.slice('/uploads/'.length);
+  }
+  if (!rel || rel.includes('..')) return null;
+  return path.join(__dirname, '..', 'uploads', rel);
 }
 
 const profilePictureStorage = multer.diskStorage({
@@ -225,7 +231,7 @@ router.post(
         return res.status(404).json({ error: 'User not found', code: 'USER_NOT_FOUND' });
       }
       const oldDisk = profileUploadsDiskPath(userRow.profile_picture);
-      const publicPath = `/uploads/profile-pictures/${req.file.filename}`;
+      const publicPath = `/api/uploads/profile-pictures/${req.file.filename}`;
       await query('UPDATE users SET profile_picture = $1 WHERE user_id = $2', [publicPath, userId]);
       if (oldDisk) {
         await fs.unlink(oldDisk).catch(() => {});
