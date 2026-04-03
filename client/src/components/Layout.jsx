@@ -482,7 +482,16 @@ const Layout = ({ children, user, userContext, onLogout }) => {
   );
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', width: '100%' }}>
+    <Box
+      sx={{
+        display: 'flex',
+        width: '100%',
+        // Lock shell to viewport so scrolling happens inside the main card (enables sticky headers in pages).
+        height: '100vh',
+        maxHeight: '100vh',
+        overflow: 'hidden',
+      }}
+    >
       {/* App Bar */}
       <AppBar
         position="fixed"
@@ -724,9 +733,13 @@ const Layout = ({ children, user, userContext, onLogout }) => {
       <Box
         component="main"
         sx={{
-          flexGrow: 1,
+          flex: 1,
+          minWidth: 0,
+          minHeight: 0,
           width: { md: drawerOpen ? `calc(100% - ${drawerWidth}px)` : '100%' },
-          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
           backgroundColor: customColors?.background || theme.palette.background.default,
           padding: { xs: 2, sm: 2.5, md: 3 },
           paddingTop: { xs: 8, sm: 10, md: 11 },
@@ -738,24 +751,27 @@ const Layout = ({ children, user, userContext, onLogout }) => {
           }),
         }}
       >
-        <Box sx={{ 
-          width: '100%',
-          height: '100%',
-          minHeight: 'calc(100vh - 100px)',
-          backgroundColor: customColors?.card || theme.palette.background.paper,
-          borderRadius: '4px',
-          p: { xs: 2, sm: 3, md: 4 },
-          boxShadow: customColors?.isDarkMode 
-            ? '0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2)'
-            : '0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06)',
-          border: customColors?.isDarkMode 
-            ? '1px solid rgba(255, 255, 255, 0.1)'
-            : '1px solid rgba(0, 0, 0, 0.1)',
-          overflow: 'auto',
-          boxSizing: 'border-box',
-          display: 'flex',
-          flexDirection: 'column'
-        }}>
+        <Box
+          sx={{
+            flex: 1,
+            minHeight: 0,
+            width: '100%',
+            backgroundColor: customColors?.card || theme.palette.background.paper,
+            borderRadius: '4px',
+            p: { xs: 2, sm: 3, md: 4 },
+            boxShadow: customColors?.isDarkMode
+              ? '0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2)'
+              : '0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06)',
+            border: customColors?.isDarkMode
+              ? '1px solid rgba(255, 255, 255, 0.1)'
+              : '1px solid rgba(0, 0, 0, 0.1)',
+            overflow: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            boxSizing: 'border-box',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
           {children}
         </Box>
       </Box>

@@ -793,7 +793,7 @@ const Dashboard = ({ socket }) => {
         sx={{
           position: 'sticky',
           top: 0,
-          zIndex: 8,
+          zIndex: (t) => t.zIndex.appBar - 2,
           mb: 3,
           bgcolor: 'background.paper',
           borderRadius: 1,
