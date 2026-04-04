@@ -28,8 +28,11 @@ import { formatInUserTimezone } from '../utils/timezoneUtils';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import { getChartCardSx, getCartesianGridProps, getAxisTickStyle, getParameterColorIndex, CHART_COLORS } from '../utils/chartStyles';
 
-/** Extra bottom/left room so X-axis datetime ticks are not clipped (Card/wrapper must not use overflow:hidden). */
-const QUICK_VIEW_LINE_MARGIN = { top: 12, right: 16, left: 8, bottom: 44 };
+/** Bottom margin reserves space for X ticks inside the SVG (card stays overflow:hidden so grid rows do not overlap). */
+const QUICK_VIEW_LINE_MARGIN = { top: 12, right: 16, left: 8, bottom: 56 };
+
+/** Extra space above the plotted max: 2% of the Y span (max − min), or 2% of |value| when the series is flat. */
+const Y_AXIS_HEADROOM_RATIO = 0.02;
 
 const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) => {
   const theme = useTheme();
@@ -189,16 +192,28 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
     return { min, max, avg, latest };
   }, [chartData]);
 
-  // Calculate Y-axis domain with buffer (use isFinite so min === 0 is valid)
+  // Y-axis domain: include threshold lines, then add 2% headroom above the top of that range
   const yAxisDomain = useMemo(() => {
     if (!Number.isFinite(stats.min) || !Number.isFinite(stats.max)) return [0, 100];
 
-    const buffer = 2;
-    const minDomain = Math.max(0, stats.min - buffer);
-    const maxDomain = stats.max + buffer;
+    let minV = stats.min;
+    let maxV = stats.max;
+    const tMin = thresholds.min != null ? Number(thresholds.min) : NaN;
+    const tMax = thresholds.max != null ? Number(thresholds.max) : NaN;
+    if (Number.isFinite(tMin)) minV = Math.min(minV, tMin);
+    if (Number.isFinite(tMax)) maxV = Math.max(maxV, tMax);
+
+    const span = maxV - minV;
+    const headroom =
+      span > 0 && Number.isFinite(span)
+        ? span * Y_AXIS_HEADROOM_RATIO
+        : Math.max(Math.abs(maxV), 1e-12) * Y_AXIS_HEADROOM_RATIO;
+
+    const minDomain = Math.max(0, minV);
+    const maxDomain = maxV + headroom;
 
     return [minDomain, maxDomain];
-  }, [stats.min, stats.max]);
+  }, [stats.min, stats.max, thresholds.min, thresholds.max]);
 
   // Check if latest value is out of range
   const isLatestOutOfRange = useMemo(() => {
@@ -247,10 +262,21 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
       borderColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
       boxShadow: theme.palette.mode === 'dark' ? 'none' : '0 1px 3px rgba(0,0,0,0.06)',
       transition: 'all 0.2s ease',
-      overflow: 'visible',
+      overflow: 'hidden',
       '&:hover': { boxShadow: theme.palette.mode === 'dark' ? '0 0 0 1px rgba(255,255,255,0.1)' : '0 4px 12px rgba(0,0,0,0.08)' }
     }}>
-      <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: '100%', width: '100%', p: 2.5, overflow: 'visible' }}>
+      <CardContent
+        sx={{
+          flexGrow: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%',
+          width: '100%',
+          p: 2.5,
+          overflow: 'hidden',
+          minHeight: 0,
+        }}
+      >
         {/* Become look: minimal header – title + subtitle, thin left accent, alerts on right */}
         <Box sx={{ 
           display: 'flex', 
@@ -359,31 +385,30 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
         <Box
           ref={chartRef}
           sx={{
-            flexGrow: 1,
-            flexShrink: 0,
+            flex: '1 1 0',
             width: '100%',
             minWidth: 0,
-            minHeight: { xs: 280, sm: 300 },
-            height: { xs: 300, sm: 340, md: '100%' },
-            maxHeight: { xs: 340, sm: 400, md: 'none' },
+            minHeight: { xs: 260, sm: 280 },
             ...getChartCardSx(theme),
             position: 'relative',
-            overflow: 'visible',
-            pb: 0.5,
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
           {chartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
+            <Box sx={{ flex: 1, minHeight: 200, width: '100%', minWidth: 0 }}>
+              <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData} margin={QUICK_VIEW_LINE_MARGIN}>
                 <CartesianGrid {...getCartesianGridProps(theme)} />
                 <XAxis
                   dataKey="datetime"
                   stroke={theme.palette.divider}
                   tick={getAxisTickStyle(theme)}
-                  tickMargin={10}
-                  minTickGap={18}
+                  tickMargin={8}
+                  minTickGap={16}
                   interval="preserveStartEnd"
-                  height={36}
+                  height={32}
                 />
                 <YAxis stroke={theme.palette.divider} tick={getAxisTickStyle(theme)} domain={yAxisDomain} />
                 <RechartsTooltip content={<CustomTooltip />} />
@@ -445,7 +470,8 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
                   connectNulls={false}
                 />
               </LineChart>
-            </ResponsiveContainer>
+              </ResponsiveContainer>
+            </Box>
           ) : (
             <Box sx={{ 
               display: 'flex', 
