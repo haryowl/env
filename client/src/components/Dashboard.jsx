@@ -72,19 +72,19 @@ const formatInUserTimezone = (dt, fmt = 'YYYY-MM-DD HH:mm:ss') => {
 const REALTIME_LINE_CHART_MARGIN = { top: 8, right: 18, left: 4, bottom: 2 };
 
 /**
- * Recharts YAxis domain callback: add ~10% headroom above max and below min vs each extreme
- * (max + 10%·|max|, min − 10%·|min|). When min is exactly 0, keep floor at 0.
+ * Recharts YAxis domain callback: add ~5% headroom above max and below min vs each extreme
+ * (max + 5%·|max|, min − 5%·|min|). When min is exactly 0, keep floor at 0.
  */
 const padRealtimeChartYDomain = ([dMin, dMax]) => {
   if (!Number.isFinite(dMin) || !Number.isFinite(dMax)) {
     return [0, 'auto'];
   }
   if (dMin === dMax) {
-    const pad = Math.max(Math.abs(dMin) * 0.1, 1e-9);
+    const pad = Math.max(Math.abs(dMin) * 0.05, 1e-9);
     return [dMin - pad, dMax + pad];
   }
-  const hi = dMax + 0.1 * Math.abs(dMax);
-  let lo = dMin - 0.1 * Math.abs(dMin);
+  const hi = dMax + 0.05 * Math.abs(dMax);
+  let lo = dMin - 0.05 * Math.abs(dMin);
   if (dMin === 0) {
     lo = 0;
   }
