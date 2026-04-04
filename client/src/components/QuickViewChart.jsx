@@ -63,6 +63,11 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
     [parameterUnit]
   );
 
+  const formatYAxisTick = useCallback((value) => {
+    const n = Number(value);
+    return Number.isFinite(n) ? n.toFixed(3) : '';
+  }, []);
+
   // Register chart ref with parent component
   useEffect(() => {
     if (addChartRef) {
@@ -410,7 +415,12 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
                   interval="preserveStartEnd"
                   height={32}
                 />
-                <YAxis stroke={theme.palette.divider} tick={getAxisTickStyle(theme)} domain={yAxisDomain} />
+                <YAxis
+                  stroke={theme.palette.divider}
+                  tick={getAxisTickStyle(theme)}
+                  domain={yAxisDomain}
+                  tickFormatter={formatYAxisTick}
+                />
                 <RechartsTooltip content={<CustomTooltip />} />
                 
                 {/* Modern threshold lines */}

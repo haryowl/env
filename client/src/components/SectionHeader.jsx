@@ -3,12 +3,13 @@ import { Box, Typography } from '@mui/material';
 
 /**
  * Slim section header matching PageHeader style.
- * Use inside cards/sections (Data Filters, Data Summary, etc.)
+ * Use inside cards/sections (Data Filters, tables, etc.). Optional `center` fills space between title and `right`.
  */
 export default function SectionHeader({
   icon,
   title,
   subtitle,
+  center,
   right,
   sx,
   compact = false,
@@ -18,7 +19,7 @@ export default function SectionHeader({
       sx={{
         display: 'flex',
         alignItems: { xs: 'flex-start', sm: 'center' },
-        justifyContent: 'space-between',
+        justifyContent: 'flex-start',
         flexWrap: 'wrap',
         gap: compact ? 0.75 : 1.25,
         px: compact ? 1.5 : 2,
@@ -29,7 +30,7 @@ export default function SectionHeader({
         ...(sx || {}),
       }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
         <Box
           sx={{
             width: compact ? 26 : 30,
@@ -73,7 +74,34 @@ export default function SectionHeader({
           ) : null}
         </Box>
       </Box>
-      {right ? <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>{right}</Box> : null}
+      {center ? (
+        <Box
+          sx={{
+            flex: '1 1 auto',
+            minWidth: 0,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 1,
+          }}
+        >
+          {center}
+        </Box>
+      ) : null}
+      {right ? (
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            flexShrink: 0,
+            ml: 'auto',
+          }}
+        >
+          {right}
+        </Box>
+      ) : null}
     </Box>
   );
 }

@@ -27,8 +27,7 @@ import {
   Visibility as VisibilityIcon,
   Warning as WarningIcon,
   TableChart as TableChartIcon,
-  FileDownload as FileDownloadIcon,
-  Settings as SettingsIcon
+  FileDownload as FileDownloadIcon
 } from '@mui/icons-material';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
@@ -185,6 +184,57 @@ const QuickViewTable = ({ data, parameters, deviceName, alertConfigs = [], getEx
     return tableData.slice(startIndex, startIndex + rowsPerPage);
   }, [tableData, page, rowsPerPage]);
 
+  const tableHeaderSummaryCenter = useMemo(() => {
+    if (!tableData.length) return null;
+    const alertChips = parameters
+      .map((parameter) => {
+        const outOfRangeCount = tableData.filter((row) =>
+          isOutOfRange(parameter, row[parameter]),
+        ).length;
+        if (outOfRangeCount <= 0) return null;
+        return (
+          <Chip
+            key={parameter}
+            label={`${outOfRangeCount} ${parameter} alerts`}
+            size="small"
+            icon={<WarningIcon sx={{ fontSize: 16 }} />}
+            sx={{
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              color: '#EF4444',
+              fontWeight: 600,
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+            }}
+          />
+        );
+      })
+      .filter(Boolean);
+    return (
+      <>
+        <Chip
+          label={`${tableData.length} Total Records`}
+          size="small"
+          sx={{
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            color: '#3B82F6',
+            fontWeight: 600,
+            border: '1px solid rgba(59, 130, 246, 0.3)',
+          }}
+        />
+        <Chip
+          label={`${paginatedData.length} Showing`}
+          size="small"
+          sx={{
+            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+            color: '#10B981',
+            fontWeight: 600,
+            border: '1px solid rgba(16, 185, 129, 0.3)',
+          }}
+        />
+        {alertChips}
+      </>
+    );
+  }, [tableData, paginatedData, parameters, isOutOfRange]);
+
   return (
     <Card sx={{ 
       height: '100%', 
@@ -211,6 +261,7 @@ const QuickViewTable = ({ data, parameters, deviceName, alertConfigs = [], getEx
             icon={<TableChartIcon sx={{ fontSize: 18 }} />}
             title="Data Table"
             subtitle={deviceName ? `${deviceName} · parameter values` : 'Parameter values'}
+            center={tableHeaderSummaryCenter}
             right={(
               <Stack direction="row" spacing={1} alignItems="center">
                 <FormControl size="small" sx={{ minWidth: 140 }}>
@@ -549,75 +600,6 @@ const QuickViewTable = ({ data, parameters, deviceName, alertConfigs = [], getEx
             }}
           />
         </Box>
-
-        {/* Modern Summary */}
-        {tableData.length > 0 && (
-          <Box sx={{ 
-            mt: 3, 
-            p: 2,
-            borderRadius: '4px',
-            background: 'linear-gradient(135deg, rgba(107, 70, 193, 0.05) 0%, rgba(107, 70, 193, 0.02) 100%)',
-            border: '1px solid rgba(107, 70, 193, 0.1)'
-          }}>
-            <Typography variant="subtitle2" sx={{ 
-              fontWeight: 600, 
-              color: theme.palette.text.primary,
-              mb: 2,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1
-            }}>
-              <SettingsIcon sx={{ fontSize: 20, color: '#007BA7' }} />
-              Data Summary
-            </Typography>
-            <Box sx={{ 
-              display: 'flex', 
-              gap: 2, 
-              flexWrap: 'wrap' 
-            }}>
-              <Chip 
-                label={`${tableData.length} Total Records`}
-                sx={{
-                  backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                  color: '#3B82F6',
-                  fontWeight: 600,
-                  border: '1px solid rgba(59, 130, 246, 0.3)'
-                }}
-                size="small"
-              />
-              <Chip 
-                label={`${paginatedData.length} Showing`}
-                sx={{
-                  backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                  color: '#10B981',
-                  fontWeight: 600,
-                  border: '1px solid rgba(16, 185, 129, 0.3)'
-                }}
-                size="small"
-              />
-              {parameters.map((parameter) => {
-                const outOfRangeCount = tableData.filter(row => 
-                  isOutOfRange(parameter, row[parameter])
-                ).length;
-                
-                return outOfRangeCount > 0 ? (
-                  <Chip 
-                    key={parameter}
-                    label={`${outOfRangeCount} ${parameter} alerts`}
-                    sx={{
-                      backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                      color: '#EF4444',
-                      fontWeight: 600,
-                      border: '1px solid rgba(239, 68, 68, 0.3)'
-                    }}
-                    size="small"
-                    icon={<WarningIcon sx={{ fontSize: 16 }} />}
-                  />
-                ) : null;
-              })}
-            </Box>
-          </Box>
-        )}
       </CardContent>
     </Card>
   );
