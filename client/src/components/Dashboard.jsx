@@ -1175,8 +1175,8 @@ const Dashboard = ({ socket }) => {
                   <Typography variant="h6" sx={{ 
                     fontWeight: 600, 
                     color: theme.palette.text.primary, 
-                    mb: 1.25,
-                    fontSize: '1.05rem'
+                    mb: 1,
+                    fontSize: '0.9rem'
                   }}>
                     Current Values
                   </Typography>
@@ -1197,7 +1197,7 @@ const Dashboard = ({ socket }) => {
                           border: `1px solid ${colorPalette[idx % colorPalette.length]}30`,
                           bgcolor: `${colorPalette[idx % colorPalette.length]}10`,
                           transition: 'all 0.2s ease',
-                          height: 100,
+                          height: 92,
                           display: 'flex',
                           flexDirection: 'column',
                           justifyContent: 'center',
@@ -1216,10 +1216,10 @@ const Dashboard = ({ socket }) => {
                             sx={{
                               color: 'text.secondary',
                               fontWeight: 600,
-                              mb: 0.35,
-                              fontSize: '0.8rem',
+                              mb: 0.25,
+                              fontSize: '0.72rem',
                               lineHeight: 1.2,
-                              minHeight: '2.4em',
+                              minHeight: '2.2em',
                               display: '-webkit-box',
                               WebkitLineClamp: 2,
                               WebkitBoxOrient: 'vertical',
@@ -1232,9 +1232,9 @@ const Dashboard = ({ socket }) => {
                           <Typography
                             variant="h5"
                             sx={{
-                              fontWeight: 800,
+                              fontWeight: 700,
                               color: colorPalette[idx % colorPalette.length],
-                              fontSize: '1.08rem',
+                              fontSize: '0.92rem',
                               lineHeight: 1.15,
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
@@ -1244,10 +1244,10 @@ const Dashboard = ({ socket }) => {
                             {formattedValue}
                           </Typography>
                           <Box sx={{ mt: 0.4, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.75 }}>
-                            <Typography variant="caption" sx={{ fontWeight: 700, color: deltaColor, fontSize: '0.72rem' }}>
+                            <Typography variant="caption" sx={{ fontWeight: 700, color: deltaColor, fontSize: '0.65rem' }}>
                               {delta == null ? '—' : `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}%`}
                             </Typography>
-                            <Box sx={{ flex: 1, height: 18, minWidth: 52 }}>
+                            <Box sx={{ flex: 1, height: 16, minWidth: 48 }}>
                               {metric.spark.length >= 2 ? (
                                 <ResponsiveContainer width="100%" height="100%">
                                   <LineChart data={metric.spark} margin={{ top: 1, right: 1, bottom: 1, left: 1 }}>
@@ -1255,7 +1255,7 @@ const Dashboard = ({ socket }) => {
                                       type="monotone"
                                       dataKey="value"
                                       stroke={colorPalette[idx % colorPalette.length]}
-                                      strokeWidth={1.75}
+                                      strokeWidth={1.5}
                                       dot={false}
                                       isAnimationActive={false}
                                       opacity={0.9}
@@ -1263,7 +1263,7 @@ const Dashboard = ({ socket }) => {
                                   </LineChart>
                                 </ResponsiveContainer>
                               ) : (
-                                <Box sx={{ height: 18 }} />
+                                <Box sx={{ height: 16 }} />
                               )}
                             </Box>
                           </Box>
@@ -1390,7 +1390,17 @@ const Dashboard = ({ socket }) => {
                           return formatInUserTimezone(value);
                         }}
                       />
-                      <YAxis type="number" tick={AXIS_TICK_STYLE} domain={padRealtimeChartYDomain} allowDataOverflow />
+                      <YAxis
+                        type="number"
+                        tick={AXIS_TICK_STYLE}
+                        domain={padRealtimeChartYDomain}
+                        allowDataOverflow
+                        tickFormatter={(v) => {
+                          if (v === null || v === undefined || v === '') return '';
+                          const n = typeof v === 'number' ? v : Number(v);
+                          return Number.isFinite(n) ? n.toFixed(3) : String(v);
+                        }}
+                      />
                       <Tooltip
                         content={RealtimeTooltip}
                         cursor={{ stroke: 'rgba(2, 132, 199, 0.45)', strokeWidth: 1 }}
