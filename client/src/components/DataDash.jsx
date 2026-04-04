@@ -191,12 +191,20 @@ export default function DataDash() {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       
-      // Format datetime values in the data
-      const formattedData = (response.data.data || []).map(row => ({
-        ...row,
-        datetime: formatInUserTimezone(row.datetime),
-        timestamp: formatInUserTimezone(row.timestamp),
-      }));
+      // Table: localized strings. Chart: numeric UTC ms + sort so X-axis is true time order (not API order).
+      const rawRows = response.data.data || [];
+      const formattedData = rawRows
+        .map((row) => {
+          const rawInstant = row.datetime ?? row.timestamp;
+          const t = rawInstant != null && rawInstant !== '' ? new Date(rawInstant).getTime() : NaN;
+          return {
+            ...row,
+            _chartTime: Number.isFinite(t) ? t : 0,
+            datetime: formatInUserTimezone(row.datetime ?? row.timestamp),
+            timestamp: formatInUserTimezone(row.timestamp),
+          };
+        })
+        .sort((a, b) => a._chartTime - b._chartTime);
       setData(formattedData);
       setSummary(response.data.summary || {});
     } catch (error) {
@@ -312,6 +320,49 @@ export default function DataDash() {
     } catch (e) {
       console.error('Export XLSX failed:', e);
     }
+  };
+
+  /** Match Devices/Parameters Select row height (34px) — DateTimePicker adornment often stretches default TextField */
+  const dataDashDateTimeFieldSx = {
+    '& .MuiInputBase-root': {
+      height: 34,
+      minHeight: 34,
+      maxHeight: 34,
+      boxSizing: 'border-box',
+      alignItems: 'center',
+      borderRadius: 1.5,
+    },
+    '& .MuiInputBase-input, & .MuiOutlinedInput-input': {
+      py: '5px',
+      px: '10px',
+      pr: '4px',
+      fontSize: '0.75rem',
+      color: theme.palette.text.primary,
+      boxSizing: 'border-box',
+      lineHeight: 1.2,
+    },
+    '& .MuiInputAdornment-root': {
+      marginLeft: 0,
+      height: 30,
+      maxHeight: 30,
+    },
+    '& .MuiInputAdornment-root .MuiIconButton-root': {
+      p: 0.35,
+    },
+    '& .MuiInputAdornment-root .MuiIconButton-root .MuiSvgIcon-root': {
+      fontSize: '1.1rem',
+    },
+    '& .MuiOutlinedInput-notchedOutline': {
+      borderColor: 'rgba(0,0,0,0.14)',
+      borderWidth: '1px',
+    },
+    '&:hover .MuiOutlinedInput-notchedOutline': {
+      borderColor: theme.palette.primary.main,
+    },
+    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+      borderColor: theme.palette.primary.main,
+      borderWidth: '1.5px',
+    },
   };
 
   const filterControls = (
@@ -487,26 +538,16 @@ export default function DataDash() {
               <DateTimePicker
                 value={dateRange[0]}
                 onChange={date => setDateRange([date, dateRange[1]])}
-                renderInput={params => <TextField {...params} fullWidth size="small" label={null} InputLabelProps={{ shrink: false }} sx={{ 
-                  '& .MuiInputBase-root': { minHeight: 34 },
-                  '& .MuiInputBase-input': { 
-                    color: theme.palette.text.primary,
-                    padding: '6px 10px',
-                    fontSize: '0.75rem'
-                  },
-                  '& .MuiOutlinedInput-notchedOutline': { 
-                    borderColor: 'rgba(0,0,0,0.14)',
-                    borderWidth: '1px'
-                  },
-                  '&:hover .MuiOutlinedInput-notchedOutline': {
-                    borderColor: theme.palette.primary.main
-                  },
-                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                    borderColor: theme.palette.primary.main,
-                    borderWidth: '1.5px'
-                  },
-                  borderRadius: '4px'
-                }} />}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    fullWidth
+                    size="small"
+                    label={null}
+                    InputLabelProps={{ shrink: false }}
+                    sx={dataDashDateTimeFieldSx}
+                  />
+                )}
               />
             </Box>
             <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
@@ -516,26 +557,16 @@ export default function DataDash() {
               <DateTimePicker
                 value={dateRange[1]}
                 onChange={date => setDateRange([dateRange[0], date])}
-                renderInput={params => <TextField {...params} fullWidth size="small" label={null} InputLabelProps={{ shrink: false }} sx={{ 
-                  '& .MuiInputBase-root': { minHeight: 34 },
-                  '& .MuiInputBase-input': { 
-                    color: theme.palette.text.primary,
-                    padding: '6px 10px',
-                    fontSize: '0.75rem'
-                  },
-                  '& .MuiOutlinedInput-notchedOutline': { 
-                    borderColor: 'rgba(0,0,0,0.14)',
-                    borderWidth: '1px'
-                  },
-                  '&:hover .MuiOutlinedInput-notchedOutline': {
-                    borderColor: theme.palette.primary.main
-                  },
-                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                    borderColor: theme.palette.primary.main,
-                    borderWidth: '1.5px'
-                  },
-                  borderRadius: '4px'
-                }} />}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    fullWidth
+                    size="small"
+                    label={null}
+                    InputLabelProps={{ shrink: false }}
+                    sx={dataDashDateTimeFieldSx}
+                  />
+                )}
               />
             </Box>
           </LocalizationProvider>
@@ -1139,8 +1170,10 @@ export default function DataDash() {
                   margin={{ ...CHART_MARGIN, bottom: 36, left: 4, right: 8, top: 8 }}
                 >
                           <CartesianGrid {...CARTESIAN_GRID_PROPS} />
-                          <XAxis 
-                            dataKey="datetime" 
+                          <XAxis
+                            dataKey="_chartTime"
+                            type="number"
+                            domain={['dataMin', 'dataMax']}
                             tick={{ fontSize: 9, fill: theme.palette.text.secondary }}
                             tickMargin={6}
                             minTickGap={28}
@@ -1148,11 +1181,9 @@ export default function DataDash() {
                             textAnchor="end"
                             height={48}
                             interval="preserveStartEnd"
-                            tickFormatter={(value) => {
-                              if (typeof value === 'string' && !value.includes('T')) {
-                                return value;
-                              }
-                              return formatInUserTimezone(value, 'MM/DD HH:mm');
+                            tickFormatter={(ms) => {
+                              if (ms == null || !Number.isFinite(ms)) return '';
+                              return formatInUserTimezone(new Date(ms).toISOString(), 'MM/DD HH:mm');
                             }}
                           />
                           <YAxis
@@ -1172,7 +1203,17 @@ export default function DataDash() {
                                 formatDisplayName(dataKey, { withUnit: true })
                               ];
                             }}
-                            labelFormatter={(label) => formatInUserTimezone(label)}
+                            labelFormatter={(label) => {
+                              if (typeof label === 'number' && Number.isFinite(label)) {
+                                return formatInUserTimezone(new Date(label).toISOString());
+                              }
+                              if (label == null || label === '') return '';
+                              /* Already-local display string from table pipeline — do not parse as UTC again */
+                              if (typeof label === 'string' && !label.includes('T')) {
+                                return label;
+                              }
+                              return formatInUserTimezone(label);
+                            }}
                           />
                           <Legend
                             wrapperStyle={{ ...LEGEND_WRAPPER_STYLE, fontSize: 11, paddingTop: 4 }}
