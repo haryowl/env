@@ -11,6 +11,7 @@ export default function SectionHeader({
   subtitle,
   right,
   sx,
+  compact = false,
 }) {
   return (
     <Box
@@ -19,9 +20,9 @@ export default function SectionHeader({
         alignItems: { xs: 'flex-start', sm: 'center' },
         justifyContent: 'space-between',
         flexWrap: 'wrap',
-        gap: 1.25,
-        px: 2,
-        py: 1.25,
+        gap: compact ? 0.75 : 1.25,
+        px: compact ? 1.5 : 2,
+        py: compact ? 0.65 : 1.25,
         bgcolor: 'background.paper',
         borderBottom: '1px solid',
         borderColor: 'divider',
@@ -31,13 +32,13 @@ export default function SectionHeader({
       <Box sx={{ display: 'flex', alignItems: 'center' }}>
         <Box
           sx={{
-            width: 30,
-            height: 30,
+            width: compact ? 26 : 30,
+            height: compact ? 26 : 30,
             borderRadius: 1,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            mr: 1.25,
+            mr: compact ? 1 : 1.25,
             bgcolor: 'rgba(37, 99, 235, 0.10)',
             color: 'primary.main',
             flexShrink: 0,
@@ -46,11 +47,27 @@ export default function SectionHeader({
           {icon}
         </Box>
         <Box>
-          <Typography sx={{ fontWeight: 800, color: 'text.primary', fontSize: '0.95rem', lineHeight: 1.15 }}>
+          <Typography
+            sx={{
+              fontWeight: 800,
+              color: 'text.primary',
+              fontSize: compact ? '0.82rem' : '0.95rem',
+              lineHeight: compact ? 1.2 : 1.15,
+            }}
+          >
             {title}
           </Typography>
           {subtitle ? (
-            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+            <Typography
+              variant="caption"
+              sx={{
+                color: 'text.secondary',
+                fontWeight: 600,
+                fontSize: compact ? '0.68rem' : undefined,
+                lineHeight: 1.25,
+                display: 'block',
+              }}
+            >
               {subtitle}
             </Typography>
           ) : null}

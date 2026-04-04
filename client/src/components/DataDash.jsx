@@ -9,7 +9,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Leg
 import axios from 'axios';
 import { API_BASE_URL } from '../config/api';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
-import { getChartCardSx, CHART_MARGIN, CARTESIAN_GRID_PROPS, AXIS_TICK_STYLE, getTooltipContentStyle, LEGEND_WRAPPER_STYLE, getParameterColor as getChartParamColor } from '../utils/chartStyles';
+import { getChartCardSx, CHART_MARGIN, CARTESIAN_GRID_PROPS, getTooltipContentStyle, LEGEND_WRAPPER_STYLE, getParameterColor as getChartParamColor } from '../utils/chartStyles';
 import SpeedIcon from '@mui/icons-material/Speed';
 import OpacityIcon from '@mui/icons-material/Opacity';
 import ScienceIcon from '@mui/icons-material/Science';
@@ -314,43 +314,31 @@ export default function DataDash() {
     }
   };
 
-  // Improved filter area layout
-  const filterChips = (
-    <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 2 }}>
-      {selectedDevices.length > 0 && selectedDevices.map(id => (
-        <Chip key={id} label={devices.find(d => d.device_id === id)?.name || id} color="primary" size="small" />
-      ))}
-      {selectedParameters.length > 0 && selectedParameters.map(param => (
-        <Chip key={param} label={param} color="secondary" size="small" />
-      ))}
-      {dateRange[0] && <Chip label={`From: ${dateRange[0].toLocaleString()}`} color="info" size="small" />}
-      {dateRange[1] && <Chip label={`To: ${dateRange[1].toLocaleString()}`} color="info" size="small" />}
-    </Stack>
-  );
-
   const filterControls = (
     <Card sx={{ mb: 2, borderRadius: 1, ...getChartCardSx(theme), overflow: 'visible', p: 0 }}>
       <SectionHeader
-        icon={<DeviceHubIcon sx={{ fontSize: 18 }} />}
+        compact
+        icon={<DeviceHubIcon sx={{ fontSize: 16 }} />}
         title="Data Filters"
         subtitle="Select devices, parameters, and time range"
       />
-      <CardContent sx={{ p: 1.25 }}>
+      <CardContent sx={{ p: 1, pt: 1.25, pb: 1.25 }}>
         <Box
           sx={{
             display: 'grid',
-            gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr 1fr' },
-            gap: 1.25,
+            gridTemplateColumns: { xs: '1fr', md: 'repeat(4, minmax(0, 1fr)) auto' },
+            gap: { xs: 0.75, md: 0.75 },
+            rowGap: 0.75,
             width: '100%',
             minWidth: 0,
             '& > *': { minWidth: 0 },
           }}
         >
-          <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <Typography variant="subtitle2" sx={{ mb: 0.75, fontWeight: 700, fontSize: '0.8rem', color: theme.palette.text.secondary, minHeight: 18, display: 'flex', alignItems: 'center' }}>
+          <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
+            <Typography variant="subtitle2" sx={{ mb: 0.35, fontWeight: 700, fontSize: '0.72rem', color: theme.palette.text.secondary, lineHeight: 1.2 }}>
               Devices
             </Typography>
-              <FormControl fullWidth variant="outlined" size="small" sx={{ width: '100%', maxWidth: '100%', minWidth: 0, '& .MuiInputBase-root': { minHeight: 42 } }}>
+              <FormControl fullWidth variant="outlined" size="small" sx={{ width: '100%', maxWidth: '100%', minWidth: 0, '& .MuiInputBase-root': { minHeight: 34 } }}>
             <Select
               multiple
               value={selectedDevices}
@@ -387,8 +375,8 @@ export default function DataDash() {
                     borderRadius: 1.5,
                     '& .MuiSelect-select': { 
                       color: theme.palette.text.primary,
-                      padding: '10px 12px',
-                      fontSize: '0.84rem',
+                      padding: '6px 10px',
+                      fontSize: '0.75rem',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
@@ -417,11 +405,11 @@ export default function DataDash() {
           </FormControl>
             </Box>
 
-          <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <Typography variant="subtitle2" sx={{ mb: 0.75, fontWeight: 700, fontSize: '0.8rem', color: theme.palette.text.secondary, minHeight: 18, display: 'flex', alignItems: 'center' }}>
+          <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
+            <Typography variant="subtitle2" sx={{ mb: 0.35, fontWeight: 700, fontSize: '0.72rem', color: theme.palette.text.secondary, lineHeight: 1.2 }}>
               Parameters
             </Typography>
-              <FormControl fullWidth variant="outlined" size="small" sx={{ width: '100%', maxWidth: '100%', minWidth: 0, '& .MuiInputBase-root': { minHeight: 42 } }}>
+              <FormControl fullWidth variant="outlined" size="small" sx={{ width: '100%', maxWidth: '100%', minWidth: 0, '& .MuiInputBase-root': { minHeight: 34 } }}>
             <Select
               multiple
               value={selectedParameters}
@@ -458,8 +446,8 @@ export default function DataDash() {
                     borderRadius: 1.5,
                     '& .MuiSelect-select': { 
                       color: theme.palette.text.primary,
-                      padding: '10px 12px',
-                      fontSize: '0.84rem',
+                      padding: '6px 10px',
+                      fontSize: '0.75rem',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
@@ -492,19 +480,19 @@ export default function DataDash() {
             </Box>
 
           <LocalizationProvider dateAdapter={AdapterDateFns}>
-            <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-              <Typography variant="subtitle2" sx={{ mb: 0.75, fontWeight: 700, fontSize: '0.8rem', color: theme.palette.text.secondary, minHeight: 18, display: 'flex', alignItems: 'center' }}>
+            <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
+              <Typography variant="subtitle2" sx={{ mb: 0.35, fontWeight: 700, fontSize: '0.72rem', color: theme.palette.text.secondary, lineHeight: 1.2 }}>
                 Start Date & Time
               </Typography>
               <DateTimePicker
                 value={dateRange[0]}
                 onChange={date => setDateRange([date, dateRange[1]])}
                 renderInput={params => <TextField {...params} fullWidth size="small" label={null} InputLabelProps={{ shrink: false }} sx={{ 
-                  '& .MuiInputBase-root': { minHeight: 42 },
+                  '& .MuiInputBase-root': { minHeight: 34 },
                   '& .MuiInputBase-input': { 
                     color: theme.palette.text.primary,
-                    padding: '10px 12px',
-                    fontSize: '0.84rem'
+                    padding: '6px 10px',
+                    fontSize: '0.75rem'
                   },
                   '& .MuiOutlinedInput-notchedOutline': { 
                     borderColor: 'rgba(0,0,0,0.14)',
@@ -521,19 +509,19 @@ export default function DataDash() {
                 }} />}
               />
             </Box>
-            <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-              <Typography variant="subtitle2" sx={{ mb: 0.75, fontWeight: 700, fontSize: '0.8rem', color: theme.palette.text.secondary, minHeight: 18, display: 'flex', alignItems: 'center' }}>
+            <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
+              <Typography variant="subtitle2" sx={{ mb: 0.35, fontWeight: 700, fontSize: '0.72rem', color: theme.palette.text.secondary, lineHeight: 1.2 }}>
                 End Date & Time
               </Typography>
               <DateTimePicker
                 value={dateRange[1]}
                 onChange={date => setDateRange([dateRange[0], date])}
                 renderInput={params => <TextField {...params} fullWidth size="small" label={null} InputLabelProps={{ shrink: false }} sx={{ 
-                  '& .MuiInputBase-root': { minHeight: 42 },
+                  '& .MuiInputBase-root': { minHeight: 34 },
                   '& .MuiInputBase-input': { 
                     color: theme.palette.text.primary,
-                    padding: '10px 12px',
-                    fontSize: '0.84rem'
+                    padding: '6px 10px',
+                    fontSize: '0.75rem'
                   },
                   '& .MuiOutlinedInput-notchedOutline': { 
                     borderColor: 'rgba(0,0,0,0.14)',
@@ -551,52 +539,68 @@ export default function DataDash() {
               />
             </Box>
           </LocalizationProvider>
-        </Box>
-        
-        <Box sx={{ mt: 3 }}>
-          <Button 
-            variant="contained" 
-            onClick={fetchData} 
-            size="large"
+
+          <Box
             sx={{
-              borderRadius: 1.5,
-              px: 4,
-              py: 1.25,
-              fontSize: '0.9rem',
-              fontWeight: 800,
-              textTransform: 'none',
-              boxShadow: '0 6px 18px rgba(2, 132, 199, 0.20)',
-              mb: 2,
-              '&:hover': {
-                boxShadow: '0 10px 24px rgba(2, 132, 199, 0.28)',
-                transform: 'translateY(-2px)',
-                transition: 'all 0.2s ease-in-out'
-              }
+              gridColumn: { xs: '1 / -1', md: '5 / 6' },
+              gridRow: { xs: 'auto', md: '1 / 2' },
+              display: 'flex',
+              alignItems: 'flex-end',
+              justifyContent: { xs: 'stretch', md: 'flex-start' },
+              pb: { md: '1px' },
             }}
           >
-            Apply Filters
-          </Button>
+            <Button
+              variant="contained"
+              onClick={fetchData}
+              size="small"
+              fullWidth
+              sx={{
+                borderRadius: 1,
+                px: 2,
+                py: 0.65,
+                minHeight: 34,
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                textTransform: 'none',
+                boxShadow: '0 2px 8px rgba(2, 132, 199, 0.18)',
+                width: { xs: '100%', md: 'auto' },
+                '&:hover': {
+                  boxShadow: '0 4px 12px rgba(2, 132, 199, 0.22)',
+                },
+              }}
+            >
+              Apply Filters
+            </Button>
+          </Box>
         </Box>
-        
+
         {((selectedDevices.length > 0) || (selectedParameters.length > 0) || (dateRange[0] || dateRange[1])) && (
-          <Box sx={{ mt: 2 }}>
-            <Typography variant="subtitle2" sx={{ 
-              mb: 1.5, 
-              fontWeight: 600, 
-              color: theme.palette.text.secondary,
-              fontSize: '0.9rem'
-            }}>
+          <Box sx={{ mt: 1 }}>
+            <Typography
+              variant="subtitle2"
+              sx={{
+                mb: 0.5,
+                fontWeight: 600,
+                color: theme.palette.text.secondary,
+                fontSize: '0.72rem',
+              }}
+            >
               Active Filters:
             </Typography>
-            <Box sx={{ 
-              display: 'flex', 
-              flexWrap: 'wrap', 
-              gap: 1,
-              p: 2,
-              backgroundColor: 'rgba(107, 70, 193, 0.05)',
-              borderRadius: 1.5,
-              border: '1px solid rgba(107, 70, 193, 0.1)'
-            }}>
+            <Box
+              sx={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 0.5,
+                p: 1,
+                pt: 0.85,
+                pb: 0.85,
+                backgroundColor: 'rgba(107, 70, 193, 0.05)',
+                borderRadius: 1,
+                border: '1px solid rgba(107, 70, 193, 0.1)',
+              }}
+            >
           {selectedDevices.length > 0 && selectedDevices.map(id => (
                 <Chip 
                   key={id} 
@@ -604,13 +608,13 @@ export default function DataDash() {
                   color="primary" 
                   size="small"
                   sx={{ 
-                    borderRadius: 1.5,
-                    fontWeight: 500,
-                    fontSize: '0.8rem',
-                    height: '28px',
+                    borderRadius: 1,
+                    fontWeight: 600,
+                    fontSize: '0.68rem',
+                    height: 22,
                     '& .MuiChip-label': {
-                      px: 2
-                    }
+                      px: 0.85,
+                    },
                   }}
                 />
           ))}
@@ -621,13 +625,13 @@ export default function DataDash() {
                   color="secondary" 
                   size="small"
                   sx={{ 
-                    borderRadius: 1.5,
-                    fontWeight: 500,
-                    fontSize: '0.8rem',
-                    height: '28px',
+                    borderRadius: 1,
+                    fontWeight: 600,
+                    fontSize: '0.68rem',
+                    height: 22,
                     '& .MuiChip-label': {
-                      px: 2
-                    }
+                      px: 0.85,
+                    },
                   }}
                 />
               ))}
@@ -636,13 +640,13 @@ export default function DataDash() {
                 color="info" 
                 size="small"
                 sx={{ 
-                  borderRadius: 1.5,
-                  fontWeight: 500,
-                  fontSize: '0.8rem',
-                  height: '28px',
+                  borderRadius: 1,
+                  fontWeight: 600,
+                  fontSize: '0.68rem',
+                  height: 22,
                   '& .MuiChip-label': {
-                    px: 2
-                  }
+                    px: 0.85,
+                  },
                 }}
               />}
               {dateRange[1] && <Chip 
@@ -650,13 +654,13 @@ export default function DataDash() {
                 color="info" 
                 size="small"
                 sx={{ 
-                  borderRadius: 1.5,
-                  fontWeight: 500,
-                  fontSize: '0.8rem',
-                  height: '28px',
+                  borderRadius: 1,
+                  fontWeight: 600,
+                  fontSize: '0.68rem',
+                  height: 22,
                   '& .MuiChip-label': {
-                    px: 2
-                  }
+                    px: 0.85,
+                  },
                 }}
               />}
             </Box>
@@ -667,7 +671,7 @@ export default function DataDash() {
   );
 
   const formatParameterValue = useCallback(
-    (param, value, precision = 2, includeUnit = true) => {
+    (param, value, precision = 3, includeUnit = true) => {
       if (value === null || value === undefined || value === '') {
         return '-';
       }
@@ -677,6 +681,11 @@ export default function DataDash() {
         return includeUnit && unit ? `${formatted} ${unit}` : `${formatted}`;
       }
       if (typeof value === 'string') {
+        const numeric = parseFloat(value);
+        if (!Number.isNaN(numeric) && String(value).trim() !== '' && /^-?\d/.test(String(value).trim())) {
+          const formatted = Number.isFinite(numeric) ? numeric.toFixed(precision) : value;
+          return includeUnit && unit ? `${formatted} ${unit}` : `${formatted}`;
+        }
         return includeUnit && unit ? `${value} ${unit}` : value;
       }
       return includeUnit && unit ? `${value} ${unit}` : value;
@@ -684,19 +693,75 @@ export default function DataDash() {
     [getUnit]
   );
 
+  const compactDataGridSx = {
+    borderRadius: 1,
+    border: 'none',
+    fontFamily: 'Inter, sans-serif',
+    '& .MuiDataGrid-main': { borderRadius: 1 },
+    '& .MuiDataGrid-row': {
+      margin: 0,
+      '&:nth-of-type(even)': {
+        backgroundColor: 'rgba(107, 70, 193, 0.03)',
+        '&:hover': { backgroundColor: 'rgba(107, 70, 193, 0.08)' },
+      },
+      '&:hover': { backgroundColor: 'rgba(107, 70, 193, 0.05)' },
+    },
+    '& .MuiDataGrid-columnHeaders': {
+      bgcolor: 'background.paper',
+      borderBottom: '1px solid',
+      borderColor: 'divider',
+      minHeight: '34px !important',
+    },
+    '& .MuiDataGrid-columnHeader': {
+      py: 0.25,
+      px: 0.75,
+    },
+    '& .MuiDataGrid-columnHeaderTitle': {
+      fontWeight: 700,
+      fontSize: '0.7rem',
+      lineHeight: 1.25,
+      whiteSpace: 'normal',
+      overflow: 'visible',
+      textOverflow: 'clip',
+    },
+    '& .MuiDataGrid-cell': {
+      py: 0.25,
+      px: 0.75,
+      fontSize: '0.72rem',
+      lineHeight: 1.35,
+      borderBottom: '1px solid',
+      borderColor: 'divider',
+      color: 'text.primary',
+    },
+    '& .MuiDataGrid-footerContainer': {
+      bgcolor: 'background.paper',
+      borderTop: '1px solid',
+      borderColor: 'divider',
+      minHeight: 44,
+    },
+    '& .MuiTablePagination-root': { color: 'text.primary' },
+    '& .MuiTablePagination-toolbar': { minHeight: 40, pl: 1, pr: 0.5 },
+    '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
+      fontSize: '0.7rem',
+      m: 0,
+    },
+    '& .MuiTablePagination-select': { fontSize: '0.72rem' },
+  };
+
   // Build table columns dynamically, using 'datetime' as the main time column
   const columns = [
-    { field: 'datetime', headerName: 'Data Time', width: 180 },
-    { field: 'device_name', headerName: 'Device', width: 120 },
+    { field: 'datetime', headerName: 'Data Time', minWidth: 148, flex: 0.9 },
+    { field: 'device_name', headerName: 'Device', minWidth: 88, flex: 0.45 },
     ...selectedParameters
       .filter(param => !['datetime', 'device_name'].includes(param))
       .map(param => ({
         field: param,
         headerName: formatDisplayName(param, { withUnit: true }),
-        width: 140,
+        minWidth: 175,
+        flex: 1,
         valueFormatter: (value) => formatParameterValue(param, value?.value),
         renderCell: (params) => (
-          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+          <Typography component="span" sx={{ fontWeight: 500, fontSize: '0.72rem', lineHeight: 1.35 }}>
             {formatParameterValue(param, params.value)}
           </Typography>
         ),
@@ -710,11 +775,12 @@ export default function DataDash() {
     { 
       field: 'period', 
       headerName: aggregation.charAt(0).toUpperCase() + aggregation.slice(1), 
-      width: 150, 
+      minWidth: 112, 
+      flex: 0.5,
       headerAlign: 'center', 
       align: 'center',
       renderCell: (params) => (
-        <Typography variant="body2" sx={{ fontWeight: 600, color: '#007BA7' }}>
+        <Typography component="span" sx={{ fontWeight: 600, fontSize: '0.72rem', color: '#007BA7' }}>
           {params.value}
         </Typography>
       )
@@ -722,11 +788,12 @@ export default function DataDash() {
     { 
       field: 'parameter', 
       headerName: 'Parameter', 
-      width: 180, 
-      headerAlign: 'center', 
+      minWidth: 200, 
+      flex: 1.2,
+      headerAlign: 'left', 
       align: 'left',
       renderCell: (params) => (
-        <Typography variant="body2" sx={{ fontWeight: 600, textTransform: 'capitalize' }}>
+        <Typography component="span" sx={{ fontWeight: 600, fontSize: '0.72rem', lineHeight: 1.35 }}>
           {formatDisplayName(params.value, { withUnit: true })}
         </Typography>
       )
@@ -734,11 +801,12 @@ export default function DataDash() {
     { 
       field: 'max', 
       headerName: 'Max', 
-      width: 100, 
+      minWidth: 96, 
+      flex: 0.55,
       headerAlign: 'center', 
       align: 'center',
       renderCell: (params) => (
-        <Typography variant="body2" sx={{ fontWeight: 600, color: '#10B981' }}>
+        <Typography component="span" sx={{ fontWeight: 600, fontSize: '0.72rem', color: '#10B981' }}>
           {formatParameterValue(params.row.parameter, params.value)}
         </Typography>
       )
@@ -746,11 +814,12 @@ export default function DataDash() {
     { 
       field: 'min', 
       headerName: 'Min', 
-      width: 100, 
+      minWidth: 96, 
+      flex: 0.55,
       headerAlign: 'center', 
       align: 'center',
       renderCell: (params) => (
-        <Typography variant="body2" sx={{ fontWeight: 600, color: '#EF4444' }}>
+        <Typography component="span" sx={{ fontWeight: 600, fontSize: '0.72rem', color: '#EF4444' }}>
           {formatParameterValue(params.row.parameter, params.value)}
         </Typography>
       )
@@ -758,11 +827,12 @@ export default function DataDash() {
     { 
       field: 'avg', 
       headerName: 'Avg', 
-      width: 100, 
+      minWidth: 96, 
+      flex: 0.55,
       headerAlign: 'center', 
       align: 'center',
       renderCell: (params) => (
-        <Typography variant="body2" sx={{ fontWeight: 700, color: '#007BA7' }}>
+        <Typography component="span" sx={{ fontWeight: 700, fontSize: '0.72rem', color: '#007BA7' }}>
           {formatParameterValue(params.row.parameter, params.value)}
         </Typography>
       )
@@ -770,7 +840,7 @@ export default function DataDash() {
   ];
 
   // Data Summary cards - same size, simple layout, one font size for Max/Min/Avg
-  const statLineSx = { fontSize: '0.875rem', color: 'text.primary', display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 0.5 };
+  const statLineSx = { fontSize: '0.8125rem', color: 'text.primary', display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 0.35 };
   const summaryCards = (
     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' }, gap: 2 }}>
       {parameters.map(param => summary[param] && (
@@ -882,19 +952,22 @@ export default function DataDash() {
         </Card>
       )}
       
-      <Card sx={{ borderRadius: 1, ...getChartCardSx(theme), overflow: 'hidden', mt: 4 }}>
+      <Card sx={{ borderRadius: 1, ...getChartCardSx(theme), overflow: 'hidden', mt: 2 }}>
         <CardContent sx={{ p: 0 }}>
-          <Box sx={{ px: 1, py: 0.5, bgcolor: 'background.paper', borderBottom: '1px solid', borderColor: 'divider' }}>
+          <Box sx={{ px: 0.75, py: 0, bgcolor: 'background.paper', borderBottom: '1px solid', borderColor: 'divider' }}>
             <Tabs 
               value={summaryTab} 
               onChange={(_, v) => setSummaryTab(v)}
               sx={{
+                minHeight: 40,
                 '& .MuiTab-root': {
                   color: 'text.secondary',
-                  fontSize: '0.95rem',
+                  fontSize: '0.78rem',
                   fontWeight: 700,
                   textTransform: 'none',
-                  minHeight: 48,
+                  minHeight: 40,
+                  py: 0.75,
+                  gap: 0.5,
                   '&.Mui-selected': {
                     color: 'text.primary',
                     fontWeight: 800
@@ -902,40 +975,42 @@ export default function DataDash() {
                 },
                 '& .MuiTabs-indicator': {
                   backgroundColor: 'primary.main',
-                  height: 3,
+                  height: 2,
                   borderRadius: '2px'
                 }
               }}
             >
-              <Tab label="Data Table" icon={<DeviceHubIcon />} iconPosition="start" />
-              <Tab label="Analytics Chart" icon={<OpacityIcon />} iconPosition="start" />
-              <Tab label="Summary Report" icon={<ScienceIcon />} iconPosition="start" />
+              <Tab label="Data Table" icon={<DeviceHubIcon sx={{ fontSize: 17 }} />} iconPosition="start" />
+              <Tab label="Analytics Chart" icon={<OpacityIcon sx={{ fontSize: 17 }} />} iconPosition="start" />
+              <Tab label="Summary Report" icon={<ScienceIcon sx={{ fontSize: 17 }} />} iconPosition="start" />
             </Tabs>
           </Box>
           
-          <Box sx={{ p: 1.5 }}>
+          <Box sx={{ p: 1, pt: 1.15 }}>
       {summaryTab === 0 && (
               <Box>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1, mb: 1 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '0.82rem', color: 'text.primary' }}>
                     Data Records
                   </Typography>
-                  <Stack direction="row" spacing={1}>
+                  <Stack direction="row" spacing={0.75}>
                     <Button 
                       variant="outlined" 
-                      size="medium" 
+                      size="small" 
                       onClick={handleExportCSV}
                       sx={{
-                        borderRadius: 1.5,
+                        borderRadius: 1,
                         textTransform: 'none',
-                        fontWeight: 500,
+                        fontWeight: 600,
+                        fontSize: '0.72rem',
+                        py: 0.4,
+                        px: 1.25,
+                        minHeight: 30,
                         borderColor: theme.palette.primary.main,
                         color: theme.palette.primary.main,
                         '&:hover': {
                           backgroundColor: theme.palette.primary.main,
                           color: theme.palette.primary.contrastText,
-                          transform: 'translateY(-1px)',
-                          transition: 'all 0.2s ease-in-out'
                         }
                       }}
                     >
@@ -943,17 +1018,19 @@ export default function DataDash() {
                     </Button>
                     <Button 
                       variant="contained" 
-                      size="medium" 
+                      size="small" 
                       onClick={handleExportXLSX}
                       sx={{
-                        borderRadius: 1.5,
+                        borderRadius: 1,
                         textTransform: 'none',
-                        fontWeight: 500,
+                        fontWeight: 600,
+                        fontSize: '0.72rem',
+                        py: 0.4,
+                        px: 1.25,
+                        minHeight: 30,
                         background: 'linear-gradient(135deg, #007BA7 0%, #0099CC 100%)',
                         '&:hover': {
                           background: 'linear-gradient(135deg, #005577 0%, #006B9A 100%)',
-                          transform: 'translateY(-1px)',
-                          transition: 'all 0.2s ease-in-out'
                         }
                       }}
                     >
@@ -985,55 +1062,13 @@ export default function DataDash() {
                 ) : (
               <DataGrid
                 autoHeight
+                density="compact"
                 rows={data.map((row, i) => ({ id: i, ...row }))}
                 columns={columns}
                 pageSize={10}
-                    rowsPerPageOptions={[10, 25, 50, 100]}
-                sx={{
-                      borderRadius: 1.5,
-                      border: 'none',
-                      fontFamily: 'Inter, sans-serif',
-                      fontSize: '0.9rem',
-                      '& .MuiDataGrid-main': {
-                        borderRadius: '4px'
-                      },
-                      '& .MuiDataGrid-row': {
-                        borderRadius: 1.5,
-                        margin: '2px 8px',
-                        '&:nth-of-type(even)': { 
-                          backgroundColor: 'rgba(107, 70, 193, 0.02)',
-                          '&:hover': {
-                            backgroundColor: 'rgba(107, 70, 193, 0.08)'
-                          }
-                        },
-                        '&:hover': {
-                          backgroundColor: 'rgba(107, 70, 193, 0.05)'
-                        }
-                      },
-                      '& .MuiDataGrid-columnHeaders': { 
-                        bgcolor: 'background.paper',
-                        fontWeight: 700, 
-                        fontSize: '0.9rem',
-                        borderBottom: '2px solid rgba(107, 70, 193, 0.1)',
-                        '& .MuiDataGrid-columnHeaderTitle': {
-                          fontWeight: 700,
-                          color: theme.palette.text.primary
-                        }
-                      },
-                      '& .MuiDataGrid-cell': { 
-                        py: 1.5, 
-                        fontSize: '0.85rem',
-                        borderBottom: '1px solid rgba(0, 0, 0, 0.05)',
-                        color: theme.palette.text.primary
-                      },
-                      '& .MuiDataGrid-footerContainer': { 
-                        bgcolor: 'background.paper',
-                        borderTop: '2px solid rgba(107, 70, 193, 0.1)'
-                      },
-                      '& .MuiTablePagination-root': {
-                        color: theme.palette.text.primary
-                      }
-                }}
+                rowsPerPageOptions={[10, 25, 50, 100]}
+                disableRowSelectionOnClick
+                sx={compactDataGridSx}
               />
             )}
               </Box>
@@ -1041,15 +1076,12 @@ export default function DataDash() {
             
       {summaryTab === 1 && (
               <Box>
-                <Typography variant="h6" sx={{ fontWeight: 600, color: theme.palette.text.primary, mb: 3 }}>
-                  Analytics Chart
-                </Typography>
                 {loading ? (
                   <Box sx={{ 
                     display: 'flex', 
                     justifyContent: 'center', 
                     alignItems: 'center', 
-                    minHeight: 400,
+                    minHeight: 320,
                     bgcolor: 'background.paper',
                     backgroundImage: theme.palette.mode === 'light'
                       ? 'linear-gradient(135deg, rgba(248,250,252,1) 0%, rgba(255,255,255,1) 100%)'
@@ -1065,22 +1097,35 @@ export default function DataDash() {
                     </Box>
             </Box>
                 ) : (
-                  <Card sx={{ ...getChartCardSx(theme) }}>
-                    <CardContent sx={{ p: 3 }}>
-              <ResponsiveContainer width="100%" height={400}>
-                <LineChart data={data} margin={CHART_MARGIN}>
+                  <Card sx={{ ...getChartCardSx(theme), p: 0 }}>
+                    <CardContent sx={{ p: 1, pt: 1.25, '&:last-child': { pb: 1 } }}>
+              <ResponsiveContainer width="100%" height={320}>
+                <LineChart
+                  data={data}
+                  margin={{ ...CHART_MARGIN, bottom: 36, left: 4, right: 8, top: 8 }}
+                >
                           <CartesianGrid {...CARTESIAN_GRID_PROPS} />
                           <XAxis 
                             dataKey="datetime" 
-                            tick={AXIS_TICK_STYLE}
+                            tick={{ fontSize: 9, fill: theme.palette.text.secondary }}
+                            tickMargin={6}
+                            minTickGap={28}
+                            angle={-32}
+                            textAnchor="end"
+                            height={48}
+                            interval="preserveStartEnd"
                             tickFormatter={(value) => {
                               if (typeof value === 'string' && !value.includes('T')) {
                                 return value;
                               }
-                              return formatInUserTimezone(value);
+                              return formatInUserTimezone(value, 'MM/DD HH:mm');
                             }}
                           />
-                          <YAxis tick={AXIS_TICK_STYLE} domain={getYDomain()} />
+                          <YAxis
+                            tick={{ fontSize: 10, fill: theme.palette.text.secondary }}
+                            width={44}
+                            domain={getYDomain()}
+                          />
                           <ReTooltip
                             contentStyle={getTooltipContentStyle(theme)}
                             formatter={(value, name, props) => {
@@ -1095,7 +1140,8 @@ export default function DataDash() {
                             }}
                             labelFormatter={(label) => formatInUserTimezone(label)}
                           />
-                          <Legend wrapperStyle={LEGEND_WRAPPER_STYLE}
+                          <Legend
+                            wrapperStyle={{ ...LEGEND_WRAPPER_STYLE, fontSize: 11, paddingTop: 4 }}
                             formatter={(value, entry) =>
                               formatDisplayName(entry?.dataKey || value, { withUnit: true })
                             }
@@ -1109,9 +1155,9 @@ export default function DataDash() {
                                 dataKey={param}
                                 name={formatDisplayName(param, { withUnit: true })}
                                 stroke={color}
-                                strokeWidth={3}
-                                dot={{ fill: color, strokeWidth: 2, r: 4 }}
-                                activeDot={{ r: 6, strokeWidth: 2 }}
+                                strokeWidth={2}
+                                dot={false}
+                                activeDot={{ r: 4, strokeWidth: 1 }}
                               />
                             );
                           })}
@@ -1125,39 +1171,78 @@ export default function DataDash() {
             
       {summaryTab === 2 && (
               <Box>
-                <Typography variant="h6" sx={{ fontWeight: 600, color: theme.palette.text.primary, mb: 3 }}>
-                  Summary Report
-                </Typography>
-                <Box sx={{ mb: 2, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.5 }}>
-                  <FormControl size="small" sx={{ minWidth: 120 }}>
-                    <InputLabel>Aggregation</InputLabel>
-                    <Select value={aggregation} label="Aggregation" onChange={e => setAggregation(e.target.value)}>
-                      {aggregationOptions.map(opt => (
-                        <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                  <Button variant="contained" onClick={fetchSummaryTableData} size="small">
-                    Generate
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    onClick={() => exportToCSV(summaryTableData, summaryTableColumns, `summary-report_${aggregation}_${new Date().toISOString().slice(0, 10)}.csv`)}
-                    disabled={!summaryTableData.length}
-                    sx={{ borderColor: theme.palette.primary.main, color: theme.palette.primary.main }}
-                  >
-                    Export CSV
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    onClick={() => exportToXLSX(summaryTableData, summaryTableColumns, `summary-report_${aggregation}_${new Date().toISOString().slice(0, 10)}.xlsx`)}
-                    disabled={!summaryTableData.length}
-                    sx={{ borderColor: theme.palette.primary.main, color: theme.palette.primary.main }}
-                  >
-                    Export Excel
-                  </Button>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 1,
+                    mb: 1,
+                  }}
+                >
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '0.82rem', color: 'text.primary' }}>
+                    Summary Report
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.75 }}>
+                    <FormControl size="small" sx={{ minWidth: 108 }}>
+                      <InputLabel sx={{ fontSize: '0.75rem' }}>Aggregation</InputLabel>
+                      <Select
+                        value={aggregation}
+                        label="Aggregation"
+                        onChange={e => setAggregation(e.target.value)}
+                        sx={{ fontSize: '0.75rem', minHeight: 32, '& .MuiSelect-select': { py: 0.65 } }}
+                      >
+                        {aggregationOptions.map(opt => (
+                          <MenuItem key={opt.value} value={opt.value} sx={{ fontSize: '0.8rem' }}>{opt.label}</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                    <Button
+                      variant="contained"
+                      onClick={fetchSummaryTableData}
+                      size="small"
+                      sx={{ fontSize: '0.72rem', py: 0.4, px: 1.25, minHeight: 30, textTransform: 'none', fontWeight: 700 }}
+                    >
+                      Generate
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      onClick={() => exportToCSV(summaryTableData, summaryTableColumns, `summary-report_${aggregation}_${new Date().toISOString().slice(0, 10)}.csv`)}
+                      disabled={!summaryTableData.length}
+                      sx={{
+                        fontSize: '0.72rem',
+                        py: 0.4,
+                        px: 1,
+                        minHeight: 30,
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        borderColor: theme.palette.primary.main,
+                        color: theme.palette.primary.main,
+                      }}
+                    >
+                      Export CSV
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      onClick={() => exportToXLSX(summaryTableData, summaryTableColumns, `summary-report_${aggregation}_${new Date().toISOString().slice(0, 10)}.xlsx`)}
+                      disabled={!summaryTableData.length}
+                      sx={{
+                        fontSize: '0.72rem',
+                        py: 0.4,
+                        px: 1,
+                        minHeight: 30,
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        borderColor: theme.palette.primary.main,
+                        color: theme.palette.primary.main,
+                      }}
+                    >
+                      Export Excel
+                    </Button>
+                  </Box>
                 </Box>
                 {loadingSummary ? (
                   <Box sx={{ 
@@ -1182,57 +1267,14 @@ export default function DataDash() {
                 ) : (
               <DataGrid
                 autoHeight
+                density="compact"
                 rows={summaryTableData}
                 columns={summaryTableColumns}
                 pageSize={10}
                 rowsPerPageOptions={[10, 25, 50]}
-                sx={{
-                      borderRadius: 1.5,
-                      border: 'none',
-                      fontFamily: 'Inter, sans-serif',
-                      fontSize: '0.9rem',
-                      '& .MuiDataGrid-main': {
-                        borderRadius: '4px'
-                      },
-                      '& .MuiDataGrid-row': {
-                        borderRadius: 1.5,
-                        margin: '2px 8px',
-                        '&:nth-of-type(even)': { 
-                          backgroundColor: 'rgba(107, 70, 193, 0.02)',
-                          '&:hover': {
-                            backgroundColor: 'rgba(107, 70, 193, 0.08)'
-                          }
-                        },
-                        '&:hover': {
-                          backgroundColor: 'rgba(107, 70, 193, 0.05)'
-                        }
-                      },
-                      '& .MuiDataGrid-columnHeaders': { 
-                        bgcolor: 'background.paper',
-                        fontWeight: 700, 
-                        fontSize: '0.9rem',
-                        borderBottom: '2px solid rgba(107, 70, 193, 0.1)',
-                        '& .MuiDataGrid-columnHeaderTitle': {
-                          fontWeight: 700,
-                          color: theme.palette.text.primary
-                        }
-                      },
-                      '& .MuiDataGrid-cell': { 
-                        py: 1.5, 
-                        fontSize: '0.85rem',
-                        borderBottom: '1px solid',
-                        borderColor: 'divider',
-                        color: theme.palette.text.primary
-                      },
-                      '& .MuiDataGrid-footerContainer': { 
-                        bgcolor: 'background.paper',
-                        borderTop: '2px solid rgba(107, 70, 193, 0.1)'
-                      },
-                      '& .MuiTablePagination-root': {
-                        color: theme.palette.text.primary
-                      }
-                    }}
-                  />
+                disableRowSelectionOnClick
+                sx={compactDataGridSx}
+              />
                 )}
               </Box>
             )}
