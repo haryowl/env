@@ -23,15 +23,14 @@ import {
   useTheme,
   Stack
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import {
   Timeline as TimelineIcon,
   History as HistoryIcon,
-  Download as DownloadIcon,
   PictureAsPdf as PdfIcon,
   TableChart as ExcelIcon,
   Refresh as RefreshIcon,
   FilterList as FilterIcon,
-  Speed as SpeedIcon,
   Science as ScienceIcon,
   DeviceHub as DeviceHubIcon,
   AccessTime as AccessTimeIcon
@@ -47,7 +46,6 @@ import { exportToPDF, exportToExcel } from '../utils/exportUtils';
 import { formatInUserTimezone, getUserTimezone } from '../utils/timezoneUtils';
 import moment from 'moment-timezone';
 import { getChartCardSx } from '../utils/chartStyles';
-import PageHeader from './PageHeader';
 import SectionHeader from './SectionHeader';
 
 const QuickView = () => {
@@ -502,60 +500,91 @@ const QuickView = () => {
       backgroundImage: theme.palette.mode === 'light'
         ? 'linear-gradient(135deg, rgba(248,250,252,1) 0%, rgba(255,255,255,1) 100%)'
         : 'none',
-      minHeight: '100vh', 
-      p: { xs: 2, md: 4 }
+      minHeight: '100vh',
+      p: { xs: 2, md: 4 },
     }}>
-      <Box sx={{ mb: 4 }}>
-        <PageHeader
-          icon={<SpeedIcon sx={{ fontSize: 18 }} />}
-          title="Quick View"
-          subtitle="Real-time IoT data analytics and monitoring"
-          right={(
-            <Stack direction="row" spacing={1}>
-              <Tooltip title="Refresh Data">
-                <IconButton onClick={handleRefresh} disabled={loading} sx={{ color: 'primary.main', '&:hover': { bgcolor: 'action.hover' }, '&:disabled': { color: 'action.disabled' } }}>
-                  <RefreshIcon />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="Export to PDF">
-                <IconButton onClick={handleExportPDF} sx={{ color: 'error.main', '&:hover': { bgcolor: 'action.hover' } }}>
-                  <PdfIcon />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="Export to Excel">
-                <IconButton onClick={handleExportExcel} sx={{ color: 'success.main', '&:hover': { bgcolor: 'action.hover' } }}>
-                  <ExcelIcon />
-                </IconButton>
-              </Tooltip>
-            </Stack>
-          )}
-        />
-      </Box>
-
-      {/* Data Filters - Quick View style */}
-      <Card sx={{ mb: 4, borderRadius: 1, ...getChartCardSx(theme), p: 0 }}>
+      {/* Data Filters — sticky below app bar scroll area; actions merged from former Quick View header */}
+      <Card
+        sx={{
+          mb: 4,
+          borderRadius: 1,
+          ...getChartCardSx(theme),
+          p: 0,
+          background: alpha(theme.palette.background.paper, 0.5),
+          position: 'sticky',
+          top: 0,
+          zIndex: 10,
+          boxShadow:
+            theme.palette.mode === 'dark'
+              ? '0 4px 18px rgba(0,0,0,0.35)'
+              : '0 4px 18px rgba(15, 23, 42, 0.08)',
+        }}
+      >
         <CardContent sx={{ p: 0 }}>
           <SectionHeader
             icon={<FilterIcon sx={{ fontSize: 18 }} />}
             title="Data Filters"
             subtitle="Select device, time window, and view mode"
+            sx={{ bgcolor: alpha(theme.palette.background.paper, 0.5) }}
             right={(
-              <Box sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1,
-                px: 1.25,
-                py: 0.75,
-                borderRadius: 1,
-                bgcolor: 'action.hover',
-                border: '1px solid',
-                borderColor: 'divider'
-              }}>
-                <AccessTimeIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
-                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                  {getUserTimezone()} · {formatInUserTimezone(new Date().toISOString(), 'YYYY-MM-DD HH:mm:ss')}
-                </Typography>
-              </Box>
+              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" justifyContent="flex-end">
+                <Stack direction="row" spacing={0.25} alignItems="center">
+                  <Tooltip title="Refresh Data">
+                    <IconButton
+                      size="small"
+                      onClick={handleRefresh}
+                      disabled={loading}
+                      sx={{
+                        color: 'primary.main',
+                        '&:hover': { bgcolor: 'action.hover' },
+                        '&:disabled': { color: 'action.disabled' },
+                      }}
+                    >
+                      <RefreshIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Export to PDF">
+                    <IconButton
+                      size="small"
+                      onClick={handleExportPDF}
+                      sx={{ color: 'error.main', '&:hover': { bgcolor: 'action.hover' } }}
+                    >
+                      <PdfIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Export to Excel">
+                    <IconButton
+                      size="small"
+                      onClick={handleExportExcel}
+                      sx={{ color: 'success.main', '&:hover': { bgcolor: 'action.hover' } }}
+                    >
+                      <ExcelIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Stack>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    px: 1.25,
+                    py: 0.75,
+                    borderRadius: 1,
+                    bgcolor: 'action.hover',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                  }}
+                >
+                  <AccessTimeIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+                  <Typography
+                    variant="caption"
+                    sx={{ color: 'text.secondary', fontWeight: 700, whiteSpace: 'nowrap' }}
+                  >
+                    {getUserTimezone()} ·{' '}
+                    {formatInUserTimezone(new Date().toISOString(), 'YYYY-MM-DD HH:mm:ss')}
+                  </Typography>
+                </Box>
+              </Stack>
             )}
           />
           
