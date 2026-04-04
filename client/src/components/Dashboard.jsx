@@ -1113,7 +1113,7 @@ const Dashboard = ({ socket }) => {
                   }}>
                     Current Values
                   </Typography>
-                  <Grid container spacing={2}>
+                  <Grid container spacing={1.5}>
                     {realtimeParams.filter(p => p !== 'datetime' && p !== 'timestamp').map((param, idx) => {
                       const formattedLabel = formatDisplayName(param, { withUnit: true });
                       const formattedValue = formatParameterValue(param, realtimeLatest[param]);
@@ -1124,13 +1124,13 @@ const Dashboard = ({ socket }) => {
                       return (
                       <Grid size={{ xs: 6, sm: 4, md: 2 }} key={param}>
                         <Card sx={{
-                          p: 2,
+                          p: 1.25,
                           textAlign: 'center',
                           borderRadius: 1,
                           border: `1px solid ${colorPalette[idx % colorPalette.length]}30`,
                           bgcolor: `${colorPalette[idx % colorPalette.length]}10`,
                           transition: 'all 0.2s ease',
-                          height: 118,
+                          height: 100,
                           display: 'flex',
                           flexDirection: 'column',
                           justifyContent: 'center',
@@ -1144,25 +1144,51 @@ const Dashboard = ({ socket }) => {
                             onClick={() => setActiveRealtimeParam(prev => (prev === param ? '' : param))}
                             sx={{ width: '100%' }}
                           >
-                          <Typography variant="subtitle2" sx={{ color: 'text.secondary', fontWeight: 500, mb: 1, fontSize: '0.8125rem', minHeight: '2.5em', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          <Typography
+                            variant="subtitle2"
+                            sx={{
+                              color: 'text.secondary',
+                              fontWeight: 600,
+                              mb: 0.35,
+                              fontSize: '0.8rem',
+                              lineHeight: 1.2,
+                              minHeight: '2.4em',
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              overflow: 'hidden',
+                              textAlign: 'center',
+                            }}
+                          >
                             {formattedLabel}
                           </Typography>
-                          <Typography variant="h5" sx={{ fontWeight: 700, color: colorPalette[idx % colorPalette.length], fontSize: '1.25rem', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          <Typography
+                            variant="h5"
+                            sx={{
+                              fontWeight: 800,
+                              color: colorPalette[idx % colorPalette.length],
+                              fontSize: '1.08rem',
+                              lineHeight: 1.15,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
                             {formattedValue}
                           </Typography>
-                          <Box sx={{ mt: 0.75, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-                            <Typography variant="caption" sx={{ fontWeight: 700, color: deltaColor }}>
+                          <Box sx={{ mt: 0.4, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.75 }}>
+                            <Typography variant="caption" sx={{ fontWeight: 700, color: deltaColor, fontSize: '0.72rem' }}>
                               {delta == null ? '—' : `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}%`}
                             </Typography>
-                            <Box sx={{ flex: 1, height: 22, minWidth: 60 }}>
+                            <Box sx={{ flex: 1, height: 18, minWidth: 52 }}>
                               {metric.spark.length >= 2 ? (
                                 <ResponsiveContainer width="100%" height="100%">
-                                  <LineChart data={metric.spark} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
+                                  <LineChart data={metric.spark} margin={{ top: 1, right: 1, bottom: 1, left: 1 }}>
                                     <Line
                                       type="monotone"
                                       dataKey="value"
                                       stroke={colorPalette[idx % colorPalette.length]}
-                                      strokeWidth={2}
+                                      strokeWidth={1.75}
                                       dot={false}
                                       isAnimationActive={false}
                                       opacity={0.9}
@@ -1170,7 +1196,7 @@ const Dashboard = ({ socket }) => {
                                   </LineChart>
                                 </ResponsiveContainer>
                               ) : (
-                                <Box sx={{ height: 22 }} />
+                                <Box sx={{ height: 18 }} />
                               )}
                             </Box>
                           </Box>
@@ -1274,8 +1300,9 @@ const Dashboard = ({ socket }) => {
                 <Box
                   sx={{
                     width: '100%',
-                    minHeight: { xs: 380, sm: 460 },
-                    height: { xs: 'min(56vh, 720px)', sm: 'min(64vh, 820px)', lg: 'min(72vh, 960px)' },
+                    /* 85% of prior viewport / cap sizes */
+                    minHeight: { xs: 323, sm: 391 },
+                    height: { xs: 'min(47.6vh, 612px)', sm: 'min(54.4vh, 697px)', lg: 'min(61.2vh, 816px)' },
                     ...getChartCardSx(theme),
                     p: 0,
                     overflow: 'hidden',
