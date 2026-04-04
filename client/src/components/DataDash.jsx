@@ -715,6 +715,8 @@ export default function DataDash() {
     '& .MuiDataGrid-columnHeader': {
       py: 0.25,
       px: 0.75,
+      display: 'flex',
+      alignItems: 'center',
     },
     '& .MuiDataGrid-columnHeaderTitle': {
       fontWeight: 700,
@@ -732,6 +734,8 @@ export default function DataDash() {
       borderBottom: '1px solid',
       borderColor: 'divider',
       color: 'text.primary',
+      display: 'flex',
+      alignItems: 'center',
     },
     '& .MuiDataGrid-footerContainer': {
       bgcolor: 'background.paper',
@@ -839,43 +843,71 @@ export default function DataDash() {
     }
   ];
 
-  // Data Summary cards - same size, simple layout, one font size for Max/Min/Avg
-  const statLineSx = { fontSize: '0.8125rem', color: 'text.primary', display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 0.35 };
+  // Data Summary cards — compact typography (match Data Filters / grids)
+  const statLineRowSx = {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    gap: 1,
+    py: 0.15,
+  };
   const summaryCards = (
-    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' }, gap: 2 }}>
+    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' }, gap: 1 }}>
       {parameters.map(param => summary[param] && (
         <Card
           key={param}
           sx={{
-            height: 160,
-            minHeight: 160,
-            p: 2,
+            p: 1.1,
             borderRadius: 1,
             border: '1px solid',
             borderColor: 'divider',
             bgcolor: 'background.paper',
             display: 'flex',
             flexDirection: 'column',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
             transition: 'box-shadow 0.2s ease',
-            '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.08)' },
+            '&:hover': { boxShadow: '0 2px 8px rgba(0,0,0,0.07)' },
           }}
         >
-          <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', fontSize: '0.9rem', mb: 1.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <Typography
+            sx={{
+              fontWeight: 700,
+              color: 'text.primary',
+              fontSize: '0.72rem',
+              lineHeight: 1.25,
+              mb: 0.65,
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+            }}
+          >
             {formatDisplayName(param, { withUnit: true })}
           </Typography>
-          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-            <Box sx={statLineSx}>
-              <span style={{ color: theme.palette.text.secondary, fontWeight: 500 }}>Max</span>
-              <span style={{ fontWeight: 600 }}>{formatParameterValue(param, summary[param].max)}</span>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.1 }}>
+            <Box sx={statLineRowSx}>
+              <Typography component="span" sx={{ fontSize: '0.68rem', color: 'text.secondary', fontWeight: 600 }}>
+                Max
+              </Typography>
+              <Typography component="span" sx={{ fontSize: '0.72rem', fontWeight: 700, color: 'text.primary', textAlign: 'right' }}>
+                {formatParameterValue(param, summary[param].max)}
+              </Typography>
             </Box>
-            <Box sx={statLineSx}>
-              <span style={{ color: theme.palette.text.secondary, fontWeight: 500 }}>Min</span>
-              <span style={{ fontWeight: 600 }}>{formatParameterValue(param, summary[param].min)}</span>
+            <Box sx={statLineRowSx}>
+              <Typography component="span" sx={{ fontSize: '0.68rem', color: 'text.secondary', fontWeight: 600 }}>
+                Min
+              </Typography>
+              <Typography component="span" sx={{ fontSize: '0.72rem', fontWeight: 700, color: 'text.primary', textAlign: 'right' }}>
+                {formatParameterValue(param, summary[param].min)}
+              </Typography>
             </Box>
-            <Box sx={statLineSx}>
-              <span style={{ color: theme.palette.text.secondary, fontWeight: 500 }}>Avg</span>
-              <span style={{ fontWeight: 600 }}>{formatParameterValue(param, summary[param].avg)}</span>
+            <Box sx={statLineRowSx}>
+              <Typography component="span" sx={{ fontSize: '0.68rem', color: 'text.secondary', fontWeight: 600 }}>
+                Avg
+              </Typography>
+              <Typography component="span" sx={{ fontSize: '0.72rem', fontWeight: 700, color: 'text.primary', textAlign: 'right' }}>
+                {formatParameterValue(param, summary[param].avg)}
+              </Typography>
             </Box>
           </Box>
         </Card>
@@ -926,25 +958,27 @@ export default function DataDash() {
           <CardContent sx={{ p: 0 }}>
             <Box onClick={() => setSummaryExpanded(!summaryExpanded)} sx={{ cursor: 'pointer' }}>
               <SectionHeader
-                icon={<ScienceIcon sx={{ fontSize: 18 }} />}
+                compact
+                icon={<ScienceIcon sx={{ fontSize: 16 }} />}
                 title="Data Summary"
                 subtitle="Max, min, and average for selected parameters"
                 right={(
-                  <IconButton 
-                    sx={{ 
+                  <IconButton
+                    size="small"
+                    sx={{
                       color: theme.palette.primary.main,
                       transition: 'transform 0.2s ease-in-out',
-                      transform: summaryExpanded ? 'rotate(180deg)' : 'rotate(0deg)'
+                      transform: summaryExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
                     }}
                   >
-                    <ExpandMoreIcon />
+                    <ExpandMoreIcon fontSize="small" />
                   </IconButton>
                 )}
               />
             </Box>
             
             <Collapse in={summaryExpanded} timeout="auto" unmountOnExit>
-              <Box sx={{ px: 1, pb: 1.5 }}>
+              <Box sx={{ px: 0.75, pt: 0.5, pb: 1 }}>
                 {summaryCards}
               </Box>
             </Collapse>
