@@ -26,7 +26,10 @@ import {
 } from '@mui/icons-material';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
-import { getChartCardSx, CHART_MARGIN, getCartesianGridProps, getAxisTickStyle, getParameterColorIndex, CHART_COLORS } from '../utils/chartStyles';
+import { getChartCardSx, getCartesianGridProps, getAxisTickStyle, getParameterColorIndex, CHART_COLORS } from '../utils/chartStyles';
+
+/** Extra bottom/left room so X-axis datetime ticks are not clipped (Card/wrapper must not use overflow:hidden). */
+const QUICK_VIEW_LINE_MARGIN = { top: 12, right: 16, left: 8, bottom: 44 };
 
 const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) => {
   const theme = useTheme();
@@ -244,10 +247,10 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
       borderColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
       boxShadow: theme.palette.mode === 'dark' ? 'none' : '0 1px 3px rgba(0,0,0,0.06)',
       transition: 'all 0.2s ease',
-      overflow: 'hidden',
+      overflow: 'visible',
       '&:hover': { boxShadow: theme.palette.mode === 'dark' ? '0 0 0 1px rgba(255,255,255,0.1)' : '0 4px 12px rgba(0,0,0,0.08)' }
     }}>
-      <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: '100%', width: '100%', p: 2.5 }}>
+      <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: '100%', width: '100%', p: 2.5, overflow: 'visible' }}>
         {/* Become look: minimal header – title + subtitle, thin left accent, alerts on right */}
         <Box sx={{ 
           display: 'flex', 
@@ -360,19 +363,28 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
             flexShrink: 0,
             width: '100%',
             minWidth: 0,
-            minHeight: { xs: 260, sm: 280 },
-            height: { xs: 280, sm: 320, md: '100%' },
-            maxHeight: { xs: 320, sm: 380, md: 'none' },
+            minHeight: { xs: 280, sm: 300 },
+            height: { xs: 300, sm: 340, md: '100%' },
+            maxHeight: { xs: 340, sm: 400, md: 'none' },
             ...getChartCardSx(theme),
             position: 'relative',
-            overflow: 'hidden',
+            overflow: 'visible',
+            pb: 0.5,
           }}
         >
           {chartData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={CHART_MARGIN}>
+              <LineChart data={chartData} margin={QUICK_VIEW_LINE_MARGIN}>
                 <CartesianGrid {...getCartesianGridProps(theme)} />
-                <XAxis dataKey="datetime" stroke={theme.palette.divider} tick={getAxisTickStyle(theme)} />
+                <XAxis
+                  dataKey="datetime"
+                  stroke={theme.palette.divider}
+                  tick={getAxisTickStyle(theme)}
+                  tickMargin={10}
+                  minTickGap={18}
+                  interval="preserveStartEnd"
+                  height={36}
+                />
                 <YAxis stroke={theme.palette.divider} tick={getAxisTickStyle(theme)} domain={yAxisDomain} />
                 <RechartsTooltip content={<CustomTooltip />} />
                 
