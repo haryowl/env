@@ -14,6 +14,7 @@ import {
   Alert,
   Collapse,
   IconButton,
+  Stack,
 } from '@mui/material';
 import {
   Devices as DevicesIcon,
@@ -26,7 +27,7 @@ import {
   ExpandLess as ExpandLessIcon,
   Map as MapIcon,
 } from '@mui/icons-material';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Brush } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Brush } from 'recharts';
 import { FormControl, InputLabel, Select, MenuItem, CardActions, Button, TextField, ToggleButton, ToggleButtonGroup } from '@mui/material';
 import axios from 'axios';
 import { subHours } from 'date-fns';
@@ -34,7 +35,7 @@ import moment from 'moment-timezone';
 import { min as d3min, max as d3max } from 'd3-array';
 
 import { API_BASE_URL } from '../config/api';
-import { CHART_COLORS, CARTESIAN_GRID_PROPS, AXIS_TICK_STYLE, CHART_MARGIN, getTooltipContentStyle, LEGEND_WRAPPER_STYLE, getChartCardSx } from '../utils/chartStyles';
+import { CHART_COLORS, CARTESIAN_GRID_PROPS, AXIS_TICK_STYLE, getTooltipContentStyle, getChartCardSx } from '../utils/chartStyles';
 import DashboardMap from './DashboardMap';
 import KPICards from './KPICards';
 import DynamicParameterCards from './DynamicParameterCards';
@@ -55,6 +56,9 @@ const formatInUserTimezone = (dt, fmt = 'YYYY-MM-DD HH:mm:ss') => {
   if (!dt) return '-';
   return moment.utc(dt).tz(getUserTimezone()).format(fmt);
 };
+
+/** Realtime line chart: no in-chart legend (toggles above), tighter margins for a larger plot. */
+const REALTIME_LINE_CHART_MARGIN = { top: 8, right: 18, left: 4, bottom: 2 };
 
 const Dashboard = ({ socket }) => {
   const { getFontColor } = useFont();
@@ -1092,7 +1096,7 @@ const Dashboard = ({ socket }) => {
             </Box>
           </Box>
           
-          <Box sx={{ p: 3 }}>
+          <Box sx={{ px: 2, pt: 2, pb: 2.5 }}>
           {realtimeError ? (
               <Alert severity="error" sx={{ borderRadius: 1, mb: 3 }}>
                 {realtimeError}
@@ -1100,12 +1104,12 @@ const Dashboard = ({ socket }) => {
           ) : (
             <>
                 {/* Modern KPI Cards */}
-                <Box sx={{ mb: 3 }}>
+                <Box sx={{ mb: 2 }}>
                   <Typography variant="h6" sx={{ 
                     fontWeight: 600, 
                     color: theme.palette.text.primary, 
-                    mb: 2,
-                    fontSize: '1.1rem'
+                    mb: 1.25,
+                    fontSize: '1.05rem'
                   }}>
                     Current Values
                   </Typography>
@@ -1177,21 +1181,33 @@ const Dashboard = ({ socket }) => {
               </Grid>
                 </Box>
 
-                {/* Modern Parameter Controls */}
-                <Box sx={{ mb: 3 }}>
-                  <Typography variant="h6" sx={{ 
-                    fontWeight: 600, 
-                    color: theme.palette.text.primary, 
-                    mb: 1.25,
-                    fontSize: '1rem'
-                  }}>
-                    Chart Controls
-                  </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.75, gap: 1, flexWrap: 'wrap' }}>
-                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.72rem' }}>
-                      Click a metric card to focus a line. Use chips to show/hide lines.
+                {/* Compact line toggles — chart is primary; no duplicate in-chart legend */}
+                <Box sx={{ mb: 1.25 }}>
+                  <Stack
+                    direction={{ xs: 'column', sm: 'row' }}
+                    spacing={1}
+                    alignItems={{ sm: 'center' }}
+                    sx={{ mb: 0.75 }}
+                  >
+                    <Typography
+                      variant="subtitle2"
+                      sx={{ fontWeight: 800, fontSize: '0.78rem', color: 'text.secondary', flexShrink: 0, letterSpacing: 0.02 }}
+                    >
+                      Lines
                     </Typography>
-                    <Box sx={{ display: 'flex', gap: 1 }}>
+                    <TextField
+                      size="small"
+                      placeholder="Search parameter…"
+                      value={realtimeParamSearch}
+                      onChange={(e) => setRealtimeParamSearch(e.target.value)}
+                      sx={{
+                        flex: 1,
+                        minWidth: 0,
+                        maxWidth: { xs: '100%', sm: 340 },
+                        '& input': { fontSize: '0.8rem', py: 0.85 },
+                      }}
+                    />
+                    <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0 }}>
                       <Button
                         size="small"
                         variant="outlined"
@@ -1200,7 +1216,7 @@ const Dashboard = ({ socket }) => {
                           setVisibleParams(chartParams);
                           setActiveRealtimeParam('');
                         }}
-                        sx={{ py: 0.25, minHeight: 28, fontSize: '0.75rem' }}
+                        sx={{ py: 0.2, minHeight: 30, fontSize: '0.72rem', px: 1 }}
                       >
                         Show all
                       </Button>
@@ -1208,75 +1224,67 @@ const Dashboard = ({ socket }) => {
                         size="small"
                         variant="text"
                         onClick={() => setActiveRealtimeParam('')}
-                        sx={{ py: 0.25, minHeight: 28, fontSize: '0.75rem' }}
+                        sx={{ py: 0.2, minHeight: 30, fontSize: '0.72rem', px: 1 }}
                       >
                         Clear focus
                       </Button>
-                    </Box>
-                  </Box>
-                  <Box
-                    sx={{
-                      p: 1.5,
-                      backgroundColor: 'rgba(0,0,0,0.02)',
-                      borderRadius: 1,
-                      border: '1px solid rgba(0,0,0,0.06)',
-                    }}
+                    </Stack>
+                  </Stack>
+                  <ToggleButtonGroup
+                    value={visibleParams}
+                    onChange={(_, newValue) => setVisibleParams(newValue)}
+                    size="small"
+                    sx={{ flexWrap: 'wrap', gap: 0.75, '& .MuiToggleButtonGroup-grouped': { border: 'none' } }}
                   >
-                    <TextField
-                      size="small"
-                      placeholder="Search parameter…"
-                      value={realtimeParamSearch}
-                      onChange={(e) => setRealtimeParamSearch(e.target.value)}
-                      sx={{ mb: 1, maxWidth: 320, '& input': { fontSize: '0.82rem' } }}
-                    />
-                    <ToggleButtonGroup
-                      value={visibleParams}
-                      onChange={(_, newValue) => setVisibleParams(newValue)}
-                      size="small"
-                      sx={{ flexWrap: 'wrap', gap: 1, '& .MuiToggleButtonGroup-grouped': { border: 'none' } }}
-                    >
-                      {selectableRealtimeParams.map((param) => {
-                        const color = getParameterColor(param);
-                        const selected = visibleParams.includes(param);
-                        const dim = activeRealtimeParam && activeRealtimeParam !== param;
-                        return (
-                          <ToggleButton
-                            key={param}
-                            value={param}
-                            selected={selected}
-                            onClick={() => toggleVisibleParam(param)}
-                            onDoubleClick={() => focusParam(param)}
-                            sx={{
-                              textTransform: 'none',
-                              borderRadius: 2,
-                              px: 1,
-                              py: 0.5,
-                              minHeight: 30,
-                              gap: 1,
-                              opacity: dim ? 0.55 : 1,
-                              bgcolor: selected ? `${color}18` : 'transparent',
-                              border: `1px solid ${selected ? `${color}55` : 'rgba(0,0,0,0.14)'}`,
-                              '&:hover': { bgcolor: selected ? `${color}24` : 'rgba(0,0,0,0.04)' },
-                            }}
-                          >
-                            <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: color }} />
-                            <Typography sx={{ fontSize: '0.78rem', fontWeight: 650 }}>
-                              {formatDisplayName(param, { withUnit: true })}
-                            </Typography>
-                          </ToggleButton>
-                        );
-                      })}
-                    </ToggleButtonGroup>
-                    <Typography variant="caption" sx={{ display: 'block', mt: 0.75, color: 'text.secondary', fontSize: '0.72rem' }}>
-                      Tip: double‑click a toggle to focus its line.
-                    </Typography>
-                  </Box>
+                    {selectableRealtimeParams.map((param) => {
+                      const color = getParameterColor(param);
+                      const selected = visibleParams.includes(param);
+                      const dim = activeRealtimeParam && activeRealtimeParam !== param;
+                      return (
+                        <ToggleButton
+                          key={param}
+                          value={param}
+                          selected={selected}
+                          onClick={() => toggleVisibleParam(param)}
+                          onDoubleClick={() => focusParam(param)}
+                          sx={{
+                            textTransform: 'none',
+                            borderRadius: 1.5,
+                            px: 0.85,
+                            py: 0.35,
+                            minHeight: 28,
+                            gap: 0.65,
+                            opacity: dim ? 0.5 : 1,
+                            bgcolor: selected ? `${color}16` : 'transparent',
+                            border: `1px solid ${selected ? `${color}50` : 'rgba(0,0,0,0.1)'}`,
+                            '&:hover': { bgcolor: selected ? `${color}22` : 'rgba(0,0,0,0.04)' },
+                          }}
+                        >
+                          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: color, flexShrink: 0 }} />
+                          <Typography sx={{ fontSize: '0.72rem', fontWeight: 650, lineHeight: 1.2 }}>
+                            {formatDisplayName(param, { withUnit: true })}
+                          </Typography>
+                        </ToggleButton>
+                      );
+                    })}
+                  </ToggleButtonGroup>
                 </Box>
 
-                {/* Chart */}
-                <Box sx={{ height: 420, ...getChartCardSx(theme) }}>
+                {/* Chart — viewport-tall plot; padding stripped so the grid fills the card */}
+                <Box
+                  sx={{
+                    width: '100%',
+                    minHeight: { xs: 380, sm: 460 },
+                    height: { xs: 'min(56vh, 720px)', sm: 'min(64vh, 820px)', lg: 'min(72vh, 960px)' },
+                    ...getChartCardSx(theme),
+                    p: 0,
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                  }}
+                >
                   <ResponsiveContainer key={`responsive-${visibleParams.join('-')}-${realtimeDevice}`} width="100%" height="100%">
-                    <LineChart data={chartDataWithAlerts} margin={CHART_MARGIN}>
+                    <LineChart data={chartDataWithAlerts} margin={REALTIME_LINE_CHART_MARGIN}>
                       <CartesianGrid {...CARTESIAN_GRID_PROPS} />
                       <XAxis
                         dataKey="timestamp"
@@ -1292,42 +1300,45 @@ const Dashboard = ({ socket }) => {
                         content={RealtimeTooltip}
                         cursor={{ stroke: 'rgba(2, 132, 199, 0.45)', strokeWidth: 1 }}
                       />
-                      <Legend
-                        wrapperStyle={LEGEND_WRAPPER_STYLE}
-                        formatter={(value, entry) => formatDisplayName(entry?.dataKey || value, { withUnit: true })}
-                        onClick={(e) => {
-                          const key = e?.dataKey || e?.value;
-                          if (!key) return;
-                          toggleVisibleParam(key);
-                        }}
-                        onDoubleClick={(e) => {
-                          const key = e?.dataKey || e?.value;
-                          if (!key) return;
-                          focusParam(key);
-                        }}
-                      />
                       {memoizedChartLines}
                       <Brush
                         dataKey="timestamp"
-                        height={24}
+                        height={20}
                         stroke="rgba(2, 132, 199, 0.55)"
-                        travellerWidth={10}
+                        travellerWidth={8}
                         tickFormatter={() => ''}
                       />
                     </LineChart>
                   </ResponsiveContainer>
                 </Box>
-                <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1.25, flexWrap: 'wrap' }}>
-                  <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>
-                    <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#EF4444', border: '2px solid #fff', boxShadow: '0 0 0 1px rgba(239,68,68,0.35)' }} />
-                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 650 }}>
-                      Alert dot = threshold breach
-                    </Typography>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    display: 'block',
+                    mt: 0.65,
+                    px: 0.25,
+                    color: 'text.secondary',
+                    fontSize: '0.68rem',
+                    lineHeight: 1.45,
+                  }}
+                >
+                  <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, mr: 1.25, verticalAlign: 'middle' }}>
+                    <Box
+                      component="span"
+                      sx={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        bgcolor: '#EF4444',
+                        border: '2px solid',
+                        borderColor: 'background.paper',
+                        boxShadow: '0 0 0 1px rgba(239,68,68,0.35)',
+                      }}
+                    />
+                    Alert = threshold breach
                   </Box>
-                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                    Tip: click legend to hide/show; double‑click to focus.
-                  </Typography>
-                </Box>
+                  Toggles: click show/hide · double-click focus. Metric cards also set line focus.
+                </Typography>
             </>
           )}
           </Box>
