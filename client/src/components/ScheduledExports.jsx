@@ -13,8 +13,6 @@ import {
   DialogActions,
   Alert,
   CircularProgress,
-  useTheme,
-  Stack,
   Grid,
   Tooltip,
   Menu,
@@ -42,8 +40,11 @@ import { API_BASE_URL } from '../config/api';
 import ScheduledExportForm from './ScheduledExportForm';
 import ScheduledExportLogs from './ScheduledExportLogs';
 
+/** Match Layout.jsx sidebar: section headers 0.875rem/500, nested items 0.8125rem. */
+const sxMenuSection = { fontSize: '0.875rem', fontWeight: 500, lineHeight: 1.5 };
+const sxMenuItem = { fontSize: '0.8125rem', fontWeight: 400, lineHeight: 1.5 };
+
 const ScheduledExports = () => {
-  const theme = useTheme();
   const [exports, setExports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -290,23 +291,25 @@ const ScheduledExports = () => {
   }
 
   return (
-    <Box sx={{ p: 3 }}>
-      {/* Header */}
-      <Box sx={{ mb: 4 }}>
-        <Typography 
-          variant="h4" 
-          sx={{ 
-            fontWeight: 'bold',
+    <Box sx={{ p: 2.5 }}>
+      {/* Header — scale with main menu (section + item sizes) */}
+      <Box sx={{ mb: 3 }}>
+        <Typography
+          component="h1"
+          sx={{
+            ...sxMenuSection,
+            fontWeight: 600,
+            fontSize: '1rem',
             background: 'linear-gradient(135deg, #007BA7 0%, #0099CC 100%)',
             backgroundClip: 'text',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
-            mb: 1
+            mb: 0.75,
           }}
         >
           Scheduled Exports
         </Typography>
-        <Typography variant="body1" color="text.secondary">
+        <Typography color="text.secondary" sx={{ ...sxMenuItem }}>
           Manage automated report generation and email delivery
         </Typography>
       </Box>
@@ -319,46 +322,47 @@ const ScheduledExports = () => {
       )}
 
       {/* Action Buttons */}
-      <Box sx={{ mb: 3, display: 'flex', gap: 2 }}>
+      <Box sx={{ mb: 2.5, display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
         <Button
           variant="contained"
-          startIcon={<AddIcon />}
+          startIcon={<AddIcon sx={{ fontSize: 18 }} />}
           onClick={() => setCreateDialogOpen(true)}
           sx={{
             background: 'linear-gradient(135deg, #007BA7 0%, #0099CC 100%)',
             borderRadius: '4px',
-            px: 3,
-            py: 1.5,
+            px: 2,
+            py: 0.75,
+            minHeight: 36,
             textTransform: 'none',
-            fontSize: '1rem',
+            fontSize: '0.8125rem',
             fontWeight: 600,
-            boxShadow: '0 4px 12px rgba(107, 70, 193, 0.3)',
+            boxShadow: '0 2px 8px rgba(0, 122, 167, 0.25)',
             '&:hover': {
-              boxShadow: '0 6px 16px rgba(107, 70, 193, 0.4)',
-              transform: 'translateY(-2px)'
-            }
+              boxShadow: '0 4px 12px rgba(0, 122, 167, 0.3)',
+            },
           }}
         >
           Create Export
         </Button>
-        
+
         <Button
           variant="outlined"
-          startIcon={<RefreshIcon />}
+          startIcon={<RefreshIcon sx={{ fontSize: 18 }} />}
           onClick={loadExports}
           sx={{
             borderRadius: '4px',
-            px: 3,
-            py: 1.5,
+            px: 2,
+            py: 0.75,
+            minHeight: 36,
             textTransform: 'none',
-            fontSize: '1rem',
+            fontSize: '0.8125rem',
             fontWeight: 600,
             borderColor: '#007BA7',
             color: '#007BA7',
             '&:hover': {
               borderColor: '#0099CC',
-              backgroundColor: 'rgba(107, 70, 193, 0.04)'
-            }
+              backgroundColor: 'rgba(0, 122, 167, 0.06)',
+            },
           }}
         >
           Refresh
@@ -367,27 +371,32 @@ const ScheduledExports = () => {
 
       {/* Exports Grid */}
       {exports.length === 0 ? (
-        <Card sx={{ textAlign: 'center', py: 6 }}>
-          <CardContent>
-            <ScheduleSendIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-            <Typography variant="h6" color="text.secondary" gutterBottom>
+        <Card sx={{ textAlign: 'center', py: 4 }}>
+          <CardContent sx={{ py: 2 }}>
+            <ScheduleSendIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 1.5 }} />
+            <Typography
+              color="text.secondary"
+              gutterBottom
+              sx={{ ...sxMenuSection, fontWeight: 600 }}
+            >
               No Scheduled Exports
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            <Typography color="text.secondary" sx={{ ...sxMenuItem, mb: 2.5 }}>
               Create your first scheduled export to automate report generation
             </Typography>
             <Button
               variant="contained"
-              startIcon={<AddIcon />}
+              startIcon={<AddIcon sx={{ fontSize: 18 }} />}
               onClick={() => setCreateDialogOpen(true)}
               sx={{
                 background: 'linear-gradient(135deg, #007BA7 0%, #0099CC 100%)',
                 borderRadius: '4px',
-                px: 3,
-                py: 1.5,
+                px: 2,
+                py: 0.75,
+                minHeight: 36,
                 textTransform: 'none',
-                fontSize: '1rem',
-                fontWeight: 600
+                fontSize: '0.8125rem',
+                fontWeight: 600,
               }}
             >
               Create Export
@@ -395,50 +404,65 @@ const ScheduledExports = () => {
           </CardContent>
         </Card>
       ) : (
-        <Grid container spacing={3}>
+        <Grid container spacing={2}>
           {exports.map((exportItem) => {
             const statusDisplay = getStatusDisplay(exportItem);
             const frequencyDisplay = getFrequencyDisplay(exportItem.frequency);
             
             return (
               <Grid item xs={12} md={6} lg={4} key={exportItem.export_id}>
-                <Card 
-                  sx={{ 
+                <Card
+                  sx={{
                     height: '100%',
                     borderRadius: '4px',
-                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-                    transition: 'all 0.3s ease',
+                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
+                    transition: 'box-shadow 0.2s ease, transform 0.2s ease',
                     '&:hover': {
-                      transform: 'translateY(-4px)',
-                      boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)'
-                    }
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
+                    },
                   }}
                 >
-                  <CardContent sx={{ p: 3 }}>
+                  <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
                     {/* Header */}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <ScheduleIcon sx={{ color: '#007BA7' }} />
-                        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-start',
+                        mb: 1.5,
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+                        <ScheduleIcon sx={{ color: '#007BA7', fontSize: 20, flexShrink: 0 }} />
+                        <Typography
+                          sx={{
+                            fontSize: '0.875rem',
+                            fontWeight: 600,
+                            lineHeight: 1.4,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
                           {exportItem.name}
                         </Typography>
                       </Box>
                       <IconButton
                         size="small"
                         onClick={(e) => handleMenuOpen(e, exportItem)}
-                        sx={{ color: 'text.secondary' }}
+                        sx={{ color: 'text.secondary', ml: 0.5 }}
                       >
-                        <MoreVertIcon />
+                        <MoreVertIcon sx={{ fontSize: 20 }} />
                       </IconButton>
                     </Box>
 
                     {/* Description */}
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    <Typography color="text.secondary" sx={{ ...sxMenuItem, mb: 1.5 }}>
                       {exportItem.description || 'No description provided.'}
                     </Typography>
 
                     {/* Status and Frequency */}
-                    <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 1.5 }}>
                       <Chip
                         icon={statusDisplay.icon}
                         label={statusDisplay.text}
@@ -446,7 +470,10 @@ const ScheduledExports = () => {
                         sx={{
                           backgroundColor: statusDisplay.color,
                           color: 'white',
-                          fontWeight: 500
+                          fontWeight: 500,
+                          fontSize: '0.8125rem',
+                          height: 28,
+                          '& .MuiChip-icon': { color: 'white', fontSize: 18 },
                         }}
                       />
                       <Chip
@@ -455,28 +482,30 @@ const ScheduledExports = () => {
                         sx={{
                           backgroundColor: frequencyDisplay.color,
                           color: 'white',
-                          fontWeight: 500
+                          fontWeight: 500,
+                          fontSize: '0.8125rem',
+                          height: 28,
                         }}
                       />
                     </Box>
 
                     {/* Details */}
-                    <Box sx={{ mb: 3 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                        <EmailIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                        <Typography variant="body2" color="text.secondary">
+                    <Box sx={{ mb: 2 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
+                        <EmailIcon sx={{ fontSize: 18, color: 'text.secondary', flexShrink: 0 }} />
+                        <Typography color="text.secondary" sx={{ ...sxMenuItem }}>
                           {exportItem.recipient_count || 0} recipients
                         </Typography>
                       </Box>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                        <DownloadIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                        <Typography variant="body2" color="text.secondary">
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
+                        <DownloadIcon sx={{ fontSize: 18, color: 'text.secondary', flexShrink: 0 }} />
+                        <Typography color="text.secondary" sx={{ ...sxMenuItem }}>
                           {exportItem.format?.toUpperCase()} format
                         </Typography>
                       </Box>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <SettingsIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                        <Typography variant="body2" color="text.secondary">
+                        <SettingsIcon sx={{ fontSize: 18, color: 'text.secondary', flexShrink: 0 }} />
+                        <Typography color="text.secondary" sx={{ ...sxMenuItem }}>
                           {exportItem.date_range_days || 1} day range
                         </Typography>
                       </Box>
@@ -486,38 +515,42 @@ const ScheduledExports = () => {
                     <Box sx={{ display: 'flex', gap: 1 }}>
                       <Tooltip title="Trigger Export">
                         <IconButton
-                          size="small"
+                          size="medium"
                           onClick={() => handleTriggerExport(exportItem.export_id)}
                           disabled={actionLoading[`trigger_${exportItem.export_id}`]}
                           sx={{
+                            width: 40,
+                            height: 40,
                             backgroundColor: '#10B981',
                             color: 'white',
                             '&:hover': { backgroundColor: '#059669' },
-                            '&:disabled': { backgroundColor: '#D1D5DB' }
+                            '&:disabled': { backgroundColor: '#D1D5DB' },
                           }}
                         >
                           {actionLoading[`trigger_${exportItem.export_id}`] ? (
-                            <CircularProgress size={16} color="inherit" />
+                            <CircularProgress size={18} color="inherit" />
                           ) : (
-                            <PlayIcon />
+                            <PlayIcon sx={{ fontSize: 20 }} />
                           )}
                         </IconButton>
                       </Tooltip>
-                      
+
                       <Tooltip title="View Logs">
                         <IconButton
-                          size="small"
+                          size="medium"
                           onClick={() => {
                             setSelectedExport(exportItem);
                             setLogsDialogOpen(true);
                           }}
                           sx={{
+                            width: 40,
+                            height: 40,
                             backgroundColor: '#3B82F6',
                             color: 'white',
-                            '&:hover': { backgroundColor: '#2563EB' }
+                            '&:hover': { backgroundColor: '#2563EB' },
                           }}
                         >
-                          <HistoryIcon />
+                          <HistoryIcon sx={{ fontSize: 20 }} />
                         </IconButton>
                       </Tooltip>
                     </Box>
@@ -542,25 +575,34 @@ const ScheduledExports = () => {
           }
         }}
       >
-        <MenuItem onClick={handleEdit}>
-          <ListItemIcon>
-            <EditIcon sx={{ color: '#007BA7' }} />
+        <MenuItem onClick={handleEdit} dense sx={{ py: 1 }}>
+          <ListItemIcon sx={{ minWidth: 36 }}>
+            <EditIcon sx={{ color: '#007BA7', fontSize: 20 }} />
           </ListItemIcon>
-          <ListItemText>Edit Export</ListItemText>
+          <ListItemText
+            primaryTypographyProps={{ sx: { ...sxMenuItem, fontWeight: 500 } }}
+            primary="Edit Export"
+          />
         </MenuItem>
-        
-        <MenuItem onClick={handleViewLogs}>
-          <ListItemIcon>
-            <HistoryIcon sx={{ color: '#3B82F6' }} />
+
+        <MenuItem onClick={handleViewLogs} dense sx={{ py: 1 }}>
+          <ListItemIcon sx={{ minWidth: 36 }}>
+            <HistoryIcon sx={{ color: '#3B82F6', fontSize: 20 }} />
           </ListItemIcon>
-          <ListItemText>View Logs</ListItemText>
+          <ListItemText
+            primaryTypographyProps={{ sx: { ...sxMenuItem, fontWeight: 500 } }}
+            primary="View Logs"
+          />
         </MenuItem>
-        
-        <MenuItem onClick={handleDelete} sx={{ color: '#EF4444' }}>
-          <ListItemIcon>
-            <DeleteIcon sx={{ color: '#EF4444' }} />
+
+        <MenuItem onClick={handleDelete} dense sx={{ py: 1, color: '#EF4444' }}>
+          <ListItemIcon sx={{ minWidth: 36 }}>
+            <DeleteIcon sx={{ color: '#EF4444', fontSize: 20 }} />
           </ListItemIcon>
-          <ListItemText>Delete Export</ListItemText>
+          <ListItemText
+            primaryTypographyProps={{ sx: { ...sxMenuItem, fontWeight: 500 } }}
+            primary="Delete Export"
+          />
         </MenuItem>
       </Menu>
 
