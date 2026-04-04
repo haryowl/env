@@ -20,6 +20,7 @@ import axios from 'axios';
 import { subHours } from 'date-fns';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Link } from 'react-router-dom';
+import { useTheme } from '@mui/material/styles';
 import { API_BASE_URL } from '../config/api';
 import { usePermissions } from '../hooks/usePermissions';
 import moment from 'moment-timezone';
@@ -35,6 +36,7 @@ const formatInUserTimezone = (dt, fmt = 'YYYY-MM-DD HH:mm:ss') => {
  * Mobile-first dashboard: same data sources as the standard Dashboard, separate layout only.
  */
 const MobileDashboard = ({ socket }) => {
+  const theme = useTheme();
   const { userPermissions } = usePermissions();
   const [overview, setOverview] = useState(null);
   const [devices, setDevices] = useState([]);
@@ -325,7 +327,7 @@ const MobileDashboard = ({ socket }) => {
                   <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                   <XAxis dataKey="t" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
                   <YAxis tick={{ fontSize: 9 }} width={32} />
-                  <Tooltip contentStyle={getTooltipContentStyle()} />
+                  <Tooltip contentStyle={getTooltipContentStyle(theme)} />
                   <Legend wrapperStyle={LEGEND_WRAPPER_STYLE} />
                   {numericParams.slice(0, 6).map((p, i) => (
                     <Line
