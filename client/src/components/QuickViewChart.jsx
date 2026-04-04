@@ -73,18 +73,25 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
     );
   }, [alerts, parameter]);
 
-  // Process data for chart
+  // Process data for chart (use timestamp when datetime missing — matches /data-dash rows)
   const chartData = useMemo(() => {
     if (!data || !Array.isArray(data)) return [];
-    
+
     return data
-      .filter(item => item[parameter] !== undefined && item[parameter] !== null)
-      .map(item => ({
-        datetime: formatInUserTimezone(item.datetime, 'MM/DD HH:mm'),
-        timestamp: new Date(item.datetime).getTime(),
-        value: parseFloat(item[parameter]) || 0,
-        original: item
-      }))
+      .filter((item) => item[parameter] !== undefined && item[parameter] !== null)
+      .map((item) => {
+        const timeRaw = item.datetime ?? item.timestamp;
+        if (timeRaw == null || timeRaw === '') return null;
+        const ts = new Date(timeRaw).getTime();
+        if (!Number.isFinite(ts)) return null;
+        return {
+          datetime: formatInUserTimezone(timeRaw, 'MM/DD HH:mm'),
+          timestamp: ts,
+          value: parseFloat(item[parameter]) || 0,
+          original: item,
+        };
+      })
+      .filter(Boolean)
       .sort((a, b) => a.timestamp - b.timestamp);
   }, [data, parameter]);
 
@@ -179,18 +186,16 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
     return { min, max, avg, latest };
   }, [chartData]);
 
-  // Calculate Y-axis domain with buffer
+  // Calculate Y-axis domain with buffer (use isFinite so min === 0 is valid)
   const yAxisDomain = useMemo(() => {
-    if (!stats.min || !stats.max) return [0, 100];
-    
+    if (!Number.isFinite(stats.min) || !Number.isFinite(stats.max)) return [0, 100];
+
     const buffer = 2;
     const minDomain = Math.max(0, stats.min - buffer);
     const maxDomain = stats.max + buffer;
-    
-    console.log(`Y-axis domain for ${parameter}:`, { min: stats.min, max: stats.max, minDomain, maxDomain });
-    
+
     return [minDomain, maxDomain];
-  }, [stats.min, stats.max, parameter]);
+  }, [stats.min, stats.max]);
 
   // Check if latest value is out of range
   const isLatestOutOfRange = useMemo(() => {
@@ -347,8 +352,22 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
           </Box>
         </Box>
 
-        {/* Modern Chart */}
-        <Box ref={chartRef} sx={{ flexGrow: 1, minHeight: 250, height: '100%', width: '100%', ...getChartCardSx(theme), position: 'relative', overflow: 'hidden' }}>
+        {/* Modern Chart — explicit height so ResponsiveContainer works inside flex/mobile (height:100% often resolves to 0) */}
+        <Box
+          ref={chartRef}
+          sx={{
+            flexGrow: 1,
+            flexShrink: 0,
+            width: '100%',
+            minWidth: 0,
+            minHeight: { xs: 260, sm: 280 },
+            height: { xs: 280, sm: 320, md: '100%' },
+            maxHeight: { xs: 320, sm: 380, md: 'none' },
+            ...getChartCardSx(theme),
+            position: 'relative',
+            overflow: 'hidden',
+          }}
+        >
           {chartData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData} margin={CHART_MARGIN}>

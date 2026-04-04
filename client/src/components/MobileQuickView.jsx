@@ -38,7 +38,11 @@ const PERIODS = [
 
 function TabPanel({ children, value, index }) {
   if (value !== index) return null;
-  return <Box sx={{ pt: 2 }}>{children}</Box>;
+  return (
+    <Box sx={{ pt: 2, width: '100%', minWidth: 0, overflow: 'hidden' }}>
+      {children}
+    </Box>
+  );
 }
 
 /**
