@@ -57,7 +57,7 @@ import PageHeader from './PageHeader';
 import SectionHeader from './SectionHeader';
 import { useFont } from '../contexts/FontContext';
 import { getOptimalTextColor } from '../utils/colorUtils';
-import { useTheme as useMuiTheme } from '@mui/material/styles';
+import { useTheme as useMuiTheme, alpha } from '@mui/material/styles';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import { usePermissions } from '../hooks/usePermissions';
 
@@ -866,7 +866,7 @@ const Dashboard = ({ socket }) => {
           top: 0,
           zIndex: (t) => t.zIndex.appBar - 2,
           mb: 3,
-          bgcolor: 'background.paper',
+          bgcolor: 'transparent',
           borderRadius: 1,
           boxShadow: (t) =>
             t.palette.mode === 'dark'
@@ -882,6 +882,7 @@ const Dashboard = ({ socket }) => {
             border: 'none',
             boxShadow: 'none',
             borderRadius: 1,
+            bgcolor: alpha(theme.palette.background.paper, 0.5),
           }}
           right={(
             <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: { xs: 'flex-start', sm: 'flex-end' } }}>
