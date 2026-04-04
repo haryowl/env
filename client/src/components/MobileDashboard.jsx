@@ -10,19 +10,26 @@ import {
   MenuItem,
   CircularProgress,
   Alert,
-  Chip,
   Stack,
   IconButton,
+  Button,
+  Paper,
+  Grid,
 } from '@mui/material';
-import PhoneAndroidIcon from '@mui/icons-material/PhoneAndroid';
+import SensorsIcon from '@mui/icons-material/Sensors';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import WifiIcon from '@mui/icons-material/Wifi';
+import PeopleAltIcon from '@mui/icons-material/PeopleAlt';
+import StorageIcon from '@mui/icons-material/Storage';
 import axios from 'axios';
 import { subHours } from 'date-fns';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Link } from 'react-router-dom';
-import { useTheme } from '@mui/material/styles';
+import { useTheme, alpha } from '@mui/material/styles';
 import { API_BASE_URL } from '../config/api';
 import { usePermissions } from '../hooks/usePermissions';
+import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import moment from 'moment-timezone';
 import { CHART_COLORS, getTooltipContentStyle, LEGEND_WRAPPER_STYLE } from '../utils/chartStyles';
 
@@ -32,11 +39,33 @@ const formatInUserTimezone = (dt, fmt = 'YYYY-MM-DD HH:mm:ss') => {
   return moment.utc(dt).tz(getUserTimezone()).format(fmt);
 };
 
+function rowTimeMs(row) {
+  const raw = row?.datetime ?? row?.timestamp;
+  if (raw == null || raw === '') return NaN;
+  const t = new Date(raw).getTime();
+  return Number.isFinite(t) ? t : NaN;
+}
+
+function toNumeric(v) {
+  if (v == null || v === '') return null;
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  const n = parseFloat(String(v).replace(',', '.'));
+  return Number.isFinite(n) ? n : null;
+}
+
+function formatReading(val, decimals = 2) {
+  if (val == null || val === '') return '—';
+  const n = typeof val === 'number' ? val : parseFloat(String(val).replace(',', '.'));
+  if (!Number.isFinite(n)) return String(val);
+  return n.toFixed(decimals);
+}
+
 /**
- * Mobile-first dashboard: same data sources as the standard Dashboard, separate layout only.
+ * Mobile-only live overview: full-width shell, formatted readings, robust chart (API often returns strings).
  */
 const MobileDashboard = ({ socket }) => {
   const theme = useTheme();
+  const { formatDisplayName, getUnit } = useFieldMetadata();
   const { userPermissions } = usePermissions();
   const [overview, setOverview] = useState(null);
   const [devices, setDevices] = useState([]);
@@ -147,14 +176,16 @@ const MobileDashboard = ({ socket }) => {
       setRealtimeData(mappedData);
       setRealtimeError('');
       if (mappedData.length > 0) {
-        const sorted = [...mappedData].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        const sorted = [...mappedData]
+          .filter((r) => Number.isFinite(rowTimeMs(r)))
+          .sort((a, b) => rowTimeMs(b) - rowTimeMs(a));
         const latestRecord = sorted[0];
         const latest = {};
         realtimeParams.forEach((k) => {
           if (latestRecord[k] !== undefined) {
             latest[k] =
               k === 'datetime' || k === 'timestamp'
-                ? formatInUserTimezone(latestRecord[k])
+                ? formatInUserTimezone(latestRecord.datetime ?? latestRecord.timestamp)
                 : latestRecord[k];
           }
         });
@@ -205,16 +236,22 @@ const MobileDashboard = ({ socket }) => {
 
   const chartRows = useMemo(() => {
     return [...realtimeData]
-      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+      .filter((r) => Number.isFinite(rowTimeMs(r)))
+      .sort((a, b) => rowTimeMs(a) - rowTimeMs(b))
       .map((r) => ({
-        t: formatInUserTimezone(r.timestamp, 'MM-DD HH:mm'),
+        t: formatInUserTimezone(r.datetime ?? r.timestamp, 'MM-DD HH:mm'),
         ...numericParams.reduce((acc, p) => {
-          const v = r[p];
-          acc[p] = typeof v === 'number' && !Number.isNaN(v) ? v : null;
+          acc[p] = toNumeric(r[p]);
           return acc;
         }, {}),
       }));
   }, [realtimeData, numericParams]);
+
+  const onlineCount = devices.filter((d) => d.status === 'online').length;
+  const grad =
+    theme.palette.mode === 'dark'
+      ? `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.85)} 0%, ${alpha('#0c4a6e', 0.95)} 100%)`
+      : `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`;
 
   if (loading) {
     return (
@@ -225,49 +262,127 @@ const MobileDashboard = ({ socket }) => {
   }
 
   return (
-    <Box sx={{ maxWidth: 560, mx: 'auto', pb: 3 }}>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
-        <Stack direction="row" alignItems="center" spacing={1}>
-          <PhoneAndroidIcon color="primary" />
-          <Box>
-            <Typography variant="h6" fontWeight={800}>
-              Dashboard
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              Mobile layout · touch-friendly
-            </Typography>
-          </Box>
-        </Stack>
-        <IconButton onClick={() => fetchRealtimeData()} disabled={refreshBusy} size="large" aria-label="Refresh">
-          <RefreshIcon />
-        </IconButton>
-      </Stack>
-
-      <Typography variant="caption" color="primary" sx={{ display: 'block', mb: 2 }}>
-        <Link to="/dashboard">Open standard Dashboard</Link>
-      </Typography>
+    <Box sx={{ width: '100%', maxWidth: '100%', pb: 3, px: { xs: 1.5, sm: 0 } }}>
+      <Paper
+        elevation={0}
+        sx={{
+          borderRadius: 3,
+          overflow: 'hidden',
+          mb: 2,
+          background: grad,
+          color: '#fff',
+        }}
+      >
+        <Box sx={{ p: 2.25, pr: 1 }}>
+          <Stack direction="row" alignItems="flex-start" justifyContent="space-between">
+            <Stack direction="row" spacing={1.5} alignItems="center">
+              <Box
+                sx={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 2,
+                  bgcolor: alpha('#fff', 0.2),
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <SensorsIcon sx={{ fontSize: 26 }} />
+              </Box>
+              <Box>
+                <Typography variant="overline" sx={{ opacity: 0.9, letterSpacing: 1.2, fontWeight: 700 }}>
+                  Live overview
+                </Typography>
+                <Typography variant="h5" sx={{ fontWeight: 800, lineHeight: 1.2 }}>
+                  Mobile dashboard
+                </Typography>
+                <Typography variant="caption" sx={{ opacity: 0.85, display: 'block', mt: 0.5 }}>
+                  {getUserTimezone()} · pull to refresh via button
+                </Typography>
+              </Box>
+            </Stack>
+            <IconButton
+              onClick={() => fetchRealtimeData()}
+              disabled={refreshBusy}
+              aria-label="Refresh"
+              sx={{ color: '#fff', bgcolor: alpha('#fff', 0.12), '&:hover': { bgcolor: alpha('#fff', 0.2) } }}
+            >
+              <RefreshIcon />
+            </IconButton>
+          </Stack>
+          <Button
+            component={Link}
+            to="/dashboard"
+            size="small"
+            endIcon={<OpenInNewIcon sx={{ fontSize: 16 }} />}
+            sx={{
+              mt: 2,
+              color: '#fff',
+              borderColor: alpha('#fff', 0.5),
+              '&:hover': { borderColor: '#fff', bgcolor: alpha('#fff', 0.08) },
+            }}
+            variant="outlined"
+          >
+            Full desktop dashboard
+          </Button>
+        </Box>
+      </Paper>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
           {error}
         </Alert>
       )}
 
       {isAdmin && overview && (
-        <Stack direction="row" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
-          <Chip size="small" color="default" label={`Devices ${overview.totalDevices ?? 0}`} />
-          <Chip size="small" color="success" variant="outlined" label={`Online ${devices.filter((d) => d.status === 'online').length}`} />
-          <Chip size="small" label={`Users ${overview.totalUsers ?? 0}`} />
-        </Stack>
+        <Grid container spacing={1.25} sx={{ mb: 2 }}>
+          <Grid size={{ xs: 4 }}>
+            <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2, textAlign: 'center', height: '100%' }}>
+              <WifiIcon color="success" sx={{ fontSize: 22, mb: 0.5 }} />
+              <Typography variant="h6" fontWeight={800}>
+                {onlineCount}
+              </Typography>
+              <Typography variant="caption" color="text.secondary" display="block">
+                Online
+              </Typography>
+            </Paper>
+          </Grid>
+          <Grid size={{ xs: 4 }}>
+            <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2, textAlign: 'center', height: '100%' }}>
+              <StorageIcon color="primary" sx={{ fontSize: 22, mb: 0.5 }} />
+              <Typography variant="h6" fontWeight={800}>
+                {overview.totalDevices ?? 0}
+              </Typography>
+              <Typography variant="caption" color="text.secondary" display="block">
+                Devices
+              </Typography>
+            </Paper>
+          </Grid>
+          <Grid size={{ xs: 4 }}>
+            <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2, textAlign: 'center', height: '100%' }}>
+              <PeopleAltIcon color="secondary" sx={{ fontSize: 22, mb: 0.5 }} />
+              <Typography variant="h6" fontWeight={800}>
+                {overview.totalUsers ?? 0}
+              </Typography>
+              <Typography variant="caption" color="text.secondary" display="block">
+                Users
+              </Typography>
+            </Paper>
+          </Grid>
+        </Grid>
       )}
 
+      <Typography variant="subtitle2" color="text.secondary" fontWeight={700} sx={{ mb: 0.75, letterSpacing: 0.5 }}>
+        DEVICE
+      </Typography>
       <FormControl fullWidth size="medium" sx={{ mb: 2 }}>
-        <InputLabel id="m-dash-device">Device</InputLabel>
+        <InputLabel id="m-dash-device">Select device</InputLabel>
         <Select
           labelId="m-dash-device"
-          label="Device"
+          label="Select device"
           value={realtimeDevice}
           onChange={(e) => setRealtimeDevice(e.target.value)}
+          sx={{ borderRadius: 2 }}
         >
           {devices.map((d) => (
             <MenuItem key={d.device_id} value={d.device_id} disabled={!isDeviceAccessValid(d) && !isAdmin}>
@@ -290,54 +405,100 @@ const MobileDashboard = ({ socket }) => {
       )}
 
       {numericParams.length > 0 && (
-        <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>
-          Latest readings
-        </Typography>
+        <>
+          <Typography variant="subtitle2" color="text.secondary" fontWeight={700} sx={{ mb: 1, letterSpacing: 0.5 }}>
+            CURRENT READINGS
+          </Typography>
+          <Grid container spacing={1.25} sx={{ mb: 2 }}>
+            {numericParams.map((p) => {
+              const unit = getUnit(p);
+              const raw = realtimeLatest[p];
+              return (
+                <Grid key={p} size={{ xs: 6 }}>
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      p: 1.5,
+                      borderRadius: 2,
+                      height: '100%',
+                      borderColor: alpha(theme.palette.primary.main, 0.25),
+                      background:
+                        theme.palette.mode === 'dark'
+                          ? alpha(theme.palette.background.paper, 0.6)
+                          : alpha(theme.palette.primary.main, 0.04),
+                    }}
+                  >
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block' }}>
+                      {formatDisplayName(p)}
+                    </Typography>
+                    <Typography variant="h6" fontWeight={800} sx={{ mt: 0.5, lineHeight: 1.2 }}>
+                      {formatReading(raw)}
+                      {unit ? (
+                        <Typography component="span" variant="body2" color="text.secondary" sx={{ fontWeight: 600, ml: 0.5 }}>
+                          {unit}
+                        </Typography>
+                      ) : null}
+                    </Typography>
+                  </Paper>
+                </Grid>
+              );
+            })}
+          </Grid>
+        </>
       )}
-      <Stack direction="row" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
-        {numericParams.map((p) => (
-          <Chip
-            key={p}
-            label={`${p}: ${realtimeLatest[p] != null ? String(realtimeLatest[p]) : '—'}`}
-            variant="outlined"
-            sx={{ maxWidth: '100%', '& .MuiChip-label': { whiteSpace: 'normal' } }}
-          />
-        ))}
-      </Stack>
 
       {realtimeError && (
-        <Alert severity="warning" sx={{ mb: 2 }}>
+        <Alert severity="warning" sx={{ mb: 2, borderRadius: 2 }}>
           {realtimeError}
         </Alert>
       )}
 
-      <Card variant="outlined" sx={{ borderRadius: 2 }}>
-        <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-          <Typography variant="subtitle2" fontWeight={700} gutterBottom>
-            Trend (24h)
-          </Typography>
+      <Typography variant="subtitle2" color="text.secondary" fontWeight={700} sx={{ mb: 1, letterSpacing: 0.5 }}>
+        TREND · LAST 24 HOURS
+      </Typography>
+      <Card
+        elevation={0}
+        variant="outlined"
+        sx={{
+          borderRadius: 3,
+          borderColor: alpha(theme.palette.divider, 0.9),
+          overflow: 'hidden',
+        }}
+      >
+        <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
           {chartRows.length === 0 ? (
-            <Typography variant="body2" color="text.secondary">
-              No data in this range.
+            <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
+              No series data in this range.
             </Typography>
           ) : (
-            <Box sx={{ width: '100%', height: 300, touchAction: 'pan-y' }}>
+            <Box
+              sx={{
+                width: '100%',
+                minWidth: 0,
+                height: 320,
+                minHeight: 320,
+                touchAction: 'pan-y',
+                mx: 'auto',
+              }}
+            >
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartRows} margin={{ top: 8, right: 4, left: -12, bottom: 4 }}>
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                  <XAxis dataKey="t" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
-                  <YAxis tick={{ fontSize: 9 }} width={32} />
-                  <Tooltip contentStyle={getTooltipContentStyle(theme)} />
-                  <Legend wrapperStyle={LEGEND_WRAPPER_STYLE} />
+                <LineChart data={chartRows} margin={{ top: 12, right: 8, left: 4, bottom: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                  <XAxis dataKey="t" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+                  <YAxis tick={{ fontSize: 10 }} width={40} domain={['auto', 'auto']} />
+                  <Tooltip contentStyle={getTooltipContentStyle(theme)} formatter={(v) => (v != null ? Number(v).toFixed(2) : '—')} />
+                  <Legend wrapperStyle={{ ...LEGEND_WRAPPER_STYLE, paddingTop: 8 }} />
                   {numericParams.slice(0, 6).map((p, i) => (
                     <Line
                       key={p}
                       type="monotone"
                       dataKey={p}
+                      name={formatDisplayName(p)}
                       stroke={CHART_COLORS[i % CHART_COLORS.length]}
                       dot={false}
-                      strokeWidth={2}
+                      strokeWidth={2.5}
                       connectNulls
+                      isAnimationActive={false}
                     />
                   ))}
                 </LineChart>

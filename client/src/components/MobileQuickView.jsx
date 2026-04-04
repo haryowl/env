@@ -2,8 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Typography,
-  Card,
-  CardContent,
   FormControl,
   InputLabel,
   Select,
@@ -16,16 +14,22 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   IconButton,
+  Button,
+  Paper,
+  ListItemText,
 } from '@mui/material';
-import PhoneAndroidIcon from '@mui/icons-material/PhoneAndroid';
 import TimelineIcon from '@mui/icons-material/Timeline';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import TableChartIcon from '@mui/icons-material/TableChart';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import AnalyticsIcon from '@mui/icons-material/Analytics';
 import { Link } from 'react-router-dom';
 import moment from 'moment-timezone';
+import { useTheme, alpha } from '@mui/material/styles';
 import { API_BASE_URL } from '../config/api';
 import { getUserTimezone } from '../utils/timezoneUtils';
+import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import QuickViewChart from './QuickViewChart';
 import QuickViewAlertChart from './QuickViewAlertChart';
 import QuickViewTable from './QuickViewTable';
@@ -46,9 +50,11 @@ function TabPanel({ children, value, index }) {
 }
 
 /**
- * Mobile-first Quick View: same APIs and chart/table components as standard Quick View, separate shell only.
+ * Mobile Quick View: full-width shell, humanized labels, same APIs as desktop.
  */
 const MobileQuickView = () => {
+  const theme = useTheme();
+  const { formatDisplayName } = useFieldMetadata();
   const [devices, setDevices] = useState([]);
   const [selectedDevice, setSelectedDevice] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState('1h');
@@ -254,36 +260,89 @@ const MobileQuickView = () => {
     return json.data || [];
   }, [selectedDevice, selectedPeriod, parameters]);
 
+  const grad =
+    theme.palette.mode === 'dark'
+      ? `linear-gradient(135deg, ${alpha(theme.palette.secondary?.main || theme.palette.primary.main, 0.9)} 0%, ${alpha('#134e4a', 0.95)} 100%)`
+      : `linear-gradient(135deg, #0d9488 0%, #0e7490 100%)`;
+
   return (
-    <Box sx={{ maxWidth: 560, mx: 'auto', pb: 3 }}>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
-        <Stack direction="row" alignItems="center" spacing={1}>
-          <PhoneAndroidIcon color="primary" />
-          <Box>
-            <Typography variant="h6" fontWeight={800}>
-              Quick View
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              Mobile layout · {getUserTimezone()}
-            </Typography>
-          </Box>
-        </Stack>
-        <IconButton onClick={() => loadData()} disabled={loading} aria-label="Refresh" size="large">
-          <RefreshIcon />
-        </IconButton>
-      </Stack>
+    <Box sx={{ width: '100%', maxWidth: '100%', pb: 3, px: { xs: 1.5, sm: 0 } }}>
+      <Paper
+        elevation={0}
+        sx={{
+          borderRadius: 3,
+          overflow: 'hidden',
+          mb: 2,
+          background: grad,
+          color: '#fff',
+        }}
+      >
+        <Box sx={{ p: 2.25, pr: 1 }}>
+          <Stack direction="row" alignItems="flex-start" justifyContent="space-between">
+            <Stack direction="row" spacing={1.5} alignItems="center">
+              <Box
+                sx={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 2,
+                  bgcolor: alpha('#fff', 0.2),
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <AnalyticsIcon sx={{ fontSize: 26 }} />
+              </Box>
+              <Box>
+                <Typography variant="overline" sx={{ opacity: 0.9, letterSpacing: 1.2, fontWeight: 700 }}>
+                  Explore data
+                </Typography>
+                <Typography variant="h5" sx={{ fontWeight: 800, lineHeight: 1.2 }}>
+                  Quick View
+                </Typography>
+                <Typography variant="caption" sx={{ opacity: 0.85, display: 'block', mt: 0.5 }}>
+                  {getUserTimezone()}
+                </Typography>
+              </Box>
+            </Stack>
+            <IconButton
+              onClick={() => loadData()}
+              disabled={loading}
+              aria-label="Refresh"
+              sx={{ color: '#fff', bgcolor: alpha('#fff', 0.12), '&:hover': { bgcolor: alpha('#fff', 0.2) } }}
+            >
+              <RefreshIcon />
+            </IconButton>
+          </Stack>
+          <Button
+            component={Link}
+            to="/quick-view"
+            size="small"
+            endIcon={<OpenInNewIcon sx={{ fontSize: 16 }} />}
+            sx={{
+              mt: 2,
+              color: '#fff',
+              borderColor: alpha('#fff', 0.5),
+              '&:hover': { borderColor: '#fff', bgcolor: alpha('#fff', 0.08) },
+            }}
+            variant="outlined"
+          >
+            Full desktop Quick View
+          </Button>
+        </Box>
+      </Paper>
 
-      <Typography variant="caption" color="primary" sx={{ display: 'block', mb: 2 }}>
-        <Link to="/quick-view">Open standard Quick View</Link>
+      <Typography variant="subtitle2" color="text.secondary" fontWeight={700} sx={{ mb: 0.75, letterSpacing: 0.5 }}>
+        DEVICE
       </Typography>
-
       <FormControl fullWidth size="medium" sx={{ mb: 2 }}>
-        <InputLabel id="m-qv-device">Device</InputLabel>
+        <InputLabel id="m-qv-device">Select device</InputLabel>
         <Select
           labelId="m-qv-device"
-          label="Device"
+          label="Select device"
           value={selectedDevice}
           onChange={(e) => setSelectedDevice(e.target.value)}
+          sx={{ borderRadius: 2 }}
         >
           {devices.map((d) => (
             <MenuItem key={d.device_id} value={d.device_id}>
@@ -293,8 +352,8 @@ const MobileQuickView = () => {
         </Select>
       </FormControl>
 
-      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-        Period
+      <Typography variant="subtitle2" color="text.secondary" fontWeight={700} sx={{ mb: 0.75, letterSpacing: 0.5 }}>
+        TIME WINDOW
       </Typography>
       <ToggleButtonGroup
         exclusive
@@ -302,30 +361,49 @@ const MobileQuickView = () => {
         size="medium"
         value={selectedPeriod}
         onChange={(_, v) => v && setSelectedPeriod(v)}
-        sx={{ mb: 2 }}
+        sx={{
+          mb: 2,
+          '& .MuiToggleButton-root': {
+            py: 1.25,
+            fontWeight: 700,
+            borderRadius: '10px !important',
+            textTransform: 'none',
+            '&.Mui-selected': {
+              bgcolor: theme.palette.primary.main,
+              color: theme.palette.primary.contrastText,
+              '&:hover': { bgcolor: theme.palette.primary.dark },
+            },
+          },
+        }}
       >
         {PERIODS.map((p) => (
           <ToggleButton key={p.value} value={p.value}>
-            {p.label}
+            Last {p.label}
           </ToggleButton>
         ))}
       </ToggleButtonGroup>
 
-      <Card variant="outlined" sx={{ borderRadius: 2, mb: 1 }}>
+      <Paper variant="outlined" sx={{ borderRadius: 3, overflow: 'hidden', mb: 1 }}>
         <Tabs
           value={tab}
           onChange={(_, v) => setTab(v)}
           variant="fullWidth"
-          sx={{ minHeight: 48, '& .MuiTab-root': { minHeight: 48, py: 1 } }}
+          sx={{
+            minHeight: 52,
+            bgcolor: alpha(theme.palette.action.hover, 0.06),
+            '& .MuiTab-root': { minHeight: 52, py: 1, fontWeight: 700, textTransform: 'none' },
+            '& .Mui-selected': { color: `${theme.palette.primary.main} !important` },
+            '& .MuiTabs-indicator': { height: 3, borderRadius: '3px 3px 0 0' },
+          }}
         >
-          <Tab icon={<TimelineIcon />} iconPosition="start" label="Charts" />
-          <Tab icon={<WarningAmberIcon />} iconPosition="start" label="Alerts" />
-          <Tab icon={<TableChartIcon />} iconPosition="start" label="Data" />
+          <Tab icon={<TimelineIcon fontSize="small" />} iconPosition="start" label="Charts" />
+          <Tab icon={<WarningAmberIcon fontSize="small" />} iconPosition="start" label="Alerts" />
+          <Tab icon={<TableChartIcon fontSize="small" />} iconPosition="start" label="Data" />
         </Tabs>
-      </Card>
+      </Paper>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
           {error}
         </Alert>
       )}
@@ -340,19 +418,30 @@ const MobileQuickView = () => {
         <>
           <TabPanel value={tab} index={0}>
             {parameters.length === 0 ? (
-              <Alert severity="info">No mapped parameters for this device.</Alert>
+              <Alert severity="info" sx={{ borderRadius: 2 }}>
+                No mapped parameters for this device.
+              </Alert>
             ) : (
               <>
-                <FormControl fullWidth size="small" sx={{ mb: 2 }}>
-                  <InputLabel>Parameter</InputLabel>
+                <Typography variant="subtitle2" color="text.secondary" fontWeight={700} sx={{ mb: 0.75, letterSpacing: 0.5 }}>
+                  PARAMETER
+                </Typography>
+                <FormControl fullWidth size="medium" sx={{ mb: 2 }}>
+                  <InputLabel>Metric</InputLabel>
                   <Select
-                    label="Parameter"
+                    label="Metric"
                     value={selectedParam}
                     onChange={(e) => setSelectedParam(e.target.value)}
+                    sx={{ borderRadius: 2 }}
                   >
                     {parameters.map((p) => (
-                      <MenuItem key={p} value={p}>
-                        {p}
+                      <MenuItem key={p} value={p} dense>
+                        <ListItemText
+                          primary={formatDisplayName(p, { withUnit: true })}
+                          secondary={p}
+                          primaryTypographyProps={{ fontWeight: 600, fontSize: '0.95rem' }}
+                          secondaryTypographyProps={{ variant: 'caption', sx: { fontFamily: 'monospace' } }}
+                        />
                       </MenuItem>
                     ))}
                   </Select>
@@ -371,7 +460,9 @@ const MobileQuickView = () => {
           </TabPanel>
           <TabPanel value={tab} index={2}>
             {parameters.length === 0 ? (
-              <Alert severity="info">No parameters to show.</Alert>
+              <Alert severity="info" sx={{ borderRadius: 2 }}>
+                No parameters to show.
+              </Alert>
             ) : (
               <QuickViewTable
                 data={tableData}
@@ -386,7 +477,9 @@ const MobileQuickView = () => {
       )}
 
       {!selectedDevice && !loading && (
-        <Alert severity="info">Select a device to load data.</Alert>
+        <Alert severity="info" sx={{ borderRadius: 2 }}>
+          Select a device to load data.
+        </Alert>
       )}
     </Box>
   );

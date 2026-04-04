@@ -121,6 +121,7 @@ const Layout = ({ children, user, userContext, onLogout }) => {
   const [expandedSections, setExpandedSections] = useState(() => loadStoredExpandedSections() || {});
   const navigate = useNavigate();
   const location = useLocation();
+  const isMobileDataShell = /^\/m\//.test(location.pathname);
   const { canAccessMenu, loading: permissionsLoading } = usePermissions();
 
   // Keep the section that contains the current route expanded (merge with user toggles / sessionStorage).
@@ -690,7 +691,7 @@ const Layout = ({ children, user, userContext, onLogout }) => {
           flexDirection: 'column',
           overflow: 'hidden',
           backgroundColor: customColors?.background || theme.palette.background.default,
-          padding: { xs: 2, sm: 2.5, md: 3 },
+          padding: isMobileDataShell ? { xs: 0.5, sm: 2.5, md: 3 } : { xs: 2, sm: 2.5, md: 3 },
           paddingTop: { xs: 8, sm: 10, md: 11 },
           className: 'main-content',
           boxSizing: 'border-box',
@@ -706,14 +707,18 @@ const Layout = ({ children, user, userContext, onLogout }) => {
             minHeight: 0,
             width: '100%',
             backgroundColor: customColors?.card || theme.palette.background.paper,
-            borderRadius: '4px',
-            p: { xs: 2, sm: 3, md: 4 },
-            boxShadow: customColors?.isDarkMode
-              ? '0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2)'
-              : '0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06)',
-            border: customColors?.isDarkMode
-              ? '1px solid rgba(255, 255, 255, 0.1)'
-              : '1px solid rgba(0, 0, 0, 0.1)',
+            borderRadius: isMobileDataShell ? { xs: 0, sm: '4px' } : '4px',
+            p: isMobileDataShell ? { xs: 0, sm: 2, md: 4 } : { xs: 2, sm: 3, md: 4 },
+            boxShadow: isMobileDataShell
+              ? { xs: 'none', sm: customColors?.isDarkMode ? '0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2)' : '0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06)' }
+              : customColors?.isDarkMode
+                ? '0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2)'
+                : '0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06)',
+            border: isMobileDataShell
+              ? { xs: 'none', sm: customColors?.isDarkMode ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(0, 0, 0, 0.1)' }
+              : customColors?.isDarkMode
+                ? '1px solid rgba(255, 255, 255, 0.1)'
+                : '1px solid rgba(0, 0, 0, 0.1)',
             overflow: 'auto',
             WebkitOverflowScrolling: 'touch',
             boxSizing: 'border-box',
