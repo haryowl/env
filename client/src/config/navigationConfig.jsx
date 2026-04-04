@@ -29,6 +29,7 @@ import {
   Domain as DomainIcon,
   Memory as MemoryIcon,
   FormatSize as FormatSizeIcon,
+  PhoneAndroid as PhoneAndroidIcon,
 } from '@mui/icons-material';
 
 export const MENU_SECTIONS = [
@@ -37,7 +38,9 @@ export const MENU_SECTIONS = [
     icon: <ShowChartIcon />,
     items: [
       { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', menuPath: '/dashboard' },
+      { text: 'Dashboard (mobile)', icon: <PhoneAndroidIcon />, path: '/m/dashboard', menuPath: '/dashboard' },
       { text: 'Quick View', icon: <VisibilityIcon />, path: '/quick-view', menuPath: '/quick-view' },
+      { text: 'Quick View (mobile)', icon: <PhoneAndroidIcon />, path: '/m/quick-view', menuPath: '/quick-view' },
       { text: 'Data', icon: <ShowChartIcon />, path: '/data', menuPath: '/data' },
       { text: 'Data Dash', icon: <TableChartIcon />, path: '/data-dash', menuPath: '/data-dash' },
       { text: 'Data Dash 2', icon: <DashboardIcon />, path: '/data-dash-2', menuPath: '/data-dash-2' },
@@ -110,7 +113,9 @@ export function getFlatMenuItems() {
 export const ROUTE_MENU_PATH_MAP = {
   '/': '/dashboard',
   '/dashboard': '/dashboard',
+  '/m/dashboard': '/dashboard',
   '/quick-view': '/quick-view',
+  '/m/quick-view': '/quick-view',
   '/devices': '/devices',
   '/users': '/users',
   '/tenants': '/tenants',

@@ -7,7 +7,9 @@ import { FontProvider } from './contexts/FontContext';
 // Components
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
+import MobileDashboard from './components/MobileDashboard';
 import QuickView from './components/QuickView';
+import MobileQuickView from './components/MobileQuickView';
 import DeviceManager from './components/DeviceManager';
 import UserManager from './components/UserManager.jsx';
 import TenantManager from './components/TenantManager.jsx';
@@ -334,7 +336,9 @@ function App() {
               <Routes>
                 <Route path="/" element={<HomeRedirect user={user} />} />
                 <Route path="/dashboard" element={<ProtectedRoute><Dashboard socket={socket} /></ProtectedRoute>} />
+                <Route path="/m/dashboard" element={<ProtectedRoute><MobileDashboard socket={socket} /></ProtectedRoute>} />
                 <Route path="/quick-view" element={<ProtectedRoute><QuickView /></ProtectedRoute>} />
+                <Route path="/m/quick-view" element={<ProtectedRoute><MobileQuickView /></ProtectedRoute>} />
                 <Route path="/devices" element={<ProtectedRoute><DeviceManager /></ProtectedRoute>} />
                 <Route path="/users" element={<ProtectedRoute><UserManager /></ProtectedRoute>} />
                 <Route path="/tenants" element={<ProtectedRoute><TenantManager /></ProtectedRoute>} />
