@@ -27,7 +27,18 @@ import {
   ExpandLess as ExpandLessIcon,
   Map as MapIcon,
 } from '@mui/icons-material';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Brush } from 'recharts';
+import {
+  LineChart,
+  Line,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Brush,
+  ComposedChart,
+} from 'recharts';
 import { FormControl, InputLabel, Select, MenuItem, CardActions, Button, TextField, ToggleButton, ToggleButtonGroup } from '@mui/material';
 import axios from 'axios';
 import { subHours } from 'date-fns';
@@ -59,6 +70,32 @@ const formatInUserTimezone = (dt, fmt = 'YYYY-MM-DD HH:mm:ss') => {
 
 /** Realtime line chart: no in-chart legend (toggles above), tighter margins for a larger plot. */
 const REALTIME_LINE_CHART_MARGIN = { top: 8, right: 18, left: 4, bottom: 2 };
+
+/**
+ * Recharts YAxis domain callback: add ~10% headroom above max and below min vs each extreme
+ * (max + 10%·|max|, min − 10%·|min|). When min is exactly 0, keep floor at 0.
+ */
+const padRealtimeChartYDomain = ([dMin, dMax]) => {
+  if (!Number.isFinite(dMin) || !Number.isFinite(dMax)) {
+    return [0, 'auto'];
+  }
+  if (dMin === dMax) {
+    const pad = Math.max(Math.abs(dMin) * 0.1, 1e-9);
+    return [dMin - pad, dMax + pad];
+  }
+  const hi = dMax + 0.1 * Math.abs(dMax);
+  let lo = dMin - 0.1 * Math.abs(dMin);
+  if (dMin === 0) {
+    lo = 0;
+  }
+  if (lo >= hi) {
+    return [dMin, dMax];
+  }
+  return [lo, hi];
+};
+
+/** Safe SVG id for Recharts fill url(#...) */
+const realtimeGradientId = (param) => `rtg_${String(param).replace(/[^a-zA-Z0-9_-]/g, '_')}`;
 
 const Dashboard = ({ socket }) => {
   const { getFontColor } = useFont();
@@ -232,8 +269,18 @@ const Dashboard = ({ socket }) => {
       return `${String(value)}${withUnit}`;
     };
 
-    return (payload || [])
-      .filter((p) => p && p.dataKey && visibleParams.includes(p.dataKey))
+    const filtered = (payload || []).filter(
+      (p) => p && p.dataKey && visibleParams.includes(p.dataKey)
+    );
+    // ComposedChart: Area + Line share dataKey — prefer Line (stroke) for tooltip row/color
+    const lastByKey = new Map();
+    const isStrokeSeries = (p) => p?.stroke && String(p.stroke).toLowerCase() !== 'none';
+    filtered.forEach((p) => {
+      const prev = lastByKey.get(p.dataKey);
+      if (!prev || isStrokeSeries(p)) lastByKey.set(p.dataKey, p);
+    });
+
+    return Array.from(lastByKey.values())
       .map((p) => {
         const raw = p.value;
         const n = typeof raw === 'number' ? raw : parseFloat(String(raw));
@@ -343,6 +390,49 @@ const Dashboard = ({ socket }) => {
         />
       );
     }), [visibleParams, formatDisplayName, activeRealtimeParam]);
+
+  const memoizedGradientDefs = useMemo(
+    () =>
+      visibleParams.map((param) => {
+        const color = getParameterColor(param);
+        const focused = !activeRealtimeParam || activeRealtimeParam === param;
+        const topA = focused ? 0.26 : 0.09;
+        const gid = realtimeGradientId(param);
+        return (
+          <linearGradient key={gid} id={gid} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity={topA} />
+            <stop offset="50%" stopColor={color} stopOpacity={topA * 0.32} />
+            <stop offset="100%" stopColor={color} stopOpacity={0} />
+          </linearGradient>
+        );
+      }),
+    [visibleParams, activeRealtimeParam]
+  );
+
+  // Soft gradient fills under each series (areas render before lines)
+  const memoizedChartAreas = useMemo(
+    () =>
+      visibleParams.map((param) => {
+        const gid = realtimeGradientId(param);
+        return (
+          <Area
+            key={`area-${param}`}
+            type="monotone"
+            dataKey={param}
+            stroke="none"
+            fill={`url(#${gid})`}
+            fillOpacity={1}
+            isAnimationActive={false}
+            connectNulls={false}
+            legendType="none"
+            dot={false}
+            activeDot={false}
+            baseLine={0}
+          />
+        );
+      }),
+    [visibleParams]
+  );
 
   // Phase-II: sparkline + delta per parameter (computed from realtimeData)
   const realtimeCardMetrics = useMemo(() => {
@@ -742,29 +832,6 @@ const Dashboard = ({ socket }) => {
       }
     };
   }, [realtimeDevice, realtimeParams, realtimeRangeHours, socket]);
-
-  // Calculate Y axis min/max for visible parameters (exclude non-numeric like 'datetime')
-  const getYDomain = () => {
-    if (!realtimeData.length || !visibleParams.length) return [0, 'auto'];
-    // Only consider numeric params (exclude 'datetime', 'timestamp', etc.)
-    const numericParams = visibleParams.filter(
-      p => p !== 'datetime' && p !== 'timestamp'
-    );
-    if (!numericParams.length) return [0, 'auto'];
-    let minVal = Infinity, maxVal = -Infinity;
-    for (const param of numericParams) {
-      for (const row of realtimeData) {
-        const v = row[param];
-        if (typeof v === 'number' && !isNaN(v)) {
-          if (v < minVal) minVal = v;
-          if (v > maxVal) maxVal = v;
-        }
-      }
-    }
-    if (minVal === Infinity || maxVal === -Infinity) return [0, 'auto'];
-    if (minVal === maxVal) return [minVal - 1, maxVal + 1];
-    return [minVal, maxVal];
-  };
 
   const getStatusColor = (status) => {
     return status === 'online' ? 'success' : 'error';
@@ -1311,7 +1378,8 @@ const Dashboard = ({ socket }) => {
                   }}
                 >
                   <ResponsiveContainer key={`responsive-${visibleParams.join('-')}-${realtimeDevice}`} width="100%" height="100%">
-                    <LineChart data={chartDataWithAlerts} margin={REALTIME_LINE_CHART_MARGIN}>
+                    <ComposedChart data={chartDataWithAlerts} margin={REALTIME_LINE_CHART_MARGIN}>
+                      <defs>{memoizedGradientDefs}</defs>
                       <CartesianGrid {...CARTESIAN_GRID_PROPS} />
                       <XAxis
                         dataKey="timestamp"
@@ -1322,11 +1390,12 @@ const Dashboard = ({ socket }) => {
                           return formatInUserTimezone(value);
                         }}
                       />
-                      <YAxis type="number" tick={AXIS_TICK_STYLE} domain={([dataMin, dataMax]) => (dataMin === 0 ? [0, dataMax] : [dataMin, dataMax])} allowDataOverflow />
+                      <YAxis type="number" tick={AXIS_TICK_STYLE} domain={padRealtimeChartYDomain} allowDataOverflow />
                       <Tooltip
                         content={RealtimeTooltip}
                         cursor={{ stroke: 'rgba(2, 132, 199, 0.45)', strokeWidth: 1 }}
                       />
+                      {memoizedChartAreas}
                       {memoizedChartLines}
                       <Brush
                         dataKey="timestamp"
@@ -1335,7 +1404,7 @@ const Dashboard = ({ socket }) => {
                         travellerWidth={8}
                         tickFormatter={() => ''}
                       />
-                    </LineChart>
+                    </ComposedChart>
                   </ResponsiveContainer>
                 </Box>
                 <Typography
