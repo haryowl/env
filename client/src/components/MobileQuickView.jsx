@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -14,7 +14,6 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   IconButton,
-  Button,
   Paper,
   ListItemText,
 } from '@mui/material';
@@ -23,7 +22,6 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import TableChartIcon from '@mui/icons-material/TableChart';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
-import AnalyticsIcon from '@mui/icons-material/Analytics';
 import { Link } from 'react-router-dom';
 import moment from 'moment-timezone';
 import { useTheme, alpha } from '@mui/material/styles';
@@ -43,14 +41,14 @@ const PERIODS = [
 function TabPanel({ children, value, index }) {
   if (value !== index) return null;
   return (
-    <Box sx={{ pt: 2, width: '100%', minWidth: 0, overflow: 'hidden' }}>
+    <Box sx={{ pt: 1.5, width: '100%', minWidth: 0, overflow: 'hidden' }}>
       {children}
     </Box>
   );
 }
 
 /**
- * Mobile Quick View: full-width shell, humanized labels, same APIs as desktop.
+ * Mobile Quick View: minimal chrome, full-width chart shell, stable metric selection.
  */
 const MobileQuickView = () => {
   const theme = useTheme();
@@ -68,6 +66,11 @@ const MobileQuickView = () => {
   const [alertConfigs, setAlertConfigs] = useState([]);
   const [tab, setTab] = useState(0);
   const [selectedParam, setSelectedParam] = useState('');
+
+  const activeParam = useMemo(() => {
+    if (!parameters.length) return '';
+    return parameters.includes(selectedParam) ? selectedParam : parameters[0];
+  }, [parameters, selectedParam]);
 
   const getStartDate = (period) => {
     switch (period) {
@@ -260,82 +263,35 @@ const MobileQuickView = () => {
     return json.data || [];
   }, [selectedDevice, selectedPeriod, parameters]);
 
-  const grad =
-    theme.palette.mode === 'dark'
-      ? `linear-gradient(135deg, ${alpha(theme.palette.secondary?.main || theme.palette.primary.main, 0.9)} 0%, ${alpha('#134e4a', 0.95)} 100%)`
-      : `linear-gradient(135deg, #0d9488 0%, #0e7490 100%)`;
-
   return (
     <Box sx={{ width: '100%', maxWidth: '100%', pb: 3, px: { xs: 1.5, sm: 0 } }}>
-      <Paper
-        elevation={0}
-        sx={{
-          borderRadius: 3,
-          overflow: 'hidden',
-          mb: 2,
-          background: grad,
-          color: '#fff',
-        }}
-      >
-        <Box sx={{ p: 2.25, pr: 1 }}>
-          <Stack direction="row" alignItems="flex-start" justifyContent="space-between">
-            <Stack direction="row" spacing={1.5} alignItems="center">
-              <Box
-                sx={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 2,
-                  bgcolor: alpha('#fff', 0.2),
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <AnalyticsIcon sx={{ fontSize: 26 }} />
-              </Box>
-              <Box>
-                <Typography variant="overline" sx={{ opacity: 0.9, letterSpacing: 1.2, fontWeight: 700 }}>
-                  Explore data
-                </Typography>
-                <Typography variant="h5" sx={{ fontWeight: 800, lineHeight: 1.2 }}>
-                  Quick View
-                </Typography>
-                <Typography variant="caption" sx={{ opacity: 0.85, display: 'block', mt: 0.5 }}>
-                  {getUserTimezone()}
-                </Typography>
-              </Box>
-            </Stack>
-            <IconButton
-              onClick={() => loadData()}
-              disabled={loading}
-              aria-label="Refresh"
-              sx={{ color: '#fff', bgcolor: alpha('#fff', 0.12), '&:hover': { bgcolor: alpha('#fff', 0.2) } }}
-            >
-              <RefreshIcon />
-            </IconButton>
-          </Stack>
-          <Button
-            component={Link}
-            to="/quick-view"
-            size="small"
-            endIcon={<OpenInNewIcon sx={{ fontSize: 16 }} />}
-            sx={{
-              mt: 2,
-              color: '#fff',
-              borderColor: alpha('#fff', 0.5),
-              '&:hover': { borderColor: '#fff', bgcolor: alpha('#fff', 0.08) },
-            }}
-            variant="outlined"
-          >
-            Full desktop Quick View
-          </Button>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} sx={{ mb: 1 }}>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="subtitle1" fontWeight={800} noWrap>
+            Quick View
+          </Typography>
+          <Typography variant="caption" color="text.secondary" noWrap>
+            {getUserTimezone()}
+          </Typography>
         </Box>
-      </Paper>
+        <IconButton onClick={() => loadData()} disabled={loading} aria-label="Refresh" size="small">
+          <RefreshIcon />
+        </IconButton>
+      </Stack>
+      <Typography
+        component={Link}
+        to="/quick-view"
+        variant="caption"
+        color="primary"
+        sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, mb: 1.5, fontWeight: 600 }}
+      >
+        <OpenInNewIcon sx={{ fontSize: 14 }} /> Desktop Quick View
+      </Typography>
 
-      <Typography variant="subtitle2" color="text.secondary" fontWeight={700} sx={{ mb: 0.75, letterSpacing: 0.5 }}>
+      <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ mb: 0.5, letterSpacing: 0.6 }}>
         DEVICE
       </Typography>
-      <FormControl fullWidth size="medium" sx={{ mb: 2 }}>
+      <FormControl fullWidth size="small" sx={{ mb: 1.5 }}>
         <InputLabel id="m-qv-device">Select device</InputLabel>
         <Select
           labelId="m-qv-device"
@@ -352,22 +308,22 @@ const MobileQuickView = () => {
         </Select>
       </FormControl>
 
-      <Typography variant="subtitle2" color="text.secondary" fontWeight={700} sx={{ mb: 0.75, letterSpacing: 0.5 }}>
+      <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ mb: 0.5, letterSpacing: 0.6 }}>
         TIME WINDOW
       </Typography>
       <ToggleButtonGroup
         exclusive
         fullWidth
-        size="medium"
+        size="small"
         value={selectedPeriod}
         onChange={(_, v) => v && setSelectedPeriod(v)}
         sx={{
-          mb: 2,
+          mb: 1.5,
           '& .MuiToggleButton-root': {
-            py: 1.25,
-            fontWeight: 700,
-            borderRadius: '10px !important',
+            py: 1,
+            fontWeight: 800,
             textTransform: 'none',
+            fontSize: '0.85rem',
             '&.Mui-selected': {
               bgcolor: theme.palette.primary.main,
               color: theme.palette.primary.contrastText,
@@ -383,33 +339,39 @@ const MobileQuickView = () => {
         ))}
       </ToggleButtonGroup>
 
-      <Paper variant="outlined" sx={{ borderRadius: 3, overflow: 'hidden', mb: 1 }}>
+      <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden', mb: 1 }}>
         <Tabs
           value={tab}
           onChange={(_, v) => setTab(v)}
           variant="fullWidth"
           sx={{
-            minHeight: 52,
+            minHeight: 48,
             bgcolor: alpha(theme.palette.action.hover, 0.06),
-            '& .MuiTab-root': { minHeight: 52, py: 1, fontWeight: 700, textTransform: 'none' },
+            '& .MuiTab-root': {
+              minHeight: 48,
+              py: 0.75,
+              fontWeight: 800,
+              textTransform: 'none',
+              fontSize: '0.8rem',
+            },
             '& .Mui-selected': { color: `${theme.palette.primary.main} !important` },
-            '& .MuiTabs-indicator': { height: 3, borderRadius: '3px 3px 0 0' },
+            '& .MuiTabs-indicator': { height: 3 },
           }}
         >
-          <Tab icon={<TimelineIcon fontSize="small" />} iconPosition="start" label="Charts" />
-          <Tab icon={<WarningAmberIcon fontSize="small" />} iconPosition="start" label="Alerts" />
-          <Tab icon={<TableChartIcon fontSize="small" />} iconPosition="start" label="Data" />
+          <Tab icon={<TimelineIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Charts" />
+          <Tab icon={<WarningAmberIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Alerts" />
+          <Tab icon={<TableChartIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Data" />
         </Tabs>
       </Paper>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+        <Alert severity="error" sx={{ mb: 1.5, borderRadius: 2 }}>
           {error}
         </Alert>
       )}
 
       {loading && (
-        <Box display="flex" justifyContent="center" py={4}>
+        <Box display="flex" justifyContent="center" py={3}>
           <CircularProgress />
         </Box>
       )}
@@ -423,35 +385,60 @@ const MobileQuickView = () => {
               </Alert>
             ) : (
               <>
-                <Typography variant="subtitle2" color="text.secondary" fontWeight={700} sx={{ mb: 0.75, letterSpacing: 0.5 }}>
-                  PARAMETER
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  fontWeight={800}
+                  sx={{ mb: 0.75, letterSpacing: 0.5, fontSize: '0.8rem' }}
+                >
+                  METRIC
                 </Typography>
-                <FormControl fullWidth size="medium" sx={{ mb: 2 }}>
-                  <InputLabel>Metric</InputLabel>
+                <FormControl fullWidth size="small" sx={{ mb: 1.5 }}>
+                  <InputLabel id="m-qv-metric">Choose metric</InputLabel>
                   <Select
-                    label="Metric"
-                    value={selectedParam}
+                    labelId="m-qv-metric"
+                    label="Choose metric"
+                    value={activeParam}
                     onChange={(e) => setSelectedParam(e.target.value)}
                     sx={{ borderRadius: 2 }}
+                    renderValue={(id) =>
+                      id ? formatDisplayName(id, { withUnit: true }) : 'Select metric'
+                    }
                   >
                     {parameters.map((p) => (
                       <MenuItem key={p} value={p} dense>
                         <ListItemText
                           primary={formatDisplayName(p, { withUnit: true })}
                           secondary={p}
-                          primaryTypographyProps={{ fontWeight: 600, fontSize: '0.95rem' }}
-                          secondaryTypographyProps={{ variant: 'caption', sx: { fontFamily: 'monospace' } }}
+                          primaryTypographyProps={{ fontWeight: 700, fontSize: '1rem' }}
+                          secondaryTypographyProps={{
+                            variant: 'caption',
+                            sx: { fontFamily: 'monospace', fontSize: '0.7rem' },
+                          }}
                         />
                       </MenuItem>
                     ))}
                   </Select>
                 </FormControl>
-                <QuickViewChart
-                  parameter={selectedParam}
-                  data={chartData}
-                  alerts={alerts}
-                  deviceName={deviceName}
-                />
+                {/* Fixed-height shell so Recharts always measures; activeParam avoids empty selection */}
+                <Box
+                  sx={{
+                    width: '100%',
+                    minWidth: 0,
+                    minHeight: 380,
+                    '& .MuiCard-root': { borderRadius: 3 },
+                  }}
+                >
+                  {activeParam ? (
+                    <QuickViewChart
+                      key={`${selectedDevice}-${activeParam}-${selectedPeriod}`}
+                      parameter={activeParam}
+                      data={chartData}
+                      alerts={alerts}
+                      deviceName={deviceName}
+                    />
+                  ) : null}
+                </Box>
               </>
             )}
           </TabPanel>
