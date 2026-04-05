@@ -12,6 +12,8 @@ export default function SectionHeader({
   center,
   right,
   sx,
+  titleSx,
+  subtitleSx,
   compact = false,
 }) {
   return (
@@ -54,6 +56,7 @@ export default function SectionHeader({
               color: 'text.primary',
               fontSize: compact ? '0.82rem' : '0.95rem',
               lineHeight: compact ? 1.2 : 1.15,
+              ...(titleSx || {}),
             }}
           >
             {title}
@@ -67,6 +70,7 @@ export default function SectionHeader({
                 fontSize: compact ? '0.68rem' : undefined,
                 lineHeight: 1.25,
                 display: 'block',
+                ...(subtitleSx || {}),
               }}
             >
               {subtitle}

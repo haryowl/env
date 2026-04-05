@@ -20,8 +20,12 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import * as XLSX from 'xlsx';
 import { min as d3min, max as d3max } from 'd3-array';
 import moment from 'moment-timezone';
-import PageHeader from './PageHeader';
+import { alpha } from '@mui/material/styles';
 import SectionHeader from './SectionHeader';
+
+/** Match Layout.jsx sidebar: section labels ~0.875rem/500, items ~0.8125rem */
+const DATA_DASH_MENU_ITEM_FS = '0.8125rem';
+const DATA_DASH_SECTION_FS = '0.875rem';
 
 // Utility: Format datetime in user's selected timezone
 const getUserTimezone = () => localStorage.getItem('iot_timezone') || moment.tz.guess() || 'UTC';
@@ -336,7 +340,7 @@ export default function DataDash() {
       py: '5px',
       px: '10px',
       pr: '4px',
-      fontSize: '0.75rem',
+      fontSize: DATA_DASH_MENU_ITEM_FS,
       color: theme.palette.text.primary,
       boxSizing: 'border-box',
       lineHeight: 1.2,
@@ -366,14 +370,33 @@ export default function DataDash() {
   };
 
   const filterControls = (
-    <Card sx={{ mb: 2, borderRadius: 1, ...getChartCardSx(theme), overflow: 'visible', p: 0 }}>
+    <Card
+      sx={{
+        mb: 2,
+        borderRadius: 1,
+        ...getChartCardSx(theme),
+        p: 0,
+        position: 'sticky',
+        top: 0,
+        zIndex: 10,
+        overflow: 'hidden',
+        background: alpha(theme.palette.background.paper, 0.5),
+        boxShadow:
+          theme.palette.mode === 'dark'
+            ? '0 4px 18px rgba(0,0,0,0.35)'
+            : '0 4px 18px rgba(15, 23, 42, 0.08)',
+      }}
+    >
       <SectionHeader
         compact
         icon={<DeviceHubIcon sx={{ fontSize: 16 }} />}
         title="Data Filters"
         subtitle="Select devices, parameters, and time range"
+        sx={{ bgcolor: alpha(theme.palette.background.paper, 0.5) }}
+        titleSx={{ fontSize: DATA_DASH_SECTION_FS, fontWeight: 500 }}
+        subtitleSx={{ fontSize: DATA_DASH_MENU_ITEM_FS, fontWeight: 400 }}
       />
-      <CardContent sx={{ p: 1, pt: 1.25, pb: 1.25 }}>
+      <CardContent sx={{ p: 1, pt: 1, pb: 1 }}>
         <Box
           sx={{
             display: 'grid',
@@ -386,7 +409,7 @@ export default function DataDash() {
           }}
         >
           <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
-            <Typography variant="subtitle2" sx={{ mb: 0.35, fontWeight: 700, fontSize: '0.72rem', color: theme.palette.text.secondary, lineHeight: 1.2 }}>
+            <Typography variant="subtitle2" sx={{ mb: 0.35, fontWeight: 600, fontSize: DATA_DASH_MENU_ITEM_FS, color: theme.palette.text.secondary, lineHeight: 1.2 }}>
               Devices
             </Typography>
               <FormControl fullWidth variant="outlined" size="small" sx={{ width: '100%', maxWidth: '100%', minWidth: 0, '& .MuiInputBase-root': { minHeight: 34 } }}>
@@ -427,7 +450,7 @@ export default function DataDash() {
                     '& .MuiSelect-select': { 
                       color: theme.palette.text.primary,
                       padding: '6px 10px',
-                      fontSize: '0.75rem',
+                      fontSize: DATA_DASH_MENU_ITEM_FS,
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
@@ -449,7 +472,7 @@ export default function DataDash() {
               {devices.map(device => (
                     <MenuItem key={device.device_id} value={device.device_id} sx={{ color: theme.palette.text.primary + ' !important' }}>
                       <Checkbox checked={selectedDevices.indexOf(device.device_id) > -1} sx={{ color: theme.palette.text.primary + ' !important' }} />
-                      <ListItemText primary={device.name} sx={{ color: theme.palette.text.primary + ' !important' }} />
+                      <ListItemText primary={device.name} primaryTypographyProps={{ sx: { fontSize: DATA_DASH_MENU_ITEM_FS } }} sx={{ color: theme.palette.text.primary + ' !important' }} />
                 </MenuItem>
               ))}
             </Select>
@@ -457,7 +480,7 @@ export default function DataDash() {
             </Box>
 
           <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
-            <Typography variant="subtitle2" sx={{ mb: 0.35, fontWeight: 700, fontSize: '0.72rem', color: theme.palette.text.secondary, lineHeight: 1.2 }}>
+            <Typography variant="subtitle2" sx={{ mb: 0.35, fontWeight: 600, fontSize: DATA_DASH_MENU_ITEM_FS, color: theme.palette.text.secondary, lineHeight: 1.2 }}>
               Parameters
             </Typography>
               <FormControl fullWidth variant="outlined" size="small" sx={{ width: '100%', maxWidth: '100%', minWidth: 0, '& .MuiInputBase-root': { minHeight: 34 } }}>
@@ -498,7 +521,7 @@ export default function DataDash() {
                     '& .MuiSelect-select': { 
                       color: theme.palette.text.primary,
                       padding: '6px 10px',
-                      fontSize: '0.75rem',
+                      fontSize: DATA_DASH_MENU_ITEM_FS,
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
@@ -522,7 +545,7 @@ export default function DataDash() {
                 return (
                     <MenuItem key={param} value={param} sx={{ color: theme.palette.text.primary + ' !important' }}>
                       <Checkbox checked={selectedParameters.indexOf(param) > -1} sx={{ color: theme.palette.text.primary + ' !important' }} />
-                      <ListItemText primary={label} sx={{ color: theme.palette.text.primary + ' !important' }} />
+                      <ListItemText primary={label} primaryTypographyProps={{ sx: { fontSize: DATA_DASH_MENU_ITEM_FS } }} sx={{ color: theme.palette.text.primary + ' !important' }} />
                 </MenuItem>
               );
             })}
@@ -532,7 +555,7 @@ export default function DataDash() {
 
           <LocalizationProvider dateAdapter={AdapterDateFns}>
             <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
-              <Typography variant="subtitle2" sx={{ mb: 0.35, fontWeight: 700, fontSize: '0.72rem', color: theme.palette.text.secondary, lineHeight: 1.2 }}>
+              <Typography variant="subtitle2" sx={{ mb: 0.35, fontWeight: 600, fontSize: DATA_DASH_MENU_ITEM_FS, color: theme.palette.text.secondary, lineHeight: 1.2 }}>
                 Start Date & Time
               </Typography>
               <DateTimePicker
@@ -551,7 +574,7 @@ export default function DataDash() {
               />
             </Box>
             <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
-              <Typography variant="subtitle2" sx={{ mb: 0.35, fontWeight: 700, fontSize: '0.72rem', color: theme.palette.text.secondary, lineHeight: 1.2 }}>
+              <Typography variant="subtitle2" sx={{ mb: 0.35, fontWeight: 600, fontSize: DATA_DASH_MENU_ITEM_FS, color: theme.palette.text.secondary, lineHeight: 1.2 }}>
                 End Date & Time
               </Typography>
               <DateTimePicker
@@ -591,8 +614,8 @@ export default function DataDash() {
                 px: 2,
                 py: 0.65,
                 minHeight: 34,
-                fontSize: '0.78rem',
-                fontWeight: 700,
+                fontSize: DATA_DASH_MENU_ITEM_FS,
+                fontWeight: 600,
                 textTransform: 'none',
                 boxShadow: '0 2px 8px rgba(2, 132, 199, 0.18)',
                 width: { xs: '100%', md: 'auto' },
@@ -614,7 +637,7 @@ export default function DataDash() {
                 mb: 0.5,
                 fontWeight: 600,
                 color: theme.palette.text.secondary,
-                fontSize: '0.72rem',
+                fontSize: DATA_DASH_MENU_ITEM_FS,
               }}
             >
               Active Filters:
@@ -641,8 +664,8 @@ export default function DataDash() {
                   sx={{ 
                     borderRadius: 1,
                     fontWeight: 600,
-                    fontSize: '0.68rem',
-                    height: 22,
+                    fontSize: DATA_DASH_MENU_ITEM_FS,
+                    height: 24,
                     '& .MuiChip-label': {
                       px: 0.85,
                     },
@@ -658,8 +681,8 @@ export default function DataDash() {
                   sx={{ 
                     borderRadius: 1,
                     fontWeight: 600,
-                    fontSize: '0.68rem',
-                    height: 22,
+                    fontSize: DATA_DASH_MENU_ITEM_FS,
+                    height: 24,
                     '& .MuiChip-label': {
                       px: 0.85,
                     },
@@ -673,8 +696,8 @@ export default function DataDash() {
                 sx={{ 
                   borderRadius: 1,
                   fontWeight: 600,
-                  fontSize: '0.68rem',
-                  height: 22,
+                  fontSize: DATA_DASH_MENU_ITEM_FS,
+                  height: 24,
                   '& .MuiChip-label': {
                     px: 0.85,
                   },
@@ -687,8 +710,8 @@ export default function DataDash() {
                 sx={{ 
                   borderRadius: 1,
                   fontWeight: 600,
-                  fontSize: '0.68rem',
-                  height: 22,
+                  fontSize: DATA_DASH_MENU_ITEM_FS,
+                  height: 24,
                   '& .MuiChip-label': {
                     px: 0.85,
                   },
@@ -974,14 +997,6 @@ export default function DataDash() {
       minHeight: '100vh',
       p: { xs: 0, sm: 0.5, md: 0.75 }
     }}>
-      <Box sx={{ mb: 1 }}>
-        <PageHeader
-          icon={<DeviceHubIcon sx={{ fontSize: 18 }} />}
-          title="Data Dash"
-          subtitle="Advanced IoT data analytics and visualization"
-        />
-      </Box>
-      
       {filterControls}
       
       {!loading && data.length > 0 && (
