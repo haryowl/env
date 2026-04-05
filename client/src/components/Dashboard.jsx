@@ -865,7 +865,7 @@ const Dashboard = ({ socket }) => {
           position: 'sticky',
           top: 0,
           zIndex: (t) => t.zIndex.appBar - 2,
-          mb: 3,
+          mb: 1,
           bgcolor: 'transparent',
           borderRadius: 1,
           boxShadow: (t) =>
@@ -948,7 +948,7 @@ const Dashboard = ({ socket }) => {
 
       {/* Statistics Cards - Only visible to admin/super_admin */}
       {isAdmin && (
-        <Grid container spacing={{ xs: 2, sm: 2.5 }} sx={{ mb: { xs: 2, sm: 3 } }}>
+        <Grid container spacing={{ xs: 1.25, sm: 1.5 }} sx={{ mb: { xs: 1, sm: 1.25 } }}>
         <Grid size={{ xs: 6, sm: 6, md: 3 }}>
           <Card sx={{ height: '100%', borderRadius: 1, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.06)', '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.08)' } }}>
             <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
@@ -1032,7 +1032,7 @@ const Dashboard = ({ socket }) => {
       )}
 
       {/* Parameter Overview - visible to all users; collapsible */}
-      <Box sx={{ mb: paramOverviewOpen ? 2 : 0, mt: 3 }}>
+      <Box sx={{ mb: paramOverviewOpen ? 1 : 0, mt: 1.25 }}>
         <SectionHeader
           icon={<DataIcon sx={{ fontSize: 18 }} />}
           title="Parameter Overview"
@@ -1069,7 +1069,7 @@ const Dashboard = ({ socket }) => {
       </Collapse>
 
       {/* Device Map Section — collapsible */}
-      <Box sx={{ mt: 3 }}>
+      <Box sx={{ mt: 1.25 }}>
         <SectionHeader
           icon={<MapIcon sx={{ fontSize: 18 }} />}
           title="Device locations"
@@ -1089,14 +1089,14 @@ const Dashboard = ({ socket }) => {
       </Box>
       <Collapse in={mapSectionOpen}>
         <Box>
-          <DashboardMap socket={socket} cardSx={{ mt: 0, mb: 2 }} />
+          <DashboardMap socket={socket} cardSx={{ mt: 0, mb: 1 }} />
         </Box>
       </Collapse>
 
       {/* Realtime Data View Section - Site Location style header */}
       <Card sx={{ 
-        mt: 4, 
-        mb: 4,
+        mt: 1.5, 
+        mb: 2,
         borderRadius: 1,
         border: '1px solid rgba(0,0,0,0.06)',
         boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
@@ -1107,13 +1107,13 @@ const Dashboard = ({ socket }) => {
             display: 'flex', 
             alignItems: 'center', 
             justifyContent: 'space-between',
-            px: 2.25,
-            py: 1.25,
+            px: 1.5,
+            py: 0.65,
             bgcolor: 'background.paper',
             borderBottom: '1px solid',
             borderColor: 'divider',
             flexWrap: 'wrap',
-            gap: 1
+            gap: 0.75
           }}>
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
               <Box
@@ -1124,7 +1124,7 @@ const Dashboard = ({ socket }) => {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  mr: 1.25,
+                  mr: 1,
                   bgcolor: 'rgba(37, 99, 235, 0.10)',
                   color: 'primary.main',
                 }}

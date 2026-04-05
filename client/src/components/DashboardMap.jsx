@@ -489,7 +489,7 @@ const DashboardMap = ({ socket, cardSx = {} }) => {
 
   if (loading) {
     return (
-      <Card sx={{ mt: 3, mb: 3, borderRadius: 1, ...getChartCardSx(theme), ...cardSx }}>
+      <Card sx={{ mt: 1, mb: 1, borderRadius: 1, ...getChartCardSx(theme), ...cardSx }}>
         <CardContent>
           <Box display="flex" justifyContent="center" alignItems="center" minHeight={400}>
             <CircularProgress />
@@ -501,8 +501,8 @@ const DashboardMap = ({ socket, cardSx = {} }) => {
 
   return (
     <Card sx={{ 
-      mt: 3, 
-      mb: 3,
+      mt: 1, 
+      mb: 1,
       borderRadius: 1,
       ...getChartCardSx(theme),
       boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)',
@@ -510,7 +510,7 @@ const DashboardMap = ({ socket, cardSx = {} }) => {
       ...cardSx,
     }}>
       <CardContent sx={{ p: 0 }}>
-        <Box sx={{ p: 3 }}>
+        <Box sx={{ pt: 0.5, px: 1, pb: 1 }}>
 
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>

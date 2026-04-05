@@ -971,10 +971,10 @@ export default function DataDash() {
       backgroundImage: theme.palette.mode === 'light'
         ? 'linear-gradient(135deg, rgba(248,250,252,1) 0%, rgba(255,255,255,1) 100%)'
         : 'none',
-      minHeight: '100vh', 
-      p: { xs: 2, md: 4 }
+      minHeight: '100vh',
+      p: { xs: 0, sm: 0.5, md: 0.75 }
     }}>
-      <Box sx={{ mb: 2 }}>
+      <Box sx={{ mb: 1 }}>
         <PageHeader
           icon={<DeviceHubIcon sx={{ fontSize: 18 }} />}
           title="Data Dash"

@@ -691,8 +691,8 @@ const Layout = ({ children, user, userContext, onLogout }) => {
           flexDirection: 'column',
           overflow: 'hidden',
           backgroundColor: customColors?.background || theme.palette.background.default,
-          padding: isMobileDataShell ? { xs: 0.5, sm: 2.5, md: 3 } : { xs: 2, sm: 2.5, md: 3 },
-          paddingTop: { xs: 8, sm: 10, md: 11 },
+          padding: isMobileDataShell ? { xs: 0.5, sm: 1.25, md: 1.5 } : { xs: 1, sm: 1.25, md: 1.5 },
+          paddingTop: { xs: 8, sm: 9, md: 10 },
           className: 'main-content',
           boxSizing: 'border-box',
           transition: theme.transitions.create(['margin', 'width'], {
@@ -708,7 +708,7 @@ const Layout = ({ children, user, userContext, onLogout }) => {
             width: '100%',
             backgroundColor: customColors?.card || theme.palette.background.paper,
             borderRadius: isMobileDataShell ? { xs: 0, sm: '4px' } : '4px',
-            p: isMobileDataShell ? { xs: 0, sm: 2, md: 4 } : { xs: 2, sm: 3, md: 4 },
+            p: isMobileDataShell ? { xs: 0, sm: 1.25, md: 1.5 } : { xs: 1, sm: 1.25, md: 1.5 },
             boxShadow: isMobileDataShell
               ? { xs: 'none', sm: customColors?.isDarkMode ? '0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2)' : '0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06)' }
               : customColors?.isDarkMode

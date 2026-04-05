@@ -483,7 +483,7 @@ const QuickView = () => {
         ? 'linear-gradient(135deg, rgba(248,250,252,1) 0%, rgba(255,255,255,1) 100%)'
         : 'none',
       minHeight: '100vh',
-      p: { xs: 2, md: 4 },
+      p: { xs: 0, sm: 0.5, md: 0.75 },
     }}>
       {/* Data Filters — sticky below app bar scroll area; actions merged from former Quick View header */}
       <Card
