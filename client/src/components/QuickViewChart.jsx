@@ -34,7 +34,21 @@ const QUICK_VIEW_LINE_MARGIN = { top: 12, right: 16, left: 8, bottom: 56 };
 /** Extra space above the plotted max: 2% of the Y span (max − min), or 2% of |value| when the series is flat. */
 const Y_AXIS_HEADROOM_RATIO = 0.02;
 
-const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) => {
+/** Match alert log/config parameter names to chart field keys (mapper ids). */
+function matchesChartParameter(alertParameter, chartParameter) {
+  if (alertParameter == null || chartParameter == null) return false;
+  const a = String(alertParameter).trim();
+  const p = String(chartParameter).trim();
+  if (!a || !p) return false;
+  return (
+    a === p ||
+    a === p.replace(/_/g, ' ') ||
+    a === p.replace(/_/g, '.') ||
+    a.replace(/_/g, ' ') === p.replace(/_/g, ' ')
+  );
+}
+
+const QuickViewChart = ({ parameter, data, alertLogs = [], alertConfigs = [], deviceName, addChartRef }) => {
   const theme = useTheme();
   const chartRef = useRef(null);
   const { formatDisplayName, getUnit } = useFieldMetadata();
@@ -75,14 +89,31 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
     }
   }, [parameter, addChartRef]);
 
-  // Find alert thresholds for this parameter
-  const parameterAlerts = useMemo(() => {
-    return alerts.filter(alert => 
-      alert.parameter === parameter || 
-      alert.parameter === parameter.replace('_', ' ') ||
-      alert.parameter === parameter.replace('_', '.')
+  // Alert log rows for this chart parameter (scoped by device + time in parent fetch)
+  const parameterAlertLogs = useMemo(() => {
+    if (!Array.isArray(alertLogs)) return [];
+    return alertLogs.filter((log) => matchesChartParameter(log.parameter, parameter));
+  }, [alertLogs, parameter]);
+
+  // Threshold lines from alert rules (/api/alerts), not alert_logs rows
+  const thresholds = useMemo(() => {
+    const configs = (alertConfigs || []).filter(
+      (a) => a.type === 'threshold' && matchesChartParameter(a.parameter, parameter)
     );
-  }, [alerts, parameter]);
+    let minT = null;
+    let maxT = null;
+    for (const a of configs) {
+      if (a.min != null) {
+        const n = Number(a.min);
+        if (Number.isFinite(n)) minT = minT == null ? n : Math.min(minT, n);
+      }
+      if (a.max != null) {
+        const n = Number(a.max);
+        if (Number.isFinite(n)) maxT = maxT == null ? n : Math.max(maxT, n);
+      }
+    }
+    return { min: minT, max: maxT };
+  }, [alertConfigs, parameter]);
 
   // Process data for chart (use timestamp when datetime missing — matches /data-dash rows)
   const chartData = useMemo(() => {
@@ -106,13 +137,6 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
       .sort((a, b) => a.timestamp - b.timestamp);
   }, [data, parameter]);
 
-  // Get threshold values
-  const thresholds = useMemo(() => {
-    const minThreshold = parameterAlerts.find(alert => alert.type === 'min')?.threshold;
-    const maxThreshold = parameterAlerts.find(alert => alert.type === 'max')?.threshold;
-    return { min: minThreshold, max: maxThreshold };
-  }, [parameterAlerts]);
-
   const colorIndex = getParameterColorIndex(parameter);
   const lineColor = CHART_COLORS[colorIndex];
   const colorScheme = { line: lineColor, area: `${lineColor}20`, bg: `${lineColor}08` };
@@ -121,8 +145,9 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
-      const isOutOfRange = (thresholds.min && data.value < thresholds.min) || 
-                           (thresholds.max && data.value > thresholds.max);
+      const isOutOfRange =
+        (thresholds.min != null && data.value < thresholds.min) ||
+        (thresholds.max != null && data.value > thresholds.max);
       
       return (
         <Box
@@ -158,9 +183,9 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
             </Typography>
             {isOutOfRange && <WarningIcon sx={{ fontSize: 16, color: '#EF4444' }} />}
           </Box>
-          {(thresholds.min || thresholds.max) && (
+          {(thresholds.min != null || thresholds.max != null) && (
             <Box sx={{ display: 'flex', gap: 2, mt: 1 }}>
-              {thresholds.min && (
+              {thresholds.min != null && (
                 <Typography variant="caption" sx={{ 
                   color: theme.palette.text.secondary,
                   fontWeight: 500
@@ -168,7 +193,7 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
                   Min: {formatValue(thresholds.min)}
                 </Typography>
               )}
-              {thresholds.max && (
+              {thresholds.max != null && (
                 <Typography variant="caption" sx={{ 
                   color: theme.palette.text.secondary,
                   fontWeight: 500
@@ -223,8 +248,10 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
   // Check if latest value is out of range
   const isLatestOutOfRange = useMemo(() => {
     if (!stats.latest) return false;
-    return (thresholds.min && stats.latest < thresholds.min) || 
-           (thresholds.max && stats.latest > thresholds.max);
+    return (
+      (thresholds.min != null && stats.latest < thresholds.min) ||
+      (thresholds.max != null && stats.latest > thresholds.max)
+    );
   }, [stats.latest, thresholds]);
 
   // "Become" look: minimal header, neutral metric cards, clean chart
@@ -336,9 +363,9 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
                 icon={<WarningIcon sx={{ color: '#DC2626', fontSize: 14 }} />}
               />
             )}
-            {parameterAlerts.length > 0 && (
+            {parameterAlertLogs.length > 0 && (
               <Chip 
-                label={`${parameterAlerts.length} Alert${parameterAlerts.length > 1 ? 's' : ''}`}
+                label={`${parameterAlertLogs.length} Alert${parameterAlertLogs.length > 1 ? 's' : ''}`}
                 size="small"
                 sx={{ 
                   fontWeight: 500,
@@ -424,7 +451,7 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
                 <RechartsTooltip content={<CustomTooltip />} />
                 
                 {/* Modern threshold lines */}
-                {thresholds.min && (
+                {thresholds.min != null && (
                   <ReferenceLine 
                     y={thresholds.min} 
                     stroke="#EF4444" 
@@ -442,7 +469,7 @@ const QuickViewChart = ({ parameter, data, alerts, deviceName, addChartRef }) =>
                     }}
                   />
                 )}
-                {thresholds.max && (
+                {thresholds.max != null && (
                   <ReferenceLine 
                     y={thresholds.max} 
                     stroke="#EF4444" 

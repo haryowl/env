@@ -62,7 +62,6 @@ const QuickView = () => {
   const [alertData, setAlertData] = useState([]);
   const [tableData, setTableData] = useState([]);
   const [parameters, setParameters] = useState([]);
-  const [alerts, setAlerts] = useState([]);
   const [alertConfigs, setAlertConfigs] = useState([]); // threshold alert rules for table highlighting
   const [deviceMapper, setDeviceMapper] = useState(null);
   // Custom date conversion functions for timezone consistency
@@ -140,7 +139,6 @@ const QuickView = () => {
   // Load devices on component mount
   useEffect(() => {
     loadDevices();
-    loadAlerts();
   }, []);
 
   // Load device mapper and parameters when device changes
@@ -225,22 +223,6 @@ const QuickView = () => {
       console.error('Error loading device mapper:', error);
       setDeviceMapper(null);
       setParameters([]);
-    }
-  };
-
-  const loadAlerts = async () => {
-    try {
-      const token = localStorage.getItem('iot_token');
-      const response = await fetch(`${API_BASE_URL}/alert-logs`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setAlerts(data.logs || []);
-      }
-    } catch (error) {
-      console.error('Error loading alerts:', error);
     }
   };
 
@@ -902,7 +884,8 @@ const QuickView = () => {
                       <QuickViewChart
                         parameter={parameter}
                         data={chartData}
-                        alerts={alerts}
+                        alertLogs={alertData}
+                        alertConfigs={alertConfigs}
                         deviceName={devices.find(d => d.device_id === selectedDevice)?.name}
                         addChartRef={addChartRef}
                       />

@@ -62,7 +62,6 @@ const MobileQuickView = () => {
   const [alertData, setAlertData] = useState([]);
   const [tableData, setTableData] = useState([]);
   const [parameters, setParameters] = useState([]);
-  const [alerts, setAlerts] = useState([]);
   const [alertConfigs, setAlertConfigs] = useState([]);
   const [tab, setTab] = useState(0);
   const [selectedParam, setSelectedParam] = useState('');
@@ -143,21 +142,6 @@ const MobileQuickView = () => {
     }
   };
 
-  const loadAlerts = async () => {
-    try {
-      const token = localStorage.getItem('iot_token');
-      const response = await fetch(`${API_BASE_URL}/alert-logs`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setAlerts(data.logs || []);
-      }
-    } catch {
-      /* ignore */
-    }
-  };
-
   const loadAlertConfigs = async () => {
     if (!selectedDevice) {
       setAlertConfigs([]);
@@ -225,7 +209,6 @@ const MobileQuickView = () => {
 
   useEffect(() => {
     loadDevices();
-    loadAlerts();
   }, []);
 
   useEffect(() => {
@@ -434,7 +417,8 @@ const MobileQuickView = () => {
                       key={`${selectedDevice}-${activeParam}-${selectedPeriod}`}
                       parameter={activeParam}
                       data={chartData}
-                      alerts={alerts}
+                      alertLogs={alertData}
+                      alertConfigs={alertConfigs}
                       deviceName={deviceName}
                     />
                   ) : null}
