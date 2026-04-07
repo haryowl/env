@@ -19,7 +19,7 @@ import {
   CircularProgress,
   Breadcrumbs,
   Link,
-  Badge,
+  Tooltip,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -561,22 +561,34 @@ const Layout = ({ children, user, userContext, onLogout }) => {
             </Typography>
             
             <ThemeSelector variant="icons" size="small" />
-            
-            <IconButton
-              size="small"
-              sx={{ color: 'text.secondary' }}
-            >
-              <SettingsIcon />
-            </IconButton>
-            
-            <IconButton
-              size="small"
-              sx={{ color: 'text.secondary' }}
-            >
-              <Badge badgeContent={0} color="error">
-                <NotificationsIcon />
-              </Badge>
-            </IconButton>
+
+            <Tooltip title={canAccessMenu('/settings') ? 'Settings' : 'No access to Settings'}>
+              <span>
+                <IconButton
+                  size="small"
+                  sx={{ color: 'text.secondary' }}
+                  aria-label="Settings"
+                  disabled={permissionsLoading || !canAccessMenu('/settings')}
+                  onClick={() => handleNavigation('/settings')}
+                >
+                  <SettingsIcon />
+                </IconButton>
+              </span>
+            </Tooltip>
+
+            <Tooltip title={canAccessMenu('/alerts') ? 'Alerts & notifications' : 'No access to Alerts'}>
+              <span>
+                <IconButton
+                  size="small"
+                  sx={{ color: 'text.secondary' }}
+                  aria-label="Alerts and notifications"
+                  disabled={permissionsLoading || !canAccessMenu('/alerts')}
+                  onClick={() => handleNavigation('/alerts')}
+                >
+                  <NotificationsIcon />
+                </IconButton>
+              </span>
+            </Tooltip>
             
             <IconButton
               size="large"
