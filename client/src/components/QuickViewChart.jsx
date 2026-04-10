@@ -126,10 +126,13 @@ const QuickViewChart = ({ parameter, data, alertLogs = [], alertConfigs = [], de
         if (timeRaw == null || timeRaw === '') return null;
         const ts = new Date(timeRaw).getTime();
         if (!Number.isFinite(ts)) return null;
+        const rawVal = item[parameter];
+        const n = typeof rawVal === 'number' ? rawVal : parseFloat(String(rawVal));
+        if (!Number.isFinite(n)) return null;
         return {
           datetime: formatInUserTimezone(timeRaw, 'MM/DD HH:mm'),
           timestamp: ts,
-          value: parseFloat(item[parameter]) || 0,
+          value: n,
           original: item,
         };
       })
@@ -237,17 +240,22 @@ const QuickViewChart = ({ parameter, data, alertLogs = [], alertConfigs = [], de
     const headroom =
       span > 0 && Number.isFinite(span)
         ? span * Y_AXIS_HEADROOM_RATIO
-        : Math.max(Math.abs(maxV), 1e-12) * Y_AXIS_HEADROOM_RATIO;
+        : Math.max(Math.abs(maxV), Math.abs(minV), 1e-12) * Y_AXIS_HEADROOM_RATIO;
 
-    const minDomain = Math.max(0, minV);
-    const maxDomain = maxV + headroom;
+    let minDomain = minV - headroom;
+    let maxDomain = maxV + headroom;
+    if (!Number.isFinite(minDomain) || !Number.isFinite(maxDomain) || minDomain >= maxDomain) {
+      const pad = Math.max(Math.abs(minV), Math.abs(maxV), 1e-9) * Y_AXIS_HEADROOM_RATIO;
+      minDomain = minV - pad;
+      maxDomain = maxV + pad;
+    }
 
     return [minDomain, maxDomain];
   }, [stats.min, stats.max, thresholds.min, thresholds.max]);
 
   // Check if latest value is out of range
   const isLatestOutOfRange = useMemo(() => {
-    if (!stats.latest) return false;
+    if (!Number.isFinite(stats.latest)) return false;
     return (
       (thresholds.min != null && stats.latest < thresholds.min) ||
       (thresholds.max != null && stats.latest > thresholds.max)

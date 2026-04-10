@@ -34,6 +34,25 @@ const formatInUserTimezone = (dt, fmt = 'YYYY-MM-DD HH:mm:ss') => {
   return moment.utc(dt).tz(getUserTimezone()).format(fmt);
 };
 
+/** Grouped summary row: read `${param}_max` etc.; keeps 0 and negatives (no `||` fallback). */
+function pickSummaryStatNumber(row, param, stat) {
+  const tryKey = (key) => {
+    const raw = row[key];
+    if (raw === null || raw === undefined || raw === '') return NaN;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : NaN;
+  };
+  const primary = tryKey(`${param}_${stat}`);
+  if (Number.isFinite(primary)) return primary;
+  return tryKey(param);
+}
+
+function toChartAxisNumber(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = typeof v === 'number' ? v : Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 // Parameter icon mapping
 const paramIcons = {
   TSS: <OpacityIcon fontSize="large" color="primary" />, // Suspended solids
@@ -254,9 +273,9 @@ export default function DataDash() {
         const period = row.period || row.datetime || `Period ${rowIndex + 1}`;
         
         allParameters.forEach(param => {
-          const maxValue = parseFloat(row[`${param}_max`]) || parseFloat(row[param]);
-          const minValue = parseFloat(row[`${param}_min`]) || parseFloat(row[param]);
-          const avgValue = parseFloat(row[`${param}_avg`]) || parseFloat(row[param]);
+          const maxValue = pickSummaryStatNumber(row, param, 'max');
+          const minValue = pickSummaryStatNumber(row, param, 'min');
+          const avgValue = pickSummaryStatNumber(row, param, 'avg');
           
           // Only add row if we have valid data
           if (!isNaN(maxValue) || !isNaN(minValue) || !isNaN(avgValue)) {
@@ -975,10 +994,10 @@ export default function DataDash() {
     let minVal = Infinity, maxVal = -Infinity;
     for (const param of visibleParams) {
       for (const row of data) {
-        const v = row[param];
-        if (typeof v === 'number' && !isNaN(v)) {
-          if (v < minVal) minVal = v;
-          if (v > maxVal) maxVal = v;
+        const nv = toChartAxisNumber(row[param]);
+        if (nv != null) {
+          if (nv < minVal) minVal = nv;
+          if (nv > maxVal) maxVal = nv;
         }
       }
     }
