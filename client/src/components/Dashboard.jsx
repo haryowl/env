@@ -40,6 +40,8 @@ import {
   ComposedChart,
 } from 'recharts';
 import { FormControl, InputLabel, Select, MenuItem, CardActions, Button, TextField, ToggleButton, ToggleButtonGroup } from '@mui/material';
+import { LocalizationProvider, DateTimePicker } from '@mui/x-date-pickers';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import axios from 'axios';
 import { subHours } from 'date-fns';
 import moment from 'moment-timezone';
@@ -118,7 +120,9 @@ const Dashboard = ({ socket }) => {
   const [realtimeParamSearch, setRealtimeParamSearch] = useState('');
   const [realtimeAlertLogs, setRealtimeAlertLogs] = useState([]);
   const [realtimeAlertThresholds, setRealtimeAlertThresholds] = useState({}); // { normalizedParam: { min, max } } for realtime device
-  const [realtimeChartRange, setRealtimeChartRange] = useState('48h'); // '2h' | '3h' | '6h' | '48h' (default)
+  const [realtimeChartRange, setRealtimeChartRange] = useState('48h'); // '2h' | '3h' | '6h' | '48h' (default) | 'custom'
+  const [realtimeCustomStart, setRealtimeCustomStart] = useState(() => subHours(new Date(), 2));
+  const [realtimeCustomEnd, setRealtimeCustomEnd] = useState(() => new Date());
   const { formatDisplayName, getUnit } = useFieldMetadata();
 
   const REALTIME_RANGE_OPTIONS = [
@@ -126,8 +130,29 @@ const Dashboard = ({ socket }) => {
     { value: '2h', label: 'Last 2 hours' },
     { value: '3h', label: 'Last 3 hours' },
     { value: '6h', label: 'Last 6 hours' },
+    { value: 'custom', label: 'Custom' },
   ];
   const realtimeRangeHours = useMemo(() => ({ '2h': 2, '3h': 3, '6h': 6, '48h': 48 })[realtimeChartRange] ?? 48, [realtimeChartRange]);
+
+  const realtimeTimeWindow = useMemo(() => {
+    if (realtimeChartRange !== 'custom') {
+      const hours = realtimeRangeHours;
+      const start = subHours(new Date(), hours);
+      const end = new Date();
+      const limit = hours <= 6 ? 1000 : 5000;
+      return { startISO: start.toISOString(), endISO: end.toISOString(), limit, isCustom: false };
+    }
+    const start = realtimeCustomStart instanceof Date ? realtimeCustomStart : new Date(realtimeCustomStart);
+    const end = realtimeCustomEnd instanceof Date ? realtimeCustomEnd : new Date(realtimeCustomEnd);
+    const startMs = start?.getTime?.();
+    const endMs = end?.getTime?.();
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || startMs >= endMs) {
+      return null;
+    }
+    const hours = Math.max(0, (endMs - startMs) / (1000 * 60 * 60));
+    const limit = hours <= 6 ? 1000 : 5000;
+    return { startISO: start.toISOString(), endISO: end.toISOString(), limit, isCustom: true };
+  }, [realtimeChartRange, realtimeRangeHours, realtimeCustomStart, realtimeCustomEnd]);
 
   const [paramOverviewOpen, setParamOverviewOpen] = useState(() => {
     try {
@@ -679,15 +704,16 @@ const Dashboard = ({ socket }) => {
   }, [realtimeDevice]);
 
   // Fetch mapped data from /data-dash for the selected time range (chart view); Parameter Overview still uses full 48h when range is default
-  const fetchRealtimeData = async (deviceId, params, rangeHours = 48) => {
+  const fetchRealtimeData = async (deviceId, params, windowOrRangeHours = 48) => {
     if (!deviceId || !params || params.length === 0) {
       return;
     }
     try {
       const token = localStorage.getItem('iot_token');
-      const startDate = subHours(new Date(), rangeHours).toISOString();
-      const endDate = new Date().toISOString();
-      const limit = rangeHours <= 6 ? 1000 : 5000;
+      const isObj = windowOrRangeHours && typeof windowOrRangeHours === 'object';
+      const startDate = isObj ? windowOrRangeHours.startISO : subHours(new Date(), windowOrRangeHours).toISOString();
+      const endDate = isObj ? windowOrRangeHours.endISO : new Date().toISOString();
+      const limit = isObj ? windowOrRangeHours.limit : (windowOrRangeHours <= 6 ? 1000 : 5000);
       const response = await axios.get(`${API_BASE_URL}/data-dash`, {
         params: {
           deviceIds: deviceId,
@@ -792,13 +818,18 @@ const Dashboard = ({ socket }) => {
   // Poll and socket for live updates
   useEffect(() => {
     if (!realtimeDevice || realtimeParams.length === 0) return;
+    if (realtimeChartRange === 'custom') {
+      if (!realtimeTimeWindow) return;
+      fetchRealtimeData(realtimeDevice, realtimeParams, realtimeTimeWindow);
+      return;
+    }
     
     // Initial load
-    fetchRealtimeData(realtimeDevice, realtimeParams, realtimeRangeHours);
+    fetchRealtimeData(realtimeDevice, realtimeParams, realtimeTimeWindow || realtimeRangeHours);
     
     // Poll every 10 seconds
     const interval = setInterval(() => {
-      fetchRealtimeData(realtimeDevice, realtimeParams, realtimeRangeHours);
+      fetchRealtimeData(realtimeDevice, realtimeParams, realtimeTimeWindow || realtimeRangeHours);
     }, 10000);
     
     // WebSocket for real-time updates
@@ -831,7 +862,7 @@ const Dashboard = ({ socket }) => {
         socket.off('device_data', deviceDataHandler);
       }
     };
-  }, [realtimeDevice, realtimeParams, realtimeRangeHours, socket]);
+  }, [realtimeDevice, realtimeParams, realtimeRangeHours, realtimeChartRange, realtimeTimeWindow, socket]);
 
   const getStatusColor = (status) => {
     return status === 'online' ? 'success' : 'error';
@@ -1163,6 +1194,66 @@ const Dashboard = ({ socket }) => {
               </FormControl>
             </Box>
           </Box>
+
+          {realtimeChartRange === 'custom' && (
+            <Box
+              sx={{
+                px: 2,
+                pb: 1.5,
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+                gap: 1,
+                alignItems: 'center',
+              }}
+            >
+              <LocalizationProvider dateAdapter={AdapterDateFns}>
+                <DateTimePicker
+                  label="Start"
+                  value={realtimeCustomStart}
+                  onChange={(v) => setRealtimeCustomStart(v)}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      size="small"
+                      fullWidth
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: 1,
+                          minHeight: 34,
+                          fontSize: '0.875rem',
+                        },
+                      }}
+                    />
+                  )}
+                  ampm={false}
+                  format="yyyy-MM-dd HH:mm"
+                />
+              </LocalizationProvider>
+              <LocalizationProvider dateAdapter={AdapterDateFns}>
+                <DateTimePicker
+                  label="End"
+                  value={realtimeCustomEnd}
+                  onChange={(v) => setRealtimeCustomEnd(v)}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      size="small"
+                      fullWidth
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: 1,
+                          minHeight: 34,
+                          fontSize: '0.875rem',
+                        },
+                      }}
+                    />
+                  )}
+                  ampm={false}
+                  format="yyyy-MM-dd HH:mm"
+                />
+              </LocalizationProvider>
+            </Box>
+          )}
           
           <Box sx={{ px: 2, pt: 2, pb: 2.5 }}>
           {realtimeError ? (
