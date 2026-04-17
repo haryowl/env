@@ -2,12 +2,29 @@ const express = require('express');
 const { getRows } = require('../config/database');
 const router = express.Router();
 
+function getEffectiveAllowedDeviceIds(req) {
+  // null means full access
+  if (req.allowedDeviceIdsForData !== undefined && req.allowedDeviceIdsForData !== null) return req.allowedDeviceIdsForData;
+  if (req.allowedDeviceIds !== undefined && req.allowedDeviceIds !== null) return req.allowedDeviceIds;
+  return null;
+}
+
+function hasDeviceAccess(req, deviceId) {
+  const allowed = getEffectiveAllowedDeviceIds(req);
+  if (allowed === null) return true;
+  if (!Array.isArray(allowed) || allowed.length === 0) return false;
+  return allowed.includes(deviceId);
+}
+
 // GET /api/alert-logs/parameter-stats - Alert counts per parameter for today vs yesterday (for Parameter Overview cards)
 router.get('/parameter-stats', async (req, res) => {
   try {
     const { deviceId, parameters } = req.query;
     if (!deviceId || !parameters) {
       return res.status(400).json({ error: 'deviceId and parameters are required' });
+    }
+    if (!hasDeviceAccess(req, deviceId)) {
+      return res.status(403).json({ error: 'Access denied for device', code: 'DEVICE_ACCESS_DENIED' });
     }
     const paramList = (typeof parameters === 'string' ? parameters.split(',') : parameters).map(p => p.trim()).filter(Boolean);
     if (paramList.length === 0) {
@@ -62,8 +79,21 @@ router.get('/', async (req, res) => {
     let paramIdx = 1;
     
     if (deviceId) {
+      if (!hasDeviceAccess(req, deviceId)) {
+        return res.status(403).json({ error: 'Access denied for device', code: 'DEVICE_ACCESS_DENIED' });
+      }
       where.push(`l.device_id = $${paramIdx++}`);
       sqlParams.push(deviceId);
+    } else {
+      // No deviceId requested: for non-admin, restrict to allowed devices
+      const allowed = getEffectiveAllowedDeviceIds(req);
+      if (allowed !== null) {
+        if (!Array.isArray(allowed) || allowed.length === 0) {
+          return res.json({ logs: [] });
+        }
+        where.push(`l.device_id = ANY($${paramIdx++})`);
+        sqlParams.push(allowed);
+      }
     }
     
     if (startDate) {

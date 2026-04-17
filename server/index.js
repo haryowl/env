@@ -200,7 +200,7 @@ app.use('/api/dashboard', authenticateToken, filterDataByRole, dashboardRoutes);
 console.log('✓ /api/dashboard route registered');
 app.use('/api/alerts', authenticateToken, filterDataByRole, filterDeviceData, alertsRoutes);
 console.log('✓ /api/alerts route registered');
-app.use('/api/alert-logs', authenticateToken, filterDataByRole, alertLogsRoutes);
+app.use('/api/alert-logs', authenticateToken, filterDataByRole, filterDeviceData, alertLogsRoutes);
 console.log('✓ /api/alert-logs route registered');
 app.use('/api/notification-config', authenticateToken, filterDataByRole, notificationConfigRoutes);
 console.log('✓ /api/notification-config route registered');
