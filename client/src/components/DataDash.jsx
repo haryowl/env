@@ -219,7 +219,9 @@ export default function DataDash() {
           return {
             ...row,
             _chartTime: Number.isFinite(t) ? t : 0,
-            datetime: formatInUserTimezone(row.datetime ?? row.timestamp),
+            // Data Time should reflect device-provided datetime when available.
+            // Do not silently fall back to server timestamp (can differ vs device time by ~1h+).
+            datetime: row.datetime != null && row.datetime !== '' ? formatInUserTimezone(row.datetime) : '-',
             timestamp: formatInUserTimezone(row.timestamp),
           };
         })
@@ -318,7 +320,7 @@ export default function DataDash() {
     const raw = response.data.data || [];
     return raw.map(row => ({
       ...row,
-      datetime: formatInUserTimezone(row.datetime),
+      datetime: row.datetime != null && row.datetime !== '' ? formatInUserTimezone(row.datetime) : '-',
       timestamp: formatInUserTimezone(row.timestamp),
     }));
   };
