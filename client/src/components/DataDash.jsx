@@ -10,6 +10,7 @@ import axios from 'axios';
 import { API_BASE_URL } from '../config/api';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import { getChartCardSx, CHART_MARGIN, CARTESIAN_GRID_PROPS, getTooltipContentStyle, LEGEND_WRAPPER_STYLE, getParameterColor as getChartParamColor } from '../utils/chartStyles';
+import { formatInUserTimezone } from '../utils/timezoneUtils';
 import SpeedIcon from '@mui/icons-material/Speed';
 import OpacityIcon from '@mui/icons-material/Opacity';
 import ScienceIcon from '@mui/icons-material/Science';
@@ -27,12 +28,7 @@ import SectionHeader from './SectionHeader';
 const DATA_DASH_MENU_ITEM_FS = '0.8125rem';
 const DATA_DASH_SECTION_FS = '0.875rem';
 
-// Utility: Format datetime in user's selected timezone
-const getUserTimezone = () => localStorage.getItem('iot_timezone') || moment.tz.guess() || 'UTC';
-const formatInUserTimezone = (dt, fmt = 'YYYY-MM-DD HH:mm:ss') => {
-  if (!dt) return '-';
-  return moment.utc(dt).tz(getUserTimezone()).format(fmt);
-};
+// Use shared timezone formatter (handles values with/without explicit TZ info)
 
 /** Grouped summary row: read `${param}_max` etc.; keeps 0 and negatives (no `||` fallback). */
 function pickSummaryStatNumber(row, param, stat) {

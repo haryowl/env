@@ -53,14 +53,16 @@ export const formatInUserTimezone = (datetime, format = 'YYYY-MM-DD HH:mm:ss') =
   if (!datetime) return '-';
   
   try {
-    // If datetime is already a string, parse it as UTC first
-    const utcMoment = moment.utc(datetime);
-    if (!utcMoment.isValid()) {
+    const userTz = getUserTimezone();
+    const s = String(datetime);
+
+    // If string has explicit timezone info (Z or ±HH:mm / ±HHmm), treat as UTC/offset-aware.
+    const hasTzInfo = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(s) || /\dT\d.*(?:Z|[+-]\d{2}:?\d{2})/i.test(s);
+    const m = hasTzInfo ? moment.utc(s) : moment.tz(s, userTz);
+    if (!m.isValid()) {
       return '-';
     }
-    
-    const userTz = getUserTimezone();
-    return utcMoment.tz(userTz).format(format);
+    return hasTzInfo ? m.tz(userTz).format(format) : m.format(format);
   } catch (error) {
     console.error('Error formatting datetime:', error);
     return '-';
