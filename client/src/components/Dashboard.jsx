@@ -134,14 +134,9 @@ const Dashboard = ({ socket }) => {
   ];
   const realtimeRangeHours = useMemo(() => ({ '2h': 2, '3h': 3, '6h': 6, '48h': 48 })[realtimeChartRange] ?? 48, [realtimeChartRange]);
 
-  const realtimeTimeWindow = useMemo(() => {
-    if (realtimeChartRange !== 'custom') {
-      const hours = realtimeRangeHours;
-      const start = subHours(new Date(), hours);
-      const end = new Date();
-      const limit = hours <= 6 ? 1000 : 5000;
-      return { startISO: start.toISOString(), endISO: end.toISOString(), limit, isCustom: false };
-    }
+  /** Fixed start/end for Custom only. Preset ranges must NOT use a cached window — each poll needs fresh `now` as end. */
+  const realtimeCustomWindow = useMemo(() => {
+    if (realtimeChartRange !== 'custom') return null;
     const start = realtimeCustomStart instanceof Date ? realtimeCustomStart : new Date(realtimeCustomStart);
     const end = realtimeCustomEnd instanceof Date ? realtimeCustomEnd : new Date(realtimeCustomEnd);
     const startMs = start?.getTime?.();
@@ -151,8 +146,8 @@ const Dashboard = ({ socket }) => {
     }
     const hours = Math.max(0, (endMs - startMs) / (1000 * 60 * 60));
     const limit = hours <= 6 ? 1000 : 5000;
-    return { startISO: start.toISOString(), endISO: end.toISOString(), limit, isCustom: true };
-  }, [realtimeChartRange, realtimeRangeHours, realtimeCustomStart, realtimeCustomEnd]);
+    return { startISO: start.toISOString(), endISO: end.toISOString(), limit };
+  }, [realtimeChartRange, realtimeCustomStart, realtimeCustomEnd]);
 
   const [paramOverviewOpen, setParamOverviewOpen] = useState(() => {
     try {
@@ -819,17 +814,16 @@ const Dashboard = ({ socket }) => {
   useEffect(() => {
     if (!realtimeDevice || realtimeParams.length === 0) return;
     if (realtimeChartRange === 'custom') {
-      if (!realtimeTimeWindow) return;
-      fetchRealtimeData(realtimeDevice, realtimeParams, realtimeTimeWindow);
+      if (!realtimeCustomWindow) return;
+      fetchRealtimeData(realtimeDevice, realtimeParams, realtimeCustomWindow);
       return;
     }
-    
-    // Initial load
-    fetchRealtimeData(realtimeDevice, realtimeParams, realtimeTimeWindow || realtimeRangeHours);
-    
-    // Poll every 10 seconds
+
+    // Preset ranges: pass hour count so each fetch recomputes sliding [now−N, now] (chart stays live).
+    fetchRealtimeData(realtimeDevice, realtimeParams, realtimeRangeHours);
+
     const interval = setInterval(() => {
-      fetchRealtimeData(realtimeDevice, realtimeParams, realtimeTimeWindow || realtimeRangeHours);
+      fetchRealtimeData(realtimeDevice, realtimeParams, realtimeRangeHours);
     }, 10000);
     
     // WebSocket for real-time updates
@@ -862,7 +856,7 @@ const Dashboard = ({ socket }) => {
         socket.off('device_data', deviceDataHandler);
       }
     };
-  }, [realtimeDevice, realtimeParams, realtimeRangeHours, realtimeChartRange, realtimeTimeWindow, socket]);
+  }, [realtimeDevice, realtimeParams, realtimeRangeHours, realtimeChartRange, realtimeCustomWindow, socket]);
 
   const getStatusColor = (status) => {
     return status === 'online' ? 'success' : 'error';
