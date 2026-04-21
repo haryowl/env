@@ -36,6 +36,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { usePermissions } from '../hooks/usePermissions.jsx';
+import { useFeatureFlags } from '../hooks/useFeatureFlags';
 import { useUserTheme } from '../contexts/UserThemeContext';
 import ThemeSelector from './ThemeSelector';
 import {
@@ -123,6 +124,7 @@ const Layout = ({ children, user, userContext, onLogout }) => {
   const location = useLocation();
   const isMobileDataShell = /^\/m\//.test(location.pathname);
   const { canAccessMenu, loading: permissionsLoading } = usePermissions();
+  const { flags, loading: flagsLoading } = useFeatureFlags();
 
   // Keep the section that contains the current route expanded (merge with user toggles / sessionStorage).
   useEffect(() => {
@@ -171,9 +173,14 @@ const Layout = ({ children, user, userContext, onLogout }) => {
     : '';
 
   // Filter menu sections based on user permissions
-  const filteredMenuSections = permissionsLoading ? [] : MENU_SECTIONS.map(section => ({
+  const filteredMenuSections = (permissionsLoading || flagsLoading) ? [] : MENU_SECTIONS.map(section => ({
     ...section,
-    items: section.items.filter(item => canAccessMenu(item.menuPath))
+    items: section.items
+      .filter(item => canAccessMenu(item.menuPath))
+      .filter(item => {
+        if (item.menuPath === '/mqtt-publisher') return Boolean(flags?.mqttPublisher);
+        return true;
+      })
   })).filter(section => section.items.length > 0);
 
   // Helper function to get breadcrumbs

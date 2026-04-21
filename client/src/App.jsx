@@ -33,6 +33,7 @@ import ParameterColorDemo from './components/ParameterColorDemo';
 import FontColorCustomizer from './components/FontColorCustomizer';
 import ScheduledExports from './components/ScheduledExports';
 import MqttPublisher from './components/MqttPublisher';
+import { useFeatureFlags } from './hooks/useFeatureFlags';
 import CompanySite from './components/CompanySite';
 import SensorManagement from './components/SensorManagement';
 import Maintenance from './components/Maintenance';
@@ -59,6 +60,7 @@ function HomeRedirect({ user }) {
 }
 
 function App() {
+  const { flags: featureFlags } = useFeatureFlags();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [socket, setSocket] = useState(null);
@@ -360,7 +362,9 @@ function App() {
                 <Route path="/parameter-demo" element={<ProtectedRoute><ParameterColorDemo /></ProtectedRoute>} />
                 <Route path="/font-customizer" element={<ProtectedRoute><FontColorCustomizer /></ProtectedRoute>} />
                 <Route path="/scheduled-exports" element={<ProtectedRoute><ScheduledExports /></ProtectedRoute>} />
-                <Route path="/mqtt-publisher" element={<ProtectedRoute><MqttPublisher /></ProtectedRoute>} />
+                {featureFlags?.mqttPublisher ? (
+                  <Route path="/mqtt-publisher" element={<ProtectedRoute><MqttPublisher /></ProtectedRoute>} />
+                ) : null}
                 <Route path="/company-site" element={<ProtectedRoute><CompanySite /></ProtectedRoute>} />
                 <Route path="/sensor-management" element={<ProtectedRoute><SensorManagement /></ProtectedRoute>} />
                 <Route path="/maintenance" element={<ProtectedRoute><Maintenance /></ProtectedRoute>} />

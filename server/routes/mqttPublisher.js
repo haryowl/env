@@ -7,6 +7,26 @@ const { filterDataByRole, filterDeviceData } = require('../middleware/dataFilter
 
 const router = express.Router();
 
+function envFlagEnabled(name, defaultValue = true) {
+  const raw = process.env[name];
+  if (raw == null || String(raw).trim() === '') return defaultValue;
+  const s = String(raw).trim().toLowerCase();
+  if (['1', 'true', 'yes', 'y', 'on', 'enable', 'enabled'].includes(s)) return true;
+  if (['0', 'false', 'no', 'n', 'off', 'disable', 'disabled'].includes(s)) return false;
+  return defaultValue;
+}
+
+function requireFeatureEnabled(req, res, next) {
+  if (!envFlagEnabled('ENABLE_MQTT_PUBLISHER', true)) {
+    return res.status(503).json({
+      error: 'MQTT Publisher is disabled',
+      code: 'FEATURE_DISABLED',
+      feature: 'mqttPublisher',
+    });
+  }
+  next();
+}
+
 function getEffectiveAllowedDeviceIds(req) {
   // null means full access
   if (req.allowedDeviceIds !== undefined && req.allowedDeviceIds !== null) return req.allowedDeviceIds;
@@ -82,7 +102,7 @@ const presetCreateSchema = Joi.object({
   tag_value_default: Joi.string().allow('').max(512).required(),
 });
 
-router.use(authenticateToken, filterDataByRole, filterDeviceData);
+router.use(authenticateToken, filterDataByRole, filterDeviceData, requireFeatureEnabled);
 
 // GET MQTT connection status (for UI indicator)
 router.get(
