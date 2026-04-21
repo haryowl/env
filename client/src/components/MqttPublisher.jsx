@@ -23,6 +23,7 @@ import {
   Switch,
   FormControlLabel,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import { DataGrid } from '@mui/x-data-grid';
 import { API_BASE_URL } from '../config/api';
 import PageHeader from './PageHeader';
@@ -34,6 +35,7 @@ function buildTopicPreview(cfg) {
 }
 
 export default function MqttPublisher() {
+  const theme = useTheme();
   const [tab, setTab] = useState(0);
   const [devices, setDevices] = useState([]);
   const [deviceId, setDeviceId] = useState('');
@@ -299,7 +301,7 @@ export default function MqttPublisher() {
     <Box sx={{ p: { xs: 1, sm: 2 } }}>
       <PageHeader title="MQTT Publisher" subtitle="Publish a single tag/value command to a device topic" />
 
-      <Card sx={{ mb: 2, ...getChartCardSx() }}>
+      <Card sx={{ mb: 2, ...getChartCardSx(theme) }}>
         <CardContent>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ xs: 'stretch', sm: 'center' }}>
             <FormControl size="small" sx={{ minWidth: 260 }}>
@@ -346,7 +348,7 @@ export default function MqttPublisher() {
         </CardContent>
       </Card>
 
-      <Card sx={{ ...getChartCardSx() }}>
+      <Card sx={{ ...getChartCardSx(theme) }}>
         <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ px: 2, pt: 1 }}>
           <Tab label="Device Topic Config" />
           <Tab label="Publish" />
