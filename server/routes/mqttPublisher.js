@@ -84,6 +84,25 @@ const presetCreateSchema = Joi.object({
 
 router.use(authenticateToken, filterDataByRole, filterDeviceData);
 
+// GET MQTT connection status (for UI indicator)
+router.get(
+  '/status',
+  authorizeMenuAccess('/mqtt-publisher', 'read'),
+  async (req, res) => {
+    try {
+      // Avoid leaking credentials; only expose the broker URL.
+      const brokerUrl = process.env.MQTT_BROKER_URL || '';
+      res.json({
+        connected: Boolean(mqttService?.isConnected),
+        brokerUrl,
+        subscribedTopics: mqttService?.subscribedTopics ? mqttService.subscribedTopics.size : 0,
+      });
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to load MQTT status', code: 'MQTT_STATUS_ERROR' });
+    }
+  }
+);
+
 // GET device publish-topic config (stored inside devices.config.mqtt_publish)
 router.get(
   '/devices/:deviceId/config',

@@ -39,6 +39,7 @@ export default function MqttPublisher() {
   const [deviceId, setDeviceId] = useState('');
   const [deviceConfig, setDeviceConfig] = useState(null); // { project_code, group_identifier, terminal_code }
   const [configDraft, setConfigDraft] = useState({ project_code: '', group_identifier: '', terminal_code: '' });
+  const [mqttStatus, setMqttStatus] = useState({ connected: false, brokerUrl: '', subscribedTopics: 0 });
 
   const [tagName, setTagName] = useState('');
   const [tagValue, setTagValue] = useState('');
@@ -60,6 +61,23 @@ export default function MqttPublisher() {
 
   const topicPreview = useMemo(() => buildTopicPreview(deviceConfig), [deviceConfig]);
   const configTopicPreview = useMemo(() => buildTopicPreview(configDraft), [configDraft]);
+
+  const loadMqttStatus = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/mqtt-publisher/status`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) return;
+      setMqttStatus({
+        connected: Boolean(data?.connected),
+        brokerUrl: String(data?.brokerUrl || ''),
+        subscribedTopics: Number(data?.subscribedTopics || 0),
+      });
+    } catch {
+      /* ignore */
+    }
+  }, [token]);
 
   const loadDevices = useCallback(async () => {
     try {
@@ -115,7 +133,16 @@ export default function MqttPublisher() {
 
   useEffect(() => {
     loadDevices();
+    loadMqttStatus();
   }, [loadDevices]);
+
+  useEffect(() => {
+    // Refresh status periodically while on this page.
+    const id = setInterval(() => {
+      loadMqttStatus();
+    }, 5000);
+    return () => clearInterval(id);
+  }, [loadMqttStatus]);
 
   useEffect(() => {
     if (!deviceId) return;
@@ -285,6 +312,22 @@ export default function MqttPublisher() {
                 ))}
               </Select>
             </FormControl>
+
+            <Chip
+              label={
+                mqttStatus.connected
+                  ? `MQTT: Connected (${mqttStatus.subscribedTopics} topics)`
+                  : 'MQTT: Disconnected'
+              }
+              color={mqttStatus.connected ? 'success' : 'error'}
+              variant="outlined"
+              sx={{ flexShrink: 0 }}
+            />
+            {mqttStatus.brokerUrl ? (
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                {mqttStatus.brokerUrl}
+              </Typography>
+            ) : null}
 
             <Chip
               label={deviceId ? `Topic: ${topicPreview}` : 'Select a device'}
