@@ -18,6 +18,31 @@ class MQTTService {
     this.handleMessage = this.handleMessage.bind(this);
   }
 
+  publish(topic, payload, options = {}) {
+    return new Promise((resolve, reject) => {
+      try {
+        if (!this.client || !this.isConnected) {
+          return reject(new Error('MQTT client is not connected'));
+        }
+        if (!topic || typeof topic !== 'string') {
+          return reject(new Error('Invalid topic'));
+        }
+        const { qos = 1, retain = false } = options || {};
+        this.client.publish(topic, payload, { qos, retain }, (err) => {
+          if (err) return reject(err);
+          resolve();
+        });
+      } catch (e) {
+        reject(e);
+      }
+    });
+  }
+
+  async publishJSON(topic, obj, options = {}) {
+    const payload = Buffer.from(JSON.stringify(obj));
+    await this.publish(topic, payload, options);
+  }
+
   async connect() {
     // Skip MQTT connection in development if MQTT_BROKER_URL is not set
     if (process.env.NODE_ENV === 'development' && (!process.env.MQTT_BROKER_URL || process.env.MQTT_BROKER_URL.trim() === '')) {

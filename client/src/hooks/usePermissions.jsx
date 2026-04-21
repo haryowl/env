@@ -117,6 +117,7 @@ export const PermissionProvider = ({ children }) => {
       '/alerts': { access: false, read: false, create: false, update: false, delete: false },
       '/alert-settings': { access: false, read: false, create: false, update: false, delete: false },
       '/notification-config': { access: false, read: false, create: false, update: false, delete: false },
+      '/mqtt-publisher': { access: false, read: false, create: false, update: false, delete: false },
       '/settings': { access: false, read: false, create: false, update: false, delete: false },
       '/system-info': { access: false, read: false, create: false, update: false, delete: false },
       '/font-customizer': { access: false, read: false, create: false, update: false, delete: false }
@@ -143,6 +144,7 @@ export const PermissionProvider = ({ children }) => {
         '/alert-settings': { access: true, read: true, create: true, update: true, delete: true },
         '/notification-config': { access: true, read: true, create: true, update: true, delete: true },
         '/scheduled-exports': { access: true, read: true, create: true, update: true, delete: true },
+        '/mqtt-publisher': { access: true, read: true, create: true, update: true, delete: true },
         '/company-site': { access: true, read: true, create: true, update: true, delete: true },
         '/sensor-management': { access: true, read: true, create: true, update: true, delete: true },
         '/maintenance': { access: true, read: true, create: true, update: true, delete: true },
@@ -170,6 +172,7 @@ export const PermissionProvider = ({ children }) => {
         '/alert-settings': { access: true, read: true, create: true, update: true, delete: true },
         '/notification-config': { access: true, read: true, create: true, update: true, delete: true },
         '/scheduled-exports': { access: true, read: true, create: true, update: true, delete: true },
+        '/mqtt-publisher': { access: true, read: true, create: true, update: true, delete: true },
         '/company-site': { access: true, read: true, create: true, update: true, delete: true },
         '/sensor-management': { access: true, read: true, create: true, update: true, delete: true },
         '/maintenance': { access: true, read: true, create: true, update: true, delete: true },

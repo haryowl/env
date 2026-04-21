@@ -69,6 +69,7 @@ const maintenanceRoutes = require('./routes/maintenance');
 const technicianRoutes = require('./routes/technician');
 const deviceDataRoutes = require('./routes/deviceData');
 const systemInfoRoutes = require('./routes/systemInfo');
+const mqttPublisherRoutes = require('./routes/mqttPublisher');
 
 const app = express();
 const server = http.createServer(app);
@@ -202,6 +203,8 @@ app.use('/api/alerts', authenticateToken, filterDataByRole, filterDeviceData, al
 console.log('✓ /api/alerts route registered');
 app.use('/api/alert-logs', authenticateToken, filterDataByRole, filterDeviceData, alertLogsRoutes);
 console.log('✓ /api/alert-logs route registered');
+app.use('/api/mqtt-publisher', mqttPublisherRoutes);
+console.log('✓ /api/mqtt-publisher route registered');
 app.use('/api/notification-config', authenticateToken, filterDataByRole, notificationConfigRoutes);
 console.log('✓ /api/notification-config route registered');
 app.use('/api/alert-settings', authenticateToken, filterDataByRole, alertSettingsRoutes);

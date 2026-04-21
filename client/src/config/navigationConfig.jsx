@@ -30,6 +30,7 @@ import {
   Memory as MemoryIcon,
   FormatSize as FormatSizeIcon,
   PhoneAndroid as PhoneAndroidIcon,
+  Send as SendIcon,
 } from '@mui/icons-material';
 
 export const MENU_SECTIONS = [
@@ -94,6 +95,7 @@ export const MENU_SECTIONS = [
       { text: 'Alert Settings', icon: <SettingsIcon />, path: '/alert-settings', menuPath: '/alert-settings' },
       { text: 'Notification Config', icon: <NotificationsIcon />, path: '/notification-config', menuPath: '/notification-config' },
       { text: 'Scheduled Exports', icon: <ScheduleSendIcon />, path: '/scheduled-exports', menuPath: '/scheduled-exports' },
+      { text: 'MQTT Publisher', icon: <SendIcon />, path: '/mqtt-publisher', menuPath: '/mqtt-publisher' },
       { text: 'System Information', icon: <MemoryIcon />, path: '/system-info', menuPath: '/system-info' },
       { text: 'Settings', icon: <SettingsIcon />, path: '/settings', menuPath: '/settings' },
       { text: 'Font Customizer', icon: <FormatSizeIcon />, path: '/font-customizer', menuPath: '/font-customizer' },
@@ -136,6 +138,7 @@ export const ROUTE_MENU_PATH_MAP = {
   '/parameter-demo': '/parameter-demo',
   '/font-customizer': '/font-customizer',
   '/scheduled-exports': '/scheduled-exports',
+  '/mqtt-publisher': '/mqtt-publisher',
   '/company-site': '/company-site',
   '/sensor-management': '/sensor-management',
   '/maintenance': '/maintenance',

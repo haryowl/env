@@ -25,6 +25,7 @@ const getMenuName = (menuPath) => {
     '/alert-settings': 'Alert Settings',
     '/notification-config': 'Notification Config',
     '/scheduled-exports': 'Scheduled Exports',
+    '/mqtt-publisher': 'MQTT Publisher',
     '/company-site': 'Company and Site',
     '/sensor-management': 'Sensor Management',
     '/maintenance': 'Maintenance',
@@ -1374,6 +1375,12 @@ router.get('/menus/available', authorizeRole(['super_admin', 'admin']), async (r
         path: '/scheduled-exports',
         name: 'Scheduled Exports',
         description: 'Scheduled report generation and delivery',
+        category: 'Configuration'
+      },
+      {
+        path: '/mqtt-publisher',
+        name: 'MQTT Publisher',
+        description: 'Publish single tag/value commands to devices',
         category: 'Configuration'
       },
       {
