@@ -124,6 +124,10 @@ const Dashboard = ({ socket }) => {
   const [realtimeCustomStart, setRealtimeCustomStart] = useState(() => subHours(new Date(), 2));
   const [realtimeCustomEnd, setRealtimeCustomEnd] = useState(() => new Date());
   const { formatDisplayName, getUnit } = useFieldMetadata();
+  const isGpsDisplayField = useCallback((p) => {
+    const k = String(p || '').toLowerCase();
+    return k === 'latitude' || k === 'longitude';
+  }, []);
 
   const REALTIME_RANGE_OPTIONS = [
     { value: '48h', label: 'Default' },
@@ -206,7 +210,7 @@ const Dashboard = ({ socket }) => {
   // Merge alert timestamps into chart data: one red dot per alert at the closest chart point, only if that point's value is actually out of range (above max or below min)
   const chartDataWithAlerts = useMemo(() => {
     if (!memoizedChartData.length || !realtimeAlertLogs.length) return memoizedChartData;
-    const dataParams = realtimeParams.filter(p => p !== 'datetime' && p !== 'timestamp');
+    const dataParams = realtimeParams.filter(p => p !== 'datetime' && p !== 'timestamp' && !isGpsDisplayField(p));
     const points = memoizedChartData.map(pt => ({ ...pt, _alerts: {} }));
     const getPointTime = (pt) => new Date(pt.originalTimestamp).getTime();
 
@@ -238,17 +242,17 @@ const Dashboard = ({ socket }) => {
     });
 
     return points;
-  }, [memoizedChartData, realtimeAlertLogs, realtimeParams, realtimeAlertThresholds]);
+  }, [memoizedChartData, realtimeAlertLogs, realtimeParams, realtimeAlertThresholds, isGpsDisplayField]);
 
   const selectableRealtimeParams = useMemo(() => {
-    const list = realtimeParams.filter(p => p !== 'datetime' && p !== 'timestamp');
+    const list = realtimeParams.filter(p => p !== 'datetime' && p !== 'timestamp' && !isGpsDisplayField(p));
     const q = (realtimeParamSearch || '').trim().toLowerCase();
     if (!q) return list;
     return list.filter((p) => {
       const label = formatDisplayName(p, { withUnit: true });
       return p.toLowerCase().includes(q) || (label || '').toLowerCase().includes(q);
     });
-  }, [realtimeParams, realtimeParamSearch, formatDisplayName]);
+  }, [realtimeParams, realtimeParamSearch, formatDisplayName, isGpsDisplayField]);
 
   const toggleVisibleParam = useCallback((param) => {
     setVisibleParams((v) => (v.includes(param) ? v.filter((p) => p !== param) : [...v, param]));
@@ -597,10 +601,10 @@ const Dashboard = ({ socket }) => {
 
   // When realtimeParams change, reset visibleParams to all (exclude datetime/timestamp so they don't appear as a chart series)
   useEffect(() => {
-    const chartParams = realtimeParams.filter(p => p !== 'datetime' && p !== 'timestamp');
+    const chartParams = realtimeParams.filter(p => p !== 'datetime' && p !== 'timestamp' && !isGpsDisplayField(p));
     setVisibleParams(chartParams);
     setActiveRealtimeParam('');
-  }, [realtimeParams]);
+  }, [realtimeParams, isGpsDisplayField]);
 
   const loadDashboardData = async () => {
     try {
@@ -1267,7 +1271,7 @@ const Dashboard = ({ socket }) => {
                     Current Values
                   </Typography>
                   <Grid container spacing={1.5}>
-                    {realtimeParams.filter(p => p !== 'datetime' && p !== 'timestamp').map((param, idx) => {
+                    {realtimeParams.filter(p => p !== 'datetime' && p !== 'timestamp' && !isGpsDisplayField(p)).map((param, idx) => {
                       const formattedLabel = formatDisplayName(param, { withUnit: true });
                       const formattedValue = formatParameterValue(param, realtimeLatest[param]);
                       const isFocused = activeRealtimeParam === param;
@@ -1391,7 +1395,7 @@ const Dashboard = ({ socket }) => {
                         size="small"
                         variant="outlined"
                         onClick={() => {
-                          const chartParams = realtimeParams.filter(p => p !== 'datetime' && p !== 'timestamp');
+                          const chartParams = realtimeParams.filter(p => p !== 'datetime' && p !== 'timestamp' && !isGpsDisplayField(p));
                           setVisibleParams(chartParams);
                           setActiveRealtimeParam('');
                         }}

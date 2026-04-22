@@ -878,7 +878,12 @@ const QuickView = () => {
                   }
                 }}
               >
-                {parameters.map((parameter, index) => {
+                {parameters
+                  .filter((p) => {
+                    const k = String(p || '').toLowerCase();
+                    return k !== 'latitude' && k !== 'longitude';
+                  })
+                  .map((parameter, index) => {
                   return (
                     <Box key={parameter} sx={{ display: 'flex', minWidth: 0, width: '100%' }}>
                       <QuickViewChart
