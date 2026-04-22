@@ -99,7 +99,8 @@ const presetCreateSchema = Joi.object({
   name: Joi.string().trim().min(1).max(80).required(),
   device_id: Joi.string().trim().min(1).optional().allow(null, ''),
   tag_name: Joi.string().trim().min(1).max(64).pattern(/^[A-Za-z_][A-Za-z0-9_]*$/).required(),
-  tag_value_default: Joi.string().allow('').max(512).required(),
+  // Presets store only name/scope/tag; value is intentionally not persisted (kept editable per publish).
+  tag_value_default: Joi.string().allow('').max(512).optional().default(''),
 });
 
 router.use(authenticateToken, filterDataByRole, filterDeviceData, requireFeatureEnabled);
@@ -306,7 +307,7 @@ router.post(
       `INSERT INTO mqtt_publish_presets (created_by, name, device_id, tag_name, tag_value_default)
        VALUES ($1,$2,$3,$4,$5)
        RETURNING id, created_at, created_by, name, device_id, tag_name, tag_value_default`,
-      [req.user?.user_id || null, value.name, deviceId || null, value.tag_name, value.tag_value_default]
+      [req.user?.user_id || null, value.name, deviceId || null, value.tag_name, value.tag_value_default || '']
     );
     res.status(201).json({ success: true, preset: row });
   }

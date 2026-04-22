@@ -222,7 +222,8 @@ export default function MqttPublisher() {
           name: presetName.trim(),
           device_id: presetScopedToDevice ? deviceId : null,
           tag_name: tagName,
-          tag_value_default: tagValue,
+          // Do not persist value; keep it editable per publish.
+          tag_value_default: '',
         }),
       });
       const data = await res.json();
@@ -239,7 +240,7 @@ export default function MqttPublisher() {
 
   const handleApplyPreset = (p) => {
     setTagName(p?.tag_name || '');
-    setTagValue(p?.tag_value_default || '');
+    // Do not overwrite the current value; keep it editable / user-provided per publish.
     setTab(1);
   };
 
@@ -279,7 +280,6 @@ export default function MqttPublisher() {
     { field: 'name', headerName: 'Name', minWidth: 180, flex: 0.8 },
     { field: 'device_id', headerName: 'Scope', minWidth: 160, flex: 0.5, valueGetter: (p) => (p.value ? `Device: ${p.value}` : 'Global') },
     { field: 'tag_name', headerName: 'Tag', minWidth: 120, flex: 0.4 },
-    { field: 'tag_value_default', headerName: 'Value', minWidth: 140, flex: 0.6 },
     {
       field: '_actions',
       headerName: 'Actions',
@@ -462,7 +462,7 @@ export default function MqttPublisher() {
                 Presets
               </Typography>
               <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
-                Presets are single tag/value templates. Apply a preset to prefill the Publish form.
+                Presets are single tag templates. Apply a preset to prefill the tag name; you can type the value before publishing.
               </Typography>
               <Box sx={{ height: 420, width: '100%' }}>
                 <DataGrid
@@ -514,7 +514,7 @@ export default function MqttPublisher() {
               label={presetScopedToDevice ? 'Scope: this device' : 'Scope: global'}
             />
             <Alert severity="info">
-              Preset will save: <strong>{tagName || '(tag)'}</strong> = <strong>{tagValue || '(value)'}</strong>
+              Preset will save tag: <strong>{tagName || '(tag)'}</strong>
             </Alert>
           </Stack>
         </DialogContent>
