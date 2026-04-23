@@ -278,12 +278,9 @@ router.get('/with-coordinates', authenticateToken, filterDeviceData, async (req,
         -- Try to get manual coordinates first
         (SELECT latitude FROM device_coordinates WHERE device_id = d.device_id AND source = 'manual' ORDER BY updated_at DESC LIMIT 1) as manual_latitude,
         (SELECT longitude FROM device_coordinates WHERE device_id = d.device_id AND source = 'manual' ORDER BY updated_at DESC LIMIT 1) as manual_longitude,
-        -- Try to get device data coordinates (using correct column names)
-        (SELECT field_value::numeric FROM device_data WHERE device_id = d.device_id AND field_name = 'latitude' ORDER BY timestamp DESC LIMIT 1) as device_latitude,
-        (SELECT field_value::numeric FROM device_data WHERE device_id = d.device_id AND field_name = 'longitude' ORDER BY timestamp DESC LIMIT 1) as device_longitude,
-        (SELECT field_value::numeric FROM device_data WHERE device_id = d.device_id AND field_name = 'lat' ORDER BY timestamp DESC LIMIT 1) as device_lat,
-        (SELECT field_value::numeric FROM device_data WHERE device_id = d.device_id AND field_name = 'lng' ORDER BY timestamp DESC LIMIT 1) as device_lng,
-        (SELECT field_value::numeric FROM device_data WHERE device_id = d.device_id AND field_name = 'lon' ORDER BY timestamp DESC LIMIT 1) as device_lon
+        -- Try to get device coordinates from latest GPS track
+        (SELECT latitude::numeric FROM gps_tracks WHERE device_id = d.device_id ORDER BY timestamp DESC LIMIT 1) as device_latitude,
+        (SELECT longitude::numeric FROM gps_tracks WHERE device_id = d.device_id ORDER BY timestamp DESC LIMIT 1) as device_longitude
       FROM devices d
       ${sqlLateralLastDataAt()}
       ${whereClause}
@@ -293,8 +290,8 @@ router.get('/with-coordinates', authenticateToken, filterDeviceData, async (req,
     // Process the results to determine final coordinates
     const processedDevices = devices.map(device => {
       // Priority: manual coordinates > device coordinates
-      const latitude = device.manual_latitude || device.device_latitude || device.device_lat;
-      const longitude = device.manual_longitude || device.device_longitude || device.device_lng || device.device_lon;
+      const latitude = device.manual_latitude || device.device_latitude;
+      const longitude = device.manual_longitude || device.device_longitude;
       
       return {
         device_id: device.device_id,
@@ -859,13 +856,10 @@ router.get('/:deviceId/coordinates', authenticateToken, async (req, res) => {
       coordinates = await getRow(`
         SELECT 
           COALESCE(
-            (SELECT value::numeric FROM device_data WHERE device_id = $1 AND field_name = 'latitude' ORDER BY timestamp DESC LIMIT 1),
-            (SELECT value::numeric FROM device_data WHERE device_id = $1 AND field_name = 'lat' ORDER BY timestamp DESC LIMIT 1)
+            (SELECT latitude::numeric FROM gps_tracks WHERE device_id = $1 ORDER BY timestamp DESC LIMIT 1)
           ) as latitude,
           COALESCE(
-            (SELECT value::numeric FROM device_data WHERE device_id = $1 AND field_name = 'longitude' ORDER BY timestamp DESC LIMIT 1),
-            (SELECT value::numeric FROM device_data WHERE device_id = $1 AND field_name = 'lng' ORDER BY timestamp DESC LIMIT 1),
-            (SELECT value::numeric FROM device_data WHERE device_id = $1 AND field_name = 'lon' ORDER BY timestamp DESC LIMIT 1)
+            (SELECT longitude::numeric FROM gps_tracks WHERE device_id = $1 ORDER BY timestamp DESC LIMIT 1)
           ) as longitude
         FROM devices WHERE device_id = $1
       `, [deviceId]);

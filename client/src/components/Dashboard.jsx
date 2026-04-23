@@ -126,7 +126,7 @@ const Dashboard = ({ socket }) => {
   const { formatDisplayName, getUnit } = useFieldMetadata();
   const isGpsDisplayField = useCallback((p) => {
     const k = String(p || '').toLowerCase();
-    return k === 'latitude' || k === 'longitude';
+    return k === 'latitude' || k === 'longitude' || k === 'lat' || k === 'lon' || k === 'lng';
   }, []);
 
   const REALTIME_RANGE_OPTIONS = [

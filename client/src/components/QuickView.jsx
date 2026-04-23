@@ -881,7 +881,7 @@ const QuickView = () => {
                 {parameters
                   .filter((p) => {
                     const k = String(p || '').toLowerCase();
-                    return k !== 'latitude' && k !== 'longitude';
+                    return k !== 'latitude' && k !== 'longitude' && k !== 'lat' && k !== 'lon' && k !== 'lng';
                   })
                   .map((parameter, index) => {
                   return (
