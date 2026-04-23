@@ -380,24 +380,44 @@ class MQTTService {
       
       // Use device timestamp for data storage (preserves original timing)
       const timestamp = deviceTimestamp;
-      
-      if (device.device_type === 'gps' || (data.latitude && data.longitude)) {
-        // Store GPS data
-        await query(`
+
+      // Extract GPS coordinates from payload (case-insensitive; supports lat/lon/lng aliases).
+      const lower = {};
+      for (const [k, v] of Object.entries(data || {})) {
+        lower[String(k).toLowerCase()] = v;
+      }
+      const toFiniteNumber = (v) => {
+        if (v === null || v === undefined || v === '') return null;
+        const n = typeof v === 'number' ? v : Number(v);
+        return Number.isFinite(n) ? n : null;
+      };
+      const gpsLat = toFiniteNumber(lower.latitude ?? lower.lat);
+      const gpsLon = toFiniteNumber(lower.longitude ?? lower.lng ?? lower.lon);
+      const gpsAltitude = toFiniteNumber(lower.altitude ?? lower.alt);
+      const gpsSpeed = toFiniteNumber(lower.speed ?? lower.spd);
+      const gpsHeading = toFiniteNumber(lower.heading ?? lower.hdg);
+      const gpsAccuracy = toFiniteNumber(lower.accuracy ?? lower.acc);
+      const gpsSatellites = toFiniteNumber(lower.satellites ?? lower.sat);
+
+      if (device.device_type === 'gps' || (gpsLat !== null && gpsLon !== null)) {
+        await query(
+          `
           INSERT INTO gps_tracks (device_id, latitude, longitude, altitude, speed, heading, timestamp, accuracy, satellites, metadata)
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        `, [
-          device.device_id,
-          data.latitude,
-          data.longitude,
-          data.altitude || null,
-          data.speed || null,
-          data.heading || null,
-          timestamp,
-          data.accuracy || null,
-          data.satellites || null,
-          JSON.stringify(data.metadata || {})
-        ]);
+        `,
+          [
+            device.device_id,
+            gpsLat,
+            gpsLon,
+            gpsAltitude,
+            gpsSpeed,
+            gpsHeading,
+            timestamp,
+            gpsAccuracy,
+            gpsSatellites,
+            JSON.stringify(data.metadata || {}),
+          ]
+        );
       }
 
       // Store sensor data - handle both standard and custom fields
@@ -415,8 +435,9 @@ class MQTTService {
           continue;
         }
         
-        // Skip if it's a GPS field (handled separately)
-        if (['latitude', 'longitude', 'altitude', 'speed', 'heading', 'accuracy', 'satellites'].includes(field)) {
+        // Skip if it's a GPS field (handled separately) - case-insensitive + aliases
+        const fieldLower = String(field).toLowerCase();
+        if (['latitude', 'longitude', 'lat', 'lon', 'lng', 'altitude', 'alt', 'speed', 'spd', 'heading', 'hdg', 'accuracy', 'acc', 'satellites', 'sat'].includes(fieldLower)) {
           console.log('storeDeviceData: Skipping GPS field', field);
           continue;
         }
