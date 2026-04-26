@@ -97,6 +97,8 @@ app.use(helmet({
       baseUri: ["'self'"],
       formAction: ["'self'"],
       frameAncestors: ["'self'"],
+      // Live tracking Windy drawer (iframe); not covered by defaultSrc origins alone in strict CSP
+      frameSrc: ["'self'", 'https://embed.windy.com', 'https://www.windy.com'],
       objectSrc: ["'none'"],
       scriptSrcAttr: ["'none'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", ...cspOrigins],
