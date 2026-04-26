@@ -20,6 +20,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { API_BASE_URL } from '../config/api';
+import { MAP_BASE_LAYERS } from '../config/mapLayers';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import { getChartCardSx } from '../utils/chartStyles';
 
@@ -221,37 +222,7 @@ const createDeviceIcon = (status, hasAlerts = false, name = '') => {
   });
 };
 
-// Map layer options: swatch = visual preview only (labels in tooltips)
-const mapLayers = [
-  {
-    value: 'dark',
-    label: 'Dark Professional',
-    swatch: 'linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #1e3a5f 100%)',
-    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-  },
-  {
-    value: 'modern',
-    label: 'Modern Light',
-    swatch: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #cbd5e1 100%)',
-    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-  },
-  {
-    value: 'satellite',
-    label: 'Satellite',
-    swatch: 'linear-gradient(135deg, #14532d 0%, #365314 35%, #1e3a8a 100%)',
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    attribution: '&copy; <a href="https://www.esri.com/">Esri</a>'
-  },
-  {
-    value: 'terrain',
-    label: 'Terrain',
-    swatch: 'linear-gradient(135deg, #78716c 0%, #4ade80 45%, #a8a29e 100%)',
-    url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-    attribution: '&copy; <a href="https://opentopomap.org/">OpenTopoMap</a> contributors'
-  }
-];
+const mapLayers = MAP_BASE_LAYERS;
 
 // Map bounds updater component
 const MapBoundsUpdater = ({ devices }) => {

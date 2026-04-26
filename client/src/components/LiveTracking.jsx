@@ -24,6 +24,10 @@ import {
   FormControlLabel,
   ToggleButton,
   ToggleButtonGroup,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import { MapContainer, TileLayer, Polyline, Marker, Popup, CircleMarker, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
@@ -35,6 +39,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
 import ReplayIcon from '@mui/icons-material/Replay';
 import { API_BASE_URL } from '../config/api';
+import { MAP_BASE_LAYERS, OWM_WEATHER_OVERLAYS } from '../config/mapLayers';
 import { deriveStateSegments, extractGpsFromDevicePayload } from '../utils/liveTrackingStates';
 import { filterGpsOutliers } from '../utils/gpsFilter';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
@@ -293,6 +298,8 @@ const STATE_COLOR = {
   park: '#7c3aed',
 };
 
+const OPENWEATHERMAP_API_KEY = import.meta.env.VITE_OPENWEATHERMAP_API_KEY;
+
 export default function LiveTracking({ socket }) {
   const theme = useTheme();
   const [devices, setDevices] = useState([]);
@@ -330,6 +337,8 @@ export default function LiveTracking({ socket }) {
   const [snapshotLoading, setSnapshotLoading] = useState(false);
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [baseMapId, setBaseMapId] = useState('dark');
+  const [weatherOverlay, setWeatherOverlay] = useState('none');
   const [replayIndex, setReplayIndex] = useState(0);
   const [replayPlaying, setReplayPlaying] = useState(false);
   const [replaySpeed, setReplaySpeed] = useState(1);
@@ -622,6 +631,17 @@ export default function LiveTracking({ socket }) {
     return [Number(p.latitude), Number(p.longitude)];
   }, [filteredHistoryPoints, replayIndex]);
 
+  const activeBaseLayer = useMemo(
+    () => MAP_BASE_LAYERS.find((l) => l.value === baseMapId) || MAP_BASE_LAYERS[0],
+    [baseMapId]
+  );
+
+  useEffect(() => {
+    if (weatherOverlay !== 'none' && !OPENWEATHERMAP_API_KEY) {
+      setWeatherOverlay('none');
+    }
+  }, [weatherOverlay]);
+
   return (
     <Box
       sx={{
@@ -686,16 +706,86 @@ export default function LiveTracking({ socket }) {
             <CircularProgress size={32} />
           </Box>
         ) : (
-          <MapContainer
+          <>
+            <Box
+              sx={{
+                position: 'absolute',
+                left: 48,
+                top: 8,
+                zIndex: 1000,
+                pointerEvents: 'auto',
+                maxWidth: { xs: 'calc(100% - 56px)', md: 'min(580px, calc(100% - 100px))' },
+              }}
+            >
+              <Paper elevation={3} sx={{ p: 0.75 }}>
+                <Stack direction="row" flexWrap="wrap" alignItems="center" spacing={0.75} useFlexGap>
+                  <Typography variant="caption" color="text.secondary" sx={{ mr: 0.25 }}>
+                    Base
+                  </Typography>
+                  {MAP_BASE_LAYERS.map((layer) => {
+                    const selected = baseMapId === layer.value;
+                    return (
+                      <Tooltip key={layer.value} title={layer.label} placement="bottom">
+                        <Box
+                          component="button"
+                          type="button"
+                          onClick={() => setBaseMapId(layer.value)}
+                          aria-label={layer.label}
+                          sx={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: 1,
+                            border: selected ? '2px solid' : '1px solid',
+                            borderColor: selected ? 'primary.main' : 'divider',
+                            background: layer.swatch,
+                            cursor: 'pointer',
+                            p: 0,
+                            flexShrink: 0,
+                          }}
+                        />
+                      </Tooltip>
+                    );
+                  })}
+                  <Divider orientation="vertical" flexItem sx={{ height: 26, mx: 0.25 }} />
+                  <FormControl size="small" sx={{ minWidth: 132, flex: '1 1 120px' }}>
+                    <InputLabel id="lt-weather-ol">Weather</InputLabel>
+                    <Select
+                      labelId="lt-weather-ol"
+                      label="Weather"
+                      value={weatherOverlay}
+                      onChange={(e) => setWeatherOverlay(e.target.value)}
+                    >
+                      {OWM_WEATHER_OVERLAYS.map((o) => (
+                        <MenuItem key={o.value} value={o.value} disabled={o.layer != null && !OPENWEATHERMAP_API_KEY}>
+                          {o.label}
+                          {!OPENWEATHERMAP_API_KEY && o.layer ? ' — set VITE_OPENWEATHERMAP_API_KEY' : ''}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Stack>
+              </Paper>
+            </Box>
+            <MapContainer
             center={[-2.5, 118]}
             zoom={5}
             style={{ height: '100%', width: '100%', minHeight: 360 }}
             scrollWheelZoom
           >
             <TileLayer
-              attribution='&copy; OpenStreetMap &copy; CARTO'
-              url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+              key={activeBaseLayer.value}
+              attribution={activeBaseLayer.attribution}
+              url={activeBaseLayer.url}
             />
+            {weatherOverlay !== 'none' && OPENWEATHERMAP_API_KEY && (
+              <TileLayer
+                key={weatherOverlay}
+                attribution='Weather &copy; <a href="https://openweathermap.org/">OpenWeatherMap</a>'
+                url={`https://tile.openweathermap.org/map/${weatherOverlay}/{z}/{x}/{y}.png?appid=${OPENWEATHERMAP_API_KEY}`}
+                opacity={0.55}
+                zIndex={500}
+              />
+            )}
             <FitBounds positions={allFitPositions} trigger={mapFitTrigger} />
             {historyPositions.length >= 2 && (
               <Polyline positions={historyPositions} pathOptions={{ color: '#38bdf8', weight: 4, opacity: 0.85 }} />
@@ -745,6 +835,7 @@ export default function LiveTracking({ socket }) {
             )}
             <MapClickSelect points={clickablePoints} onSelect={onSelectPoint} />
           </MapContainer>
+          </>
         )}
         <Box
           sx={{
