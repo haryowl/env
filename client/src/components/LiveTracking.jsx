@@ -19,7 +19,7 @@ import {
   Tooltip,
   useTheme,
 } from '@mui/material';
-import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Polyline, Marker, Popup, CircleMarker, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
@@ -36,6 +36,186 @@ L.Icon.Default.mergeOptions({
 
 const MAX_LIVE_POINTS = 800;
 const CLICK_DEG_TOLERANCE = 0.04;
+/** Max circle markers on map for click + popup (performance); rest use background polyline + map click */
+const MAX_HISTORY_POINT_MARKERS = 900;
+const DEVICE_REFRESH_MS = 45000;
+
+const escapeHtml = (str) => {
+  if (str == null || str === '') return '';
+  const s = String(str);
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+};
+
+function createDeviceMapIcon(name, { selected, pulse }) {
+  const label = escapeHtml((name || '').trim() || 'Device');
+  const ring = pulse ? '0 0 0 3px rgba(34,197,94,0.35)' : 'none';
+  const bg = selected ? '#2563eb' : '#10b981';
+  return L.divIcon({
+    className: 'live-tracking-device-marker',
+    html: `
+      <div style="display:flex;flex-direction:column;align-items:center;pointer-events:auto;">
+        <div style="
+          width:22px;height:22px;border-radius:50%;
+          background:${bg};border:2.5px solid #fff;
+          box-shadow:${ring}, 0 2px 8px rgba(0,0,0,0.35);
+        "></div>
+        <div style="
+          margin-top:4px;padding:2px 8px;background:#fff;color:#111827;
+          font-size:11px;font-weight:600;max-width:140px;white-space:nowrap;
+          overflow:hidden;text-overflow:ellipsis;border-radius:4px;
+          box-shadow:0 1px 3px rgba(0,0,0,0.2);border:1px solid rgba(0,0,0,0.08);
+        ">${label}</div>
+      </div>`,
+    iconSize: [140, 48],
+    iconAnchor: [11, 22],
+  });
+}
+
+function PopupGpsTable({ point }) {
+  if (!point) return null;
+  return (
+    <table style={{ fontSize: 12, borderCollapse: 'collapse', width: '100%' }}>
+      <tbody>
+        <tr>
+          <td style={{ padding: '2px 6px 2px 0', color: '#64748b' }}>Time</td>
+          <td>{formatInUserTimezone(point.timestamp)}</td>
+        </tr>
+        <tr>
+          <td style={{ padding: '2px 6px 2px 0', color: '#64748b' }}>Lat</td>
+          <td>{Number(point.latitude).toFixed(6)}</td>
+        </tr>
+        <tr>
+          <td style={{ padding: '2px 6px 2px 0', color: '#64748b' }}>Lng</td>
+          <td>{Number(point.longitude).toFixed(6)}</td>
+        </tr>
+        <tr>
+          <td style={{ padding: '2px 6px 2px 0', color: '#64748b' }}>Speed</td>
+          <td>{point.speed != null ? String(point.speed) : '—'}</td>
+        </tr>
+        {point.heading != null && (
+          <tr>
+            <td style={{ padding: '2px 6px 2px 0', color: '#64748b' }}>Heading</td>
+            <td>{String(point.heading)}</td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+  );
+}
+
+function PopupSensorBlock({ loading, snapshot }) {
+  if (loading) {
+    return (
+      <Typography variant="caption" sx={{ display: 'block', mt: 0.5 }}>
+        Loading sensors…
+      </Typography>
+    );
+  }
+  if (!snapshot?.readings?.length) {
+    return (
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+        No sensor readings in window.
+      </Typography>
+    );
+  }
+  return (
+    <Box sx={{ mt: 0.75, maxHeight: 180, overflow: 'auto' }}>
+      <Typography variant="caption" fontWeight={600}>
+        Nearest sensors
+      </Typography>
+      <table style={{ fontSize: 11, width: '100%', marginTop: 4 }}>
+        <tbody>
+          {snapshot.readings.map((r) => (
+            <tr key={r.sensor_type}>
+              <td style={{ padding: '2px 4px 2px 0' }}>{r.sensor_type}</td>
+              <td style={{ padding: '2px 0', textAlign: 'right' }}>
+                {r.value != null ? r.value : '—'} {r.unit || ''}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Box>
+  );
+}
+
+function HistorySelectionMarker({ position, point, snapshotLoading, sensorSnapshot }) {
+  return (
+    <Marker
+      position={position}
+      zIndexOffset={800}
+      eventHandlers={{
+        add: (e) => {
+          e.target.openPopup();
+        },
+      }}
+    >
+      <Popup>
+        <Box sx={{ minWidth: 200, maxWidth: 280 }}>
+          <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+            GPS point
+          </Typography>
+          <PopupGpsTable point={point} />
+          <Divider sx={{ my: 0.75 }} />
+          <PopupSensorBlock loading={snapshotLoading} snapshot={sensorSnapshot} />
+        </Box>
+      </Popup>
+    </Marker>
+  );
+}
+
+function DeviceFleetMarker({ device, selected, livePulse, onSelectDevice }) {
+  const lat = Number(device.latitude);
+  const lng = Number(device.longitude);
+  const icon = useMemo(
+    () => createDeviceMapIcon(device.name || device.device_id, { selected, pulse: livePulse }),
+    [device.name, device.device_id, selected, livePulse]
+  );
+  return (
+    <Marker
+      position={[lat, lng]}
+      icon={icon}
+      zIndexOffset={selected ? 600 : 400}
+      eventHandlers={{
+        click: () => onSelectDevice(device.device_id),
+      }}
+    >
+      <Popup>
+        <Box sx={{ minWidth: 200, maxWidth: 280 }}>
+          <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+            {device.name || device.device_id}
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>
+            {device.device_id}
+          </Typography>
+          <table style={{ fontSize: 12, borderCollapse: 'collapse', width: '100%' }}>
+            <tbody>
+              <tr>
+                <td style={{ padding: '2px 6px 2px 0', color: '#64748b' }}>Status</td>
+                <td>{device.status ?? '—'}</td>
+              </tr>
+              <tr>
+                <td style={{ padding: '2px 6px 2px 0', color: '#64748b' }}>Last data</td>
+                <td>{device.last_data_at ? formatInUserTimezone(device.last_data_at) : '—'}</td>
+              </tr>
+              <tr>
+                <td style={{ padding: '2px 6px 2px 0', color: '#64748b' }}>Lat</td>
+                <td>{lat.toFixed(6)}</td>
+              </tr>
+              <tr>
+                <td style={{ padding: '2px 6px 2px 0', color: '#64748b' }}>Lng</td>
+                <td>{lng.toFixed(6)}</td>
+              </tr>
+            </tbody>
+          </table>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>
+            Position from server: manual coordinates if set, otherwise latest device GPS track.
+          </Typography>
+        </Box>
+      </Popup>
+    </Marker>
+  );
+}
 
 function authHeaders() {
   const token = localStorage.getItem('iot_token');
@@ -48,8 +228,13 @@ function authHeaders() {
 function FitBounds({ positions, trigger }) {
   const map = useMap();
   useEffect(() => {
-    if (!positions || positions.length < 2) return;
+    if (!positions || positions.length < 1) return;
     try {
+      if (positions.length === 1) {
+        const [lat, lng] = positions[0];
+        map.setView([lat, lng], 14, { animate: false });
+        return;
+      }
       const b = L.latLngBounds(positions.map(([lat, lng]) => [lat, lng]));
       map.fitBounds(b, { padding: [28, 28], maxZoom: 16, animate: false });
     } catch {
@@ -124,9 +309,12 @@ export default function LiveTracking({ socket }) {
   const [sensorSnapshot, setSensorSnapshot] = useState(null);
   const [snapshotLoading, setSnapshotLoading] = useState(false);
 
-  const loadDevices = useCallback(async () => {
-    setLoadingDevices(true);
-    setDeviceError(null);
+  const loadDevices = useCallback(async (opts = {}) => {
+    const silent = Boolean(opts.silent);
+    if (!silent) {
+      setLoadingDevices(true);
+      setDeviceError(null);
+    }
     try {
       const res = await fetch(`${API_BASE_URL}/devices/with-coordinates`, { headers: authHeaders() });
       const data = await res.json();
@@ -137,10 +325,13 @@ export default function LiveTracking({ socket }) {
         if (prev && list.some((d) => d.device_id === prev)) return prev;
         return list[0]?.device_id || null;
       });
+      if (!silent) {
+        setMapFitTrigger((t) => t + 1);
+      }
     } catch (e) {
-      setDeviceError(e.message || 'Failed to load devices');
+      if (!silent) setDeviceError(e.message || 'Failed to load devices');
     } finally {
-      setLoadingDevices(false);
+      if (!silent) setLoadingDevices(false);
     }
   }, []);
 
@@ -160,6 +351,11 @@ export default function LiveTracking({ socket }) {
     loadDevices();
     loadSettings();
   }, [loadDevices, loadSettings]);
+
+  useEffect(() => {
+    const id = setInterval(() => loadDevices({ silent: true }), DEVICE_REFRESH_MS);
+    return () => clearInterval(id);
+  }, [loadDevices]);
 
   const saveSettings = async () => {
     if (!settingsDraft) return;
@@ -239,6 +435,10 @@ export default function LiveTracking({ socket }) {
     fetchSnapshot(p);
   };
 
+  const onSelectDeviceFromMap = useCallback((deviceId) => {
+    setSelectedId(deviceId);
+  }, []);
+
   useEffect(() => {
     liveTrailRef.current = [];
     setLiveTrail([]);
@@ -249,21 +449,36 @@ export default function LiveTracking({ socket }) {
   }, [selectedId]);
 
   useEffect(() => {
-    if (!socket || typeof socket.on !== 'function' || !selectedId) return undefined;
+    if (!socket || typeof socket.on !== 'function') return undefined;
     const handler = (payload) => {
-      if (!payload || payload.deviceId !== selectedId) return;
+      if (!payload?.deviceId || !payload.data) return;
       const gps = extractGpsFromDevicePayload(payload.data);
       if (!gps) return;
-      const next = [...liveTrailRef.current, gps];
-      if (next.length > MAX_LIVE_POINTS) next.splice(0, next.length - MAX_LIVE_POINTS);
-      liveTrailRef.current = next;
-      setLiveTrail(next);
+
+      setDevices((prev) => {
+        const has = prev.some((d) => d.device_id === payload.deviceId);
+        if (!has) return prev;
+        return prev.map((d) =>
+          d.device_id === payload.deviceId ? { ...d, latitude: gps.latitude, longitude: gps.longitude } : d
+        );
+      });
+
+      if (selectedId && payload.deviceId === selectedId) {
+        const next = [...liveTrailRef.current, gps];
+        if (next.length > MAX_LIVE_POINTS) next.splice(0, next.length - MAX_LIVE_POINTS);
+        liveTrailRef.current = next;
+        setLiveTrail(next);
+      }
     };
     socket.on('device_data', handler);
-    socket.subscribeDevice(selectedId);
+    if (selectedId && typeof socket.subscribeDevice === 'function') {
+      socket.subscribeDevice(selectedId);
+    }
     return () => {
       if (typeof socket.off === 'function') socket.off('device_data', handler);
-      if (typeof socket.unsubscribeDevice === 'function') socket.unsubscribeDevice(selectedId);
+      if (selectedId && typeof socket.unsubscribeDevice === 'function') {
+        socket.unsubscribeDevice(selectedId);
+      }
     };
   }, [socket, selectedId]);
 
@@ -284,14 +499,29 @@ export default function LiveTracking({ socket }) {
     [historyPoints]
   );
   const livePositions = useMemo(() => liveTrail.map((p) => [p.latitude, p.longitude]), [liveTrail]);
+  const deviceFitPositions = useMemo(
+    () =>
+      devices
+        .filter((d) => d.latitude != null && d.longitude != null)
+        .map((d) => [Number(d.latitude), Number(d.longitude)]),
+    [devices]
+  );
+
   const allFitPositions = useMemo(() => {
+    const dev = deviceFitPositions;
     const h = historyPositions.length >= 2 ? historyPositions : [];
-    const l = livePositions.length >= 1 ? livePositions : [];
+    const l = livePositions.length >= 2 ? livePositions : [];
+    const singleH = historyPositions.length === 1 ? historyPositions : [];
+    const singleL = livePositions.length === 1 ? livePositions : [];
+
     if (h.length >= 2) return h;
     if (l.length >= 2) return l;
-    if (h.length === 1 && l.length) return [...h, ...l];
-    return h.length ? h : l;
-  }, [historyPositions, livePositions]);
+    if (h.length === 1) return singleL.length ? [...singleH, ...singleL] : [...singleH, ...dev];
+    if (l.length === 1) return [...singleL, ...dev];
+    if (dev.length >= 2) return dev;
+    if (dev.length === 1) return dev;
+    return [];
+  }, [deviceFitPositions, historyPositions, livePositions]);
 
   const clickablePoints = useMemo(() => {
     const map = new Map();
@@ -305,6 +535,26 @@ export default function LiveTracking({ socket }) {
     }
     return Array.from(map.values());
   }, [historyPoints, liveTrail]);
+
+  const historyPointMarkers = useMemo(() => {
+    const n = historyPoints.length;
+    if (n === 0) return [];
+    if (n <= MAX_HISTORY_POINT_MARKERS) {
+      return historyPoints.map((p) => ({ p, key: p.id ?? `${p.timestamp}-${p.latitude}-${p.longitude}` }));
+    }
+    const step = Math.ceil(n / MAX_HISTORY_POINT_MARKERS);
+    const out = [];
+    for (let i = 0; i < n; i += step) {
+      const p = historyPoints[i];
+      out.push({ p, key: p.id ?? `${p.timestamp}-${i}` });
+    }
+    const last = historyPoints[n - 1];
+    const lastKey = last.id ?? `${last.timestamp}-last`;
+    if (out[out.length - 1]?.key !== lastKey) {
+      out.push({ p: last, key: lastKey });
+    }
+    return out;
+  }, [historyPoints]);
 
   return (
     <Box
@@ -351,15 +601,39 @@ export default function LiveTracking({ socket }) {
             {livePositions.length >= 2 && (
               <Polyline positions={livePositions} pathOptions={{ color: '#22c55e', weight: 3, opacity: 0.9 }} />
             )}
-            {liveTrail.length > 0 && (
-              <Marker position={[liveTrail[liveTrail.length - 1].latitude, liveTrail[liveTrail.length - 1].longitude]}>
-                <Popup>
-                  <Typography variant="caption">Latest (live)</Typography>
-                  <Button size="small" onClick={() => onSelectPoint(liveTrail[liveTrail.length - 1])}>
-                    Show details
-                  </Button>
-                </Popup>
-              </Marker>
+            {devices.map((d) => (
+              <DeviceFleetMarker
+                key={d.device_id}
+                device={d}
+                selected={d.device_id === selectedId}
+                livePulse={d.device_id === selectedId && liveTrail.length > 0}
+                onSelectDevice={onSelectDeviceFromMap}
+              />
+            ))}
+            {historyPointMarkers.map(({ p, key }) => (
+              <CircleMarker
+                key={key}
+                center={[Number(p.latitude), Number(p.longitude)]}
+                radius={6}
+                pathOptions={{
+                  color: '#bae6fd',
+                  fillColor: '#38bdf8',
+                  fillOpacity: 0.45,
+                  weight: 1,
+                }}
+                eventHandlers={{
+                  click: () => onSelectPoint(p),
+                }}
+              />
+            ))}
+            {selectedGps && (
+              <HistorySelectionMarker
+                key={`sel-${selectedGps.id ?? selectedGps.timestamp}`}
+                position={[Number(selectedGps.latitude), Number(selectedGps.longitude)]}
+                point={selectedGps}
+                snapshotLoading={snapshotLoading}
+                sensorSnapshot={sensorSnapshot}
+              />
             )}
             <MapClickSelect points={clickablePoints} onSelect={onSelectPoint} />
           </MapContainer>
@@ -378,7 +652,7 @@ export default function LiveTracking({ socket }) {
             pointerEvents: 'none',
           }}
         >
-          Click near a track point to load GPS + nearest sensors · Blue = history · Green = live
+          Device markers = last server position · Click a blue dot (after history load) or the map near the track · Green line = live · Blue line = history
         </Box>
       </Paper>
 
