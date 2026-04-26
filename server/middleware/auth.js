@@ -254,9 +254,9 @@ const authorizeMenuAccess = (menuPath, requiredPermission = 'access') => {
       // Fallback: If no explicit permissions found, check role-based fallbacks
       if (!hasAccess) {
         const fallbackPermissions = {
-          'operator': ['/dashboard', '/devices', '/data', '/data-dash', '/comparison-dashboard', '/alerts', '/alert-settings', '/scheduled-exports', '/maintenance', '/company-site', '/sensor-management'],
-          'operate': ['/dashboard', '/devices', '/data', '/data-dash', '/comparison-dashboard', '/alerts', '/alert-settings', '/scheduled-exports', '/maintenance', '/company-site', '/sensor-management'],
-          'viewer': ['/dashboard', '/devices', '/data', '/data-dash', '/comparison-dashboard', '/alerts', '/alert-settings', '/scheduled-exports', '/maintenance', '/company-site', '/sensor-management'],
+          'operator': ['/dashboard', '/devices', '/live-tracking', '/data', '/data-dash', '/comparison-dashboard', '/alerts', '/alert-settings', '/scheduled-exports', '/maintenance', '/company-site', '/sensor-management'],
+          'operate': ['/dashboard', '/devices', '/live-tracking', '/data', '/data-dash', '/comparison-dashboard', '/alerts', '/alert-settings', '/scheduled-exports', '/maintenance', '/company-site', '/sensor-management'],
+          'viewer': ['/dashboard', '/devices', '/live-tracking', '/data', '/data-dash', '/comparison-dashboard', '/alerts', '/alert-settings', '/scheduled-exports', '/maintenance', '/company-site', '/sensor-management'],
           'technician': ['/technician'],
           'admin': ['/technician'], // Admin can access technician menu for management
           'super_admin': ['/technician'] // Super admin can access technician menu for management

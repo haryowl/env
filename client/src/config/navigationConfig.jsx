@@ -31,6 +31,7 @@ import {
   FormatSize as FormatSizeIcon,
   PhoneAndroid as PhoneAndroidIcon,
   Send as SendIcon,
+  MyLocation as MyLocationIcon,
 } from '@mui/icons-material';
 
 export const MENU_SECTIONS = [
@@ -119,6 +120,7 @@ export const ROUTE_MENU_PATH_MAP = {
   '/quick-view': '/quick-view',
   '/m/quick-view': '/quick-view',
   '/devices': '/devices',
+  '/live-tracking': '/live-tracking',
   '/users': '/users',
   '/tenants': '/tenants',
   '/roles': '/roles',

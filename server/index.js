@@ -71,6 +71,7 @@ const deviceDataRoutes = require('./routes/deviceData');
 const systemInfoRoutes = require('./routes/systemInfo');
 const mqttPublisherRoutes = require('./routes/mqttPublisher');
 const featuresRoutes = require('./routes/features');
+const liveTrackingRoutes = require('./routes/liveTracking');
 
 const app = express();
 const server = http.createServer(app);
@@ -186,6 +187,8 @@ app.use('/api/roles', authenticateToken, filterDataByRole, roleRoutes);
 console.log('✓ /api/roles route registered');
 app.use('/api/devices', authenticateToken, filterDataByRole, filterDeviceData, deviceRoutes);
 console.log('✓ /api/devices route registered');
+app.use('/api/live-tracking', authenticateToken, filterDataByRole, filterDeviceData, liveTrackingRoutes);
+console.log('✓ /api/live-tracking route registered');
 app.use('/api/data', authenticateToken, filterDataByRole, filterDeviceData, dataRoutes);
 console.log('✓ /api/data route registered');
 app.use('/api/data-dash', authenticateToken, filterDataByRole, filterDeviceData, require('./routes/dataDash'));

@@ -16,6 +16,7 @@ import TenantManager from './components/TenantManager.jsx';
 import RoleManager from './components/RoleManager.jsx';
 import FieldCreator from './components/FieldCreator';
 import DeviceMapper from './components/DeviceMapper';
+import LiveTracking from './components/LiveTracking';
 import Listeners from './components/Listeners';
 import DataViewer from './components/DataViewer';
 import Settings from './components/Settings';
@@ -347,6 +348,7 @@ function App() {
                 <Route path="/tenants" element={<ProtectedRoute><TenantManager /></ProtectedRoute>} />
                 <Route path="/roles" element={<ProtectedRoute><RoleManager /></ProtectedRoute>} />
                 <Route path="/field-creator" element={<ProtectedRoute><FieldCreator /></ProtectedRoute>} />
+                <Route path="/live-tracking" element={<ProtectedRoute><LiveTracking socket={socket} /></ProtectedRoute>} />
                 <Route path="/mapper" element={<ProtectedRoute><DeviceMapper /></ProtectedRoute>} />
                 <Route path="/listeners" element={<ProtectedRoute><Listeners socket={socket} /></ProtectedRoute>} />
                 <Route path="/data" element={<ProtectedRoute><DataViewer /></ProtectedRoute>} />
