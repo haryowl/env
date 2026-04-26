@@ -18,16 +18,14 @@ import {
   Divider,
   Tooltip,
   useTheme,
+  Drawer,
+  Link,
   IconButton,
   Slider,
   Switch,
   FormControlLabel,
   ToggleButton,
   ToggleButtonGroup,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
 } from '@mui/material';
 import { MapContainer, TileLayer, Polyline, Marker, Popup, CircleMarker, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
@@ -35,11 +33,12 @@ import 'leaflet/dist/leaflet.css';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import CloseIcon from '@mui/icons-material/Close';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
 import ReplayIcon from '@mui/icons-material/Replay';
 import { API_BASE_URL } from '../config/api';
-import { MAP_BASE_LAYERS, OWM_WEATHER_OVERLAYS } from '../config/mapLayers';
+import { MAP_BASE_LAYERS } from '../config/mapLayers';
 import { deriveStateSegments, extractGpsFromDevicePayload } from '../utils/liveTrackingStates';
 import { filterGpsOutliers } from '../utils/gpsFilter';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
@@ -255,6 +254,7 @@ function FitBounds({ positions, trigger }) {
   useEffect(() => {
     if (!positions || positions.length < 1) return;
     try {
+      map.invalidateSize();
       if (positions.length === 1) {
         const [lat, lng] = positions[0];
         map.setView([lat, lng], 14, { animate: false });
@@ -266,6 +266,29 @@ function FitBounds({ positions, trigger }) {
       /* ignore */
     }
   }, [map, positions, trigger]);
+  return null;
+}
+
+/** Leaflet keeps tile size from first layout; call after sidebar / container width changes. */
+function InvalidateMapOnLayout({ sidebarOpen, onResizeComplete }) {
+  const map = useMap();
+  const prevOpen = useRef(sidebarOpen);
+  useEffect(() => {
+    if (prevOpen.current === sidebarOpen) return;
+    prevOpen.current = sidebarOpen;
+    const invalidate = () => map.invalidateSize();
+    const rafId = requestAnimationFrame(invalidate);
+    const t1 = setTimeout(invalidate, 220);
+    const t2 = setTimeout(() => {
+      invalidate();
+      onResizeComplete?.();
+    }, 400);
+    return () => {
+      cancelAnimationFrame(rafId);
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [map, sidebarOpen, onResizeComplete]);
   return null;
 }
 
@@ -297,8 +320,6 @@ const STATE_COLOR = {
   stop: '#f59e0b',
   park: '#7c3aed',
 };
-
-const OPENWEATHERMAP_API_KEY = import.meta.env.VITE_OPENWEATHERMAP_API_KEY;
 
 export default function LiveTracking({ socket }) {
   const theme = useTheme();
@@ -337,8 +358,11 @@ export default function LiveTracking({ socket }) {
   const [snapshotLoading, setSnapshotLoading] = useState(false);
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [windyDrawerOpen, setWindyDrawerOpen] = useState(false);
+  const bumpMapFit = useCallback(() => {
+    setMapFitTrigger((x) => x + 1);
+  }, []);
   const [baseMapId, setBaseMapId] = useState('dark');
-  const [weatherOverlay, setWeatherOverlay] = useState('none');
   const [replayIndex, setReplayIndex] = useState(0);
   const [replayPlaying, setReplayPlaying] = useState(false);
   const [replaySpeed, setReplaySpeed] = useState(1);
@@ -636,11 +660,53 @@ export default function LiveTracking({ socket }) {
     [baseMapId]
   );
 
-  useEffect(() => {
-    if (weatherOverlay !== 'none' && !OPENWEATHERMAP_API_KEY) {
-      setWeatherOverlay('none');
+  /** Center for Windy embed: selected device, then track/fleet bounds, then default. */
+  const windyMapTarget = useMemo(() => {
+    const fallback = { lat: -2.5, lon: 118, zoom: 5 };
+    try {
+      const sel = devices.find(
+        (d) => d.device_id === selectedId && d.latitude != null && d.longitude != null
+      );
+      if (sel) {
+        return {
+          lat: Number(sel.latitude),
+          lon: Number(sel.longitude),
+          zoom: 8,
+        };
+      }
+      if (!allFitPositions.length) return fallback;
+      if (allFitPositions.length === 1) {
+        const [lat, lng] = allFitPositions[0];
+        return { lat: Number(lat), lon: Number(lng), zoom: 9 };
+      }
+      const b = L.latLngBounds(allFitPositions.map(([la, ln]) => [la, ln]));
+      const c = b.getCenter();
+      const sw = b.getSouthWest();
+      const ne = b.getNorthEast();
+      const span = Math.max(Math.abs(ne.lat - sw.lat), Math.abs(ne.lng - sw.lng), 1e-6);
+      let zoom = 5;
+      if (span > 20) zoom = 4;
+      else if (span > 8) zoom = 5;
+      else if (span > 2) zoom = 6;
+      else if (span > 0.5) zoom = 7;
+      else if (span > 0.15) zoom = 8;
+      else zoom = 10;
+      return { lat: c.lat, lon: c.lng, zoom: Math.min(11, zoom) };
+    } catch {
+      return fallback;
     }
-  }, [weatherOverlay]);
+  }, [devices, selectedId, allFitPositions]);
+
+  const windyEmbedUrl = useMemo(() => {
+    const { lat, lon, zoom } = windyMapTarget;
+    const p = new URLSearchParams({
+      lat: lat.toFixed(5),
+      lon: lon.toFixed(5),
+      zoom: String(zoom),
+      overlay: 'wind',
+    });
+    return `https://embed.windy.com/embed2.html?${p.toString()}`;
+  }, [windyMapTarget]);
 
   return (
     <Box
@@ -747,22 +813,16 @@ export default function LiveTracking({ socket }) {
                     );
                   })}
                   <Divider orientation="vertical" flexItem sx={{ height: 26, mx: 0.25 }} />
-                  <FormControl size="small" sx={{ minWidth: 132, flex: '1 1 120px' }}>
-                    <InputLabel id="lt-weather-ol">Weather</InputLabel>
-                    <Select
-                      labelId="lt-weather-ol"
-                      label="Weather"
-                      value={weatherOverlay}
-                      onChange={(e) => setWeatherOverlay(e.target.value)}
+                  <Tooltip title="Open Windy weather map for this area (embedded)">
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      onClick={() => setWindyDrawerOpen(true)}
+                      sx={{ flexShrink: 0, textTransform: 'none', py: 0.25, px: 1 }}
                     >
-                      {OWM_WEATHER_OVERLAYS.map((o) => (
-                        <MenuItem key={o.value} value={o.value} disabled={o.layer != null && !OPENWEATHERMAP_API_KEY}>
-                          {o.label}
-                          {!OPENWEATHERMAP_API_KEY && o.layer ? ' — set VITE_OPENWEATHERMAP_API_KEY' : ''}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
+                      Weather
+                    </Button>
+                  </Tooltip>
                 </Stack>
               </Paper>
             </Box>
@@ -777,16 +837,8 @@ export default function LiveTracking({ socket }) {
               attribution={activeBaseLayer.attribution}
               url={activeBaseLayer.url}
             />
-            {weatherOverlay !== 'none' && OPENWEATHERMAP_API_KEY && (
-              <TileLayer
-                key={weatherOverlay}
-                attribution='Weather &copy; <a href="https://openweathermap.org/">OpenWeatherMap</a>'
-                url={`https://tile.openweathermap.org/map/${weatherOverlay}/{z}/{x}/{y}.png?appid=${OPENWEATHERMAP_API_KEY}`}
-                opacity={0.55}
-                zIndex={500}
-              />
-            )}
             <FitBounds positions={allFitPositions} trigger={mapFitTrigger} />
+            <InvalidateMapOnLayout sidebarOpen={sidebarOpen} onResizeComplete={bumpMapFit} />
             {historyPositions.length >= 2 && (
               <Polyline positions={historyPositions} pathOptions={{ color: '#38bdf8', weight: 4, opacity: 0.85 }} />
             )}
@@ -960,11 +1012,14 @@ export default function LiveTracking({ socket }) {
 
         <Box
           sx={{
-            width: { xs: sidebarOpen ? '100%' : 0, md: sidebarOpen ? 380 : 0 },
+            width: sidebarOpen ? { xs: '100%', md: 380 } : 0,
+            minWidth: 0,
+            maxWidth: sidebarOpen ? { xs: '100%', md: 380 } : 0,
             flexShrink: 0,
+            flexGrow: 0,
             transition: theme.transitions.create('width', { duration: 200 }),
             overflow: 'hidden',
-            display: { xs: sidebarOpen ? 'block' : 'none', md: 'block' },
+            display: sidebarOpen ? 'block' : 'none',
           }}
         >
           <Paper
@@ -1187,6 +1242,72 @@ export default function LiveTracking({ socket }) {
           </Paper>
         </Box>
       </Box>
+
+      <Drawer
+        anchor="right"
+        open={windyDrawerOpen}
+        onClose={() => setWindyDrawerOpen(false)}
+        ModalProps={{ keepMounted: false }}
+        PaperProps={{
+          sx: {
+            width: { xs: '100%', sm: 440, md: 520 },
+            maxWidth: '100vw',
+            display: 'flex',
+            flexDirection: 'column',
+            boxSizing: 'border-box',
+          },
+        }}
+      >
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 1,
+            px: 1.5,
+            py: 1,
+            borderBottom: 1,
+            borderColor: 'divider',
+            flexShrink: 0,
+          }}
+        >
+          <Typography variant="subtitle1" component="h2">
+            Weather (Windy)
+          </Typography>
+          <IconButton onClick={() => setWindyDrawerOpen(false)} aria-label="Close weather panel" edge="end">
+            <CloseIcon />
+          </IconButton>
+        </Box>
+        <Typography variant="caption" color="text.secondary" sx={{ px: 1.5, pt: 1, flexShrink: 0 }}>
+          Map centers on the selected device when possible, otherwise on your fleet or track. Use Windy&apos;s controls
+          inside the map to change layer and time.
+        </Typography>
+        <Box
+          component="iframe"
+          key={windyEmbedUrl}
+          title="Windy weather map"
+          src={windyEmbedUrl}
+          loading="lazy"
+          referrerPolicy="strict-origin-when-cross-origin"
+          sx={{
+            flex: 1,
+            minHeight: { xs: 360, sm: 420 },
+            width: '100%',
+            border: 0,
+            mt: 1,
+            display: 'block',
+          }}
+        />
+        <Box sx={{ px: 1.5, py: 1, borderTop: 1, borderColor: 'divider', flexShrink: 0 }}>
+          <Typography variant="caption" color="text.secondary">
+            Weather visualization{' '}
+            <Link href="https://www.windy.com" target="_blank" rel="noopener noreferrer">
+              Windy.com
+            </Link>
+            . Opens in an embedded viewer; no API key required.
+          </Typography>
+        </Box>
+      </Drawer>
     </Box>
   );
 }

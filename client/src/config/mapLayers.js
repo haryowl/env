@@ -34,16 +34,3 @@ export const MAP_BASE_LAYERS = [
     attribution: '&copy; <a href="https://opentopomap.org/">OpenTopoMap</a> contributors',
   },
 ];
-
-/**
- * OpenWeatherMap tile layer names (append to tile URL path). Requires VITE_OPENWEATHERMAP_API_KEY.
- * @see https://openweathermap.org/api/weathermaps
- */
-export const OWM_WEATHER_OVERLAYS = [
-  { value: 'none', label: 'Off', layer: null },
-  { value: 'precipitation_new', label: 'Precipitation', layer: 'precipitation_new' },
-  { value: 'clouds_new', label: 'Clouds', layer: 'clouds_new' },
-  { value: 'wind_new', label: 'Wind', layer: 'wind_new' },
-  { value: 'temp_new', label: 'Temperature', layer: 'temp_new' },
-  { value: 'pressure_new', label: 'Pressure', layer: 'pressure_new' },
-];
