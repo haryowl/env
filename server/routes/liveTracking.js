@@ -13,6 +13,14 @@ const DEFAULT_SETTINGS = {
   stopMinutes: 3,
   parkMinutes: 15,
   sensorSnapshotWindowMs: 300000,
+  /** Map outlier filter (client uses for polyline; stored for consistency) */
+  gpsFilterEnabled: false,
+  /** Max distance from previous kept point (meters); jumps larger are dropped */
+  gpsMaxJumpMeters: 500,
+  /** Drop points with speed above this (same unit as gps_tracks.speed); 0 = off */
+  gpsMaxSpeed: 0,
+  /** Drop points with GPS accuracy worse than this (meters); 0 = off */
+  gpsMaxAccuracyMeters: 0,
 };
 
 function parsePreferences(raw) {
@@ -50,6 +58,10 @@ const settingsFullSchema = Joi.object({
   stopMinutes: Joi.number().min(0).max(10080).required(),
   parkMinutes: Joi.number().min(0).max(10080).required(),
   sensorSnapshotWindowMs: Joi.number().min(60000).max(3600000).required(),
+  gpsFilterEnabled: Joi.boolean().required(),
+  gpsMaxJumpMeters: Joi.number().min(10).max(500000).required(),
+  gpsMaxSpeed: Joi.number().min(0).max(2000).required(),
+  gpsMaxAccuracyMeters: Joi.number().min(0).max(5000).required(),
 }).custom((value, helpers) => {
   if (value.moveSpeedThreshold < value.stopSpeedThreshold) {
     return helpers.error('any.invalid');

@@ -18,13 +18,25 @@ import {
   Divider,
   Tooltip,
   useTheme,
+  IconButton,
+  Slider,
+  Switch,
+  FormControlLabel,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material';
 import { MapContainer, TileLayer, Polyline, Marker, Popup, CircleMarker, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import PauseIcon from '@mui/icons-material/Pause';
+import ReplayIcon from '@mui/icons-material/Replay';
 import { API_BASE_URL } from '../config/api';
 import { deriveStateSegments, extractGpsFromDevicePayload } from '../utils/liveTrackingStates';
+import { filterGpsOutliers } from '../utils/gpsFilter';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
 
 delete L.Icon.Default.prototype._getIconUrl;
@@ -34,11 +46,19 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
 });
 
+const replayHeadIcon = L.divIcon({
+  className: 'lt-replay-head',
+  html: '<div style="width:16px;height:16px;border-radius:50%;background:#fb923c;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.45);"></div>',
+  iconSize: [16, 16],
+  iconAnchor: [8, 8],
+});
+
 const MAX_LIVE_POINTS = 800;
 const CLICK_DEG_TOLERANCE = 0.04;
 /** Max circle markers on map for click + popup (performance); rest use background polyline + map click */
 const MAX_HISTORY_POINT_MARKERS = 900;
 const DEVICE_REFRESH_MS = 45000;
+const REPLAY_BASE_INTERVAL_MS = 180;
 
 const escapeHtml = (str) => {
   if (str == null || str === '') return '';
@@ -309,6 +329,11 @@ export default function LiveTracking({ socket }) {
   const [sensorSnapshot, setSensorSnapshot] = useState(null);
   const [snapshotLoading, setSnapshotLoading] = useState(false);
 
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [replayIndex, setReplayIndex] = useState(0);
+  const [replayPlaying, setReplayPlaying] = useState(false);
+  const [replaySpeed, setReplaySpeed] = useState(1);
+
   const loadDevices = useCallback(async (opts = {}) => {
     const silent = Boolean(opts.silent);
     if (!silent) {
@@ -398,6 +423,8 @@ export default function LiveTracking({ socket }) {
         returned: data.returned,
         downsampled: data.downsampled,
       });
+      setReplayIndex(0);
+      setReplayPlaying(false);
       setMapFitTrigger((t) => t + 1);
     } catch (e) {
       setHistoryError(e.message || 'History load failed');
@@ -482,22 +509,32 @@ export default function LiveTracking({ socket }) {
     };
   }, [socket, selectedId]);
 
-  const segments = useMemo(() => {
-    if (!settings || !historyPoints.length) return [];
-    return deriveStateSegments(historyPoints, settings);
+  const filteredHistoryPoints = useMemo(() => {
+    if (!settings) return historyPoints;
+    return filterGpsOutliers(historyPoints, settings);
   }, [historyPoints, settings]);
 
+  const segments = useMemo(() => {
+    if (!settings || !filteredHistoryPoints.length) return [];
+    return deriveStateSegments(filteredHistoryPoints, settings);
+  }, [filteredHistoryPoints, settings]);
+
   const timelineRange = useMemo(() => {
-    if (!historyPoints.length) return null;
-    const t0 = new Date(historyPoints[0].timestamp).getTime();
-    const t1 = new Date(historyPoints[historyPoints.length - 1].timestamp).getTime();
+    if (!filteredHistoryPoints.length) return null;
+    const t0 = new Date(filteredHistoryPoints[0].timestamp).getTime();
+    const t1 = new Date(filteredHistoryPoints[filteredHistoryPoints.length - 1].timestamp).getTime();
     return { t0, t1, span: Math.max(1, t1 - t0) };
-  }, [historyPoints]);
+  }, [filteredHistoryPoints]);
 
   const historyPositions = useMemo(
-    () => historyPoints.map((p) => [p.latitude, p.longitude]),
-    [historyPoints]
+    () => filteredHistoryPoints.map((p) => [p.latitude, p.longitude]),
+    [filteredHistoryPoints]
   );
+
+  const replayPolyPositions = useMemo(() => {
+    if (filteredHistoryPoints.length < 2 || replayIndex < 1) return [];
+    return filteredHistoryPoints.slice(0, replayIndex + 1).map((p) => [Number(p.latitude), Number(p.longitude)]);
+  }, [filteredHistoryPoints, replayIndex]);
   const livePositions = useMemo(() => liveTrail.map((p) => [p.latitude, p.longitude]), [liveTrail]);
   const deviceFitPositions = useMemo(
     () =>
@@ -525,7 +562,7 @@ export default function LiveTracking({ socket }) {
 
   const clickablePoints = useMemo(() => {
     const map = new Map();
-    for (const p of historyPoints) {
+    for (const p of filteredHistoryPoints) {
       const k = `${p.latitude.toFixed(5)},${p.longitude.toFixed(5)},${p.timestamp}`;
       map.set(k, p);
     }
@@ -534,52 +571,117 @@ export default function LiveTracking({ socket }) {
       if (!map.has(k)) map.set(k, { ...p, id: `live-${p.timestamp}` });
     }
     return Array.from(map.values());
-  }, [historyPoints, liveTrail]);
+  }, [filteredHistoryPoints, liveTrail]);
 
   const historyPointMarkers = useMemo(() => {
-    const n = historyPoints.length;
+    const n = filteredHistoryPoints.length;
     if (n === 0) return [];
     if (n <= MAX_HISTORY_POINT_MARKERS) {
-      return historyPoints.map((p) => ({ p, key: p.id ?? `${p.timestamp}-${p.latitude}-${p.longitude}` }));
+      return filteredHistoryPoints.map((p) => ({ p, key: p.id ?? `${p.timestamp}-${p.latitude}-${p.longitude}` }));
     }
     const step = Math.ceil(n / MAX_HISTORY_POINT_MARKERS);
     const out = [];
     for (let i = 0; i < n; i += step) {
-      const p = historyPoints[i];
+      const p = filteredHistoryPoints[i];
       out.push({ p, key: p.id ?? `${p.timestamp}-${i}` });
     }
-    const last = historyPoints[n - 1];
+    const last = filteredHistoryPoints[n - 1];
     const lastKey = last.id ?? `${last.timestamp}-last`;
     if (out[out.length - 1]?.key !== lastKey) {
       out.push({ p: last, key: lastKey });
     }
     return out;
-  }, [historyPoints]);
+  }, [filteredHistoryPoints]);
+
+  useEffect(() => {
+    setReplayIndex((i) => {
+      const max = Math.max(0, filteredHistoryPoints.length - 1);
+      return Math.min(i, max);
+    });
+  }, [historyPoints, settings, filteredHistoryPoints.length]);
+
+  useEffect(() => {
+    if (!replayPlaying || filteredHistoryPoints.length < 2) return undefined;
+    const ms = Math.max(50, Math.round(REPLAY_BASE_INTERVAL_MS / replaySpeed));
+    const id = setInterval(() => {
+      setReplayIndex((i) => {
+        const max = filteredHistoryPoints.length - 1;
+        if (i >= max) {
+          setReplayPlaying(false);
+          return max;
+        }
+        return i + 1;
+      });
+    }, ms);
+    return () => clearInterval(id);
+  }, [replayPlaying, replaySpeed, filteredHistoryPoints.length]);
+
+  const replayMarkerPosition = useMemo(() => {
+    if (!filteredHistoryPoints.length) return null;
+    const p = filteredHistoryPoints[Math.min(replayIndex, filteredHistoryPoints.length - 1)];
+    return [Number(p.latitude), Number(p.longitude)];
+  }, [filteredHistoryPoints, replayIndex]);
 
   return (
     <Box
       sx={{
         display: 'flex',
-        flexDirection: { xs: 'column', md: 'row' },
-        gap: 1.5,
+        flexDirection: 'column',
         flex: 1,
         minHeight: 0,
         height: '100%',
-        alignItems: 'stretch',
+        overflow: 'hidden',
       }}
     >
-      <Paper
-        elevation={0}
+      <Box
         sx={{
-          flex: { xs: '1 1 auto', md: '3 1 0' },
-          minHeight: { xs: 360, md: 520 },
-          position: 'relative',
-          overflow: 'hidden',
-          border: `1px solid ${theme.palette.divider}`,
-          borderRadius: 1,
+          display: 'flex',
+          flexDirection: { xs: 'column', md: 'row' },
+          gap: 1.5,
+          flex: 1,
+          minHeight: 0,
+          alignItems: 'stretch',
         }}
       >
-        {loadingDevices ? (
+        <Box
+          sx={{
+            flex: 1,
+            minWidth: 0,
+            minHeight: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 1.5,
+          }}
+        >
+          <Paper
+            elevation={0}
+            sx={{
+              flex: 1,
+              minHeight: { xs: 360, md: 420 },
+              position: 'relative',
+              overflow: 'hidden',
+              border: `1px solid ${theme.palette.divider}`,
+              borderRadius: 1,
+            }}
+          >
+            {!sidebarOpen && (
+              <IconButton
+                size="small"
+                onClick={() => setSidebarOpen(true)}
+                aria-label="Show settings panel"
+                sx={{
+                  position: 'absolute',
+                  right: 8,
+                  top: 8,
+                  zIndex: 1000,
+                  bgcolor: 'background.paper',
+                  boxShadow: 2,
+                }}
+              >
+                <ChevronLeftIcon />
+              </IconButton>
+            )}
+            {loadingDevices ? (
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 400 }}>
             <CircularProgress size={32} />
           </Box>
@@ -597,6 +699,12 @@ export default function LiveTracking({ socket }) {
             <FitBounds positions={allFitPositions} trigger={mapFitTrigger} />
             {historyPositions.length >= 2 && (
               <Polyline positions={historyPositions} pathOptions={{ color: '#38bdf8', weight: 4, opacity: 0.85 }} />
+            )}
+            {replayPolyPositions.length >= 2 && (
+              <Polyline positions={replayPolyPositions} pathOptions={{ color: '#fb923c', weight: 3, opacity: 0.92 }} />
+            )}
+            {replayMarkerPosition && filteredHistoryPoints.length > 0 && (
+              <Marker position={replayMarkerPosition} icon={replayHeadIcon} zIndexOffset={900} interactive={false} />
             )}
             {livePositions.length >= 2 && (
               <Polyline positions={livePositions} pathOptions={{ color: '#22c55e', weight: 3, opacity: 0.9 }} />
@@ -652,29 +760,147 @@ export default function LiveTracking({ socket }) {
             pointerEvents: 'none',
           }}
         >
-          Device markers = last server position · Click a blue dot (after history load) or the map near the track · Green line = live · Blue line = history
+          Device markers = last server position · Blue = history (filtered) · Orange = replay head · Green = live
         </Box>
-      </Paper>
+          </Paper>
 
-      <Paper
-        elevation={0}
-        sx={{
-          flex: { xs: '1 1 auto', md: '1 1 0' },
-          minWidth: { md: 280 },
-          maxWidth: { md: 420 },
-          p: 1.5,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 1.5,
-          overflow: 'auto',
-          border: `1px solid ${theme.palette.divider}`,
-          borderRadius: 1,
-        }}
-      >
-        <Stack direction="row" alignItems="center" spacing={1}>
-          <MyLocationIcon color="primary" />
-          <Typography variant="h6">Live tracking</Typography>
-        </Stack>
+          <Paper
+            elevation={0}
+            sx={{
+              flexShrink: 0,
+              p: 1.5,
+              border: `1px solid ${theme.palette.divider}`,
+              borderRadius: 1,
+            }}
+          >
+            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+              <Typography variant="subtitle2">State timeline (filtered history)</Typography>
+              <Tooltip title="Moving / stop / park from speed ≤ stop threshold and dwell times">
+                <Typography variant="caption" color="text.secondary">
+                  {filteredHistoryPoints.length}/{historyPoints.length} pts
+                </Typography>
+              </Tooltip>
+            </Stack>
+            <Box sx={{ height: 32, display: 'flex', borderRadius: 1, overflow: 'hidden', border: `1px solid ${theme.palette.divider}`, mb: 1 }}>
+              {timelineRange && segments.length ? (
+                segments.map((seg, idx) => {
+                  const w = ((seg.to - seg.from) / timelineRange.span) * 100;
+                  return (
+                    <Box
+                      key={`${seg.from}-${idx}`}
+                      sx={{
+                        width: `${w}%`,
+                        bgcolor: STATE_COLOR[seg.state] || '#64748b',
+                        minWidth: seg.durationMs > 0 ? 2 : 0,
+                      }}
+                    />
+                  );
+                })
+              ) : (
+                <Box sx={{ flex: 1, bgcolor: 'action.hover' }} />
+              )}
+            </Box>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 1.5 }}>
+              {['moving', 'stop', 'park'].map((k) => (
+                <Stack key={k} direction="row" alignItems="center" spacing={0.5}>
+                  <Box sx={{ width: 10, height: 10, borderRadius: 0.5, bgcolor: STATE_COLOR[k] }} />
+                  <Typography variant="caption">{k}</Typography>
+                </Stack>
+              ))}
+            </Stack>
+
+            <Divider sx={{ my: 1 }} />
+
+            <Typography variant="subtitle2" sx={{ mb: 0.75 }}>
+              Replay
+            </Typography>
+            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mb: 1 }}>
+              <IconButton
+                color="primary"
+                size="small"
+                aria-label={replayPlaying ? 'Pause' : 'Play'}
+                disabled={filteredHistoryPoints.length < 2}
+                onClick={() => setReplayPlaying((p) => !p)}
+              >
+                {replayPlaying ? <PauseIcon /> : <PlayArrowIcon />}
+              </IconButton>
+              <IconButton
+                size="small"
+                aria-label="Reset replay"
+                disabled={filteredHistoryPoints.length < 1}
+                onClick={() => {
+                  setReplayPlaying(false);
+                  setReplayIndex(0);
+                }}
+              >
+                <ReplayIcon />
+              </IconButton>
+              <ToggleButtonGroup
+                size="small"
+                exclusive
+                value={replaySpeed}
+                onChange={(_, v) => v != null && setReplaySpeed(v)}
+                sx={{ ml: { xs: 0, sm: 1 } }}
+              >
+                <ToggleButton value={1}>1×</ToggleButton>
+                <ToggleButton value={2}>2×</ToggleButton>
+                <ToggleButton value={4}>4×</ToggleButton>
+              </ToggleButtonGroup>
+            </Stack>
+            <Slider
+              size="small"
+              value={replayIndex}
+              min={0}
+              max={Math.max(0, filteredHistoryPoints.length - 1)}
+              step={1}
+              disabled={filteredHistoryPoints.length < 2}
+              onChange={(_, v) => {
+                setReplayPlaying(false);
+                setReplayIndex(v);
+              }}
+              valueLabelDisplay="auto"
+              valueLabelFormat={(i) => {
+                const p = filteredHistoryPoints[i];
+                return p ? formatInUserTimezone(p.timestamp) : String(i);
+              }}
+            />
+          </Paper>
+        </Box>
+
+        <Box
+          sx={{
+            width: { xs: sidebarOpen ? '100%' : 0, md: sidebarOpen ? 380 : 0 },
+            flexShrink: 0,
+            transition: theme.transitions.create('width', { duration: 200 }),
+            overflow: 'hidden',
+            display: { xs: sidebarOpen ? 'block' : 'none', md: 'block' },
+          }}
+        >
+          <Paper
+            elevation={0}
+            sx={{
+              width: { xs: '100%', md: 380 },
+              height: '100%',
+              maxHeight: { md: '100%' },
+              p: 1.5,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 1.5,
+              overflow: 'auto',
+              border: `1px solid ${theme.palette.divider}`,
+              borderRadius: 1,
+              boxSizing: 'border-box',
+            }}
+          >
+            <Stack direction="row" alignItems="center" justifyContent="space-between">
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <MyLocationIcon color="primary" />
+                <Typography variant="h6">Live tracking</Typography>
+              </Stack>
+              <IconButton size="small" onClick={() => setSidebarOpen(false)} aria-label="Hide panel">
+                <ChevronRightIcon />
+              </IconButton>
+            </Stack>
 
         {deviceError && (
           <Alert severity="error" onClose={() => setDeviceError(null)}>
@@ -729,41 +955,11 @@ export default function LiveTracking({ socket }) {
           <Typography variant="caption" color="text.secondary">
             Points in range: {historyMeta.total_in_range} · Returned: {historyMeta.returned}
             {historyMeta.downsampled ? ' (downsampled)' : ''}
+            {settings?.gpsFilterEnabled && historyPoints.length
+              ? ` · Map/timeline: ${filteredHistoryPoints.length} after filter`
+              : ''}
           </Typography>
         )}
-
-        <Divider />
-
-        <Typography variant="subtitle2">State timeline (from history)</Typography>
-        <Tooltip title="Moving / stop / park from speed ≤ stop threshold and dwell times">
-          <Box sx={{ height: 28, display: 'flex', borderRadius: 1, overflow: 'hidden', border: `1px solid ${theme.palette.divider}` }}>
-            {timelineRange && segments.length ? (
-              segments.map((seg, idx) => {
-                const w = ((seg.to - seg.from) / timelineRange.span) * 100;
-                return (
-                  <Box
-                    key={`${seg.from}-${idx}`}
-                    sx={{
-                      width: `${w}%`,
-                      bgcolor: STATE_COLOR[seg.state] || '#64748b',
-                      minWidth: seg.durationMs > 0 ? 2 : 0,
-                    }}
-                  />
-                );
-              })
-            ) : (
-              <Box sx={{ flex: 1, bgcolor: 'action.hover' }} />
-            )}
-          </Box>
-        </Tooltip>
-        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-          {['moving', 'stop', 'park'].map((k) => (
-            <Stack key={k} direction="row" alignItems="center" spacing={0.5}>
-              <Box sx={{ width: 10, height: 10, borderRadius: 0.5, bgcolor: STATE_COLOR[k] }} />
-              <Typography variant="caption">{k}</Typography>
-            </Stack>
-          ))}
-        </Stack>
 
         <Divider />
 
@@ -805,6 +1001,43 @@ export default function LiveTracking({ socket }) {
               size="small"
               value={settingsDraft.sensorSnapshotWindowMs}
               onChange={(e) => setSettingsDraft((s) => ({ ...s, sensorSnapshotWindowMs: Number(e.target.value) }))}
+            />
+            <Divider sx={{ my: 0.5 }} />
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+              GPS map filter (outliers)
+            </Typography>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={Boolean(settingsDraft.gpsFilterEnabled)}
+                  onChange={(e) => setSettingsDraft((s) => ({ ...s, gpsFilterEnabled: e.target.checked }))}
+                />
+              }
+              label="Filter history polyline"
+            />
+            <TextField
+              label="Max jump from prev point (m)"
+              type="number"
+              size="small"
+              value={settingsDraft.gpsMaxJumpMeters ?? 500}
+              onChange={(e) => setSettingsDraft((s) => ({ ...s, gpsMaxJumpMeters: Number(e.target.value) }))}
+              helperText="Drop points farther than this from the last kept point"
+            />
+            <TextField
+              label="Max speed (0 = off)"
+              type="number"
+              size="small"
+              value={settingsDraft.gpsMaxSpeed ?? 0}
+              onChange={(e) => setSettingsDraft((s) => ({ ...s, gpsMaxSpeed: Number(e.target.value) }))}
+              helperText="Drop points with speed above this (same unit as track)"
+            />
+            <TextField
+              label="Max accuracy (m, 0 = off)"
+              type="number"
+              size="small"
+              value={settingsDraft.gpsMaxAccuracyMeters ?? 0}
+              onChange={(e) => setSettingsDraft((s) => ({ ...s, gpsMaxAccuracyMeters: Number(e.target.value) }))}
+              helperText="Drop points with worse GPS accuracy (if reported)"
             />
             <Button variant="outlined" size="small" onClick={saveSettings} disabled={settingsSaving}>
               {settingsSaving ? 'Saving…' : 'Save thresholds'}
@@ -860,7 +1093,9 @@ export default function LiveTracking({ socket }) {
           </>
         )}
         {sensorSnapshot?.error && <Alert severity="info">No sensor rows in window.</Alert>}
-      </Paper>
+          </Paper>
+        </Box>
+      </Box>
     </Box>
   );
 }
