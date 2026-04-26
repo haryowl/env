@@ -59,6 +59,7 @@ export const MENU_SECTIONS = [
     icon: <DevicesIcon />,
     items: [
       { text: 'Devices', icon: <DevicesIcon />, path: '/devices', menuPath: '/devices' },
+      { text: 'Live tracking', icon: <MyLocationIcon />, path: '/live-tracking', menuPath: '/live-tracking' },
       { text: 'Device Mapper', icon: <MapIcon />, path: '/mapper', menuPath: '/mapper' },
       { text: 'Listeners', icon: <RadioIcon />, path: '/listeners', menuPath: '/listeners' },
     ],
