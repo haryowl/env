@@ -19,6 +19,9 @@ import {
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import MarkerClusterGroup from 'react-leaflet-cluster';
+import 'react-leaflet-cluster/dist/assets/MarkerCluster.css';
+import 'react-leaflet-cluster/dist/assets/MarkerCluster.Default.css';
 import { API_BASE_URL } from '../config/api';
 import { MAP_BASE_LAYERS } from '../config/mapLayers';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
@@ -627,144 +630,152 @@ const DashboardMap = ({ socket, cardSx = {} }) => {
               attribution={mapLayers.find(l => l.value === selectedLayer)?.attribution || '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}
             />
             
-            {devicesWithCoordinates.map(device => (
-              <Marker
-                key={device.device_id}
-                position={[device.latitude, device.longitude]}
-                icon={createDeviceIcon(device.status, deviceAlerts[device.device_id], device.name)}
-                eventHandlers={{
-                  click: (e) => {
-                    loadDeviceData(device.device_id);
-                    // Center the map on the clicked marker
-                    setCenterCoords({ lat: device.latitude, lng: device.longitude });
-                  }
-                }}
-              >
-                <Popup>
-                  <ThemedPopup theme={theme}>
-                    <Box 
-                      sx={{ 
-                        minWidth: 200,
-                        maxWidth: 280,
-                        color: theme.palette.text.primary,
-                        backgroundColor: 'transparent'
-                      }}
-                    >
-                      <Typography 
-                        variant="h6" 
-                        fontWeight="bold" 
+            <MarkerClusterGroup
+              chunkedLoading
+              showCoverageOnHover={false}
+              spiderfyOnMaxZoom
+              disableClusteringAtZoom={17}
+              maxClusterRadius={55}
+            >
+              {devicesWithCoordinates.map(device => (
+                <Marker
+                  key={device.device_id}
+                  position={[device.latitude, device.longitude]}
+                  icon={createDeviceIcon(device.status, deviceAlerts[device.device_id], device.name)}
+                  eventHandlers={{
+                    click: (e) => {
+                      loadDeviceData(device.device_id);
+                      // Center the map on the clicked marker
+                      setCenterCoords({ lat: device.latitude, lng: device.longitude });
+                    }
+                  }}
+                >
+                  <Popup>
+                    <ThemedPopup theme={theme}>
+                      <Box 
                         sx={{ 
+                          minWidth: 200,
+                          maxWidth: 280,
                           color: theme.palette.text.primary,
-                          mb: 0.5,
-                          fontSize: '1.1rem'
+                          backgroundColor: 'transparent'
                         }}
                       >
-                        {device.name}
-                      </Typography>
-                      <Box sx={{ display: 'flex', gap: 0.5, mb: 0.4 }}>
-                        <Chip 
-                          label={device.status} 
-                          color={device.status === 'online' ? 'success' : 'error'}
-                          size="small"
-                          sx={{ fontSize: '0.7rem', height: 18 }}
-                        />
-                        {deviceAlerts[device.device_id] && (
-                          <Chip 
-                            label="ALERT" 
-                            color="error"
-                            size="small"
-                            sx={{ 
-                              animation: 'alertBlink 1s infinite',
-                              fontSize: '0.7rem',
-                              height: 18
-                            }}
-                          />
-                        )}
-                      </Box>
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          color: theme.palette.text.secondary,
-                          fontSize: '0.78rem',
-                          mb: 0.5,
-                        }}
-                      >
-                        Last update:{' '}
-                        {(deviceLastUpdated[device.device_id] ?? device.last_data_at)
-                          ? formatInUserTimezone(
-                              deviceLastUpdated[device.device_id] ?? device.last_data_at
-                            )
-                          : 'no data yet'}
-                      </Typography>
-                      <Typography 
-                        variant="subtitle2" 
-                        sx={{ 
-                          mt: 0.5, 
-                          mb: 0.3,
-                          color: theme.palette.text.primary,
-                          fontWeight: 'bold',
-                          fontSize: '0.9rem'
-                        }}
-                      >
-                        Latest Parameters:
-                      </Typography>
-                      {deviceData[device.device_id] && Object.keys(deviceData[device.device_id]).length > 0 ? (
-                        <Box 
+                        <Typography 
+                          variant="h6" 
+                          fontWeight="bold" 
                           sx={{ 
-                            fontSize: '0.8rem',
-                            lineHeight: 1.5,
-                            '& > div': {
-                              margin: 0,
-                              padding: 0,
-                              lineHeight: 1.5
-                            }
+                            color: theme.palette.text.primary,
+                            mb: 0.5,
+                            fontSize: '1.1rem'
                           }}
                         >
-                          {Object.entries(deviceData[device.device_id])
-                            .filter(([key, value]) => {
-                              if (popupIgnoredKeys.includes(key)) return false;
-                              if (value === null || value === undefined) return false;
-                              if (typeof value === 'object') return false;
-                              return true;
-                            })
-                            .map(([key, value]) => {
-                              const label = formatLabelForPopup(key);
-                              const displayValue = formatValueForPopup(key, value);
-                              if (!label || displayValue === '') {
-                                return null;
-                              }
-                              return (
-                                <div
-                                  key={key}
-                                  style={{
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    margin: 0,
-                                    padding: 0,
-                                    lineHeight: 1.5,
-                                    fontSize: '0.8rem',
-                                    color: theme.palette.text.primary
-                                  }}
-                                >
-                                  <span style={{ color: theme.palette.text.secondary }}>{label}:</span>
-                                  <span style={{ fontWeight: 'bold', color: theme.palette.text.primary }}>{displayValue}</span>
-                                </div>
-                              );
-                            })}
-                        </Box>
-                      ) : (
-                        <Typography 
-                          variant="body2" 
-                          sx={{ color: theme.palette.text.secondary }}
-                        >
-                          No recent data available
+                          {device.name}
                         </Typography>
-                      )}
-                    </Box>
-                  </ThemedPopup>
-                </Popup>
-              </Marker>
-            ))}
+                        <Box sx={{ display: 'flex', gap: 0.5, mb: 0.4 }}>
+                          <Chip 
+                            label={device.status} 
+                            color={device.status === 'online' ? 'success' : 'error'}
+                            size="small"
+                            sx={{ fontSize: '0.7rem', height: 18 }}
+                          />
+                          {deviceAlerts[device.device_id] && (
+                            <Chip 
+                              label="ALERT" 
+                              color="error"
+                              size="small"
+                              sx={{ 
+                                animation: 'alertBlink 1s infinite',
+                                fontSize: '0.7rem',
+                                height: 18
+                              }}
+                            />
+                          )}
+                        </Box>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            color: theme.palette.text.secondary,
+                            fontSize: '0.78rem',
+                            mb: 0.5,
+                          }}
+                        >
+                          Last update:{' '}
+                          {(deviceLastUpdated[device.device_id] ?? device.last_data_at)
+                            ? formatInUserTimezone(
+                                deviceLastUpdated[device.device_id] ?? device.last_data_at
+                              )
+                            : 'no data yet'}
+                        </Typography>
+                        <Typography 
+                          variant="subtitle2" 
+                          sx={{ 
+                            mt: 0.5, 
+                            mb: 0.3,
+                            color: theme.palette.text.primary,
+                            fontWeight: 'bold',
+                            fontSize: '0.9rem'
+                          }}
+                        >
+                          Latest Parameters:
+                        </Typography>
+                        {deviceData[device.device_id] && Object.keys(deviceData[device.device_id]).length > 0 ? (
+                          <Box 
+                            sx={{ 
+                              fontSize: '0.8rem',
+                              lineHeight: 1.5,
+                              '& > div': {
+                                margin: 0,
+                                padding: 0,
+                                lineHeight: 1.5
+                              }
+                            }}
+                          >
+                            {Object.entries(deviceData[device.device_id])
+                              .filter(([key, value]) => {
+                                if (popupIgnoredKeys.includes(key)) return false;
+                                if (value === null || value === undefined) return false;
+                                if (typeof value === 'object') return false;
+                                return true;
+                              })
+                              .map(([key, value]) => {
+                                const label = formatLabelForPopup(key);
+                                const displayValue = formatValueForPopup(key, value);
+                                if (!label || displayValue === '') {
+                                  return null;
+                                }
+                                return (
+                                  <div
+                                    key={key}
+                                    style={{
+                                      display: 'flex',
+                                      justifyContent: 'space-between',
+                                      margin: 0,
+                                      padding: 0,
+                                      lineHeight: 1.5,
+                                      fontSize: '0.8rem',
+                                      color: theme.palette.text.primary
+                                    }}
+                                  >
+                                    <span style={{ color: theme.palette.text.secondary }}>{label}:</span>
+                                    <span style={{ fontWeight: 'bold', color: theme.palette.text.primary }}>{displayValue}</span>
+                                  </div>
+                                );
+                              })}
+                          </Box>
+                        ) : (
+                          <Typography 
+                            variant="body2" 
+                            sx={{ color: theme.palette.text.secondary }}
+                          >
+                            No recent data available
+                          </Typography>
+                        )}
+                      </Box>
+                    </ThemedPopup>
+                  </Popup>
+                </Marker>
+              ))}
+            </MarkerClusterGroup>
             
             <MapBoundsUpdater devices={devicesWithCoordinates} />
             <MapCenterUpdater centerCoords={centerCoords} mapRef={mapRef} />

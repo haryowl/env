@@ -30,6 +30,9 @@ import {
 import { MapContainer, TileLayer, Polyline, Marker, Popup, CircleMarker, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import MarkerClusterGroup from 'react-leaflet-cluster';
+import 'react-leaflet-cluster/dist/assets/MarkerCluster.css';
+import 'react-leaflet-cluster/dist/assets/MarkerCluster.Default.css';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
@@ -851,15 +854,23 @@ export default function LiveTracking({ socket }) {
             {livePositions.length >= 2 && (
               <Polyline positions={livePositions} pathOptions={{ color: '#22c55e', weight: 3, opacity: 0.9 }} />
             )}
-            {devices.map((d) => (
-              <DeviceFleetMarker
-                key={d.device_id}
-                device={d}
-                selected={d.device_id === selectedId}
-                livePulse={d.device_id === selectedId && liveTrail.length > 0}
-                onSelectDevice={onSelectDeviceFromMap}
-              />
-            ))}
+            <MarkerClusterGroup
+              chunkedLoading
+              showCoverageOnHover={false}
+              spiderfyOnMaxZoom
+              disableClusteringAtZoom={17}
+              maxClusterRadius={55}
+            >
+              {devices.map((d) => (
+                <DeviceFleetMarker
+                  key={d.device_id}
+                  device={d}
+                  selected={d.device_id === selectedId}
+                  livePulse={d.device_id === selectedId && liveTrail.length > 0}
+                  onSelectDevice={onSelectDeviceFromMap}
+                />
+              ))}
+            </MarkerClusterGroup>
             {historyPointMarkers.map(({ p, key }) => (
               <CircleMarker
                 key={key}
