@@ -75,6 +75,45 @@ router.get(['/', ''], async (req, res) => {
     const rawRows = rawResult.rows;
     console.log('Raw sensor readings:', rawRows.slice(0, 10));
 
+    // 2b. Get raw GPS track rows for all devices in range (gps_tracks uses UTC timestamp)
+    // Use a separate query so we don't explode rows by joining.
+    let gpsWhere = [];
+    let gpsParams = [];
+    let gpsIdx = 1;
+    if (ids.length) {
+      gpsWhere.push(`gt.device_id = ANY($${gpsIdx++})`);
+      gpsParams.push(ids);
+    }
+    if (start) {
+      gpsWhere.push(`gt.timestamp >= $${gpsIdx++}`);
+      gpsParams.push(start);
+    }
+    if (end) {
+      gpsWhere.push(`gt.timestamp <= $${gpsIdx++}`);
+      gpsParams.push(end);
+    }
+    const gpsWhereClause = gpsWhere.length ? `WHERE ${gpsWhere.join(' AND ')}` : '';
+    const gpsSql = `
+      SELECT
+        gt.timestamp,
+        gt.device_id,
+        gt.latitude,
+        gt.longitude,
+        gt.altitude,
+        gt.speed,
+        gt.heading,
+        gt.accuracy,
+        gt.satellites
+      FROM gps_tracks gt
+      ${gpsWhereClause}
+      ORDER BY gt.timestamp DESC
+      LIMIT $${gpsIdx}
+    `;
+    gpsParams.push(limit);
+    const gpsResult = await query(gpsSql, gpsParams);
+    const gpsRows = gpsResult.rows || [];
+    console.log('Raw GPS tracks:', gpsRows.slice(0, 10));
+
     // 3. Apply mapping to each row (use row.datetime as the main time axis)
     let mappedData = [];
     for (const row of rawRows) {
@@ -114,6 +153,58 @@ router.get(['/', ''], async (req, res) => {
       }
     }
     console.log('Mapped data (first 10):', mappedData.slice(0, 10));
+
+    // 3b. Append GPS rows into the same stream so requested params can include latitude/longitude/speed/etc.
+    // If a mapper template maps gps field names to a custom target_field, honor it.
+    const requestedParams = new Set((params || []).map((p) => String(p || '').trim()).filter(Boolean));
+    const gpsFieldNames = ['latitude', 'longitude', 'altitude', 'speed', 'heading', 'accuracy', 'satellites'];
+
+    for (const row of gpsRows) {
+      const device = deviceMap[row.device_id] || {};
+      const base = {
+        datetime: row.timestamp ? new Date(row.timestamp).toISOString() : null,
+        timestamp: row.timestamp,
+        device_id: row.device_id,
+        device_name: device.name,
+      };
+
+      const hasMappings = device.mappings && Array.isArray(device.mappings) && device.mappings.length > 0;
+      if (hasMappings) {
+        // Apply mappings where source_field matches a gps field name.
+        let didMapAny = false;
+        for (const mapping of device.mappings) {
+          const src = mapping.source_field ?? mapping.source;
+          const tgt = mapping.target_field ?? mapping.target;
+          if (!src || !tgt) continue;
+          const srcKey = String(src).trim().toLowerCase();
+          if (!gpsFieldNames.includes(srcKey)) continue;
+          if (row[srcKey] === undefined) continue;
+          mappedData.push({
+            ...base,
+            [tgt]: row[srcKey],
+          });
+          didMapAny = true;
+        }
+        // If no gps mappings exist but caller asked for gps params, expose them as raw field names.
+        if (!didMapAny) {
+          const out = { ...base };
+          for (const f of gpsFieldNames) {
+            if (requestedParams.size === 0 || requestedParams.has(f)) {
+              if (row[f] !== undefined) out[f] = row[f];
+            }
+          }
+          mappedData.push(out);
+        }
+      } else {
+        const out = { ...base };
+        for (const f of gpsFieldNames) {
+          if (requestedParams.size === 0 || requestedParams.has(f)) {
+            if (row[f] !== undefined) out[f] = row[f];
+          }
+        }
+        mappedData.push(out);
+      }
+    }
 
     // 4. Merge rows with same timestamp/device (combine fields)
     let merged = {};

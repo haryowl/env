@@ -31,6 +31,31 @@ router.get('/', async (req, res) => {
       ORDER BY category, field_name
     `, params);
 
+    // Ensure core GPS fields exist in metadata even if not seeded in DB.
+    // This keeps DataDash/QuickView pickers stable when gps_tracks is enabled.
+    const gpsDefaults = [
+      { field_name: 'latitude', display_name: 'Latitude', data_type: 'number', unit: 'deg', description: 'GPS latitude', category: 'GPS', is_standard: true },
+      { field_name: 'longitude', display_name: 'Longitude', data_type: 'number', unit: 'deg', description: 'GPS longitude', category: 'GPS', is_standard: true },
+      { field_name: 'speed', display_name: 'Speed', data_type: 'number', unit: 'm/s', description: 'GPS speed', category: 'GPS', is_standard: true },
+      { field_name: 'altitude', display_name: 'Altitude', data_type: 'number', unit: 'm', description: 'GPS altitude', category: 'GPS', is_standard: true },
+      { field_name: 'heading', display_name: 'Heading', data_type: 'number', unit: 'deg', description: 'GPS heading/bearing', category: 'GPS', is_standard: true },
+      { field_name: 'accuracy', display_name: 'Accuracy', data_type: 'number', unit: 'm', description: 'GPS horizontal accuracy', category: 'GPS', is_standard: true },
+      { field_name: 'satellites', display_name: 'Satellites', data_type: 'number', unit: '', description: 'GPS satellites used', category: 'GPS', is_standard: true },
+    ];
+
+    const existing = new Set((result.rows || []).map((r) => r.field_name));
+    for (const def of gpsDefaults) {
+      if (!existing.has(def.field_name)) {
+        result.rows.push({
+          field_id: null,
+          created_by: null,
+          created_at: null,
+          updated_at: null,
+          ...def,
+        });
+      }
+    }
+
     res.json({
       success: true,
       fields: result.rows,
