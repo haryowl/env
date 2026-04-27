@@ -36,7 +36,38 @@ async function evaluateThresholdAlertsOnData(device_id, parameter, value, timest
   );
   
   for (const alert of alerts) {
-    if ((alert.min !== null && value < alert.min) || (alert.max !== null && value > alert.max)) {
+    const outOfRange = (alert.min !== null && value < alert.min) || (alert.max !== null && value > alert.max);
+
+    // Crossing-only: create a log (and emit popup/notifications) only when we enter out-of-range.
+    // While the value stays out-of-range, do not create new logs.
+    const active = await getRow(
+      `SELECT log_id
+       FROM alert_logs
+       WHERE alert_id = $1 AND device_id = $2 AND parameter = $3 AND status = 'active'
+       ORDER BY detected_at DESC
+       LIMIT 1`,
+      [alert.alert_id, device_id, parameter]
+    );
+
+    if (!outOfRange) {
+      if (active?.log_id) {
+        await query(
+          `UPDATE alert_logs
+           SET status = 'resolved',
+               details = jsonb_set(COALESCE(details, '{}'::jsonb), '{resolvedAt}', to_jsonb(NOW()), true)
+           WHERE log_id = $1`,
+          [active.log_id]
+        );
+      }
+      continue;
+    }
+
+    if (active?.log_id) {
+      // Still out-of-range; suppress repeat alerts.
+      continue;
+    }
+
+    if (outOfRange) {
       const device = await getRow('SELECT name FROM devices WHERE device_id = $1', [device_id]);
       const deviceName = device ? device.name : device_id;
       const actions = typeof alert.actions === 'string' ? (() => { try { return JSON.parse(alert.actions); } catch { return {}; } })() : (alert.actions || {});
@@ -93,6 +124,16 @@ async function evaluateInactivityAlertsPeriodically() {
   // Get all active inactivity alerts
   const alerts = await getRows(`SELECT * FROM alerts WHERE type = 'inactivity'`);
   for (const alert of alerts) {
+    // Crossing-only: if already active, do not emit again.
+    const active = await getRow(
+      `SELECT log_id
+       FROM alert_logs
+       WHERE alert_id = $1 AND device_id = $2 AND parameter = $3 AND status = 'active'
+       ORDER BY detected_at DESC
+       LIMIT 1`,
+      [alert.alert_id, alert.device_id, alert.parameter]
+    );
+
     // Get last data timestamp for this device
     const lastData = await getRows(
       `SELECT timestamp FROM sensor_readings WHERE device_id = $1 ORDER BY timestamp DESC LIMIT 1`,
@@ -103,6 +144,9 @@ async function evaluateInactivityAlertsPeriodically() {
     const now = new Date();
     const minutesSince = (now - lastTimestamp) / 60000;
     if (alert.threshold_time && minutesSince > alert.threshold_time) {
+      if (active?.log_id) {
+        continue;
+      }
       // Get device name for notification
       const device = await getRow('SELECT name FROM devices WHERE device_id = $1', [alert.device_id]);
       const deviceName = device ? device.name : alert.device_id;
