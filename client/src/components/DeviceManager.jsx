@@ -16,6 +16,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TablePagination,
   Paper,
   Chip,
   IconButton,
@@ -51,6 +52,8 @@ const DeviceManager = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingDevice, setEditingDevice] = useState(null);
   const [formData, setFormData] = useState({
@@ -371,6 +374,13 @@ const DeviceManager = () => {
     device.protocol.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Keep pagination stable when filters change
+  useEffect(() => {
+    setPage(0);
+  }, [searchTerm, devices.length]);
+
+  const pagedDevices = filteredDevices.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+
   const getStatusColor = (status) => {
     return status === 'online' ? 'success' : 'error';
   };
@@ -446,7 +456,7 @@ const DeviceManager = () => {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredDevices.map((device) => (
+              pagedDevices.map((device) => (
                 <TableRow key={device.device_id}>
                   <TableCell>
                     <Box>
@@ -522,6 +532,18 @@ const DeviceManager = () => {
           </TableBody>
         </Table>
         </TableContainer>
+        <TablePagination
+          component={Paper}
+          count={filteredDevices.length}
+          page={page}
+          onPageChange={(_, next) => setPage(next)}
+          rowsPerPage={rowsPerPage}
+          onRowsPerPageChange={(e) => {
+            setRowsPerPage(parseInt(e.target.value, 10));
+            setPage(0);
+          }}
+          rowsPerPageOptions={[10, 25, 50, 100]}
+        />
       </Box>
 
       {/* Add/Edit Device Dialog */}

@@ -151,7 +151,8 @@ const RoleManager = () => {
   const fetchDevices = async () => {
     try {
       const token = localStorage.getItem('iot_token');
-      const response = await fetch(`${API_BASE_URL}/devices`, {
+      // Use the dropdown endpoint to avoid server pagination limiting the list.
+      const response = await fetch(`${API_BASE_URL}/devices/dropdown`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -160,7 +161,9 @@ const RoleManager = () => {
 
       if (response.ok) {
         const data = await response.json();
-        setDevices(data.devices || []);
+        // /devices/dropdown returns an array; /devices returns { devices }.
+        const list = Array.isArray(data) ? data : (data.devices || []);
+        setDevices(list);
       } else {
         console.error('Failed to fetch devices');
       }
