@@ -394,7 +394,16 @@ const DeviceManager = () => {
   }
 
   return (
-    <Box sx={{ width: '100%', overflow: 'hidden' }}>
+    <Box
+      sx={{
+        width: '100%',
+        height: '100%',
+        minHeight: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'auto',
+      }}
+    >
       <Box sx={{ mb: 3 }}>
         <PageHeader
           icon={<DevicesIcon sx={{ fontSize: 18 }} />}
@@ -434,7 +443,7 @@ const DeviceManager = () => {
       </Card>
 
       <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        <TableContainer component={Paper} sx={{ flex: 1, overflow: 'auto' }}>
+        <TableContainer component={Paper} sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
           <Table stickyHeader sx={{ minWidth: 650 }}>
             <TableHead>
               <TableRow>
