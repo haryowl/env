@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Box,
   Card,
@@ -227,26 +227,38 @@ const createDeviceIcon = (status, hasAlerts = false, name = '') => {
 
 const mapLayers = MAP_BASE_LAYERS;
 
-// Map bounds updater component
+// Map bounds updater: fit all markers only when positions / device set actually changes — not on every
+// parent re-render (e.g. opening popup / loading latest data used to recreate `devices` array each time).
 const MapBoundsUpdater = ({ devices }) => {
   const map = useMap();
-  
+  const lastBoundsSigRef = useRef('');
+
   useEffect(() => {
-    if (devices.length > 0) {
-      const bounds = L.latLngBounds();
-      let hasPoints = false;
-      
-      devices.forEach(device => {
-        if (device.latitude && device.longitude) {
-          bounds.extend([device.latitude, device.longitude]);
-          hasPoints = true;
-        }
-      });
-      
-      if (hasPoints) {
-        map.fitBounds(bounds, { padding: [20, 20] });
-      }
+    if (devices.length === 0) {
+      lastBoundsSigRef.current = '';
+      return;
     }
+    const bounds = L.latLngBounds();
+    let hasPoints = false;
+
+    devices.forEach((device) => {
+      if (device.latitude && device.longitude) {
+        bounds.extend([device.latitude, device.longitude]);
+        hasPoints = true;
+      }
+    });
+
+    if (!hasPoints) return;
+
+    const sig = devices
+      .map((d) => `${d.device_id}:${Number(d.latitude).toFixed(5)},${Number(d.longitude).toFixed(5)}`)
+      .sort()
+      .join('|');
+
+    if (sig === lastBoundsSigRef.current) return;
+    lastBoundsSigRef.current = sig;
+
+    map.fitBounds(bounds, { padding: [20, 20] });
   }, [devices, map]);
 
   return null;
@@ -455,10 +467,17 @@ const DashboardMap = ({ socket, cardSx = {} }) => {
     return () => clearInterval(interval);
   }, [devices, alertThresholdsByDevice]);
 
-  // Filter devices with valid coordinates
-  const devicesWithCoordinates = devices.filter(device => 
-    device.latitude && device.longitude && 
-    !isNaN(device.latitude) && !isNaN(device.longitude)
+  // Stable reference unless `devices` from API changes — avoids MapBoundsUpdater refitting on unrelated state (popup data).
+  const devicesWithCoordinates = useMemo(
+    () =>
+      devices.filter(
+        (device) =>
+          device.latitude &&
+          device.longitude &&
+          !isNaN(device.latitude) &&
+          !isNaN(device.longitude)
+      ),
+    [devices]
   );
 
   if (loading) {
