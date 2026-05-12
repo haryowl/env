@@ -360,7 +360,8 @@ router.get('/:deviceId', authorizeDeviceAccess('read'), async (req, res) => {
 router.post('/', authorizeRole(['super_admin', 'admin']), async (req, res) => {
   try {
     // Validate input
-    const { error, value } = createDeviceSchema.validate(req.body);
+    // Client sends mapper UI fields (template_id, time_format) handled after insert — strip unknown keys.
+    const { error, value } = createDeviceSchema.validate(req.body, { stripUnknown: true });
     if (error) {
       return res.status(400).json({
         error: 'Invalid input data',
@@ -460,7 +461,7 @@ router.put('/:deviceId', /* authorizeDeviceAccess('configure'), */ async (req, r
     });
 
     // Validate input
-    const { error, value } = updateDeviceSchema.validate(req.body);
+    const { error, value } = updateDeviceSchema.validate(req.body, { stripUnknown: true });
     if (error) {
       console.log('Backend: Validation error:', error.details);
       return res.status(400).json({

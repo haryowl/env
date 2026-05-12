@@ -335,7 +335,11 @@ const DeviceManager = () => {
         const data = await response.json();
         console.log('DeviceManager: Error response:', data);
         console.log('DeviceManager: Validation details:', data.details);
-        setError(data.error || 'Failed to save device');
+        const detailLines =
+          Array.isArray(data.details) && data.details.length > 0
+            ? data.details.map((d) => d.message || String(d)).join(' ')
+            : '';
+        setError([data.error || 'Failed to save device', detailLines].filter(Boolean).join(' — '));
       }
     } catch (error) {
       console.log('DeviceManager: Network error:', error);
@@ -560,7 +564,7 @@ const DeviceManager = () => {
         <DialogTitle>
           {editingDevice ? 'Edit Device' : 'Add New Device'}
         </DialogTitle>
-        <DialogContent>
+        <DialogContent dividers sx={{ maxHeight: 'min(72vh, 680px)', overflowY: 'auto' }}>
           <Grid container spacing={2} sx={{ mt: 1 }}>
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
@@ -627,6 +631,8 @@ const DeviceManager = () => {
               <TextField
                 fullWidth
                 label="Location"
+                placeholder="Site / city / label (optional)"
+                helperText="Shown in device lists and maps when coordinates are set separately."
                 value={formData.location}
                 onChange={handleInputChange('location')}
               />
