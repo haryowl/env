@@ -559,12 +559,13 @@ router.delete('/:deviceId', authorizeDeviceAccess('delete'), async (req, res) =>
       });
     }
 
-    // Clear references before removing the device row (allows auto-rediscovery on next ingest)
+    // Soft delete: hide from lists but keep row + permissions so ingest can re-activate on next transmit
+    await query('ALTER TABLE devices ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false');
     await query('DELETE FROM device_mapper_assignments WHERE device_id = $1', [deviceId]);
-    await query('DELETE FROM user_device_permissions WHERE device_id = $1', [deviceId]);
-    await query('DELETE FROM role_device_permissions WHERE device_id = $1', [deviceId]);
-
-    await query('DELETE FROM devices WHERE device_id = $1', [deviceId]);
+    await query(
+      `UPDATE devices SET is_deleted = true, status = 'offline', updated_at = NOW() WHERE device_id = $1`,
+      [deviceId]
+    );
 
     // Remove MQTT subscriptions
     if (device.protocol === 'mqtt') {

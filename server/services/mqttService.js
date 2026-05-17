@@ -310,61 +310,100 @@ class MQTTService {
     );
   }
 
-  /** Remove soft-deleted row before re-insert (legacy deletes). */
-  async purgeDeletedDeviceRow(deviceId) {
-    await query(
-      'DELETE FROM devices WHERE device_id = $1 AND COALESCE(is_deleted, false) = true',
-      [deviceId]
+  buildAutoDiscoveryFields(deviceId, protocol, data, extraConfig = {}) {
+    const deviceType = this.determineDeviceType(data);
+    const config = protocol === 'mqtt' ? extraConfig : { source: 'http', ...extraConfig };
+    const name = `Auto-discovered ${deviceType} (${protocol})`;
+    return { deviceType, config, name, configJson: JSON.stringify(config) };
+  }
+
+  /** Re-activate a soft-deleted device (keeps permissions and history links). */
+  async resurrectDevice(deviceId, protocol, data, extraConfig = {}) {
+    await query('ALTER TABLE devices ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false');
+    const { deviceType, name, configJson } = this.buildAutoDiscoveryFields(deviceId, protocol, data, extraConfig);
+    const result = await query(
+      `UPDATE devices SET
+         is_deleted = false,
+         status = 'online',
+         name = $1,
+         device_type = $2,
+         protocol = $3,
+         config = $4::jsonb,
+         last_seen = NOW(),
+         updated_at = NOW()
+       WHERE device_id = $5
+       RETURNING *`,
+      [name, deviceType, protocol, configJson, deviceId]
     );
+    if (result.rows[0]) {
+      console.log(`Re-activated deleted device ${deviceId} as auto-discovered`);
+    }
+    return result.rows[0] || null;
   }
 
   /**
-   * Return active device or auto-discover (new insert) after delete.
+   * Return active device or auto-discover after delete.
    * @returns {Promise<object|null>}
    */
   async ensureDeviceForIngestion(deviceId, protocol, data, extraConfig = {}) {
     let device = await this.getActiveDevice(deviceId);
     if (device) return device;
 
-    const ghost = await getRow(
-      'SELECT device_id FROM devices WHERE device_id = $1 AND COALESCE(is_deleted, false) = true',
-      [deviceId]
-    );
-    if (ghost) {
-      console.log(`Device ${deviceId} was deleted; removing row for auto-rediscovery`);
-      await this.purgeDeletedDeviceRow(deviceId);
+    await query('ALTER TABLE devices ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false');
+
+    const existing = await getRow('SELECT device_id FROM devices WHERE device_id = $1', [deviceId]);
+    if (existing) {
+      console.log(`Device ${deviceId} was deleted from the list; re-activating`);
+      device = await this.resurrectDevice(deviceId, protocol, data, extraConfig);
     } else {
-      console.log(`Device ${deviceId} not found, auto-discovering`);
+      console.log(`Device ${deviceId} not in database, auto-discovering`);
+      device = await this.createDeviceFromIngestion(deviceId, protocol, data, extraConfig);
     }
 
-    await this.createDeviceFromIngestion(deviceId, protocol, data, extraConfig);
-    device = await this.getActiveDevice(deviceId);
     if (!device) {
       console.error(`Failed to auto-discover device ${deviceId}`);
+      return null;
     }
+
+    if (protocol === 'mqtt') {
+      let config = device.config;
+      if (typeof config === 'string') {
+        try {
+          config = JSON.parse(config);
+        } catch {
+          config = {};
+        }
+      }
+      const merged = { ...(config || {}), ...extraConfig };
+      if (!merged.topics?.length) {
+        merged.topics = [`devices/${deviceId}/data`];
+      }
+      await this.subscribeToDevice(deviceId, merged);
+    }
+
     return device;
   }
 
   async createDeviceFromIngestion(deviceId, protocol, data, extraConfig = {}) {
-    try {
-      await query('ALTER TABLE devices ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false');
-      const deviceType = this.determineDeviceType(data);
-      const config = protocol === 'mqtt' ? extraConfig : { source: 'http', ...extraConfig };
-      await query(`
-        INSERT INTO devices (device_id, device_type, protocol, name, config, status, is_deleted, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, false, NOW())
-      `, [
-        deviceId,
-        deviceType,
-        protocol,
-        `Auto-discovered ${deviceType} (${protocol})`,
-        JSON.stringify(config),
-        'online'
-      ]);
-      console.log(`Created new device: ${deviceId} (${deviceType}, ${protocol})`);
-    } catch (error) {
-      console.error('Failed to create new device:', error);
-    }
+    await query('ALTER TABLE devices ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false');
+    const { deviceType, name, configJson } = this.buildAutoDiscoveryFields(deviceId, protocol, data, extraConfig);
+    const result = await query(
+      `INSERT INTO devices (device_id, device_type, protocol, name, config, status, is_deleted, timezone, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5::jsonb, 'online', false, 'UTC', NOW(), NOW())
+       ON CONFLICT (device_id) DO UPDATE SET
+         device_type = EXCLUDED.device_type,
+         protocol = EXCLUDED.protocol,
+         name = EXCLUDED.name,
+         config = EXCLUDED.config,
+         status = 'online',
+         is_deleted = false,
+         last_seen = NOW(),
+         updated_at = NOW()
+       RETURNING *`,
+      [deviceId, deviceType, protocol, name, configJson]
+    );
+    console.log(`Created new device: ${deviceId} (${deviceType}, ${protocol})`);
+    return result.rows[0];
   }
 
   /**
