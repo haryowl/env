@@ -176,6 +176,44 @@ async function countRowsToDelete(targetKey, cutoff, deviceIds) {
   return Number(row?.cnt || 0);
 }
 
+async function countRowsForDevices(targetKey, deviceIds) {
+  const meta = DATA_TARGETS[targetKey];
+  if (!deviceIds?.length) return 0;
+  const row = await getRow(
+    `SELECT COUNT(*)::bigint AS cnt FROM ${meta.table} WHERE device_id = ANY($1)`,
+    [deviceIds]
+  );
+  return Number(row?.cnt || 0);
+}
+
+/** Delete every row for the given devices (full history wipe for those devices). */
+async function deleteAllRowsForDevicesBatch(targetKey, deviceIds, batchSize = 5000) {
+  const meta = DATA_TARGETS[targetKey];
+  const pk = meta.idColumn;
+  if (!deviceIds?.length) return 0;
+
+  let totalDeleted = 0;
+  const maxBatches = 500;
+
+  for (let i = 0; i < maxBatches; i += 1) {
+    const sql = `
+      WITH doomed AS (
+        SELECT ${pk} AS pk FROM ${meta.table}
+        WHERE device_id = ANY($1)
+        LIMIT $2
+      )
+      DELETE FROM ${meta.table} t
+      USING doomed d
+      WHERE t.${pk} = d.pk
+      RETURNING t.${pk}`;
+    const result = await query(sql, [deviceIds, batchSize]);
+    const deleted = result.rowCount || 0;
+    totalDeleted += deleted;
+    if (deleted < batchSize) break;
+  }
+  return totalDeleted;
+}
+
 async function deleteRowsBatch(targetKey, cutoff, deviceIds, batchSize = 5000) {
   const meta = DATA_TARGETS[targetKey];
   const pk = meta.idColumn;
@@ -222,6 +260,7 @@ async function deleteRowsBatch(targetKey, cutoff, deviceIds, batchSize = 5000) {
 /**
  * @param {object} opts
  * @param {boolean} opts.dryRun
+ * @param {'retention'|'purge_devices'} [opts.mode] purge_devices = delete all history for device_ids (requires deviceIds)
  * @param {string[]} [opts.deviceIds]
  * @param {Record<string, object>} [opts.policyOverrides] per-target policy for this run only
  * @param {'manual'|'scheduled'} opts.triggeredBy
@@ -230,9 +269,16 @@ async function deleteRowsBatch(targetKey, cutoff, deviceIds, batchSize = 5000) {
 async function runCleanup(opts) {
   await ensureTables();
   const settings = await getSettings();
+  const mode = opts.mode === 'purge_devices' ? 'purge_devices' : 'retention';
   const deviceIds = Array.isArray(opts.deviceIds) && opts.deviceIds.length ? opts.deviceIds : null;
   const dryRun = Boolean(opts.dryRun);
   const results = {};
+
+  if (mode === 'purge_devices' && !deviceIds?.length) {
+    const err = new Error('Select at least one device to clear all history');
+    err.code = 'DEVICE_IDS_REQUIRED';
+    throw err;
+  }
 
   for (const key of Object.keys(DATA_TARGETS)) {
     const policy = normalizePolicy(
@@ -243,6 +289,24 @@ async function runCleanup(opts) {
       results[key] = { skipped: true, reason: 'disabled', policy, deleted: 0, wouldDelete: 0 };
       continue;
     }
+
+    if (mode === 'purge_devices') {
+      const wouldDelete = await countRowsForDevices(key, deviceIds);
+      let deleted = 0;
+      if (!dryRun && wouldDelete > 0) {
+        deleted = await deleteAllRowsForDevicesBatch(key, deviceIds);
+      }
+      results[key] = {
+        skipped: false,
+        mode: 'purge_devices',
+        policy,
+        cutoff: null,
+        wouldDelete,
+        deleted: dryRun ? 0 : deleted,
+      };
+      continue;
+    }
+
     const cutoff = retentionToCutoff(policy.retention_value, policy.retention_unit);
     const wouldDelete = await countRowsToDelete(key, cutoff, deviceIds);
     let deleted = 0;
@@ -251,6 +315,7 @@ async function runCleanup(opts) {
     }
     results[key] = {
       skipped: false,
+      mode: 'retention',
       policy,
       cutoff: cutoff.toISOString(),
       wouldDelete,
@@ -267,7 +332,7 @@ async function runCleanup(opts) {
       opts.userId || null,
       dryRun,
       deviceIds,
-      JSON.stringify(results),
+      JSON.stringify({ mode, ...results }),
     ]
   );
 
@@ -280,6 +345,7 @@ async function runCleanup(opts) {
 
   return {
     dryRun,
+    mode,
     deviceIds,
     results,
     run: insert.rows[0],

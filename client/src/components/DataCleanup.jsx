@@ -28,6 +28,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material';
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import PreviewIcon from '@mui/icons-material/Preview';
@@ -45,6 +47,9 @@ const authHeaders = () => {
     'Content-Type': 'application/json',
   };
 };
+
+const cleanupResultEntries = (results) =>
+  Object.entries(results || {}).filter(([key]) => key !== 'mode');
 
 const emptyPolicies = () => ({
   sensor_readings: { enabled: true, retention_value: 90, retention_unit: 'days' },
@@ -72,6 +77,8 @@ export default function DataCleanup() {
   const [selectedDevices, setSelectedDevices] = useState([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [lastPreview, setLastPreview] = useState(null);
+  const [cleanupMode, setCleanupMode] = useState('retention');
+  const isPurgeMode = cleanupMode === 'purge_devices';
 
   const deviceOptions = useMemo(
     () => devices.map((d) => ({ id: d.device_id, label: d.name ? `${d.name} (${d.device_id})` : d.device_id })),
@@ -164,12 +171,13 @@ export default function DataCleanup() {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({
+          mode: cleanupMode,
           device_ids: selectedDevices.map((d) => d.id),
           policy_overrides: policies,
         }),
       });
       const body = await res.json();
-      if (!res.ok) throw new Error(body.error || 'Preview failed');
+      if (!res.ok) throw new Error(body.error || body.details || 'Preview failed');
       setLastPreview(body);
       setSuccess('Preview complete — no data was deleted.');
     } catch (e) {
@@ -189,14 +197,15 @@ export default function DataCleanup() {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({
+          mode: cleanupMode,
           device_ids: selectedDevices.map((d) => d.id),
           policy_overrides: policies,
         }),
       });
       const body = await res.json();
-      if (!res.ok) throw new Error(body.error || 'Cleanup failed');
+      if (!res.ok) throw new Error(body.error || body.details || 'Cleanup failed');
       setLastPreview(body);
-      const total = Object.values(body.results || {}).reduce((s, r) => s + (r.deleted || 0), 0);
+      const total = cleanupResultEntries(body.results).reduce((s, [, r]) => s + (r.deleted || 0), 0);
       setSuccess(`Cleanup finished. ${total.toLocaleString()} row(s) deleted.`);
       await loadAll();
     } catch (e) {
@@ -231,7 +240,11 @@ export default function DataCleanup() {
       <PageHeader
         icon={<DeleteSweepIcon />}
         title="Data cleanup"
-        subtitle="Delete historical sensor, GPS, and alert data older than your retention period"
+        subtitle={
+          isPurgeMode
+            ? 'Remove all historical data for selected devices (empty their history)'
+            : 'Delete historical sensor, GPS, and alert data older than your retention period'
+        }
         right={
           <Button variant="outlined" startIcon={<RefreshIcon />} onClick={loadAll} disabled={loading}>
             Refresh
@@ -250,15 +263,47 @@ export default function DataCleanup() {
         </Alert>
       )}
 
-      <Alert severity="warning" sx={{ mb: 2 }}>
-        Deletion is permanent. Use <strong>Preview</strong> first to see how many rows would be removed. Keep at least
-        one recent day of data unless you are sure.
+      <Card sx={{ mb: 2 }}>
+        <CardContent>
+          <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+            Cleanup mode
+          </Typography>
+          <ToggleButtonGroup
+            exclusive
+            value={cleanupMode}
+            onChange={(_, v) => v && setCleanupMode(v)}
+            size="small"
+            sx={{ mb: 1 }}
+          >
+            <ToggleButton value="retention">By retention age</ToggleButton>
+            <ToggleButton value="purge_devices">Clear all history (selected devices)</ToggleButton>
+          </ToggleButtonGroup>
+          <Typography variant="body2" color="text.secondary">
+            {isPurgeMode
+              ? 'Deletes every stored row for the chosen devices in the enabled data types below. Devices themselves are not removed.'
+              : 'Deletes only rows older than the retention period. Leave devices empty to apply to all devices.'}
+          </Typography>
+        </CardContent>
+      </Card>
+
+      <Alert severity={isPurgeMode ? 'error' : 'warning'} sx={{ mb: 2 }}>
+        {isPurgeMode ? (
+          <>
+            <strong>Clear all history</strong> is permanent and removes all readings, tracks, and logs for the
+            selected devices. Use <strong>Preview</strong> first. Scheduled auto-cleanup still uses retention only.
+          </>
+        ) : (
+          <>
+            Deletion is permanent. Use <strong>Preview</strong> first to see how many rows would be removed. Keep at least
+            one recent day of data unless you are sure.
+          </>
+        )}
       </Alert>
 
       <Card sx={{ mb: 2 }}>
         <CardContent>
           <Typography variant="subtitle1" fontWeight={600} gutterBottom>
-            Scope (optional)
+            {isPurgeMode ? 'Devices (required)' : 'Scope (optional)'}
           </Typography>
           <Autocomplete
             multiple
@@ -267,7 +312,17 @@ export default function DataCleanup() {
             value={selectedDevices}
             onChange={(_, v) => setSelectedDevices(v)}
             renderInput={(params) => (
-              <TextField {...params} label="Limit to devices" placeholder="All devices if empty" />
+              <TextField
+                {...params}
+                label={isPurgeMode ? 'Select devices to wipe' : 'Limit to devices'}
+                placeholder={isPurgeMode ? 'Choose one or more devices' : 'All devices if empty'}
+                error={isPurgeMode && selectedDevices.length === 0}
+                helperText={
+                  isPurgeMode && selectedDevices.length === 0
+                    ? 'Select at least one device'
+                    : undefined
+                }
+              />
             )}
           />
         </CardContent>
@@ -279,7 +334,9 @@ export default function DataCleanup() {
             Retention policies
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Data older than the retention period will be deleted. Use days or months per data type.
+            {isPurgeMode
+              ? 'Turn types on or off to control what gets wiped. Retention values are ignored in clear-all mode.'
+              : 'Data older than the retention period will be deleted. Use days or months per data type.'}
           </Typography>
           <TableContainer component={Paper} variant="outlined">
             <Table size="small">
@@ -287,8 +344,8 @@ export default function DataCleanup() {
                 <TableRow>
                   <TableCell>Data type</TableCell>
                   <TableCell align="center">Enabled</TableCell>
-                  <TableCell>Keep for</TableCell>
-                  <TableCell>Unit</TableCell>
+                  {!isPurgeMode && <TableCell>Keep for</TableCell>}
+                  {!isPurgeMode && <TableCell>Unit</TableCell>}
                   <TableCell align="right">Rows (approx.)</TableCell>
                   <TableCell>Oldest record</TableCell>
                 </TableRow>
@@ -315,27 +372,31 @@ export default function DataCleanup() {
                           onChange={(e) => updatePolicy(key, 'enabled', e.target.checked)}
                         />
                       </TableCell>
-                      <TableCell>
-                        <TextField
-                          type="number"
-                          size="small"
-                          value={p?.retention_value ?? 90}
-                          onChange={(e) => updatePolicy(key, 'retention_value', Number(e.target.value))}
-                          inputProps={{ min: 1, max: 3650 }}
-                          sx={{ width: 88 }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <FormControl size="small" sx={{ minWidth: 100 }}>
-                          <Select
-                            value={p?.retention_unit || 'days'}
-                            onChange={(e) => updatePolicy(key, 'retention_unit', e.target.value)}
-                          >
-                            <MenuItem value="days">Days</MenuItem>
-                            <MenuItem value="months">Months</MenuItem>
-                          </Select>
-                        </FormControl>
-                      </TableCell>
+                      {!isPurgeMode && (
+                        <TableCell>
+                          <TextField
+                            type="number"
+                            size="small"
+                            value={p?.retention_value ?? 90}
+                            onChange={(e) => updatePolicy(key, 'retention_value', Number(e.target.value))}
+                            inputProps={{ min: 1, max: 3650 }}
+                            sx={{ width: 88 }}
+                          />
+                        </TableCell>
+                      )}
+                      {!isPurgeMode && (
+                        <TableCell>
+                          <FormControl size="small" sx={{ minWidth: 100 }}>
+                            <Select
+                              value={p?.retention_unit || 'days'}
+                              onChange={(e) => updatePolicy(key, 'retention_unit', e.target.value)}
+                            >
+                              <MenuItem value="days">Days</MenuItem>
+                              <MenuItem value="months">Months</MenuItem>
+                            </Select>
+                          </FormControl>
+                        </TableCell>
+                      )}
                       <TableCell align="right">
                         {st?.rowCount != null ? Number(st.rowCount).toLocaleString() : '—'}
                       </TableCell>
@@ -380,6 +441,7 @@ export default function DataCleanup() {
             previewing={previewing}
             onRun={() => setConfirmOpen(true)}
             running={running}
+            actionDisabled={isPurgeMode && selectedDevices.length === 0}
           />
         </CardContent>
       </Card>
@@ -389,22 +451,25 @@ export default function DataCleanup() {
           <CardContent>
             <Typography variant="subtitle1" fontWeight={600} gutterBottom>
               {lastPreview.dryRun ? 'Preview results' : 'Last run results'}
+              {lastPreview.mode === 'purge_devices' ? ' (clear all history)' : ''}
             </Typography>
             <Table size="small">
               <TableHead>
                 <TableRow>
                   <TableCell>Type</TableCell>
-                  <TableCell>Cutoff (UTC)</TableCell>
+                  <TableCell>{lastPreview.mode === 'purge_devices' ? 'Scope' : 'Cutoff (UTC)'}</TableCell>
                   <TableCell align="right">{lastPreview.dryRun ? 'Would delete' : 'Deleted'}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {Object.entries(lastPreview.results).map(([key, r]) => (
+                {cleanupResultEntries(lastPreview.results).map(([key, r]) => (
                   <TableRow key={key}>
                     <TableCell>{key}</TableCell>
                     <TableCell>
                       {r.skipped ? (
                         <Chip size="small" label="disabled" />
+                      ) : lastPreview.mode === 'purge_devices' ? (
+                        'All history for selected devices'
                       ) : (
                         r.cutoff ? formatInUserTimezone(r.cutoff) : '—'
                       )}
@@ -439,8 +504,8 @@ export default function DataCleanup() {
               </TableHead>
               <TableBody>
                 {history.map((h) => {
-                  const total = Object.values(h.results || {}).reduce(
-                    (s, r) => s + (h.dry_run ? r.wouldDelete || 0 : r.deleted || 0),
+                  const total = cleanupResultEntries(h.results).reduce(
+                    (s, [, r]) => s + (h.dry_run ? r.wouldDelete || 0 : r.deleted || 0),
                     0
                   );
                   return (
@@ -459,12 +524,24 @@ export default function DataCleanup() {
       )}
 
       <Dialog open={confirmOpen} onClose={() => !running && setConfirmOpen(false)}>
-        <DialogTitle>Delete old data?</DialogTitle>
+        <DialogTitle>{isPurgeMode ? 'Clear all device history?' : 'Delete old data?'}</DialogTitle>
         <DialogContent>
           <Typography>
-            This permanently deletes rows older than the retention settings above
-            {selectedDevices.length ? ` for ${selectedDevices.length} selected device(s)` : ' for all devices'}.
-            This cannot be undone.
+            {isPurgeMode ? (
+              <>
+                This permanently deletes <strong>all</strong> historical data for{' '}
+                {selectedDevices.length} selected device(s) in the enabled data types. Devices remain in the system.
+                This cannot be undone.
+              </>
+            ) : (
+              <>
+                This permanently deletes rows older than the retention settings above
+                {selectedDevices.length
+                  ? ` for ${selectedDevices.length} selected device(s)`
+                  : ' for all devices'}
+                . This cannot be undone.
+              </>
+            )}
           </Typography>
         </DialogContent>
         <DialogActions>
@@ -480,7 +557,7 @@ export default function DataCleanup() {
   );
 }
 
-function StackActions({ onSave, saving, onPreview, previewing, onRun, running }) {
+function StackActions({ onSave, saving, onPreview, previewing, onRun, running, actionDisabled }) {
   return (
     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mt: 2 }}>
       <Button variant="contained" startIcon={saving ? <CircularProgress size={18} color="inherit" /> : <SaveIcon />} onClick={onSave} disabled={saving}>
@@ -490,7 +567,7 @@ function StackActions({ onSave, saving, onPreview, previewing, onRun, running })
         variant="outlined"
         startIcon={previewing ? <CircularProgress size={18} /> : <PreviewIcon />}
         onClick={onPreview}
-        disabled={previewing || running}
+        disabled={previewing || running || actionDisabled}
       >
         Preview cleanup
       </Button>
@@ -499,7 +576,7 @@ function StackActions({ onSave, saving, onPreview, previewing, onRun, running })
         variant="outlined"
         startIcon={running ? <CircularProgress size={18} /> : <DeleteSweepIcon />}
         onClick={onRun}
-        disabled={previewing || running}
+        disabled={previewing || running || actionDisabled}
       >
         Run cleanup now
       </Button>

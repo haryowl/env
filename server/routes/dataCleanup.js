@@ -24,6 +24,7 @@ const settingsSchema = Joi.object({
 
 const runSchema = Joi.object({
   dry_run: Joi.boolean().default(true),
+  mode: Joi.string().valid('retention', 'purge_devices').default('retention'),
   device_ids: Joi.array().items(Joi.string().max(100)).max(500).optional(),
   policy_overrides: Joi.object().pattern(Joi.string(), policySchema).optional(),
 });
@@ -90,6 +91,7 @@ router.post('/preview', async (req, res) => {
     }
     const result = await dataCleanupService.runCleanup({
       dryRun: true,
+      mode: value.mode,
       deviceIds: value.device_ids,
       policyOverrides: value.policy_overrides,
       triggeredBy: 'manual',
@@ -97,6 +99,9 @@ router.post('/preview', async (req, res) => {
     });
     res.json(result);
   } catch (err) {
+    if (err.code === 'DEVICE_IDS_REQUIRED') {
+      return res.status(400).json({ error: err.message });
+    }
     console.error('Data cleanup preview error:', err);
     res.status(500).json({ error: 'Preview failed', details: err.message });
   }
@@ -110,6 +115,7 @@ router.post('/run', async (req, res) => {
     }
     const result = await dataCleanupService.runCleanup({
       dryRun: false,
+      mode: value.mode,
       deviceIds: value.device_ids,
       policyOverrides: value.policy_overrides,
       triggeredBy: 'manual',
@@ -120,6 +126,9 @@ router.post('/run', async (req, res) => {
       ...result,
     });
   } catch (err) {
+    if (err.code === 'DEVICE_IDS_REQUIRED') {
+      return res.status(400).json({ error: err.message });
+    }
     console.error('Data cleanup run error:', err);
     res.status(500).json({ error: 'Cleanup failed', details: err.message });
   }
