@@ -144,8 +144,9 @@ class MQTTService {
       let devices;
       try {
         devices = await query(
-          'SELECT device_id, config FROM devices WHERE protocol = $1 AND status != $2',
-          ['mqtt', 'deleted']
+          `SELECT device_id, config FROM devices
+           WHERE protocol = $1 AND COALESCE(is_deleted, false) = false`,
+          ['mqtt']
         );
       } catch (error) {
         if (error.message.includes('Cannot use a pool after calling end')) {
@@ -238,15 +239,9 @@ class MQTTService {
         return;
       }
 
-      // Get device configuration
-      const device = await getRow(
-        'SELECT * FROM devices WHERE device_id = $1',
-        [deviceId]
-      );
-
+      const device = await this.ensureDeviceForIngestion(deviceId, 'mqtt', data, { topics: [topic] });
       if (!device) {
-        console.log(`Device ${deviceId} not found in database, creating new device`);
-        await this.createNewDevice(deviceId, topic, data);
+        console.error(`Device ${deviceId}: could not resolve or auto-discover device for ingestion`);
         return;
       }
 
@@ -306,13 +301,58 @@ class MQTTService {
     return this.createDeviceFromIngestion(deviceId, 'mqtt', data, { topics: [topic] });
   }
 
+  /** Active device only — soft-deleted rows are ignored so they can be re-discovered. */
+  async getActiveDevice(deviceId) {
+    await query('ALTER TABLE devices ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false');
+    return getRow(
+      'SELECT * FROM devices WHERE device_id = $1 AND COALESCE(is_deleted, false) = false',
+      [deviceId]
+    );
+  }
+
+  /** Remove soft-deleted row before re-insert (legacy deletes). */
+  async purgeDeletedDeviceRow(deviceId) {
+    await query(
+      'DELETE FROM devices WHERE device_id = $1 AND COALESCE(is_deleted, false) = true',
+      [deviceId]
+    );
+  }
+
+  /**
+   * Return active device or auto-discover (new insert) after delete.
+   * @returns {Promise<object|null>}
+   */
+  async ensureDeviceForIngestion(deviceId, protocol, data, extraConfig = {}) {
+    let device = await this.getActiveDevice(deviceId);
+    if (device) return device;
+
+    const ghost = await getRow(
+      'SELECT device_id FROM devices WHERE device_id = $1 AND COALESCE(is_deleted, false) = true',
+      [deviceId]
+    );
+    if (ghost) {
+      console.log(`Device ${deviceId} was deleted; removing row for auto-rediscovery`);
+      await this.purgeDeletedDeviceRow(deviceId);
+    } else {
+      console.log(`Device ${deviceId} not found, auto-discovering`);
+    }
+
+    await this.createDeviceFromIngestion(deviceId, protocol, data, extraConfig);
+    device = await this.getActiveDevice(deviceId);
+    if (!device) {
+      console.error(`Failed to auto-discover device ${deviceId}`);
+    }
+    return device;
+  }
+
   async createDeviceFromIngestion(deviceId, protocol, data, extraConfig = {}) {
     try {
+      await query('ALTER TABLE devices ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false');
       const deviceType = this.determineDeviceType(data);
       const config = protocol === 'mqtt' ? extraConfig : { source: 'http', ...extraConfig };
       await query(`
-        INSERT INTO devices (device_id, device_type, protocol, name, config, status, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        INSERT INTO devices (device_id, device_type, protocol, name, config, status, is_deleted, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, false, NOW())
       `, [
         deviceId,
         deviceType,
@@ -334,13 +374,9 @@ class MQTTService {
    * @param {string} source - 'http' | 'mqtt' (for auto-create)
    */
   async ingestData(deviceId, data, source = 'http') {
-    let device = await getRow('SELECT * FROM devices WHERE device_id = $1', [deviceId]);
+    const device = await this.ensureDeviceForIngestion(deviceId, source, data);
     if (!device) {
-      await this.createDeviceFromIngestion(deviceId, source, data);
-      device = await getRow('SELECT * FROM devices WHERE device_id = $1', [deviceId]);
-      if (!device) {
-        throw new Error('Failed to create device');
-      }
+      throw new Error('Failed to create device');
     }
     const processedData = await processDeviceData(device, data);
     await this.storeDeviceData(device, processedData);
@@ -511,7 +547,7 @@ class MQTTService {
   async updateDeviceStatus(deviceId, status) {
     try {
       await query(
-        'UPDATE devices SET status = $1, last_seen = NOW() WHERE device_id = $2',
+        'UPDATE devices SET status = $1, last_seen = NOW(), is_deleted = false WHERE device_id = $2',
         [status, deviceId]
       );
     } catch (error) {

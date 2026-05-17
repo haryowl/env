@@ -559,18 +559,12 @@ router.delete('/:deviceId', authorizeDeviceAccess('delete'), async (req, res) =>
       });
     }
 
-    // Ensure soft delete column exists
-    await query('ALTER TABLE devices ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false');
-
-    // Soft delete - mark as deleted instead of actually deleting
-    await query(
-      'UPDATE devices SET status = $1, is_deleted = true, updated_at = NOW() WHERE device_id = $2',
-      ['offline', deviceId]
-    );
-
-    // Clear any mapper assignments for this device (prevents stale references)
+    // Clear references before removing the device row (allows auto-rediscovery on next ingest)
     await query('DELETE FROM device_mapper_assignments WHERE device_id = $1', [deviceId]);
     await query('DELETE FROM user_device_permissions WHERE device_id = $1', [deviceId]);
+    await query('DELETE FROM role_device_permissions WHERE device_id = $1', [deviceId]);
+
+    await query('DELETE FROM devices WHERE device_id = $1', [deviceId]);
 
     // Remove MQTT subscriptions
     if (device.protocol === 'mqtt') {
@@ -578,7 +572,7 @@ router.delete('/:deviceId', authorizeDeviceAccess('delete'), async (req, res) =>
     }
 
     res.json({
-      message: 'Device deleted successfully'
+      message: 'Device deleted successfully. If it transmits again, it will appear as auto-discovered.'
     });
 
   } catch (error) {
