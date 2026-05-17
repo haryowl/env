@@ -70,8 +70,8 @@ router.get('/', authorizeDeviceAccess('read'), async (req, res) => {
         unit,
         metadata as data
       FROM sensor_readings 
-      WHERE device_id = $1 AND (metadata->>'datetime')::timestamp BETWEEN $2 AND $3
-      ORDER BY (metadata->>'datetime')::timestamp DESC
+      WHERE device_id = $1 AND timestamp BETWEEN $2 AND $3
+      ORDER BY timestamp DESC
       LIMIT 1000
     `, [device_id, startTime, endTime]);
 

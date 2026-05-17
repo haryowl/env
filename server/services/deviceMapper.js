@@ -64,10 +64,8 @@ class DeviceMapper {
       let mappedData = this.applyFieldMappings(rawData, fieldMappings);
       console.log('DeviceMapper: Mapped data:', mappedData);
       
-      if (mappedData.datetime) {
-        mappedData.datetime = normalizeDatetimeToUtc(mappedData.datetime, device.timezone);
-      }
-      
+      const sourceDatetime = rawData.datetime ?? mappedData.datetime;
+
       // Apply data type conversions
       mappedData = this.applyDataTypeConversions(mappedData, fieldMappings);
       
@@ -79,6 +77,12 @@ class DeviceMapper {
       
       // Apply formulas
       mappedData = await this.applyFormulas(mappedData, fieldMappings);
+
+      // Always normalize last so mapper conversions cannot shift UTC(Z) into the future
+      const dt = sourceDatetime ?? mappedData.datetime;
+      if (dt != null && dt !== '') {
+        mappedData.datetime = normalizeDatetimeToUtc(dt, device.timezone);
+      }
       
       return mappedData;
       
@@ -292,13 +296,12 @@ class DeviceMapper {
       if (!timestamp.isValid()) {
         return new Date();
       }
-      
-      // Apply timezone conversion if specified
-      if (conversionRule.timezone) {
-        timestamp = timestamp.tz(conversionRule.timezone);
-      }
-      
-      return timestamp.toDate();
+
+      const iso = normalizeDatetimeToUtc(
+        value,
+        conversionRule.timezone || 'UTC'
+      );
+      return iso ? new Date(iso) : timestamp.toDate();
       
     } catch (error) {
       console.error('Error parsing timestamp:', error);

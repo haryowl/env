@@ -106,6 +106,7 @@ const MobileDashboard = ({ socket }) => {
       if (isAdmin) return true;
       const from = device?.valid_from;
       const to = device?.valid_to;
+      if (!from && !to) return true;
       if (!from || !to) return false;
       const today = new Date().toISOString().slice(0, 10);
       return today >= (from?.slice?.(0, 10) ?? from) && today <= (to?.slice?.(0, 10) ?? to);

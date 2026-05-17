@@ -131,15 +131,20 @@ const filterDeviceData = async (req, res, next) => {
     // Remove duplicates
     const uniqueDeviceIds = [...new Set(allowedDeviceIds)];
 
-    // For non-admin: filter to only devices within valid access period (valid_from/valid_to)
-    // Empty dates = never valid
+    // For non-admin: filter to devices within valid access period when dates are set.
+    // No valid_from/valid_to on device = no date restriction (includes auto-discovered devices).
     let deviceIdsForData = uniqueDeviceIds;
     if (uniqueDeviceIds.length > 0) {
       const validDevices = await getRows(`
         SELECT device_id FROM devices
         WHERE device_id = ANY($1)
-        AND valid_from IS NOT NULL AND valid_to IS NOT NULL
-        AND CURRENT_DATE >= valid_from AND CURRENT_DATE <= valid_to
+        AND (
+          (valid_from IS NULL AND valid_to IS NULL)
+          OR (
+            valid_from IS NOT NULL AND valid_to IS NOT NULL
+            AND CURRENT_DATE >= valid_from AND CURRENT_DATE <= valid_to
+          )
+        )
       `, [uniqueDeviceIds]);
       deviceIdsForData = validDevices.map(r => r.device_id);
     }

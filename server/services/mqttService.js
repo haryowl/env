@@ -1,6 +1,7 @@
 const mqtt = require('mqtt');
 const { getRow, query } = require('../config/database');
 const { processDeviceData } = require('./deviceMapper');
+const { normalizeDatetimeToUtc } = require('../utils/deviceTimezone');
 const { evaluateThresholdAlertsOnData } = require('./alertEvaluationService');
 const bufferDataConfig = require('../config/bufferDataConfig');
 
@@ -250,7 +251,7 @@ class MQTTService {
       console.log('MQTT: Processed data:', processedData);
       
       // Store data in database
-      await this.storeDeviceData(device, processedData);
+      await this.storeDeviceData(device, processedData, data);
 
       // Update device status
       await this.updateDeviceStatus(deviceId, 'online');
@@ -418,7 +419,7 @@ class MQTTService {
       throw new Error('Failed to create device');
     }
     const processedData = await processDeviceData(device, data);
-    await this.storeDeviceData(device, processedData);
+    await this.storeDeviceData(device, processedData, data);
     await this.updateDeviceStatus(deviceId, 'online');
     await this.evaluateAlertsWithRealTimeData(deviceId, processedData);
     this.emitRealTimeData(deviceId, processedData);
@@ -436,12 +437,25 @@ class MQTTService {
     }
   }
 
-  async storeDeviceData(device, data) {
+  async storeDeviceData(device, data, rawPayload = null) {
     try {
       console.log('storeDeviceData: data received for storage:', data);
       
-      // Get device timestamp from data (for buffered data detection)
-      const deviceTimestamp = data.datetime ? new Date(data.datetime) : new Date();
+      const tz = device.timezone || device.effective_timezone || 'UTC';
+      const rawDt = rawPayload?.datetime ?? data?.datetime;
+      let deviceTimestamp = new Date();
+      let canonicalDatetime = null;
+      if (rawDt != null && rawDt !== '') {
+        canonicalDatetime = normalizeDatetimeToUtc(rawDt, tz);
+        if (canonicalDatetime) {
+          deviceTimestamp = new Date(canonicalDatetime);
+        }
+      } else if (data?.datetime) {
+        canonicalDatetime = normalizeDatetimeToUtc(data.datetime, tz);
+        if (canonicalDatetime) {
+          deviceTimestamp = new Date(canonicalDatetime);
+        }
+      }
       const serverTimestamp = new Date();
       
       // Validate data freshness and get age information
@@ -549,7 +563,7 @@ class MQTTService {
             timestamp,
               JSON.stringify({
                 ...data.metadata,
-                datetime: data.datetime,
+                datetime: canonicalDatetime || data.datetime,
                 _terminalTime: data._terminalTime,
                 _groupName: data._groupName,
                 payload: data,
