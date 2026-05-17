@@ -1,6 +1,10 @@
 const moment = require('moment-timezone');
 const { getRows } = require('../config/database');
 const mathFormulaService = require('./mathFormulaService');
+const {
+  normalizeDatetimeToUtc,
+  enrichDeviceWithEffectiveTimezone,
+} = require('../utils/deviceTimezone');
 
 class DeviceMapper {
   constructor() {
@@ -46,8 +50,11 @@ class DeviceMapper {
 
   async processDeviceData(device, rawData) {
     try {
+      const deviceWithTz = await enrichDeviceWithEffectiveTimezone(device);
+      device = deviceWithTz;
       console.log('DeviceMapper: Processing data for device', device.device_id);
       console.log('DeviceMapper: Raw data:', rawData);
+      console.log('DeviceMapper: Effective timezone:', device.timezone);
       
       // Get device-specific field mappings
       const fieldMappings = await this.getFieldMappings(device.device_id);
@@ -57,35 +64,9 @@ class DeviceMapper {
       let mappedData = this.applyFieldMappings(rawData, fieldMappings);
       console.log('DeviceMapper: Mapped data:', mappedData);
       
-      // --- UTC conversion for datetime field ---
-      // Convert device's local datetime to UTC for storage
-      // Device timezone is the SOURCE timezone (e.g., Asia/Jakarta = UTC+7)
-      // We need to convert FROM device timezone TO UTC
-      if (mappedData.datetime && device.timezone && device.timezone !== 'UTC') {
-        try {
-          // Parse the datetime string in the device's timezone
-          const deviceLocalTime = moment.tz(mappedData.datetime, device.timezone);
-          
-          if (deviceLocalTime.isValid()) {
-            // Convert to UTC for storage
-            const utcTime = deviceLocalTime.utc();
-            mappedData.datetime = utcTime.toISOString();
-            console.log(`DeviceMapper: Converted ${mappedData.datetime} from ${device.timezone} to UTC: ${utcTime.toISOString()}`);
-          } else {
-            console.warn('DeviceMapper: Invalid datetime for UTC conversion:', mappedData.datetime, 'with timezone', device.timezone);
-            // Fallback: treat as UTC if conversion fails
-            mappedData.datetime = moment.utc(mappedData.datetime).toISOString();
-          }
-        } catch (error) {
-          console.error('DeviceMapper: Error converting datetime to UTC:', error);
-          // Fallback: treat as UTC if conversion fails
-          mappedData.datetime = moment.utc(mappedData.datetime).toISOString();
-        }
-      } else if (mappedData.datetime) {
-        // If no device timezone specified, assume UTC
-        mappedData.datetime = moment.utc(mappedData.datetime).toISOString();
+      if (mappedData.datetime) {
+        mappedData.datetime = normalizeDatetimeToUtc(mappedData.datetime, device.timezone);
       }
-      // --- End UTC conversion ---
       
       // Apply data type conversions
       mappedData = this.applyDataTypeConversions(mappedData, fieldMappings);

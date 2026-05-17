@@ -145,6 +145,7 @@ router.post('/', authorizeRole(['super_admin', 'admin']), async (req, res) => {
     }
 
     // Create assignment
+    const tz = timezone || 'UTC';
     const result = await query(`
       INSERT INTO device_mapper_assignments (
         device_id, template_id, timezone, time_format
@@ -153,9 +154,11 @@ router.post('/', authorizeRole(['super_admin', 'admin']), async (req, res) => {
     `, [
       device_id,
       template_id,
-      timezone || 'UTC',
+      tz,
       time_format || 'ISO8601'
     ]);
+
+    await query('UPDATE devices SET timezone = $1, updated_at = NOW() WHERE device_id = $2', [tz, device_id]);
 
     res.status(201).json({
       success: true,
@@ -218,6 +221,7 @@ router.put('/:deviceId', authorizeRole(['super_admin', 'admin']), async (req, re
       });
     }
 
+    const tz = timezone || 'UTC';
     // Update assignment
     const result = await query(`
       UPDATE device_mapper_assignments 
@@ -226,10 +230,12 @@ router.put('/:deviceId', authorizeRole(['super_admin', 'admin']), async (req, re
       RETURNING *
     `, [
       template_id,
-      timezone || 'UTC',
+      tz,
       time_format || 'ISO8601',
       deviceId
     ]);
+
+    await query('UPDATE devices SET timezone = $1, updated_at = NOW() WHERE device_id = $2', [tz, deviceId]);
 
     res.json({
       success: true,

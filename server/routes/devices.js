@@ -271,6 +271,8 @@ router.get('/with-coordinates', authenticateToken, filterDeviceData, async (req,
       SELECT 
         d.device_id,
         d.name,
+        d.timezone,
+        COALESCE(dma.timezone, d.timezone, 'UTC') AS effective_timezone,
         ${sqlUiStatusCase(staleIdx)} AS status,
         d.created_at,
         d.updated_at,
@@ -282,6 +284,7 @@ router.get('/with-coordinates', authenticateToken, filterDeviceData, async (req,
         (SELECT latitude::numeric FROM gps_tracks WHERE device_id = d.device_id ORDER BY timestamp DESC LIMIT 1) as device_latitude,
         (SELECT longitude::numeric FROM gps_tracks WHERE device_id = d.device_id ORDER BY timestamp DESC LIMIT 1) as device_longitude
       FROM devices d
+      LEFT JOIN device_mapper_assignments dma ON dma.device_id = d.device_id
       ${sqlLateralLastDataAt()}
       ${whereClause}
       ORDER BY d.name ASC
@@ -297,6 +300,8 @@ router.get('/with-coordinates', authenticateToken, filterDeviceData, async (req,
         device_id: device.device_id,
         name: device.name,
         status: device.status,
+        timezone: device.timezone,
+        effective_timezone: device.effective_timezone,
         created_at: device.created_at,
         updated_at: device.updated_at,
         last_data_at: device.last_data_at,
@@ -719,6 +724,15 @@ router.get('/:deviceId/latest-data', authenticateToken, async (req, res) => {
     }
     // If req.allowedDeviceIds is null, it means full access (no filtering needed)
 
+    const deviceTzRow = await getRow(
+      `SELECT d.timezone, COALESCE(dma.timezone, d.timezone, 'UTC') AS effective_timezone
+       FROM devices d
+       LEFT JOIN device_mapper_assignments dma ON dma.device_id = d.device_id
+       WHERE d.device_id = $1`,
+      [deviceId]
+    );
+    const effectiveTimezone = deviceTzRow?.effective_timezone || 'UTC';
+
     // Get device mapper assignment to know which parameters to fetch
     const mapperAssignment = await getRow(`
       SELECT mappings FROM device_mapper_assignments dma
@@ -727,7 +741,21 @@ router.get('/:deviceId/latest-data', authenticateToken, async (req, res) => {
     `, [deviceId]);
 
     if (!mapperAssignment) {
-      return res.json({ data: {} });
+      const latestAny = await getRow(
+        `SELECT timestamp, metadata->>'datetime' AS device_datetime
+         FROM sensor_readings
+         WHERE device_id = $1
+         ORDER BY timestamp DESC
+         LIMIT 1`,
+        [deviceId]
+      );
+      return res.json({
+        data: {},
+        timezone: effectiveTimezone,
+        last_updated_at: latestAny?.device_datetime || (latestAny?.timestamp
+          ? new Date(latestAny.timestamp).toISOString()
+          : null),
+      });
     }
 
     const mappings = mapperAssignment.mappings || [];
@@ -746,11 +774,12 @@ router.get('/:deviceId/latest-data', authenticateToken, async (req, res) => {
     // Get latest data: query by source_field (how it's stored), return keyed by target_field (for display)
     const latestData = {};
     let lastUpdatedAt = null;
+    let lastDeviceDatetime = null;
 
     for (const m of dataMappings) {
       const srcField = sourceKey(m);
       const result = await getRow(`
-        SELECT value, timestamp
+        SELECT value, timestamp, metadata->>'datetime' AS device_datetime
         FROM sensor_readings 
         WHERE device_id = $1 AND sensor_type = $2
         ORDER BY timestamp DESC 
@@ -761,6 +790,7 @@ router.get('/:deviceId/latest-data', authenticateToken, async (req, res) => {
         const ts = result.timestamp ? new Date(result.timestamp).getTime() : null;
         if (ts != null && (!lastUpdatedAt || ts > lastUpdatedAt)) {
           lastUpdatedAt = ts;
+          lastDeviceDatetime = result.device_datetime || null;
         }
         let value = result.value;
         if (typeof value === 'string') {
@@ -780,7 +810,9 @@ router.get('/:deviceId/latest-data', authenticateToken, async (req, res) => {
 
     res.json({
       data: latestData,
-      last_updated_at: lastUpdatedAt != null ? new Date(lastUpdatedAt).toISOString() : null,
+      timezone: effectiveTimezone,
+      last_updated_at: lastDeviceDatetime
+        || (lastUpdatedAt != null ? new Date(lastUpdatedAt).toISOString() : null),
     });
   } catch (error) {
     console.error('Get latest device data error:', error);

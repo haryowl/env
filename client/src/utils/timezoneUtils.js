@@ -48,41 +48,48 @@ export const getUserTimezone = () => {
   return localStorage.getItem('iot_timezone') || moment.tz.guess() || 'UTC';
 };
 
-// Format datetime in user's timezone
-export const formatInUserTimezone = (datetime, format = 'YYYY-MM-DD HH:mm:ss') => {
-  if (!datetime) return '-';
-  
-  try {
-    const userTz = getUserTimezone();
-    const s = String(datetime);
+const hasExplicitTimezone = (datetime) => {
+  const s = String(datetime).trim();
+  return /(?:Z|[+-]\d{2}:?\d{2})$/i.test(s) || /\dT\d.*(?:Z|[+-]\d{2}:?\d{2})/i.test(s);
+};
 
-    // If string has explicit timezone info (Z or ±HH:mm / ±HHmm), treat as UTC/offset-aware.
-    const hasTzInfo = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(s) || /\dT\d.*(?:Z|[+-]\d{2}:?\d{2})/i.test(s);
-    const m = hasTzInfo ? moment.utc(s) : moment.tz(s, userTz);
-    if (!m.isValid()) {
-      return '-';
-    }
-    return hasTzInfo ? m.tz(userTz).format(format) : m.format(format);
+/** Format an instant in a specific timezone (e.g. device / mapper setting). */
+export const formatInTimezone = (datetime, timezone = 'UTC', format = 'YYYY-MM-DD HH:mm:ss') => {
+  if (!datetime) return '-';
+  try {
+    const tz = timezone || 'UTC';
+    const s = String(datetime);
+    const m = hasExplicitTimezone(s) ? moment.parseZone(s) : moment.tz(s, tz);
+    if (!m.isValid()) return '-';
+    return m.tz(tz).format(format);
   } catch (error) {
     console.error('Error formatting datetime:', error);
     return '-';
   }
 };
 
+export const formatInDeviceTimezone = (datetime, deviceTimezone, format = 'YYYY-MM-DD HH:mm:ss') =>
+  formatInTimezone(datetime, deviceTimezone || 'UTC', format);
+
+// Format datetime in user's timezone
+export const formatInUserTimezone = (datetime, format = 'YYYY-MM-DD HH:mm:ss') => {
+  return formatInTimezone(datetime, getUserTimezone(), format);
+};
+
 // Convert device datetime to UTC
 export const convertDeviceTimeToUTC = (deviceTime, deviceTimezone) => {
-  if (!deviceTime || !deviceTimezone) {
-    return moment.utc(deviceTime).toISOString();
-  }
-  
+  if (!deviceTime) return null;
   try {
-    const deviceLocalTime = moment.tz(deviceTime, deviceTimezone);
-    if (deviceLocalTime.isValid()) {
-      return deviceLocalTime.utc().toISOString();
-    } else {
-      // Fallback: treat as UTC
+    if (hasExplicitTimezone(deviceTime)) {
+      return moment.parseZone(String(deviceTime)).utc().toISOString();
+    }
+    if (!deviceTimezone || deviceTimezone === 'UTC') {
       return moment.utc(deviceTime).toISOString();
     }
+    const deviceLocalTime = moment.tz(deviceTime, deviceTimezone);
+    return deviceLocalTime.isValid()
+      ? deviceLocalTime.utc().toISOString()
+      : moment.utc(deviceTime).toISOString();
   } catch (error) {
     console.error('Error converting device time to UTC:', error);
     return moment.utc(deviceTime).toISOString();
