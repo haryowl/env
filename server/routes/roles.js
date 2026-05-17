@@ -32,7 +32,8 @@ const getMenuName = (menuPath) => {
     '/maintenance': 'Maintenance',
     '/technician': 'Technician Dashboard',
     '/settings': 'Settings',
-    '/system-info': 'System Information'
+    '/system-info': 'System Information',
+    '/data-cleanup': 'Data cleanup'
   };
   return menuMap[menuPath] || menuPath;
 };
@@ -133,7 +134,8 @@ router.get('/templates', authorizeRole(['super_admin', 'admin']), async (req, re
           '/notification-config': { access: true, read: true, create: true, update: true, delete: true },
           '/scheduled-exports': { access: true, read: true, create: true, update: true, delete: true },
           '/settings': { access: true, read: true, create: true, update: true, delete: true },
-          '/system-info': { access: true, read: true, create: true, update: true, delete: true }
+          '/system-info': { access: true, read: true, create: true, update: true, delete: true },
+          '/data-cleanup': { access: true, read: true, create: true, update: true, delete: true }
         },
         device_permissions: {
           read: true,
@@ -174,7 +176,8 @@ router.get('/templates', authorizeRole(['super_admin', 'admin']), async (req, re
           '/sensor-management': { access: true, read: true, create: true, update: true, delete: true },
           '/maintenance': { access: true, read: true, create: true, update: true, delete: true },
           '/settings': { access: true, read: false, create: false, update: true, delete: false },
-          '/system-info': { access: true, read: true, create: false, update: false, delete: false }
+          '/system-info': { access: true, read: true, create: false, update: false, delete: false },
+          '/data-cleanup': { access: true, read: true, create: true, update: true, delete: true }
         },
         device_permissions: {
           read: true,
@@ -346,7 +349,8 @@ router.post('/from-template', authorizeRole(['super_admin']), async (req, res) =
           '/notification-config': { access: true, read: true, create: true, update: true, delete: true },
           '/scheduled-exports': { access: true, read: true, create: true, update: true, delete: true },
           '/settings': { access: true, read: true, create: true, update: true, delete: true },
-          '/system-info': { access: true, read: true, create: true, update: true, delete: true }
+          '/system-info': { access: true, read: true, create: true, update: true, delete: true },
+          '/data-cleanup': { access: true, read: true, create: true, update: true, delete: true }
         },
         device_permissions: {
           read: true,
@@ -387,7 +391,8 @@ router.post('/from-template', authorizeRole(['super_admin']), async (req, res) =
           '/sensor-management': { access: true, read: true, create: true, update: true, delete: true },
           '/maintenance': { access: true, read: true, create: true, update: true, delete: true },
           '/settings': { access: true, read: false, create: false, update: true, delete: false },
-          '/system-info': { access: true, read: true, create: false, update: false, delete: false }
+          '/system-info': { access: true, read: true, create: false, update: false, delete: false },
+          '/data-cleanup': { access: true, read: true, create: true, update: true, delete: true }
         },
         device_permissions: {
           read: true,
@@ -1428,6 +1433,12 @@ router.get('/menus/available', authorizeRole(['super_admin', 'admin']), async (r
         path: '/system-info',
         name: 'System Information',
         description: 'Server OS, CPU, memory, disk, and process metrics',
+        category: 'System'
+      },
+      {
+        path: '/data-cleanup',
+        name: 'Data cleanup',
+        description: 'Retention policies and deletion of old sensor, GPS, and alert history',
         category: 'System'
       }
     ];

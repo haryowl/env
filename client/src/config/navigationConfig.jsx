@@ -32,6 +32,7 @@ import {
   PhoneAndroid as PhoneAndroidIcon,
   Send as SendIcon,
   MyLocation as MyLocationIcon,
+  DeleteSweep as DeleteSweepIcon,
 } from '@mui/icons-material';
 
 export const MENU_SECTIONS = [
@@ -99,6 +100,7 @@ export const MENU_SECTIONS = [
       { text: 'Scheduled Exports', icon: <ScheduleSendIcon />, path: '/scheduled-exports', menuPath: '/scheduled-exports' },
       { text: 'MQTT Publisher', icon: <SendIcon />, path: '/mqtt-publisher', menuPath: '/mqtt-publisher' },
       { text: 'System Information', icon: <MemoryIcon />, path: '/system-info', menuPath: '/system-info' },
+      { text: 'Data cleanup', icon: <DeleteSweepIcon />, path: '/data-cleanup', menuPath: '/data-cleanup' },
       { text: 'Settings', icon: <SettingsIcon />, path: '/settings', menuPath: '/settings' },
       { text: 'Font Customizer', icon: <FormatSizeIcon />, path: '/font-customizer', menuPath: '/font-customizer' },
     ],
@@ -147,6 +149,7 @@ export const ROUTE_MENU_PATH_MAP = {
   '/maintenance': '/maintenance',
   '/technician': '/technician',
   '/system-info': '/system-info',
+  '/data-cleanup': '/data-cleanup',
   '/settings': '/settings',
 };
 

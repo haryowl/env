@@ -72,6 +72,8 @@ const systemInfoRoutes = require('./routes/systemInfo');
 const mqttPublisherRoutes = require('./routes/mqttPublisher');
 const featuresRoutes = require('./routes/features');
 const liveTrackingRoutes = require('./routes/liveTracking');
+const dataCleanupRoutes = require('./routes/dataCleanup');
+const dataCleanupService = require('./services/dataCleanupService');
 
 const app = express();
 const server = http.createServer(app);
@@ -234,6 +236,8 @@ app.use('/api/technician', authenticateToken, technicianRoutes);
 console.log('✓ /api/technician route registered');
 app.use('/api/system-info', authenticateToken, filterDataByRole, systemInfoRoutes);
 console.log('✓ /api/system-info route registered');
+app.use('/api/data-cleanup', authenticateToken, filterDataByRole, dataCleanupRoutes);
+console.log('✓ /api/data-cleanup route registered');
 console.log('All API routes registered successfully');
 
 // Serve the main application - React SPA if built, else simple public page
@@ -366,6 +370,13 @@ server.listen(PORT, async () => {
 setInterval(() => {
   evaluateInactivityAlertsPeriodically().catch(console.error);
 }, 60 * 1000); // every 1 minute
+
+// Scheduled data retention cleanup (checks interval in DB settings)
+setInterval(() => {
+  dataCleanupService.maybeRunScheduledCleanup().catch((err) => {
+    console.error('Scheduled data cleanup error:', err);
+  });
+}, 60 * 60 * 1000);
 
 // Every 30 seconds, poll latest data and evaluate threshold alerts
 setInterval(() => {

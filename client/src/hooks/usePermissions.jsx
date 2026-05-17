@@ -121,6 +121,7 @@ export const PermissionProvider = ({ children }) => {
       '/mqtt-publisher': { access: false, read: false, create: false, update: false, delete: false },
       '/settings': { access: false, read: false, create: false, update: false, delete: false },
       '/system-info': { access: false, read: false, create: false, update: false, delete: false },
+      '/data-cleanup': { access: false, read: false, create: false, update: false, delete: false },
       '/font-customizer': { access: false, read: false, create: false, update: false, delete: false }
     };
 
@@ -153,6 +154,7 @@ export const PermissionProvider = ({ children }) => {
         '/technician': { access: true, read: true, create: true, update: true, delete: true },
         '/settings': { access: true, read: true, create: true, update: true, delete: true },
         '/system-info': { access: true, read: true, create: true, update: true, delete: true },
+        '/data-cleanup': { access: true, read: true, create: true, update: true, delete: true },
         '/font-customizer': { access: true, read: true, create: true, update: true, delete: true }
       },
       'admin': {
@@ -182,6 +184,7 @@ export const PermissionProvider = ({ children }) => {
         '/technician': { access: true, read: true, create: true, update: true, delete: true },
         '/settings': { access: true, read: false, create: false, update: true, delete: false },
         '/system-info': { access: true, read: true, create: false, update: false, delete: false },
+        '/data-cleanup': { access: true, read: true, create: true, update: true, delete: true },
         '/font-customizer': { access: true, read: true, create: false, update: true, delete: false }
       },
       'demo': {

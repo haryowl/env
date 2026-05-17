@@ -40,6 +40,7 @@ import SensorManagement from './components/SensorManagement';
 import Maintenance from './components/Maintenance';
 import TechnicianDashboard from './components/TechnicianDashboard';
 import SystemInfo from './components/SystemInfo';
+import DataCleanup from './components/DataCleanup';
 import ErrorBoundary from './components/ErrorBoundary';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -372,6 +373,7 @@ function App() {
                 <Route path="/maintenance" element={<ProtectedRoute><Maintenance /></ProtectedRoute>} />
                 <Route path="/technician" element={<ProtectedRoute><TechnicianDashboard /></ProtectedRoute>} />
                 <Route path="/system-info" element={<ProtectedRoute><SystemInfo /></ProtectedRoute>} />
+                <Route path="/data-cleanup" element={<ProtectedRoute><DataCleanup /></ProtectedRoute>} />
                 <Route path="/settings" element={<ProtectedRoute><Settings user={user} onFontChange={handleFontChange} /></ProtectedRoute>} />
               </Routes>
             </Layout>
