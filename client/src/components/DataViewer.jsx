@@ -138,7 +138,7 @@ const DataViewer = () => {
     // Process sensor data for charts
     const chartData = sensorData.map(record => {
       const chartPoint = {
-        timestamp: new Date(record.timestamp).toLocaleString(),
+        timestamp: formatInUserTimezone(record.timestamp),
         time: new Date(record.timestamp).getTime(),
       };
 

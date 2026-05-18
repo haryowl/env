@@ -62,13 +62,7 @@ import { getOptimalTextColor } from '../utils/colorUtils';
 import { useTheme as useMuiTheme, alpha } from '@mui/material/styles';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import { usePermissions } from '../hooks/usePermissions';
-
-// Utility: Format datetime in user's selected timezone
-const getUserTimezone = () => localStorage.getItem('iot_timezone') || moment.tz.guess() || 'UTC';
-const formatInUserTimezone = (dt, fmt = 'YYYY-MM-DD HH:mm:ss') => {
-  if (!dt) return '-';
-  return moment.utc(dt).tz(getUserTimezone()).format(fmt);
-};
+import { formatInUserTimezone } from '../utils/timezoneUtils';
 
 /** Realtime line chart: no in-chart legend (toggles above), tighter margins for a larger plot. */
 const REALTIME_LINE_CHART_MARGIN = { top: 8, right: 18, left: 4, bottom: 2 };

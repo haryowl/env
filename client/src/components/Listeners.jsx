@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { formatInUserTimezone } from '../utils/timezoneUtils';
 import {
   Box,
   Typography,
@@ -449,9 +450,7 @@ const Listeners = ({ socket }) => {
     }
   };
 
-  const formatTimestamp = (timestamp) => {
-    return new Date(timestamp).toLocaleString();
-  };
+  const formatTimestamp = (timestamp) => formatInUserTimezone(timestamp);
 
   const formatPayload = (payload) => {
     if (typeof payload === 'object') {

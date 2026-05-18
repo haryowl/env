@@ -41,7 +41,7 @@ import {
 import { API_BASE_URL } from '../config/api';
 import { broadcastUserProfilePicture, resolveProfilePictureUrl } from '../utils/profilePicture';
 import moment from 'moment-timezone';
-import { TIMEZONE_OPTIONS, getUserTimezone } from '../utils/timezoneUtils';
+import { TIMEZONE_OPTIONS, getUserTimezone, formatInUserTimezone } from '../utils/timezoneUtils';
 
 const Settings = ({ user, onFontChange }) => {
   const profilePicRef = useRef(null);
@@ -613,7 +613,7 @@ const Settings = ({ user, onFontChange }) => {
                         Last Login
                       </Typography>
                       <Typography variant="body1" gutterBottom>
-                        {user?.last_login ? new Date(user.last_login).toLocaleString() : 'Never'}
+                        {user?.last_login ? formatInUserTimezone(user.last_login) : 'Never'}
                       </Typography>
                     </Grid>
                   </Grid>

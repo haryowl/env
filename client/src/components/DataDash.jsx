@@ -707,7 +707,7 @@ export default function DataDash() {
                 />
               ))}
               {dateRange[0] && <Chip 
-                label={`From: ${dateRange[0].toLocaleDateString()} ${dateRange[0].toLocaleTimeString()}`} 
+                label={`From: ${formatInUserTimezone(dateRange[0].toISOString())}`} 
                 color="info" 
                 size="small"
                 sx={{ 
@@ -721,7 +721,7 @@ export default function DataDash() {
                 }}
               />}
               {dateRange[1] && <Chip 
-                label={`To: ${dateRange[1].toLocaleDateString()} ${dateRange[1].toLocaleTimeString()}`} 
+                label={`To: ${formatInUserTimezone(dateRange[1].toISOString())}`} 
                 color="info" 
                 size="small"
                 sx={{ 

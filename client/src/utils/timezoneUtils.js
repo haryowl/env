@@ -1,5 +1,12 @@
 import moment from 'moment-timezone';
 
+/**
+ * Timezone rules:
+ * - Device timezone (Device Manager / mapper): how to interpret naive device "datetime" on ingest → stored as UTC.
+ * - User/application timezone (Settings → iot_timezone): how all UI displays UTC instants to the viewer.
+ * - Payload with Z or ±offset: absolute instant; device timezone is not applied again on ingest or display.
+ */
+
 // Comprehensive timezone list with UTC offsets
 export const TIMEZONE_OPTIONS = [
   { value: 'UTC', label: 'UTC (UTC+0)' },
@@ -68,10 +75,11 @@ export const formatInTimezone = (datetime, timezone = 'UTC', format = 'YYYY-MM-D
   }
 };
 
+/** Prefer formatInUserTimezone for UI. Device timezone is for ingest interpretation, not display. */
 export const formatInDeviceTimezone = (datetime, deviceTimezone, format = 'YYYY-MM-DD HH:mm:ss') =>
   formatInTimezone(datetime, deviceTimezone || 'UTC', format);
 
-// Format datetime in user's timezone
+/** Default for all user-visible device data times (charts, tables, map, exports). */
 export const formatInUserTimezone = (datetime, format = 'YYYY-MM-DD HH:mm:ss') => {
   return formatInTimezone(datetime, getUserTimezone(), format);
 };

@@ -88,7 +88,7 @@ const ThemedPopup = ({ children, theme }) => {
 
   return children;
 };
-import { formatInDeviceTimezone } from '../utils/timezoneUtils';
+import { formatInUserTimezone } from '../utils/timezoneUtils';
 
 // Add CSS for blinking animation
 const alertBlinkStyle = `
@@ -323,7 +323,6 @@ const DashboardMap = ({ socket, cardSx = {} }) => {
   const [selectedLayer, setSelectedLayer] = useState('dark');
   const [deviceData, setDeviceData] = useState({});
   const [deviceLastUpdated, setDeviceLastUpdated] = useState({});
-  const [deviceTimezones, setDeviceTimezones] = useState({});
   const [deviceAlerts, setDeviceAlerts] = useState({});
   const [alertThresholdsByDevice, setAlertThresholdsByDevice] = useState({});
   const [centerCoords, setCenterCoords] = useState(null);
@@ -337,16 +336,13 @@ const DashboardMap = ({ socket, cardSx = {} }) => {
     return formatDisplayName(key, { withUnit: true });
   };
 
-  const deviceTz = (deviceId) =>
-    deviceTimezones[deviceId] || devices.find((d) => d.device_id === deviceId)?.effective_timezone || 'UTC';
-
-  const formatValueForPopup = (deviceId, key, value) => {
+  const formatValueForPopup = (key, value) => {
     if (value === null || value === undefined || value === '') {
       return '-';
     }
 
     if (key === 'datetime' || key === 'timestamp') {
-      return formatInDeviceTimezone(value, deviceTz(deviceId));
+      return formatInUserTimezone(value);
     }
 
     if (typeof value === 'number') {
@@ -393,13 +389,6 @@ const DashboardMap = ({ socket, cardSx = {} }) => {
         const data = await response.json();
         const devicesList = data.devices || [];
         setDevices(devicesList);
-        setDeviceTimezones((prev) => {
-          const next = { ...prev };
-          devicesList.forEach((d) => {
-            if (d.effective_timezone) next[d.device_id] = d.effective_timezone;
-          });
-          return next;
-        });
       } else {
         setError('Failed to load devices');
       }
@@ -427,9 +416,6 @@ const DashboardMap = ({ socket, cardSx = {} }) => {
           ...prev,
           [deviceId]: data.last_updated_at || null,
         }));
-        if (data.timezone) {
-          setDeviceTimezones((prev) => ({ ...prev, [deviceId]: data.timezone }));
-        }
         setDeviceAlerts(prev => {
           const thresholds = alertThresholdsByDevice[deviceId] || [];
           const outOfRange = isLatestDataOutOfRange(latest, thresholds);
@@ -734,9 +720,8 @@ const DashboardMap = ({ socket, cardSx = {} }) => {
                         >
                           Last update:{' '}
                           {(deviceLastUpdated[device.device_id] ?? device.last_data_at)
-                            ? formatInDeviceTimezone(
-                                deviceLastUpdated[device.device_id] ?? device.last_data_at,
-                                deviceTz(device.device_id)
+                            ? formatInUserTimezone(
+                                deviceLastUpdated[device.device_id] ?? device.last_data_at
                               )
                             : 'no data yet'}
                         </Typography>
@@ -773,7 +758,7 @@ const DashboardMap = ({ socket, cardSx = {} }) => {
                               })
                               .map(([key, value]) => {
                                 const label = formatLabelForPopup(key);
-                                const displayValue = formatValueForPopup(device.device_id, key, value);
+                                const displayValue = formatValueForPopup(key, value);
                                 if (!label || displayValue === '') {
                                   return null;
                                 }

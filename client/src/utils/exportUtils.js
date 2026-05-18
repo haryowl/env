@@ -15,7 +15,7 @@ export const exportToPDF = async ({ deviceName, period, chartData, alertData, ta
   doc.setFontSize(12);
   doc.text(`Device: ${deviceName}`, 20, 35);
   doc.text(`Period: ${period}`, 20, 45);
-  doc.text(`Generated: ${new Date().toLocaleString()}`, 20, 55);
+  doc.text(`Generated: ${formatInUserTimezone(new Date().toISOString())}`, 20, 55);
   
   // Summary statistics
   doc.setFontSize(14);
@@ -255,7 +255,7 @@ export const exportToExcel = ({ deviceName, period, chartData, alertData, tableD
     [''],
     ['Device', deviceName],
     ['Period', period],
-    ['Generated', new Date().toLocaleString()],
+    ['Generated', formatInUserTimezone(new Date().toISOString())],
     [''],
     ['Summary Statistics']
   ];

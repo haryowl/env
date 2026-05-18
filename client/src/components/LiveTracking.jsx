@@ -44,7 +44,7 @@ import { API_BASE_URL } from '../config/api';
 import { MAP_BASE_LAYERS } from '../config/mapLayers';
 import { deriveStateSegments, extractGpsFromDevicePayload } from '../utils/liveTrackingStates';
 import { filterGpsOutliers } from '../utils/gpsFilter';
-import { formatInDeviceTimezone, formatInUserTimezone } from '../utils/timezoneUtils';
+import { formatInUserTimezone } from '../utils/timezoneUtils';
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -224,12 +224,7 @@ function DeviceFleetMarker({ device, selected, livePulse, onSelectDevice }) {
               <tr>
                 <td style={{ padding: '2px 6px 2px 0', color: '#64748b' }}>Last data</td>
                 <td>
-                  {device.last_data_at
-                    ? formatInDeviceTimezone(
-                        device.last_data_at,
-                        device.effective_timezone || device.timezone || 'UTC'
-                      )
-                    : '—'}
+                  {device.last_data_at ? formatInUserTimezone(device.last_data_at) : '—'}
                 </td>
               </tr>
               <tr>

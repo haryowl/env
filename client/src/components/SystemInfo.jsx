@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { formatInUserTimezone } from '../utils/timezoneUtils';
 import {
   Box,
   Typography,
@@ -148,7 +149,7 @@ export default function SystemInfo() {
                   Node process: {formatUptime(data.uptime?.processSeconds)}
                 </Typography>
                 <Typography variant="caption" display="block" sx={{ mt: 1, color: 'text.secondary' }}>
-                  Collected: {data.collectedAt ? new Date(data.collectedAt).toLocaleString() : '—'}
+                  Collected: {data.collectedAt ? formatInUserTimezone(data.collectedAt) : '—'}
                 </Typography>
               </CardContent>
             </Card>

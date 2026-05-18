@@ -2,17 +2,10 @@ import React, { useState, useEffect, useContext } from 'react';
 import { Box, Typography, Card, CardContent, Button, Grid, Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Select, MenuItem, FormControl, InputLabel, Checkbox, ListItemText, Switch, Tabs, Tab, useTheme } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import { API_BASE_URL } from '../config/api';
-import moment from 'moment-timezone';
 import { getChartCardSx } from '../utils/chartStyles';
 import PageHeader from './PageHeader';
 import NotificationsIcon from '@mui/icons-material/Notifications';
-
-// Utility: Format datetime in user's selected timezone
-const getUserTimezone = () => localStorage.getItem('iot_timezone') || moment.tz.guess() || 'UTC';
-const formatInUserTimezone = (dt, fmt = 'YYYY-MM-DD HH:mm:ss') => {
-  if (!dt) return '-';
-  return moment.utc(dt).tz(getUserTimezone()).format(fmt);
-};
+import { formatInUserTimezone } from '../utils/timezoneUtils';
 
 export default function Alerts({ socket, devices = [], alerts = [], onAlertsChange }) {
   const theme = useTheme();
@@ -377,7 +370,12 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
     { field: 'device', headerName: 'Device', flex: 1 },
     { field: 'parameter', headerName: 'Parameter', flex: 1 },
     { field: 'value', headerName: 'Value', flex: 1 },
-    { field: 'detected_at', headerName: 'Detected At', flex: 1 },
+    {
+      field: 'detected_at',
+      headerName: 'Detected At',
+      flex: 1,
+      valueGetter: (params) => formatInUserTimezone(params.value),
+    },
     { field: 'status', headerName: 'Status', flex: 1 },
   ];
 

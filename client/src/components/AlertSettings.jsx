@@ -9,6 +9,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { DataGrid, GridActionsCellItem } from '@mui/x-data-grid';
 import { API_BASE_URL } from '../config/api';
+import { formatInUserTimezone } from '../utils/timezoneUtils';
 
 export default function AlertSettings({ user }) {
   const [tab, setTab] = useState(0);
@@ -476,7 +477,7 @@ export default function AlertSettings({ user }) {
   };
 
   const notificationLogColumns = [
-    { field: 'timestamp', headerName: 'Timestamp', flex: 1, valueGetter: (params) => new Date(params.value).toLocaleString() },
+    { field: 'timestamp', headerName: 'Timestamp', flex: 1, valueGetter: (params) => formatInUserTimezone(params.value) },
     { field: 'alert_name', headerName: 'Alert', flex: 1 },
     { field: 'type', headerName: 'Type', flex: 0.5 },
     { field: 'recipient', headerName: 'Recipient', flex: 1 },

@@ -40,14 +40,8 @@ import { useTheme, alpha } from '@mui/material/styles';
 import { API_BASE_URL } from '../config/api';
 import { usePermissions } from '../hooks/usePermissions';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
-import moment from 'moment-timezone';
 import { CHART_COLORS, getTooltipContentStyle, LEGEND_WRAPPER_STYLE } from '../utils/chartStyles';
-
-const getUserTimezone = () => localStorage.getItem('iot_timezone') || moment.tz.guess() || 'UTC';
-const formatInUserTimezone = (dt, fmt = 'YYYY-MM-DD HH:mm:ss') => {
-  if (!dt) return '-';
-  return moment.utc(dt).tz(getUserTimezone()).format(fmt);
-};
+import { formatInUserTimezone } from '../utils/timezoneUtils';
 
 function rowTimeMs(row) {
   const raw = row?.datetime ?? row?.timestamp;
