@@ -41,7 +41,7 @@ import { API_BASE_URL } from '../config/api';
 import { usePermissions } from '../hooks/usePermissions';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import { CHART_COLORS, getTooltipContentStyle, LEGEND_WRAPPER_STYLE } from '../utils/chartStyles';
-import { formatInUserTimezone } from '../utils/timezoneUtils';
+import { formatInUserTimezone, getUserTimezone } from '../utils/timezoneUtils';
 
 function rowTimeMs(row) {
   const raw = row?.datetime ?? row?.timestamp;

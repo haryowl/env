@@ -362,7 +362,7 @@ export const exportChartToPDF = (chartData, parameter, deviceName) => {
   doc.text(`${parameter.toUpperCase()} Chart`, 20, 20);
   doc.setFontSize(12);
   doc.text(`Device: ${deviceName}`, 20, 35);
-  doc.text(`Generated: ${new Date().toLocaleString()}`, 20, 45);
+  doc.text(`Generated: ${formatInUserTimezone(new Date().toISOString())}`, 20, 45);
   
   if (chartData && chartData.length > 0) {
     const values = chartData.map(item => parseFloat(item[parameter])).filter(val => !isNaN(val));

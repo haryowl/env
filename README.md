@@ -79,6 +79,12 @@ git clone https://github.com/haryowl/env.git && cd env && chmod +x install.sh &&
 
 Then edit `.env`, create the database if needed, run `npm run setup-db`, and start with `npm start`. See the "Next steps" printed by the script.
 
+**Ubuntu + nginx (no `:3000` in the URL):** see **[docs/INSTALL-UBUNTU-NGINX.md](docs/INSTALL-UBUNTU-NGINX.md)** for a simple step-by-step guide, or run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/haryowl/env/main/scripts/setup-ubuntu-nginx.sh | bash
+```
+
 ---
 
 ### Quick install on Ubuntu (Linux)
