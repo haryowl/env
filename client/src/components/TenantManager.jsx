@@ -22,6 +22,7 @@ import {
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DomainIcon from '@mui/icons-material/Domain';
+import { Link } from 'react-router-dom';
 import { API_BASE_URL } from '../config/api';
 import { usePermissions } from '../hooks/usePermissions.jsx';
 import PageHeader from './PageHeader';
@@ -156,7 +157,8 @@ export default function TenantManager() {
 
       <Alert severity="info" sx={{ mb: 2 }}>
         Allowed redirect hosts come from <code>ALLOWED_LOGOUT_REDIRECT_HOSTS</code> or hostnames parsed from{' '}
-        <code>CORS_ORIGINS</code>. Production URLs must use HTTPS.
+        <code>CORS_ORIGINS</code>. Production URLs must use HTTPS.{' '}
+        <Link to="/deployment-settings">Edit in Deployment &amp; domain</Link>.
       </Alert>
 
       {loading ? (

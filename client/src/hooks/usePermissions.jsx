@@ -122,6 +122,7 @@ export const PermissionProvider = ({ children }) => {
       '/settings': { access: false, read: false, create: false, update: false, delete: false },
       '/system-info': { access: false, read: false, create: false, update: false, delete: false },
       '/data-cleanup': { access: false, read: false, create: false, update: false, delete: false },
+      '/deployment-settings': { access: false, read: false, create: false, update: false, delete: false },
       '/font-customizer': { access: false, read: false, create: false, update: false, delete: false }
     };
 
@@ -155,6 +156,7 @@ export const PermissionProvider = ({ children }) => {
         '/settings': { access: true, read: true, create: true, update: true, delete: true },
         '/system-info': { access: true, read: true, create: true, update: true, delete: true },
         '/data-cleanup': { access: true, read: true, create: true, update: true, delete: true },
+        '/deployment-settings': { access: true, read: true, create: true, update: true, delete: true },
         '/font-customizer': { access: true, read: true, create: true, update: true, delete: true }
       },
       'admin': {
@@ -185,6 +187,7 @@ export const PermissionProvider = ({ children }) => {
         '/settings': { access: true, read: false, create: false, update: true, delete: false },
         '/system-info': { access: true, read: true, create: false, update: false, delete: false },
         '/data-cleanup': { access: true, read: true, create: true, update: true, delete: true },
+        '/deployment-settings': { access: true, read: true, create: true, update: true, delete: true },
         '/font-customizer': { access: true, read: true, create: false, update: true, delete: false }
       },
       'demo': {

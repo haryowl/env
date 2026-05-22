@@ -73,6 +73,7 @@ const mqttPublisherRoutes = require('./routes/mqttPublisher');
 const featuresRoutes = require('./routes/features');
 const liveTrackingRoutes = require('./routes/liveTracking');
 const dataCleanupRoutes = require('./routes/dataCleanup');
+const deploymentSettingsRoutes = require('./routes/deploymentSettings');
 const dataCleanupService = require('./services/dataCleanupService');
 
 const app = express();
@@ -238,6 +239,8 @@ app.use('/api/system-info', authenticateToken, filterDataByRole, systemInfoRoute
 console.log('✓ /api/system-info route registered');
 app.use('/api/data-cleanup', authenticateToken, filterDataByRole, dataCleanupRoutes);
 console.log('✓ /api/data-cleanup route registered');
+app.use('/api/deployment-settings', authenticateToken, filterDataByRole, deploymentSettingsRoutes);
+console.log('✓ /api/deployment-settings route registered');
 console.log('All API routes registered successfully');
 
 // Serve the main application - React SPA if built, else simple public page

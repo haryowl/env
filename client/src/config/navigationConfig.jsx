@@ -33,6 +33,7 @@ import {
   Send as SendIcon,
   MyLocation as MyLocationIcon,
   DeleteSweep as DeleteSweepIcon,
+  Public as PublicIcon,
 } from '@mui/icons-material';
 
 export const MENU_SECTIONS = [
@@ -99,6 +100,7 @@ export const MENU_SECTIONS = [
       { text: 'Notification Config', icon: <NotificationsIcon />, path: '/notification-config', menuPath: '/notification-config' },
       { text: 'Scheduled Exports', icon: <ScheduleSendIcon />, path: '/scheduled-exports', menuPath: '/scheduled-exports' },
       { text: 'MQTT Publisher', icon: <SendIcon />, path: '/mqtt-publisher', menuPath: '/mqtt-publisher' },
+      { text: 'Deployment & domain', icon: <PublicIcon />, path: '/deployment-settings', menuPath: '/deployment-settings' },
       { text: 'System Information', icon: <MemoryIcon />, path: '/system-info', menuPath: '/system-info' },
       { text: 'Data cleanup', icon: <DeleteSweepIcon />, path: '/data-cleanup', menuPath: '/data-cleanup' },
       { text: 'Settings', icon: <SettingsIcon />, path: '/settings', menuPath: '/settings' },
@@ -148,6 +150,7 @@ export const ROUTE_MENU_PATH_MAP = {
   '/sensor-management': '/sensor-management',
   '/maintenance': '/maintenance',
   '/technician': '/technician',
+  '/deployment-settings': '/deployment-settings',
   '/system-info': '/system-info',
   '/data-cleanup': '/data-cleanup',
   '/settings': '/settings',

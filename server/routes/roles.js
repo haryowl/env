@@ -33,7 +33,8 @@ const getMenuName = (menuPath) => {
     '/technician': 'Technician Dashboard',
     '/settings': 'Settings',
     '/system-info': 'System Information',
-    '/data-cleanup': 'Data cleanup'
+    '/data-cleanup': 'Data cleanup',
+    '/deployment-settings': 'Deployment & domain'
   };
   return menuMap[menuPath] || menuPath;
 };
@@ -135,7 +136,8 @@ router.get('/templates', authorizeRole(['super_admin', 'admin']), async (req, re
           '/scheduled-exports': { access: true, read: true, create: true, update: true, delete: true },
           '/settings': { access: true, read: true, create: true, update: true, delete: true },
           '/system-info': { access: true, read: true, create: true, update: true, delete: true },
-          '/data-cleanup': { access: true, read: true, create: true, update: true, delete: true }
+          '/data-cleanup': { access: true, read: true, create: true, update: true, delete: true },
+          '/deployment-settings': { access: true, read: true, create: true, update: true, delete: true }
         },
         device_permissions: {
           read: true,
@@ -350,7 +352,8 @@ router.post('/from-template', authorizeRole(['super_admin']), async (req, res) =
           '/scheduled-exports': { access: true, read: true, create: true, update: true, delete: true },
           '/settings': { access: true, read: true, create: true, update: true, delete: true },
           '/system-info': { access: true, read: true, create: true, update: true, delete: true },
-          '/data-cleanup': { access: true, read: true, create: true, update: true, delete: true }
+          '/data-cleanup': { access: true, read: true, create: true, update: true, delete: true },
+          '/deployment-settings': { access: true, read: true, create: true, update: true, delete: true }
         },
         device_permissions: {
           read: true,
@@ -1439,6 +1442,12 @@ router.get('/menus/available', authorizeRole(['super_admin', 'admin']), async (r
         path: '/data-cleanup',
         name: 'Data cleanup',
         description: 'Retention policies and deletion of old sensor, GPS, and alert history',
+        category: 'System'
+      },
+      {
+        path: '/deployment-settings',
+        name: 'Deployment & domain',
+        description: 'CORS origins, logout redirect hosts, and nginx / SSL setup snippets',
         category: 'System'
       }
     ];
