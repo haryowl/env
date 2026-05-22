@@ -1,4 +1,4 @@
-# Fresh install on Ubuntu + nginx (no port in URL)
+1# Fresh install on Ubuntu + nginx (no port in URL)
 
 This guide installs the IoT Monitoring app on a **new Ubuntu server** and puts **nginx** in front so users open:
 
@@ -84,13 +84,34 @@ Examples:
 - Domain: `CORS_ORIGINS=http://csr.aksadata.id,https://csr.aksadata.id`
 - IP only: `CORS_ORIGINS=http://81.17.100.7`
 
-**2) Create PostgreSQL database**
+**2) Set PostgreSQL password (must match `.env`) and create the database**
+
+`npm run setup-db` connects as `DB_USER` with `DB_PASSWORD` over TCP (`localhost`). On a fresh Ubuntu install the `postgres` role often has **no password** until you set one — if `.env` has a password PostgreSQL does not know, you get `password authentication failed for user "postgres"`.
+
+Use the **same** password in both places (example: `MySecureDbPass123`):
 
 ```bash
+# Replace with the exact value you put in .env as DB_PASSWORD=
+export DB_PASS='MySecureDbPass123'
+
+sudo -u postgres psql -c "ALTER USER postgres PASSWORD '${DB_PASS}';"
 sudo -u postgres psql -c "CREATE DATABASE iot_monitoring;"
 ```
 
-If you set a postgres password in `.env`, ensure PostgreSQL accepts it (default Ubuntu `peer` auth for local `postgres` user is fine when `DB_USER=postgres`).
+Verify (should list `iot_monitoring`):
+
+```bash
+PGPASSWORD="$DB_PASS" psql -h localhost -U postgres -d iot_monitoring -c '\conninfo'
+```
+
+In `.env`:
+
+```env
+DB_USER=postgres
+DB_PASSWORD=MySecureDbPass123
+```
+
+**Common mistake:** editing `.env` with `YOUR_STRONG_DB_PASSWORD` or leaving `your_password` from `env.example` without running `ALTER USER postgres` with that same string.
 
 **3) Create tables and default admin**
 
@@ -187,6 +208,49 @@ Port **3000** does not need to be open to the internet.
 - `http://YOUR_DOMAIN`  
 - You should see the login page (no `:3000`).
 
+### Multiple domains (same app)
+
+If several hostnames should open the **same** IoT app (e.g. `monitor.example.com` and `iot.example.com`, or domain + `www`), use **one** `server` block and list every name on `server_name`. nginx accepts any of them and still proxies to the same `127.0.0.1:3000`.
+
+**DNS:** Each hostname must have an **A** (or **AAAA**) record pointing to this server’s public IP before Certbot will work.
+
+**nginx** — replace the single name with a space-separated list:
+
+```nginx
+server {
+    listen 80;
+    server_name monitor.example.com iot.example.com www.monitor.example.com;
+
+    client_max_body_size 20M;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+```
+
+Then `sudo nginx -t` and `sudo systemctl reload nginx`. Test each URL in the browser.
+
+**App / CORS / tenants** — the Node app must allow each **origin** (scheme + host + port). In `.env` or **Deployment & domain** in the UI, list every public URL (comma-separated, no spaces required but allowed):
+
+```env
+CORS_ORIGINS=http://monitor.example.com,https://monitor.example.com,http://iot.example.com,https://iot.example.com
+ALLOWED_LOGOUT_REDIRECT_HOSTS=monitor.example.com,iot.example.com
+```
+
+After changing `.env`, run `pm2 restart iot-monitoring`.
+
+**Optional:** `www` and bare domain are different hostnames — include both in `server_name`, `CORS_ORIGINS`, and Certbot if users might use either.
+
+You do **not** need a separate nginx site file per domain unless you want different apps or certificates on different servers.
+
 ---
 
 ## Optional — HTTPS (Let's Encrypt)
@@ -198,7 +262,13 @@ sudo apt-get install -y certbot python3-certbot-nginx
 sudo certbot --nginx -d YOUR_DOMAIN
 ```
 
-Then in `.env` use `https://` in `CORS_ORIGINS` and restart:
+**Several domains on one certificate** — repeat `-d` for each hostname in the same `server_name` list:
+
+```bash
+sudo certbot --nginx -d monitor.example.com -d iot.example.com -d www.monitor.example.com
+```
+
+Certbot updates the nginx site for HTTPS. Then add `https://...` for **each** hostname to `CORS_ORIGINS` and restart:
 
 ```bash
 pm2 restart iot-monitoring
@@ -238,6 +308,7 @@ Database migrations (if any): check project `scripts/` or release notes; often `
 | Blank page / API errors | `pm2 logs iot-monitoring` — app running? `curl http://127.0.0.1:3000/health` |
 | 502 Bad Gateway | App not running: `pm2 status` and restart |
 | Login works on `:3000` but not on domain | nginx config not enabled or wrong `server_name` |
+| `password authentication failed for user "postgres"` on `setup-db` | `DB_PASSWORD` in `.env` must match `ALTER USER postgres PASSWORD '...'` (see step 2 above) |
 | Tenant / logout “host not allowed” | Add host to `CORS_ORIGINS` or `ALLOWED_LOGOUT_REDIRECT_HOSTS` in `.env`, restart PM2 |
 | WebSocket / live data fails | nginx `Upgrade` and `Connection` headers (see config above) |
 | MQTT devices not connecting | `sudo systemctl status mosquitto` — broker on port 1883 |

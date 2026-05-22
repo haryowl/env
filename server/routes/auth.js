@@ -6,6 +6,7 @@ const {
   comparePassword, 
   updateLastLogin,
   createRateLimiter,
+  authenticateToken,
   authenticateTokenOptional
 } = require('../middleware/auth');
 const { getRow, query } = require('../config/database');
@@ -173,8 +174,8 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// Change password endpoint
-router.post('/change-password', async (req, res) => {
+// Change password endpoint (current user; requires Bearer token)
+router.post('/change-password', authenticateToken, async (req, res) => {
   try {
     // Validate input
     const { error, value } = changePasswordSchema.validate(req.body);
@@ -265,7 +266,7 @@ router.get('/profile', async (req, res) => {
 });
 
 // Update user profile
-router.put('/profile', async (req, res) => {
+router.put('/profile', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.user_id;
     const { timezone, preferences } = req.body;
@@ -400,7 +401,7 @@ router.post('/refresh', async (req, res) => {
 });
 
 // Validate token endpoint
-router.get('/validate', async (req, res) => {
+router.get('/validate', authenticateToken, async (req, res) => {
   try {
     // If we reach here, the token is valid (auth middleware passed)
     res.json({

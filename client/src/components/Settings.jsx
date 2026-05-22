@@ -131,8 +131,8 @@ const Settings = ({ user, onFontChange }) => {
       return;
     }
 
-    if (passwordData.newPassword.length < 6) {
-      setError('Password must be at least 6 characters long');
+    if (passwordData.newPassword.length < 8) {
+      setError('Password must be at least 8 characters long');
       return;
     }
 
@@ -142,8 +142,8 @@ const Settings = ({ user, onFontChange }) => {
 
     try {
       const token = localStorage.getItem('iot_token');
-      const response = await fetch(`${API_BASE_URL}/users/${user.id}/password`, {
-        method: 'PUT',
+      const response = await fetch(`${API_BASE_URL}/auth/change-password`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
@@ -154,16 +154,17 @@ const Settings = ({ user, onFontChange }) => {
         }),
       });
 
+      const data = await response.json().catch(() => ({}));
+
       if (response.ok) {
-        setSuccess('Password updated successfully!');
+        setSuccess(data.message || 'Password updated successfully!');
         setPasswordData({
           currentPassword: '',
           newPassword: '',
           confirmPassword: '',
         });
       } else {
-        const data = await response.json();
-        setError(data.error || 'Failed to update password');
+        setError(data.error || data.details?.[0]?.message || 'Failed to update password');
       }
     } catch (error) {
       setError('Network error');
