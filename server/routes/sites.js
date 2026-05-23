@@ -2,10 +2,25 @@ const express = require('express');
 const router = express.Router();
 const { query, getRow, getRows } = require('../config/database');
 const { authenticateToken, authorizeMenuAccess } = require('../middleware/auth');
+const { ensureSitesSchema } = require('../utils/ensureSitesSchema');
 
 // Apply authentication middleware to all routes
 router.use(authenticateToken);
 router.use(authorizeMenuAccess('/company-site'));
+
+router.use(async (req, res, next) => {
+  try {
+    await ensureSitesSchema();
+    next();
+  } catch (e) {
+    console.error('ensureSitesSchema:', e);
+    res.status(500).json({
+      error: 'Database initialization failed for sites',
+      code: 'SITES_SCHEMA_ERROR',
+      details: e.message,
+    });
+  }
+});
 
 // GET /api/sites - Get all sites
 // Use minimal query (sites + companies only) so list never empty due to JOIN/column issues
@@ -296,7 +311,8 @@ router.post('/', async (req, res) => {
     console.error('Create site error:', error);
     res.status(500).json({
       error: 'Failed to create site',
-      code: 'CREATE_SITE_ERROR'
+      code: 'CREATE_SITE_ERROR',
+      details: error.message,
     });
   }
 });

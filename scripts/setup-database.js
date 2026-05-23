@@ -633,6 +633,29 @@ const setupDatabase = async () => {
       );
     `);
 
+    // User–site assignments (required by POST /api/sites when assigning users)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS user_sites (
+        user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+        site_id INTEGER NOT NULL REFERENCES sites(site_id) ON DELETE CASCADE,
+        assigned_at TIMESTAMP DEFAULT NOW(),
+        assigned_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+        permission_level VARCHAR(20) DEFAULT 'viewer' CHECK (permission_level IN ('viewer', 'operator', 'admin')),
+        PRIMARY KEY (user_id, site_id)
+      );
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_sites_user_id ON user_sites(user_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_sites_site_id ON user_sites(site_id)`);
+
+    try {
+      await pool.query(`
+        ALTER TABLE devices ADD COLUMN IF NOT EXISTS site_id INTEGER REFERENCES sites(site_id) ON DELETE SET NULL
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_devices_site_id ON devices(site_id)`);
+    } catch (_) {
+      /* site_id may already exist */
+    }
+
     // Sensor database (for maintenance/sensor sites)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS sensor_database (
