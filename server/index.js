@@ -75,6 +75,7 @@ const liveTrackingRoutes = require('./routes/liveTracking');
 const dataCleanupRoutes = require('./routes/dataCleanup');
 const deploymentSettingsRoutes = require('./routes/deploymentSettings');
 const dataCleanupService = require('./services/dataCleanupService');
+const { ensureCoreSchema } = require('./utils/ensureCoreSchema');
 
 const app = express();
 const server = http.createServer(app);
@@ -322,7 +323,10 @@ const initializeServices = async () => {
     // Test database connection
     await query('SELECT 1');
     console.log('Database connection established');
-    
+
+    await ensureCoreSchema();
+    console.log('Database schema verified (core tables/columns)');
+
     // Connect to MQTT broker
     await mqttService.connect();
     

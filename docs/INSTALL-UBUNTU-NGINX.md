@@ -245,6 +245,7 @@ CORS_ORIGINS=http://monitor.example.com,https://monitor.example.com,http://iot.e
 ALLOWED_LOGOUT_REDIRECT_HOSTS=monitor.example.com,iot.example.com
 ```
 
+
 After changing `.env`, run `pm2 restart iot-monitoring`.
 
 **Optional:** `www` and bare domain are different hostnames — include both in `server_name`, `CORS_ORIGINS`, and Certbot if users might use either.
@@ -312,6 +313,15 @@ Database migrations (if any): check project `scripts/` or release notes; often `
 | Tenant / logout “host not allowed” | Add host to `CORS_ORIGINS` or `ALLOWED_LOGOUT_REDIRECT_HOSTS` in `.env`, restart PM2 |
 | WebSocket / live data fails | nginx `Upgrade` and `Connection` headers (see config above) |
 | MQTT devices not connecting | `sudo systemctl status mosquitto` — broker on port 1883 |
+| Create site / alert returns **500** on fresh install | Run `npm run ensure-schema` then `pm2 restart iot-monitoring` (adds `user_sites`, `alerts.created_by`, etc.) |
+
+After `npm run setup-db`, schema extras are applied automatically on first app start. On an existing DB from an older release, run once:
+
+```bash
+cd /opt/iot-monitoring
+npm run ensure-schema
+pm2 restart iot-monitoring
+```
 
 **Logs**
 

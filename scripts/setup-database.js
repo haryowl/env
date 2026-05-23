@@ -145,7 +145,10 @@ const setupDatabase = async () => {
         last_seen TIMESTAMPTZ,
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW(),
-        metadata JSONB DEFAULT '{}'
+        metadata JSONB DEFAULT '{}',
+        valid_from DATE,
+        valid_to DATE,
+        is_deleted BOOLEAN DEFAULT false
       );
     `);
 
@@ -162,9 +165,13 @@ const setupDatabase = async () => {
         threshold_time INTEGER,
         actions JSONB DEFAULT '{}',
         template TEXT,
+        created_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW()
       );
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_alerts_created_by ON alerts(created_by) WHERE created_by IS NOT NULL
     `);
 
     // Alert logs (required by alertEvaluationService, alertLogs routes)
@@ -229,6 +236,7 @@ const setupDatabase = async () => {
         validation_rule JSONB DEFAULT '{}',
         default_value TEXT,
         is_required BOOLEAN DEFAULT false,
+        formula TEXT,
         created_at TIMESTAMPTZ DEFAULT NOW(),
         UNIQUE(device_id, source_field)
       );
@@ -600,6 +608,51 @@ const setupDatabase = async () => {
         enabled BOOLEAN DEFAULT false,
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS alert_email_recipients (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL,
+        alerts JSONB DEFAULT '[]',
+        created_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS alert_http_config (
+        id INTEGER PRIMARY KEY DEFAULT 1,
+        enabled BOOLEAN DEFAULT false,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS alert_http_endpoints (
+        id SERIAL PRIMARY KEY,
+        url VARCHAR(500) NOT NULL,
+        method VARCHAR(10) DEFAULT 'POST',
+        headers JSONB DEFAULT '{}',
+        alerts JSONB DEFAULT '[]',
+        body_template JSONB,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS alert_notification_logs (
+        id SERIAL PRIMARY KEY,
+        alert_id INTEGER,
+        notification_type VARCHAR(20) NOT NULL,
+        recipient VARCHAR(255),
+        status VARCHAR(20) NOT NULL,
+        message TEXT,
+        error_details TEXT,
+        sent_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW()
       );
     `);
 

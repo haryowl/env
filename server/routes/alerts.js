@@ -1,8 +1,23 @@
 const express = require('express');
 const { query, getRow, getRows } = require('../config/database');
 const { authenticateToken, authorizeMenuAccess } = require('../middleware/auth');
+const { ensureAlertsSchema } = require('../utils/ensureAlertsSchema');
 const router = express.Router();
 const { processDeviceData } = require('../services/deviceMapper');
+
+router.use(async (req, res, next) => {
+  try {
+    await ensureAlertsSchema();
+    next();
+  } catch (e) {
+    console.error('ensureAlertsSchema:', e);
+    res.status(500).json({
+      error: 'Database initialization failed for alerts',
+      code: 'ALERTS_SCHEMA_ERROR',
+      details: e.message,
+    });
+  }
+});
 
 // GET /api/alerts - List all alerts
 router.get('/', authenticateToken, authorizeMenuAccess('/alerts', 'read'), async (req, res) => {
@@ -79,7 +94,11 @@ router.post('/', authenticateToken, authorizeMenuAccess('/alerts', 'create'), as
     res.status(201).json({ alert: result.rows[0] });
   } catch (error) {
     console.error('Failed to create alert:', error);
-    res.status(500).json({ error: 'Failed to create alert' });
+    res.status(500).json({
+      error: 'Failed to create alert',
+      code: 'CREATE_ALERT_ERROR',
+      details: error.message,
+    });
   }
 });
 
