@@ -14,7 +14,6 @@ import {
 import {
   Visibility,
   VisibilityOff,
-  Eco as EcoIcon,
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
 import { useUserTheme } from '../contexts/UserThemeContext';
@@ -155,12 +154,15 @@ const Login = ({ onLogin }) => {
   return (
     <LoginContainer backgroundImage={backgroundImage}>
       <BackgroundControls elevation={3} aria-hidden>
-        <EcoIcon
+        <Typography
+          component="span"
           sx={{
-            fontSize: 28,
-            color: '#2e7d32',
+            fontSize: '1.75rem',
+            lineHeight: 1,
           }}
-        />
+        >
+          🌱
+        </Typography>
       </BackgroundControls>
 
       <LoginCard>
