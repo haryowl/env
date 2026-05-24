@@ -9,17 +9,12 @@ import {
   Alert,
   CircularProgress,
   IconButton,
-  Tooltip,
   Paper,
-  Fade,
-  Backdrop,
 } from '@mui/material';
 import {
   Visibility,
   VisibilityOff,
-  PhotoCamera,
-  Refresh,
-  Settings as SettingsIcon,
+  Eco as EcoIcon,
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
 import { useUserTheme } from '../contexts/UserThemeContext';
@@ -87,7 +82,8 @@ const BackgroundControls = styled(Paper)(({ theme }) => ({
   backdropFilter: 'blur(10px)',
   borderRadius: theme.spacing(1),
   display: 'flex',
-  gap: theme.spacing(0.5),
+  alignItems: 'center',
+  justifyContent: 'center',
   zIndex: 2,
 }));
 
@@ -122,9 +118,6 @@ const Login = ({ onLogin }) => {
     if (saved.includes('unsplash.com')) return LOCAL_LOGIN_BACKGROUND;
     return saved;
   });
-  const [customImageUrl, setCustomImageUrl] = useState('');
-  const [showImageInput, setShowImageInput] = useState(false);
-
   useEffect(() => {
     localStorage.setItem('login-background', backgroundImage);
   }, [backgroundImage]);
@@ -154,19 +147,6 @@ const Login = ({ onLogin }) => {
     }
   };
 
-  const handleRandomBackground = () => {
-    const randomIndex = Math.floor(Math.random() * DEFAULT_BACKGROUNDS.length);
-    setBackgroundImage(DEFAULT_BACKGROUNDS[randomIndex]);
-  };
-
-  const handleCustomImageSubmit = () => {
-    if (customImageUrl.trim()) {
-      setBackgroundImage(customImageUrl.trim());
-      setCustomImageUrl('');
-      setShowImageInput(false);
-    }
-  };
-
   const handleImageError = () => {
     // Fallback to default if custom image fails to load
     setBackgroundImage(DEFAULT_BACKGROUNDS[0]);
@@ -174,64 +154,14 @@ const Login = ({ onLogin }) => {
 
   return (
     <LoginContainer backgroundImage={backgroundImage}>
-      {/* Background Controls */}
-      <BackgroundControls elevation={3}>
-        <Tooltip title="Random Environment Image">
-          <IconButton size="small" onClick={handleRandomBackground}>
-            <Refresh />
-          </IconButton>
-        </Tooltip>
-        <Tooltip title="Custom Image URL">
-          <IconButton size="small" onClick={() => setShowImageInput(!showImageInput)}>
-            <PhotoCamera />
-          </IconButton>
-        </Tooltip>
+      <BackgroundControls elevation={3} aria-hidden>
+        <EcoIcon
+          sx={{
+            fontSize: 28,
+            color: '#2e7d32',
+          }}
+        />
       </BackgroundControls>
-
-      {/* Custom Image URL Input */}
-      {showImageInput && (
-        <Fade in={showImageInput}>
-          <Paper
-            sx={{
-              position: 'absolute',
-              top: 70,
-              right: 16,
-              p: 2,
-              zIndex: 3,
-              backgroundColor: 'rgba(255, 255, 255, 0.95)',
-              backdropFilter: 'blur(10px)',
-              borderRadius: 1,
-              minWidth: 300,
-            }}
-          >
-            <Typography variant="body2" gutterBottom>
-              Enter Image URL:
-            </Typography>
-            <TextField
-              fullWidth
-              size="small"
-              placeholder="/login-background.jpg or https://..."
-              value={customImageUrl}
-              onChange={(e) => setCustomImageUrl(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleCustomImageSubmit()}
-              sx={{ mb: 1 }}
-            />
-            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-              <Button size="small" onClick={() => setShowImageInput(false)}>
-                Cancel
-              </Button>
-              <Button 
-                size="small" 
-                variant="contained" 
-                onClick={handleCustomImageSubmit}
-                disabled={!customImageUrl.trim()}
-              >
-                Apply
-              </Button>
-            </Box>
-          </Paper>
-        </Fade>
-      )}
 
       <LoginCard>
         <CardContent sx={{ p: 5 }}>
