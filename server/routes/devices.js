@@ -14,6 +14,76 @@ const {
 
 const router = express.Router();
 
+const POPUP_SKIP_SENSOR_TYPES = new Set(['datetime', 'timestamp', 'device_id', 'device_name']);
+
+const mappingSourceKey = (m) => m.source_field ?? m.source;
+
+function normalizeReadingValue(value) {
+  if (typeof value === 'string') {
+    const numValue = parseFloat(value);
+    return Number.isNaN(numValue) ? value : numValue;
+  }
+  return value;
+}
+
+async function fetchLatestSensorReadingsByType(deviceId) {
+  const rows = await getRows(
+    `SELECT DISTINCT ON (sensor_type)
+      sensor_type, value, timestamp
+     FROM sensor_readings
+     WHERE device_id = $1
+     ORDER BY sensor_type, timestamp DESC`,
+    [deviceId]
+  );
+
+  const latestData = {};
+  let lastUpdatedAt = null;
+
+  for (const row of rows) {
+    if (POPUP_SKIP_SENSOR_TYPES.has(row.sensor_type)) continue;
+    const ts = row.timestamp ? new Date(row.timestamp).getTime() : null;
+    if (ts != null && (lastUpdatedAt == null || ts > lastUpdatedAt)) {
+      lastUpdatedAt = ts;
+    }
+    latestData[row.sensor_type] = normalizeReadingValue(row.value);
+  }
+
+  return { latestData, lastUpdatedAt };
+}
+
+function remapReadingsByMappings(rawBySource, mappings) {
+  const out = {};
+  for (const m of mappings) {
+    const src = mappingSourceKey(m);
+    const target = m.target_field;
+    if (!src || !target || POPUP_SKIP_SENSOR_TYPES.has(target)) continue;
+    if (rawBySource[src] !== undefined && rawBySource[src] !== null) {
+      out[target] = rawBySource[src];
+    }
+  }
+  for (const [key, value] of Object.entries(rawBySource)) {
+    if (out[key] === undefined && value !== undefined && value !== null) {
+      out[key] = value;
+    }
+  }
+  return out;
+}
+
+function applyFormulaToLatestData(latestData, mappings) {
+  for (const m of mappings) {
+    const target = m.target_field;
+    if (!target || !m.formula || latestData[target] === undefined) continue;
+    try {
+      latestData[target] = mathFormulaService.evaluateFormula(m.formula, {
+        value: latestData[target],
+      });
+    } catch (_) {
+      /* keep value */
+    }
+  }
+  return latestData;
+}
+
 // Validation schemas
 const createDeviceSchema = Joi.object({
   device_id: Joi.string().required(),
@@ -711,18 +781,15 @@ router.delete('/:deviceId/permissions/:userId', authorizeDeviceAccess('configure
 router.get('/:deviceId/latest-data', authenticateToken, async (req, res) => {
   try {
     const { deviceId } = req.params;
-    
-    // Check device permissions using the new middleware system
+
     if (req.allowedDeviceIds !== null) {
-      // If allowedDeviceIds is an array, check if device is in the allowed list
       if (!req.allowedDeviceIds.includes(deviceId)) {
         return res.status(403).json({
           error: 'Access denied to this device',
-          code: 'DEVICE_ACCESS_DENIED'
+          code: 'DEVICE_ACCESS_DENIED',
         });
       }
     }
-    // If req.allowedDeviceIds is null, it means full access (no filtering needed)
 
     const deviceTzRow = await getRow(
       `SELECT d.timezone, COALESCE(dma.timezone, d.timezone, 'UTC') AS effective_timezone
@@ -733,92 +800,70 @@ router.get('/:deviceId/latest-data', authenticateToken, async (req, res) => {
     );
     const effectiveTimezone = deviceTzRow?.effective_timezone || 'UTC';
 
-    // Get device mapper assignment to know which parameters to fetch
-    const mapperAssignment = await getRow(`
-      SELECT mappings FROM device_mapper_assignments dma
-      JOIN mapper_templates mt ON dma.template_id = mt.template_id
-      WHERE dma.device_id = $1
-    `, [deviceId]);
+    const mapperAssignment = await getRow(
+      `SELECT mappings FROM device_mapper_assignments dma
+       JOIN mapper_templates mt ON dma.template_id = mt.template_id
+       WHERE dma.device_id = $1`,
+      [deviceId]
+    );
 
-    if (!mapperAssignment) {
-      const latestAny = await getRow(
-        `SELECT timestamp, metadata->>'datetime' AS device_datetime
-         FROM sensor_readings
-         WHERE device_id = $1
-         ORDER BY timestamp DESC
-         LIMIT 1`,
-        [deviceId]
+    const mappings = mapperAssignment?.mappings || [];
+    const dataMappings = mappings.filter((m) => {
+      const src = mappingSourceKey(m);
+      return (
+        src != null &&
+        m.target_field != null &&
+        !POPUP_SKIP_SENSOR_TYPES.has(m.target_field)
       );
-      return res.json({
-        data: {},
-        timezone: effectiveTimezone,
-        last_updated_at: latestAny?.device_datetime || (latestAny?.timestamp
-          ? new Date(latestAny.timestamp).toISOString()
-          : null),
-      });
-    }
-
-    const mappings = mapperAssignment.mappings || [];
-    // Only consider mappings that have both source and target (sensor_readings stores source_field as sensor_type)
-    const sourceKey = (m) => m.source_field ?? m.source;
-    const dataMappings = mappings.filter(m => {
-      const src = sourceKey(m);
-      return src != null && m.target_field != null &&
-        !['datetime', 'timestamp', 'device_id', 'device_name'].includes(m.target_field);
     });
 
-    if (dataMappings.length === 0) {
-      return res.json({ data: {} });
+    let latestData = {};
+    let lastUpdatedAt = null;
+
+    if (dataMappings.length > 0) {
+      for (const m of dataMappings) {
+        const srcField = mappingSourceKey(m);
+        const result = await getRow(
+          `SELECT value, timestamp
+           FROM sensor_readings
+           WHERE device_id = $1 AND sensor_type = $2
+           ORDER BY timestamp DESC
+           LIMIT 1`,
+          [deviceId, srcField]
+        );
+
+        if (result) {
+          const ts = result.timestamp ? new Date(result.timestamp).getTime() : null;
+          if (ts != null && (lastUpdatedAt == null || ts > lastUpdatedAt)) {
+            lastUpdatedAt = ts;
+          }
+          latestData[m.target_field] = normalizeReadingValue(result.value);
+        }
+      }
+      latestData = applyFormulaToLatestData(latestData, dataMappings);
     }
 
-    // Get latest data: query by source_field (how it's stored), return keyed by target_field (for display)
-    const latestData = {};
-    let lastUpdatedAt = null;
-    let lastDeviceDatetime = null;
-
-    for (const m of dataMappings) {
-      const srcField = sourceKey(m);
-      const result = await getRow(`
-        SELECT value, timestamp, metadata->>'datetime' AS device_datetime
-        FROM sensor_readings 
-        WHERE device_id = $1 AND sensor_type = $2
-        ORDER BY timestamp DESC 
-        LIMIT 1
-      `, [deviceId, srcField]);
-
-      if (result) {
-        const ts = result.timestamp ? new Date(result.timestamp).getTime() : null;
-        if (ts != null && (!lastUpdatedAt || ts > lastUpdatedAt)) {
-          lastUpdatedAt = ts;
-          lastDeviceDatetime = result.device_datetime || null;
-        }
-        let value = result.value;
-        if (typeof value === 'string') {
-          const numValue = parseFloat(value);
-          value = isNaN(numValue) ? value : numValue;
-        }
-        if (m.formula) {
-          try {
-            value = mathFormulaService.evaluateFormula(m.formula, { value: result.value });
-          } catch (e) {
-            // keep value as-is on formula error
-          }
-        }
-        latestData[m.target_field] = value;
-      }
+    if (Object.keys(latestData).length === 0) {
+      const fallback = await fetchLatestSensorReadingsByType(deviceId);
+      lastUpdatedAt = fallback.lastUpdatedAt ?? lastUpdatedAt;
+      latestData =
+        dataMappings.length > 0
+          ? remapReadingsByMappings(fallback.latestData, dataMappings)
+          : fallback.latestData;
+      latestData = applyFormulaToLatestData(latestData, dataMappings);
     }
 
     res.json({
       data: latestData,
       timezone: effectiveTimezone,
-      last_updated_at: lastDeviceDatetime
-        || (lastUpdatedAt != null ? new Date(lastUpdatedAt).toISOString() : null),
+      last_updated_at:
+        lastUpdatedAt != null ? new Date(lastUpdatedAt).toISOString() : null,
     });
   } catch (error) {
     console.error('Get latest device data error:', error);
     res.status(500).json({
       error: 'Failed to get latest device data',
-      code: 'GET_DEVICE_DATA_ERROR'
+      code: 'GET_DEVICE_DATA_ERROR',
     });
   }
 });

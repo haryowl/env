@@ -314,9 +314,29 @@ const isLatestDataOutOfRange = (latestData, thresholds) => {
   return false;
 };
 
+const popupIgnoredKeys = ['device_id', 'deviceId', 'device_name', 'metadata', 'status', 'sensor_type', '_id', 'created_at', 'updated_at'];
+
+const buildPopupParameterEntries = (data, formatLabelForPopup, formatValueForPopup) => {
+  if (!data || typeof data !== 'object') return [];
+  return Object.entries(data)
+    .filter(([key, value]) => {
+      if (popupIgnoredKeys.includes(key)) return false;
+      if (value === null || value === undefined) return false;
+      if (typeof value === 'object') return false;
+      return true;
+    })
+    .map(([key, value]) => {
+      const label = formatLabelForPopup(key);
+      const displayValue = formatValueForPopup(key, value);
+      if (!label || displayValue === '') return null;
+      return { key, label, displayValue };
+    })
+    .filter(Boolean);
+};
+
 const DashboardMap = ({ socket, cardSx = {} }) => {
   const theme = useTheme();
-  const { formatDisplayName } = useFieldMetadata();
+  const { formatDisplayName, getUnit } = useFieldMetadata();
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -327,13 +347,17 @@ const DashboardMap = ({ socket, cardSx = {} }) => {
   const [alertThresholdsByDevice, setAlertThresholdsByDevice] = useState({});
   const [centerCoords, setCenterCoords] = useState(null);
   const mapRef = useRef(null);
-
-  const popupIgnoredKeys = ['device_id', 'deviceId', 'device_name', 'metadata', 'status', 'sensor_type', '_id', 'created_at', 'updated_at'];
+  const refreshTimersRef = useRef({});
 
   const formatLabelForPopup = (key) => {
     if (key === 'datetime') return 'Data Time';
     if (key === 'timestamp') return 'Server Time';
-    return formatDisplayName(key, { withUnit: true });
+    const label = formatDisplayName(key, { withUnit: false });
+    const unit = getUnit(key);
+    if (unit && !label.includes(`(${unit})`)) {
+      return `${label} (${unit})`;
+    }
+    return label;
   };
 
   const formatValueForPopup = (key, value) => {
@@ -432,22 +456,36 @@ const DashboardMap = ({ socket, cardSx = {} }) => {
     loadDevices();
     loadAlertThresholds();
 
+    const onStatusUpdate = (data) => {
+      setDevices((prevDevices) =>
+        prevDevices.map((device) =>
+          device.device_id === data.device_id ? { ...device, status: data.status } : device
+        )
+      );
+    };
+
+    const onDeviceData = (payload) => {
+      const deviceId = payload?.deviceId || payload?.device_id;
+      if (!deviceId) return;
+      clearTimeout(refreshTimersRef.current[deviceId]);
+      refreshTimersRef.current[deviceId] = setTimeout(() => {
+        loadDeviceData(deviceId);
+      }, 400);
+    };
+
     if (socket) {
-      socket.on('device_status_update', (data) => {
-        setDevices(prevDevices =>
-          prevDevices.map(device =>
-            device.device_id === data.device_id
-              ? { ...device, status: data.status }
-              : device
-          )
-        );
-      });
+      socket.on('device_status_update', onStatusUpdate);
+      socket.on('device_data', onDeviceData);
     }
 
     const interval = setInterval(loadDevices, 2 * 60 * 1000);
     return () => {
       clearInterval(interval);
-      if (socket) socket.off('device_status_update');
+      if (socket) {
+        socket.off('device_status_update', onStatusUpdate);
+        socket.off('device_data', onDeviceData);
+      }
+      Object.values(refreshTimersRef.current).forEach(clearTimeout);
     };
   }, [socket]);
 
@@ -737,58 +775,56 @@ const DashboardMap = ({ socket, cardSx = {} }) => {
                         >
                           Latest Parameters:
                         </Typography>
-                        {deviceData[device.device_id] && Object.keys(deviceData[device.device_id]).length > 0 ? (
-                          <Box 
-                            sx={{ 
-                              fontSize: '0.8rem',
-                              lineHeight: 1.5,
-                              '& > div': {
-                                margin: 0,
-                                padding: 0,
-                                lineHeight: 1.5
-                              }
-                            }}
-                          >
-                            {Object.entries(deviceData[device.device_id])
-                              .filter(([key, value]) => {
-                                if (popupIgnoredKeys.includes(key)) return false;
-                                if (value === null || value === undefined) return false;
-                                if (typeof value === 'object') return false;
-                                return true;
-                              })
-                              .map(([key, value]) => {
-                                const label = formatLabelForPopup(key);
-                                const displayValue = formatValueForPopup(key, value);
-                                if (!label || displayValue === '') {
-                                  return null;
-                                }
-                                return (
-                                  <div
-                                    key={key}
-                                    style={{
-                                      display: 'flex',
-                                      justifyContent: 'space-between',
-                                      margin: 0,
-                                      padding: 0,
-                                      lineHeight: 1.5,
-                                      fontSize: '0.8rem',
-                                      color: theme.palette.text.primary
-                                    }}
-                                  >
-                                    <span style={{ color: theme.palette.text.secondary }}>{label}:</span>
-                                    <span style={{ fontWeight: 'bold', color: theme.palette.text.primary }}>{displayValue}</span>
-                                  </div>
-                                );
-                              })}
-                          </Box>
-                        ) : (
-                          <Typography 
-                            variant="body2" 
-                            sx={{ color: theme.palette.text.secondary }}
-                          >
-                            No recent data available
-                          </Typography>
-                        )}
+                        {(() => {
+                          const entries = buildPopupParameterEntries(
+                            deviceData[device.device_id],
+                            formatLabelForPopup,
+                            formatValueForPopup
+                          );
+                          if (entries.length === 0) {
+                            return (
+                              <Typography
+                                variant="body2"
+                                sx={{ color: theme.palette.text.secondary }}
+                              >
+                                No recent data available
+                              </Typography>
+                            );
+                          }
+                          return (
+                            <Box
+                              sx={{
+                                fontSize: '0.8rem',
+                                lineHeight: 1.5,
+                                '& > div': {
+                                  margin: 0,
+                                  padding: 0,
+                                  lineHeight: 1.5,
+                                },
+                              }}
+                            >
+                              {entries.map(({ key, label, displayValue }) => (
+                                <div
+                                  key={key}
+                                  style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    margin: 0,
+                                    padding: 0,
+                                    lineHeight: 1.5,
+                                    fontSize: '0.8rem',
+                                    color: theme.palette.text.primary,
+                                  }}
+                                >
+                                  <span style={{ color: theme.palette.text.secondary }}>{label}:</span>
+                                  <span style={{ fontWeight: 'bold', color: theme.palette.text.primary }}>
+                                    {displayValue}
+                                  </span>
+                                </div>
+                              ))}
+                            </Box>
+                          );
+                        })()}
                       </Box>
                     </ThemedPopup>
                   </Popup>
