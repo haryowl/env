@@ -32,6 +32,7 @@ async function fetchLatestSensorReadingsByType(deviceId) {
       sensor_type, value, timestamp
      FROM sensor_readings
      WHERE device_id = $1
+       AND timestamp <= NOW() + INTERVAL '5 minutes'
      ORDER BY sensor_type, timestamp DESC`,
     [deviceId]
   );
@@ -67,6 +68,21 @@ function remapReadingsByMappings(rawBySource, mappings) {
     }
   }
   return out;
+}
+
+/** Latest sensor/GPS instant for a device (UTC), ignoring far-future clock skew. */
+async function getLatestReadingTimestamp(deviceId) {
+  const row = await getRow(
+    `SELECT GREATEST(
+      (SELECT MAX(timestamp) FROM sensor_readings
+        WHERE device_id = $1 AND timestamp <= NOW() + INTERVAL '5 minutes'),
+      (SELECT MAX(timestamp) FROM gps_tracks
+        WHERE device_id = $1 AND timestamp <= NOW() + INTERVAL '5 minutes')
+    ) AS ts`,
+    [deviceId]
+  );
+  if (!row?.ts) return null;
+  return new Date(row.ts).getTime();
 }
 
 function applyFormulaToLatestData(latestData, mappings) {
@@ -827,6 +843,7 @@ router.get('/:deviceId/latest-data', authenticateToken, async (req, res) => {
           `SELECT value, timestamp
            FROM sensor_readings
            WHERE device_id = $1 AND sensor_type = $2
+             AND timestamp <= NOW() + INTERVAL '5 minutes'
            ORDER BY timestamp DESC
            LIMIT 1`,
           [deviceId, srcField]
@@ -851,6 +868,11 @@ router.get('/:deviceId/latest-data', authenticateToken, async (req, res) => {
           ? remapReadingsByMappings(fallback.latestData, dataMappings)
           : fallback.latestData;
       latestData = applyFormulaToLatestData(latestData, dataMappings);
+    }
+
+    const authoritativeTs = await getLatestReadingTimestamp(deviceId);
+    if (authoritativeTs != null) {
+      lastUpdatedAt = authoritativeTs;
     }
 
     res.json({

@@ -757,10 +757,8 @@ const DashboardMap = ({ socket, cardSx = {} }) => {
                           }}
                         >
                           Last update:{' '}
-                          {(deviceLastUpdated[device.device_id] ?? device.last_data_at)
-                            ? formatInUserTimezone(
-                                deviceLastUpdated[device.device_id] ?? device.last_data_at
-                              )
+                          {deviceLastUpdated[device.device_id]
+                            ? formatInUserTimezone(deviceLastUpdated[device.device_id])
                             : 'no data yet'}
                         </Typography>
                         <Typography 

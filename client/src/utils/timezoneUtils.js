@@ -79,9 +79,31 @@ export const formatInTimezone = (datetime, timezone = 'UTC', format = 'YYYY-MM-D
 export const formatInDeviceTimezone = (datetime, deviceTimezone, format = 'YYYY-MM-DD HH:mm:ss') =>
   formatInTimezone(datetime, deviceTimezone || 'UTC', format);
 
-/** Default for all user-visible device data times (charts, tables, map, exports). */
+/**
+ * Format a UTC instant from DB/API in the user's Settings timezone.
+ * Strings without Z/offset are treated as UTC (not as local wall clock).
+ */
 export const formatInUserTimezone = (datetime, format = 'YYYY-MM-DD HH:mm:ss') => {
-  return formatInTimezone(datetime, getUserTimezone(), format);
+  if (!datetime) return '-';
+  try {
+    const userTz = getUserTimezone();
+    let m;
+    if (datetime instanceof Date) {
+      m = moment.utc(datetime);
+    } else {
+      const s = String(datetime).trim();
+      if (hasExplicitTimezone(s)) {
+        m = moment.parseZone(s);
+      } else {
+        m = moment.utc(s);
+      }
+    }
+    if (!m.isValid()) return '-';
+    return m.tz(userTz).format(format);
+  } catch (error) {
+    console.error('Error formatting datetime:', error);
+    return '-';
+  }
 };
 
 // Convert device datetime to UTC
