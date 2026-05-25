@@ -34,6 +34,7 @@ import {
   CalendarToday as CalendarIcon
 } from '@mui/icons-material';
 import { API_BASE_URL } from '../config/api';
+import { getDeviceDisplayName } from '../utils/deviceLabel';
 
 const ScheduledExportForm = ({ exportData, onSubmit, onCancel, title }) => {
   const theme = useTheme();
@@ -555,7 +556,7 @@ const ScheduledExportForm = ({ exportData, onSubmit, onCancel, title }) => {
               <Autocomplete
                 multiple
                 options={devices}
-                getOptionLabel={(option) => `${option.name} (${option.device_id})`}
+                getOptionLabel={(option) => getDeviceDisplayName(option)}
                 value={devices.filter(device => formData.device_ids.includes(device.device_id))}
                 onChange={(_, selectedDevices) => {
                   const deviceIds = selectedDevices.map(device => device.device_id);

@@ -27,6 +27,7 @@ import moment from 'moment-timezone';
 import { useTheme, alpha } from '@mui/material/styles';
 import { API_BASE_URL } from '../config/api';
 import { getUserTimezone } from '../utils/timezoneUtils';
+import { getDeviceDisplayName } from '../utils/deviceLabel';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import QuickViewChart from './QuickViewChart';
 import QuickViewAlertChart from './QuickViewAlertChart';
@@ -285,7 +286,7 @@ const MobileQuickView = () => {
         >
           {devices.map((d) => (
             <MenuItem key={d.device_id} value={d.device_id}>
-              {d.name} ({d.device_id})
+              {getDeviceDisplayName(d)}
             </MenuItem>
           ))}
         </Select>

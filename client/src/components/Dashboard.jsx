@@ -63,6 +63,7 @@ import { useTheme as useMuiTheme, alpha } from '@mui/material/styles';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import { usePermissions } from '../hooks/usePermissions';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
+import { getDeviceDisplayName } from '../utils/deviceLabel';
 
 /** Realtime line chart: no in-chart legend (toggles above), tighter margins for a larger plot. */
 const REALTIME_LINE_CHART_MARGIN = { top: 8, right: 18, left: 4, bottom: 2 };
@@ -934,7 +935,7 @@ const Dashboard = ({ socket }) => {
                         value={d.device_id}
                         sx={{ opacity: valid ? 1 : 0.6 }}
                       >
-                        {d.name} ({d.device_id})
+                        {getDeviceDisplayName(d)}
                         {!valid && (
                           <Typography component="span" variant="caption" color="error" sx={{ ml: 1 }}>
                             – Access expired

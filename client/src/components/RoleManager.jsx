@@ -45,6 +45,7 @@ import {
   Settings as SettingsIcon
 } from '@mui/icons-material';
 import { usePermissions } from '../hooks/usePermissions';
+import { getDeviceDisplayName } from '../utils/deviceLabel';
 
 const RoleManager = () => {
   const { canAccessMenu, canCreate, canUpdate, canDelete } = usePermissions();
@@ -803,7 +804,7 @@ const RoleManager = () => {
                       >
                         {devices.map((device) => (
                           <MenuItem key={device.device_id} value={device.device_id}>
-                            {device.name} ({device.device_id})
+                            {getDeviceDisplayName(device)}
                           </MenuItem>
                         ))}
                       </Select>
@@ -953,7 +954,7 @@ const RoleManager = () => {
                              .filter(d => !Object.keys(editSpecificDevicePermissions).includes(d.device_id))
                              .map((device) => (
                                <MenuItem key={device.device_id} value={device.device_id}>
-                                 {device.name} ({device.device_id})
+                                 {getDeviceDisplayName(device)}
                                </MenuItem>
                              ))}
                          </Select>

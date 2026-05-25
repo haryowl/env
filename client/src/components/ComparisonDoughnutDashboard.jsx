@@ -27,6 +27,7 @@ import {
 import moment from 'moment-timezone';
 import { API_BASE_URL } from '../config/api';
 import { getChartCardSx } from '../utils/chartStyles';
+import { getDeviceDisplayName } from '../utils/deviceLabel';
 
 const getUserTimezone = () => localStorage.getItem('iot_timezone') || moment.tz.guess() || 'UTC';
 
@@ -509,7 +510,7 @@ export default function ComparisonDoughnutDashboard() {
               >
                 {devices.map((d) => (
                   <MenuItem key={d.device_id} value={d.device_id}>
-                    {d.name} ({d.device_id})
+                    {getDeviceDisplayName(d)}
                   </MenuItem>
                 ))}
               </Select>

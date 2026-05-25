@@ -39,6 +39,7 @@ import PageHeader from './PageHeader';
 import { API_BASE_URL } from '../config/api';
 import { usePermissions } from '../hooks/usePermissions';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
+import { getDeviceDisplayName } from '../utils/deviceLabel';
 
 const authHeaders = () => {
   const token = localStorage.getItem('iot_token');
@@ -81,7 +82,7 @@ export default function DataCleanup() {
   const isPurgeMode = cleanupMode === 'purge_devices';
 
   const deviceOptions = useMemo(
-    () => devices.map((d) => ({ id: d.device_id, label: d.name ? `${d.name} (${d.device_id})` : d.device_id })),
+    () => devices.map((d) => ({ id: d.device_id, label: getDeviceDisplayName(d) })),
     [devices]
   );
 

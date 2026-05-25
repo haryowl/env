@@ -42,6 +42,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import { CHART_COLORS, getTooltipContentStyle, LEGEND_WRAPPER_STYLE } from '../utils/chartStyles';
 import { formatInUserTimezone, getUserTimezone } from '../utils/timezoneUtils';
+import { getDeviceDisplayName } from '../utils/deviceLabel';
 
 function rowTimeMs(row) {
   const raw = row?.datetime ?? row?.timestamp;
@@ -366,7 +367,7 @@ const MobileDashboard = ({ socket }) => {
         >
           {devices.map((d) => (
             <MenuItem key={d.device_id} value={d.device_id} disabled={!isDeviceAccessValid(d) && !isAdmin}>
-              {d.name} ({d.device_id})
+              {getDeviceDisplayName(d)}
             </MenuItem>
           ))}
         </Select>

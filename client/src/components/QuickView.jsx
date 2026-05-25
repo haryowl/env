@@ -44,6 +44,7 @@ import QuickViewAlertChart from './QuickViewAlertChart';
 import QuickViewTable from './QuickViewTable';
 import { exportToPDF, exportToExcel } from '../utils/exportUtils';
 import { formatInUserTimezone, getUserTimezone } from '../utils/timezoneUtils';
+import { getDeviceDisplayName } from '../utils/deviceLabel';
 import moment from 'moment-timezone';
 import { getChartCardSx } from '../utils/chartStyles';
 import SectionHeader from './SectionHeader';
@@ -605,7 +606,7 @@ const QuickView = () => {
                     <MenuItem key={device.device_id} value={device.device_id}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <DeviceHubIcon sx={{ fontSize: 20, color: '#007BA7' }} />
-                        {device.name} ({device.device_id})
+                        {getDeviceDisplayName(device)}
                       </Box>
                     </MenuItem>
                   ))}

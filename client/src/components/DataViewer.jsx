@@ -49,6 +49,7 @@ import {
 import { API_BASE_URL } from '../config/api';
 import moment from 'moment-timezone';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
+import { getDeviceDisplayName } from '../utils/deviceLabel';
 import { getChartCardSx, CHART_MARGIN, CARTESIAN_GRID_PROPS, AXIS_TICK_STYLE, CHART_COLORS } from '../utils/chartStyles';
 
 const DataViewer = () => {
@@ -363,7 +364,7 @@ const DataViewer = () => {
                 >
                   {devices.map((device) => (
                     <MenuItem key={device.device_id} value={device.device_id}>
-                      {device.name} ({device.device_id})
+                      {getDeviceDisplayName(device)}
                     </MenuItem>
                   ))}
                 </Select>

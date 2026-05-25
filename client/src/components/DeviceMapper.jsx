@@ -38,6 +38,7 @@ import {
 } from '@mui/icons-material';
 
 import { API_BASE_URL } from '../config/api';
+import { getDeviceDisplayName } from '../utils/deviceLabel';
 
 const DeviceMapper = () => {
   const [mappers, setMappers] = useState([]);
@@ -652,7 +653,7 @@ const DeviceMapper = () => {
                 >
                   {devices.map((device) => (
                     <MenuItem key={device.device_id} value={device.device_id}>
-                      {device.name} ({device.device_id})
+                      {getDeviceDisplayName(device)}
                     </MenuItem>
                   ))}
                 </Select>

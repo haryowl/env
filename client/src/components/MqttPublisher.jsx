@@ -28,6 +28,7 @@ import { DataGrid } from '@mui/x-data-grid';
 import { API_BASE_URL } from '../config/api';
 import PageHeader from './PageHeader';
 import { getChartCardSx } from '../utils/chartStyles';
+import { getDeviceDisplayName } from '../utils/deviceLabel';
 
 function buildTopicPreview(cfg) {
   if (!cfg?.project_code || !cfg?.group_identifier || !cfg?.terminal_code) return '-';
@@ -309,7 +310,7 @@ export default function MqttPublisher() {
               <Select value={deviceId} label="Device" onChange={(e) => setDeviceId(e.target.value)}>
                 {devices.map((d) => (
                   <MenuItem key={d.device_id} value={d.device_id}>
-                    {d.name} ({d.device_id})
+                    {getDeviceDisplayName(d)}
                   </MenuItem>
                 ))}
               </Select>
