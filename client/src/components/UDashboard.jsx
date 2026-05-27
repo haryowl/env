@@ -1,6 +1,6 @@
 /**
  * U-Dashboard: compact single-view layout (map + parameter overview + realtime chart).
- * Uses the same /dashboard menu permission via route map (see navigationConfig).
+ * Menu permission path is /u-dashboard (see navigationConfig ROUTE_MENU_PATH_MAP).
  * Does not modify the classic Dashboard component.
  */
 import React, { useState, useEffect, useMemo, useCallback } from 'react';

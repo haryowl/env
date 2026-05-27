@@ -102,6 +102,7 @@ export const PermissionProvider = ({ children }) => {
     // Default restrictive permissions
     const permissions = {
       '/dashboard': { access: true, read: true, create: false, update: false, delete: false },
+      '/u-dashboard': { access: true, read: true, create: false, update: false, delete: false },
       '/quick-view': { access: false, read: false, create: false, update: false, delete: false },
       '/devices': { access: false, read: false, create: false, update: false, delete: false },
       '/users': { access: false, read: false, create: false, update: false, delete: false },
@@ -131,6 +132,7 @@ export const PermissionProvider = ({ children }) => {
       'super_admin': {
         // Full access to everything
         '/dashboard': { access: true, read: true, create: true, update: true, delete: true },
+        '/u-dashboard': { access: true, read: true, create: true, update: true, delete: true },
         '/quick-view': { access: true, read: true, create: true, update: true, delete: true },
         '/devices': { access: true, read: true, create: true, update: true, delete: true },
         '/users': { access: true, read: true, create: true, update: true, delete: true },
@@ -162,6 +164,7 @@ export const PermissionProvider = ({ children }) => {
       'admin': {
         // Admin access - can manage most things but not roles
         '/dashboard': { access: true, read: true, create: true, update: true, delete: true },
+        '/u-dashboard': { access: true, read: true, create: true, update: true, delete: true },
         '/quick-view': { access: true, read: true, create: true, update: true, delete: true },
         '/devices': { access: true, read: true, create: true, update: true, delete: true },
         '/users': { access: true, read: true, create: true, update: true, delete: false },
@@ -193,6 +196,7 @@ export const PermissionProvider = ({ children }) => {
       'demo': {
         // Demo access - limited but functional
         '/dashboard': { access: true, read: true, create: false, update: true, delete: false },
+        '/u-dashboard': { access: true, read: true, create: false, update: true, delete: false },
         '/quick-view': { access: true, read: true, create: false, update: false, delete: false },
         '/devices': { access: true, read: true, create: false, update: false, delete: false },
         '/users': { access: true, read: true, create: true, update: true, delete: false },
@@ -214,6 +218,7 @@ export const PermissionProvider = ({ children }) => {
       'operator': {
         // Operator access - can configure devices and manage maintenance
         '/dashboard': { access: true, read: true, create: false, update: false, delete: false },
+        '/u-dashboard': { access: true, read: true, create: false, update: false, delete: false },
         '/quick-view': { access: true, read: true, create: false, update: false, delete: false },
         '/devices': { access: true, read: true, create: false, update: true, delete: false },
         '/mapper': { access: true, read: true, create: false, update: true, delete: false },
@@ -234,6 +239,7 @@ export const PermissionProvider = ({ children }) => {
       'viewer': {
         // Read-only access
         '/dashboard': { access: true, read: true, create: false, update: false, delete: false },
+        '/u-dashboard': { access: true, read: true, create: false, update: false, delete: false },
         '/quick-view': { access: true, read: true, create: false, update: false, delete: false },
         '/devices': { access: true, read: true, create: false, update: false, delete: false },
         '/live-tracking': { access: true, read: true, create: false, update: false, delete: false },
@@ -257,6 +263,7 @@ export const PermissionProvider = ({ children }) => {
       'operate': {
         // Operate role - similar to operator but with full maintenance access
         '/dashboard': { access: true, read: true, create: false, update: false, delete: false },
+        '/u-dashboard': { access: true, read: true, create: false, update: false, delete: false },
         '/quick-view': { access: true, read: true, create: false, update: false, delete: false },
         '/devices': { access: true, read: true, create: false, update: true, delete: false },
         '/live-tracking': { access: true, read: true, create: false, update: true, delete: false },
