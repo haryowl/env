@@ -1,12 +1,87 @@
 const nodemailer = require('nodemailer');
 const axios = require('axios');
 const { query, getRow, getRows } = require('../config/database');
+const mqttService = require('./mqttService');
 
 class NotificationService {
   constructor() {
     this.emailTransporter = null;
     this.defaultEmailConfig = null;
     this.defaultHttpConfig = null;
+  }
+
+  buildMqttAlertTopic(mqttPublishCfg) {
+    // Keep consistent with mqttPublisher.js, but use an alerts namespace.
+    const { project_code, group_identifier, terminal_code } = mqttPublishCfg || {};
+    return `alert/${project_code}/${group_identifier}/${terminal_code}`;
+  }
+
+  async sendMqttNotification(alert, deviceName, parameter, value, min, max, lastUpdate, thresholdTime) {
+    const alertId = alert?.alert_id;
+    const template = alert?.template || '';
+    const deviceId = alert?.device_id;
+    if (!deviceId) {
+      await this.logNotification(alertId, 'mqtt', '', 'failed', '', 'Missing device_id on alert');
+      return;
+    }
+
+    if (!mqttService?.isConnected) {
+      await this.logNotification(alertId, 'mqtt', '', 'failed', '', 'MQTT client is not connected');
+      return;
+    }
+
+    const device = await getRow('SELECT device_id, config FROM devices WHERE device_id = $1', [deviceId]);
+    if (!device) {
+      await this.logNotification(alertId, 'mqtt', deviceId, 'failed', '', 'Device not found');
+      return;
+    }
+
+    const cfg = device.config && typeof device.config === 'string' ? JSON.parse(device.config) : (device.config || {});
+    const mqttPublish = cfg.mqtt_publish;
+    if (!mqttPublish || !mqttPublish.project_code || !mqttPublish.group_identifier || !mqttPublish.terminal_code) {
+      await this.logNotification(
+        alertId,
+        'mqtt',
+        deviceId,
+        'failed',
+        '',
+        'Device MQTT publish topic is not configured (configure it in MQTT Publisher)'
+      );
+      return;
+    }
+
+    const processedTemplate = this.processTemplate(template, {
+      device: deviceName,
+      parameter,
+      value,
+      min,
+      max,
+      lastUpdate,
+      thresholdTime
+    });
+
+    const topic = this.buildMqttAlertTopic(mqttPublish);
+    const payload = {
+      type: 'iot_alert',
+      alert_id: alertId,
+      device_id: deviceId,
+      device: deviceName,
+      parameter,
+      value: value ?? null,
+      min: min ?? null,
+      max: max ?? null,
+      message: processedTemplate,
+      timestamp: new Date().toISOString(),
+      lastUpdate: lastUpdate ?? '',
+      thresholdTime: thresholdTime ?? ''
+    };
+
+    try {
+      await mqttService.publishJSON(topic, payload, { qos: 1, retain: false });
+      await this.logNotification(alertId, 'mqtt', topic, 'sent', processedTemplate);
+    } catch (e) {
+      await this.logNotification(alertId, 'mqtt', topic, 'failed', processedTemplate, e?.message || String(e));
+    }
   }
 
   // Initialize email transporter (from Notification Config: email_config table)
@@ -382,6 +457,11 @@ class NotificationService {
       // Send HTTP notification if enabled
       if (actions?.http) {
         await this.sendHttpNotification(alert_id, template, deviceName, parameter, value, min, max, lastUpdate, thresholdTime);
+      }
+
+      // Send MQTT publish if enabled
+      if (actions?.mqtt) {
+        await this.sendMqttNotification(alert, deviceName, parameter, value, min, max, lastUpdate, thresholdTime);
       }
     } catch (error) {
       console.error('Failed to send notification:', error);

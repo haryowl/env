@@ -295,6 +295,49 @@ router.get('/templates', authorizeRole(['super_admin', 'admin']), async (req, re
           configure: false,
           delete: false
         }
+      },
+      {
+        name: 'Common Role',
+        description: 'Read access to main dashboards, data dash, comparison, alert settings, scheduled exports, and personal settings',
+        permissions: {
+          user_management: { create: false, read: false, update: false, delete: false },
+          role_management: { create: false, read: false, update: false, delete: false },
+          device_management: { create: false, read: true, update: false, delete: false },
+          system_settings: { create: false, read: false, update: false, delete: false }
+        },
+        menu_permissions: {
+          '/dashboard': { access: true, read: true, create: false, update: false, delete: false },
+          '/quick-view': { access: true, read: true, create: false, update: false, delete: false },
+          '/devices': { access: false, read: false, create: false, update: false, delete: false },
+          '/users': { access: false, read: false, create: false, update: false, delete: false },
+          '/tenants': { access: false, read: false, create: false, update: false, delete: false },
+          '/roles': { access: false, read: false, create: false, update: false, delete: false },
+          '/field-creator': { access: false, read: false, create: false, update: false, delete: false },
+          '/mapper': { access: false, read: false, create: false, update: false, delete: false },
+          '/live-tracking': { access: false, read: false, create: false, update: false, delete: false },
+          '/listeners': { access: false, read: false, create: false, update: false, delete: false },
+          '/data': { access: false, read: false, create: false, update: false, delete: false },
+          '/data-dash': { access: true, read: true, create: false, update: false, delete: false },
+          '/data-dash-2': { access: false, read: false, create: false, update: false, delete: false },
+          '/comparison-dashboard': { access: true, read: true, create: false, update: false, delete: false },
+          '/alerts': { access: false, read: false, create: false, update: false, delete: false },
+          '/alert-settings': { access: true, read: true, create: false, update: false, delete: false },
+          '/notification-config': { access: false, read: false, create: false, update: false, delete: false },
+          '/scheduled-exports': { access: true, read: true, create: false, update: false, delete: false },
+          '/company-site': { access: false, read: false, create: false, update: false, delete: false },
+          '/sensor-management': { access: false, read: false, create: false, update: false, delete: false },
+          '/maintenance': { access: false, read: false, create: false, update: false, delete: false },
+          '/settings': { access: true, read: true, create: false, update: false, delete: false },
+          '/system-info': { access: false, read: false, create: false, update: false, delete: false },
+          '/data-cleanup': { access: false, read: false, create: false, update: false, delete: false },
+          '/deployment-settings': { access: false, read: false, create: false, update: false, delete: false }
+        },
+        device_permissions: {
+          read: true,
+          write: false,
+          configure: false,
+          delete: false
+        }
       }
     ];
 
@@ -504,6 +547,49 @@ router.post('/from-template', authorizeRole(['super_admin']), async (req, res) =
           '/notification-config': { access: true, read: true, create: false, update: false, delete: false },
           '/settings': { access: false, read: false, create: false, update: false, delete: false },
           '/system-info': { access: false, read: false, create: false, update: false, delete: false }
+        },
+        device_permissions: {
+          read: true,
+          write: false,
+          configure: false,
+          delete: false
+        }
+      },
+      {
+        name: 'Common Role',
+        description: 'Read access to main dashboards, data dash, comparison, alert settings, scheduled exports, and personal settings',
+        permissions: {
+          user_management: { create: false, read: false, update: false, delete: false },
+          role_management: { create: false, read: false, update: false, delete: false },
+          device_management: { create: false, read: true, update: false, delete: false },
+          system_settings: { create: false, read: false, update: false, delete: false }
+        },
+        menu_permissions: {
+          '/dashboard': { access: true, read: true, create: false, update: false, delete: false },
+          '/quick-view': { access: true, read: true, create: false, update: false, delete: false },
+          '/devices': { access: false, read: false, create: false, update: false, delete: false },
+          '/users': { access: false, read: false, create: false, update: false, delete: false },
+          '/tenants': { access: false, read: false, create: false, update: false, delete: false },
+          '/roles': { access: false, read: false, create: false, update: false, delete: false },
+          '/field-creator': { access: false, read: false, create: false, update: false, delete: false },
+          '/mapper': { access: false, read: false, create: false, update: false, delete: false },
+          '/live-tracking': { access: false, read: false, create: false, update: false, delete: false },
+          '/listeners': { access: false, read: false, create: false, update: false, delete: false },
+          '/data': { access: false, read: false, create: false, update: false, delete: false },
+          '/data-dash': { access: true, read: true, create: false, update: false, delete: false },
+          '/data-dash-2': { access: false, read: false, create: false, update: false, delete: false },
+          '/comparison-dashboard': { access: true, read: true, create: false, update: false, delete: false },
+          '/alerts': { access: false, read: false, create: false, update: false, delete: false },
+          '/alert-settings': { access: true, read: true, create: false, update: false, delete: false },
+          '/notification-config': { access: false, read: false, create: false, update: false, delete: false },
+          '/scheduled-exports': { access: true, read: true, create: false, update: false, delete: false },
+          '/company-site': { access: false, read: false, create: false, update: false, delete: false },
+          '/sensor-management': { access: false, read: false, create: false, update: false, delete: false },
+          '/maintenance': { access: false, read: false, create: false, update: false, delete: false },
+          '/settings': { access: true, read: true, create: false, update: false, delete: false },
+          '/system-info': { access: false, read: false, create: false, update: false, delete: false },
+          '/data-cleanup': { access: false, read: false, create: false, update: false, delete: false },
+          '/deployment-settings': { access: false, read: false, create: false, update: false, delete: false }
         },
         device_permissions: {
           read: true,

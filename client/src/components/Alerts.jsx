@@ -36,6 +36,7 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
     popup: false,
     http: false,
     email: false,
+    mqtt: false,
     template: '',
   });
   const [alertType, setAlertType] = useState('threshold');
@@ -62,6 +63,7 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
         popup: editingAlert.actions?.popup || false,
         http: editingAlert.actions?.http || false,
         email: editingAlert.actions?.email || false,
+        mqtt: editingAlert.actions?.mqtt || false,
         template: editingAlert.template || '',
       });
     } else {
@@ -77,6 +79,7 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
         popup: false,
         http: false,
         email: false,
+        mqtt: false,
         template: '',
       });
     }
@@ -156,7 +159,7 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
       max: form.max === '' || isNaN(Number(form.max)) ? null : Number(form.max),
       type: alertType || 'threshold', // Default to 'threshold' if empty
       threshold_time: form.threshold_time === '' || isNaN(Number(form.threshold_time)) ? null : Number(form.threshold_time),
-      actions: { popup: form.popup, http: form.http, email: form.email },
+      actions: { popup: form.popup, http: form.http, email: form.email, mqtt: form.mqtt },
       template: form.template,
     };
     
@@ -336,6 +339,12 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
       flex: 0.5,
       renderCell: (params) => params.row.actions?.email ? '✔️' : ''
     },
+    {
+      field: 'mqtt',
+      headerName: 'MQTT',
+      flex: 0.5,
+      renderCell: (params) => params.row.actions?.mqtt ? '✔️' : ''
+    },
     { field: 'inactivity', headerName: 'Inactivity', flex: 0.7, renderCell: (params) => params.row.type === 'inactivity' ? '✔️' : '' },
     {
       field: 'actions',
@@ -470,22 +479,37 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
             <FormControl><Checkbox checked={form.popup} onChange={e => handleFormChange('popup', e.target.checked)} />Popup</FormControl>
             <FormControl><Checkbox checked={form.http} onChange={e => handleFormChange('http', e.target.checked)} />HTTP</FormControl>
             <FormControl><Checkbox checked={form.email} onChange={e => handleFormChange('email', e.target.checked)} />Email</FormControl>
+            <FormControl><Checkbox checked={form.mqtt} onChange={e => handleFormChange('mqtt', e.target.checked)} />MQTT</FormControl>
           </Box>
           
-          {/* Notification Configuration Assignment */}
           {(form.http || form.email) && (
             <Box sx={{ mb: 2, p: 2, border: '1px solid #e0e0e0', borderRadius: 1 }}>
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>Notification Configuration</Typography>
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>Email &amp; HTTP setup</Typography>
               <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
-                Configure notification settings in the Notification Configuration section. 
-                You can assign email recipients and HTTP endpoints to this alert after saving.
+                Configure SMTP, recipients, and HTTP endpoints in Alert Settings, then assign them to this alert after saving.
               </Typography>
               <Button 
                 variant="outlined" 
                 size="small" 
-                onClick={() => window.open('/notification-config', '_blank')}
+                onClick={() => window.open('/alert-settings', '_blank')}
               >
-                Open Notification Config
+                Open Alert Settings
+              </Button>
+            </Box>
+          )}
+          {form.mqtt && (
+            <Box sx={{ mb: 2, p: 2, border: '1px solid #e0e0e0', borderRadius: 1 }}>
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>MQTT setup</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
+                Configure the device publish topic (project / group / terminal) in MQTT Publisher.
+                On trigger, the server publishes to alert/{'{project}'}/{'{group}'}/{'{terminal}'} with a JSON payload.
+              </Typography>
+              <Button 
+                variant="outlined" 
+                size="small" 
+                onClick={() => window.open('/mqtt-publisher', '_blank')}
+              >
+                Open MQTT Publisher
               </Button>
             </Box>
           )}
@@ -506,7 +530,7 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
               placeholder={alertType === 'threshold' ? 'e.g. {device} {parameter} value {value} exceeded max {max}' : 'e.g. {device} last update at {lastUpdate} exceeded threshold {thresholdTime}'}
             />
             <Typography variant="caption" color="text.secondary">
-              This template will be used for both email and HTTP push notifications. Use the variable buttons above to insert dynamic values.
+              This template is used for email, HTTP, and MQTT notifications. Use the variable buttons above to insert dynamic values.
             </Typography>
             <Box sx={{ mt: 1, p: 1, bgcolor: '#f5f5f5', borderRadius: 1 }}>
               <Typography variant="subtitle2">Preview:</Typography>

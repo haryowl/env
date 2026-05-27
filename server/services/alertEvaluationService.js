@@ -79,7 +79,7 @@ async function evaluateThresholdAlertsOnData(device_id, parameter, value, timest
       );
       
       try {
-        if (actions && (actions.email || actions.http)) {
+        if (actions && (actions.email || actions.http || actions.mqtt)) {
           console.log('Sending notification for alert:', {
             alert_id: alert.alert_id,
             template: alert.template,
@@ -159,9 +159,10 @@ async function evaluateInactivityAlertsPeriodically() {
       
       // Send notifications if configured
       try {
-        if (alert.actions && (alert.actions.email || alert.actions.http)) {
+        const actions = typeof alert.actions === 'string' ? (() => { try { return JSON.parse(alert.actions); } catch { return {}; } })() : (alert.actions || {});
+        if (actions && (actions.email || actions.http || actions.mqtt)) {
           await NotificationService.sendNotification(
-            alert,
+            { ...alert, actions },
             deviceName,
             alert.parameter,
             null,

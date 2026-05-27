@@ -57,6 +57,7 @@ export default function AlertSettings({ user }) {
   // Notification Logs
   const [notificationLogs, setNotificationLogs] = useState([]);
   const [alerts, setAlerts] = useState([]);
+  const [mqttStatus, setMqttStatus] = useState({ connected: false, brokerUrl: '' });
 
   // Load configurations
   const loadConfigurations = async () => {
@@ -110,6 +111,21 @@ export default function AlertSettings({ user }) {
         const alertsData = await alertsRes.json();
         console.log('Alerts data from server:', alertsData);
         setAlerts(alertsData.alerts || []);
+      }
+
+      try {
+        const mqttRes = await fetch(`${API_BASE_URL}/mqtt-publisher/status`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (mqttRes.ok) {
+          const mqttData = await mqttRes.json();
+          setMqttStatus({
+            connected: Boolean(mqttData.connected),
+            brokerUrl: mqttData.brokerUrl || '',
+          });
+        }
+      } catch {
+        setMqttStatus({ connected: false, brokerUrl: '' });
       }
     } catch (error) {
       setNotification({ open: true, message: 'Failed to load configurations', severity: 'error' });
@@ -484,7 +500,7 @@ export default function AlertSettings({ user }) {
     { field: 'status', headerName: 'Status', flex: 0.5, renderCell: (params) => (
       <Chip 
         label={params.value} 
-        color={params.value === 'success' ? 'success' : params.value === 'failed' ? 'error' : 'warning'}
+        color={params.value === 'success' || params.value === 'sent' ? 'success' : params.value === 'failed' ? 'error' : 'warning'}
         size="small"
       />
     )},
@@ -580,6 +596,7 @@ export default function AlertSettings({ user }) {
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>
         <Tab label="Email Configuration" />
         <Tab label="HTTP Configuration" />
+        <Tab label="MQTT" />
         <Tab label="Notification Logs" />
       </Tabs>
 
@@ -983,6 +1000,50 @@ export default function AlertSettings({ user }) {
       )}
 
       {tab === 2 && (
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>MQTT alert publishing</Typography>
+            <Alert severity={mqttStatus.connected ? 'success' : 'warning'} sx={{ mb: 2 }}>
+              {mqttStatus.connected
+                ? `MQTT broker connected${mqttStatus.brokerUrl ? ` (${mqttStatus.brokerUrl})` : ''}.`
+                : 'MQTT broker is not connected. Alert MQTT actions will fail until the server connects to the broker (check MQTT_BROKER_URL).'}
+            </Alert>
+            <Typography variant="body2" color="text.secondary" paragraph>
+              When an alert has the <strong>MQTT</strong> action enabled, the server publishes a JSON message when the alert triggers.
+              Topic codes come from each device&apos;s MQTT Publisher configuration (project / group / terminal).
+            </Typography>
+            <Typography variant="subtitle2" gutterBottom>Topic format</Typography>
+            <Typography variant="body2" component="pre" sx={{ bgcolor: 'action.hover', p: 1.5, borderRadius: 1, mb: 2, fontFamily: 'monospace' }}>
+              alert/{'{project_code}'}/{'{group_identifier}'}/{'{terminal_code}'}
+            </Typography>
+            <Typography variant="subtitle2" gutterBottom>Default payload (JSON)</Typography>
+            <Typography variant="body2" component="pre" sx={{ bgcolor: 'action.hover', p: 1.5, borderRadius: 1, mb: 2, fontFamily: 'monospace', fontSize: '0.8rem' }}>
+{`{
+  "type": "iot_alert",
+  "alert_id": 1,
+  "device_id": "...",
+  "device": "Device name",
+  "parameter": "ph",
+  "value": 7.2,
+  "min": 6,
+  "max": 8,
+  "message": "processed template text",
+  "timestamp": "ISO-8601"
+}`}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" paragraph>
+              Enable MQTT on each alert under <strong>Alerts</strong> (checkbox next to Popup / HTTP / Email).
+              Configure the device topic in <strong>MQTT Publisher</strong> before alerts can publish.
+              Delivery attempts appear in Notification Logs with type <strong>mqtt</strong>.
+            </Typography>
+            <Button variant="outlined" onClick={() => window.open('/mqtt-publisher', '_blank')}>
+              Open MQTT Publisher
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {tab === 3 && (
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom>Notification Logs</Typography>
