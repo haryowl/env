@@ -5,6 +5,7 @@
 import React from 'react';
 import {
   Dashboard as DashboardIcon,
+  ViewQuilt as UDashboardIcon,
   Devices as DevicesIcon,
   People as PeopleIcon,
   Security as SecurityIcon,
@@ -42,6 +43,7 @@ export const MENU_SECTIONS = [
     icon: <ShowChartIcon />,
     items: [
       { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', menuPath: '/dashboard' },
+      { text: 'U-Dashboard', icon: <UDashboardIcon />, path: '/u-dashboard', menuPath: '/dashboard' },
       { text: 'Dashboard (mobile)', icon: <PhoneAndroidIcon />, path: '/m/dashboard', menuPath: '/dashboard' },
       { text: 'Quick View', icon: <VisibilityIcon />, path: '/quick-view', menuPath: '/quick-view' },
       { text: 'Quick View (mobile)', icon: <PhoneAndroidIcon />, path: '/m/quick-view', menuPath: '/quick-view' },
@@ -121,6 +123,7 @@ export function getFlatMenuItems() {
 export const ROUTE_MENU_PATH_MAP = {
   '/': '/dashboard',
   '/dashboard': '/dashboard',
+  '/u-dashboard': '/dashboard',
   '/m/dashboard': '/dashboard',
   '/quick-view': '/quick-view',
   '/m/quick-view': '/quick-view',

@@ -334,7 +334,7 @@ const buildPopupParameterEntries = (data, formatLabelForPopup, formatValueForPop
     .filter(Boolean);
 };
 
-const DashboardMap = ({ socket, cardSx = {} }) => {
+const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false }) => {
   const theme = useTheme();
   const { formatDisplayName, getUnit } = useFieldMetadata();
   const [devices, setDevices] = useState([]);
@@ -522,7 +522,7 @@ const DashboardMap = ({ socket, cardSx = {} }) => {
     return (
       <Card sx={{ mt: 1, mb: 1, borderRadius: 1, ...getChartCardSx(theme), ...cardSx }}>
         <CardContent>
-          <Box display="flex" justifyContent="center" alignItems="center" minHeight={400}>
+          <Box display="flex" justifyContent="center" alignItems="center" minHeight={fillHeight ? 200 : 400}>
             <CircularProgress />
           </Box>
         </CardContent>
@@ -538,10 +538,11 @@ const DashboardMap = ({ socket, cardSx = {} }) => {
       ...getChartCardSx(theme),
       boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)',
       overflow: 'hidden',
+      ...(fillHeight ? { height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1, mt: 0, mb: 0 } : {}),
       ...cardSx,
     }}>
-      <CardContent sx={{ p: 0 }}>
-        <Box sx={{ pt: 0.5, px: 1, pb: 1 }}>
+      <CardContent sx={{ p: 0, ...(fillHeight ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } : {}) }}>
+        <Box sx={{ pt: 0.5, px: 1, pb: 1, ...(fillHeight ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } : {}) }}>
 
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
@@ -550,13 +551,14 @@ const DashboardMap = ({ socket, cardSx = {} }) => {
         )}
 
           <Box sx={{ 
-            height: 500, 
             width: '100%', 
             position: 'relative',
             borderRadius: '4px',
             overflow: 'hidden',
             boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
-            border: '1px solid rgba(0, 0, 0, 0.05)'
+            border: '1px solid rgba(0, 0, 0, 0.05)',
+            ...(fillHeight ? { flex: 1, minHeight: 160, height: '100%' } : { height: 500 }),
+            ...mapBoxSx,
           }}>
           {/* Device count badge - inside map, adjacent to zoom controls (Future Map style) */}
           <Box

@@ -7,6 +7,7 @@ import { FontProvider } from './contexts/FontContext';
 // Components
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
+import UDashboard from './components/UDashboard';
 import MobileDashboard from './components/MobileDashboard';
 import QuickView from './components/QuickView';
 import MobileQuickView from './components/MobileQuickView';
@@ -342,6 +343,7 @@ function App() {
               <Routes>
                 <Route path="/" element={<HomeRedirect user={user} />} />
                 <Route path="/dashboard" element={<ProtectedRoute><Dashboard socket={socket} /></ProtectedRoute>} />
+                <Route path="/u-dashboard" element={<ProtectedRoute><UDashboard socket={socket} /></ProtectedRoute>} />
                 <Route path="/m/dashboard" element={<ProtectedRoute><MobileDashboard socket={socket} /></ProtectedRoute>} />
                 <Route path="/quick-view" element={<ProtectedRoute><QuickView /></ProtectedRoute>} />
                 <Route path="/m/quick-view" element={<ProtectedRoute><MobileQuickView /></ProtectedRoute>} />
