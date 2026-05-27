@@ -157,6 +157,7 @@ const DashboardParameterDoughnuts = ({
   realtimeData = [],
   deviceId = null,
   formatDisplayName: formatDisplayNameProp,
+  compact = false,
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -189,17 +190,25 @@ const DashboardParameterDoughnuts = ({
   }, [deviceId, paramsToShow.join(',')]);
 
   const cardWidth = paramsToShow.length > 0 ? `${100 / Math.min(paramsToShow.length, 6)}%` : '100%';
+  const pieHeight = compact ? 92 : 200;
+  const innerR = compact ? 26 : 52;
+  const outerR = compact ? 40 : 78;
 
   return (
-    <Box sx={{ width: '100%', mb: 3 }}>
+    <Box sx={{ width: '100%', height: compact ? '100%' : 'auto', mb: compact ? 0 : 3 }}>
       <Box
         sx={{
-          display: 'flex',
-          flexDirection: isMobile ? 'column' : 'row',
-          flexWrap: 'wrap',
-          gap: 2,
+          display: compact ? 'grid' : 'flex',
+          gridTemplateColumns: compact
+            ? { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(auto-fill, minmax(128px, 1fr))' }
+            : undefined,
+          flexDirection: compact ? undefined : isMobile ? 'column' : 'row',
+          flexWrap: compact ? undefined : 'wrap',
+          gap: compact ? 0.75 : 2,
           width: '100%',
+          height: compact ? '100%' : 'auto',
           alignItems: 'stretch',
+          alignContent: compact ? 'start' : undefined,
         }}
       >
         {paramsToShow.map((param) => {
@@ -220,11 +229,11 @@ const DashboardParameterDoughnuts = ({
               key={param}
               variant="outlined"
               sx={{
-                width: isMobile ? '100%' : cardWidth,
-                flex: isMobile ? 'none' : '1 1 0',
-                minWidth: isMobile ? '100%' : 180,
-                borderRadius: 2,
-                border: `2px solid ${TEAL_BORDER}`,
+                width: compact ? 'auto' : isMobile ? '100%' : cardWidth,
+                flex: compact ? undefined : isMobile ? 'none' : '1 1 0',
+                minWidth: compact ? 0 : isMobile ? '100%' : 180,
+                borderRadius: compact ? 1.25 : 2,
+                border: `${compact ? 1.5 : 2}px solid ${TEAL_BORDER}`,
                 overflow: 'hidden',
                 transition: 'all 0.2s ease',
                 '&:hover': { boxShadow: `0 4px 12px ${TEAL_BORDER}40` },
@@ -234,51 +243,61 @@ const DashboardParameterDoughnuts = ({
                 sx={{
                   display: 'flex',
                   bgcolor: TOP_BG,
-                  px: 1.5,
-                  py: 1,
+                  px: compact ? 0.75 : 1.5,
+                  py: compact ? 0.35 : 1,
                   borderBottom: `1px solid ${TEAL_BORDER}40`,
                 }}
               >
                 <Box sx={{ flex: 1, textAlign: 'center' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.25 }}>
                     {alertPct != null && alertPct >= 0 ? (
-                      <TrendingUp sx={{ fontSize: 18, color: ALERT_RED }} />
+                      <TrendingUp sx={{ fontSize: compact ? 14 : 18, color: ALERT_RED }} />
                     ) : (
-                      <TrendingDown sx={{ fontSize: 18, color: ALERT_RED }} />
+                      <TrendingDown sx={{ fontSize: compact ? 14 : 18, color: ALERT_RED }} />
                     )}
-                    <Typography variant="caption" sx={{ fontWeight: 700, color: ALERT_RED, fontSize: '0.85rem' }}>
+                    <Typography
+                      variant="caption"
+                      sx={{ fontWeight: 700, color: ALERT_RED, fontSize: compact ? '0.68rem' : '0.85rem', lineHeight: 1.1 }}
+                    >
                       {alertPct != null ? `${alertPct > 0 ? '+' : ''}${alertPct.toFixed(0)}%` : '–'}
                     </Typography>
                   </Box>
-                  <Typography variant="caption" sx={{ color: ALERT_RED, fontWeight: 600, fontSize: '0.7rem' }}>
-                    alert
-                  </Typography>
+                  {!compact && (
+                    <Typography variant="caption" sx={{ color: ALERT_RED, fontWeight: 600, fontSize: '0.7rem' }}>
+                      alert
+                    </Typography>
+                  )}
                 </Box>
                 <Box sx={{ flex: 1, textAlign: 'center' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                    <TrendingUp sx={{ fontSize: 18, color: AVG_GREEN }} />
-                    <Typography variant="caption" sx={{ fontWeight: 700, color: AVG_GREEN, fontSize: '0.85rem' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.25 }}>
+                    <TrendingUp sx={{ fontSize: compact ? 14 : 18, color: AVG_GREEN }} />
+                    <Typography
+                      variant="caption"
+                      sx={{ fontWeight: 700, color: AVG_GREEN, fontSize: compact ? '0.68rem' : '0.85rem', lineHeight: 1.1 }}
+                    >
                       {avgPct != null ? `${avgPct >= 0 ? '+' : ''}${avgPct.toFixed(0)}%` : '–'}
                     </Typography>
                   </Box>
-                  <Typography variant="caption" sx={{ color: AVG_GREEN, fontWeight: 600, fontSize: '0.7rem' }}>
-                    avg
-                  </Typography>
+                  {!compact && (
+                    <Typography variant="caption" sx={{ color: AVG_GREEN, fontWeight: 600, fontSize: '0.7rem' }}>
+                      avg
+                    </Typography>
+                  )}
                 </Box>
               </Box>
 
               <Box
                 sx={{
                   bgcolor: BOTTOM_BG,
-                  py: 1,
-                  px: 1,
+                  py: compact ? 0.35 : 1,
+                  px: compact ? 0.5 : 1,
                   textAlign: 'center',
                   position: 'relative',
-                  minHeight: 200,
+                  minHeight: pieHeight,
                 }}
               >
                 {hasPie ? (
-                  <Box sx={{ width: '100%', height: 200, position: 'relative' }}>
+                  <Box sx={{ width: '100%', height: pieHeight, position: 'relative' }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
@@ -287,8 +306,8 @@ const DashboardParameterDoughnuts = ({
                           nameKey="name"
                           cx="50%"
                           cy="50%"
-                          innerRadius={52}
-                          outerRadius={78}
+                          innerRadius={innerR}
+                          outerRadius={outerR}
                           paddingAngle={2}
                           stroke="#fff"
                           strokeWidth={1}
@@ -321,8 +340,8 @@ const DashboardParameterDoughnuts = ({
                         sx={{
                           fontWeight: 800,
                           color: theme.palette.text.primary,
-                          fontSize: '1.1rem',
-                          lineHeight: 1.2,
+                          fontSize: compact ? '0.82rem' : '1.1rem',
+                          lineHeight: 1.15,
                         }}
                       >
                         {displayValue}
@@ -335,7 +354,7 @@ const DashboardParameterDoughnuts = ({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      minHeight: 200,
+                      minHeight: pieHeight,
                     }}
                   >
                     <Typography variant="h5" sx={{ fontWeight: 700 }}>
@@ -347,15 +366,20 @@ const DashboardParameterDoughnuts = ({
                   variant="caption"
                   sx={{
                     display: 'block',
-                    mt: 0.5,
+                    mt: compact ? 0.25 : 0.5,
                     color: theme.palette.text.secondary,
                     fontWeight: 600,
-                    fontSize: '0.75rem',
+                    fontSize: compact ? '0.62rem' : '0.75rem',
+                    lineHeight: 1.2,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: compact ? 'nowrap' : 'normal',
                   }}
+                  title={label}
                 >
                   {label}
                 </Typography>
-                {mode === 'window' && hasPie && (
+                {!compact && mode === 'window' && hasPie && (
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
                     Recent vs earlier (window)
                   </Typography>

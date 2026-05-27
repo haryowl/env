@@ -13,9 +13,7 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Button,
   TextField,
-  Stack,
   ToggleButton,
   ToggleButtonGroup,
   Alert,
@@ -86,12 +84,14 @@ function panelTitle(text) {
   return (
     <Typography
       variant="overline"
-      sx={{ display: 'block', fontWeight: 800, letterSpacing: 0.08, color: 'text.secondary', mb: 0.5 }}
+      sx={{ display: 'block', fontWeight: 800, letterSpacing: 0.06, color: 'text.secondary', mb: 0.25, fontSize: '0.65rem', lineHeight: 1.2 }}
     >
       {text}
     </Typography>
   );
 }
+
+const panelCardContentSx = { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', p: 0.75, pt: 0.5, '&:last-child': { pb: 0.75 } };
 
 export default function UDashboard({ socket }) {
   const theme = useMuiTheme();
@@ -109,7 +109,6 @@ export default function UDashboard({ socket }) {
   const [realtimeLatest, setRealtimeLatest] = useState({});
   const [visibleParams, setVisibleParams] = useState([]);
   const [activeRealtimeParam, setActiveRealtimeParam] = useState('');
-  const [realtimeParamSearch, setRealtimeParamSearch] = useState('');
   const [realtimeAlertLogs, setRealtimeAlertLogs] = useState([]);
   const [realtimeAlertThresholds, setRealtimeAlertThresholds] = useState({});
   const [realtimeChartRange, setRealtimeChartRange] = useState('48h');
@@ -194,15 +193,10 @@ export default function UDashboard({ socket }) {
     return points;
   }, [memoizedChartData, realtimeAlertLogs, realtimeParams, realtimeAlertThresholds, isGpsDisplayField]);
 
-  const selectableRealtimeParams = useMemo(() => {
-    const list = realtimeParams.filter((p) => p !== 'datetime' && p !== 'timestamp' && !isGpsDisplayField(p));
-    const q = (realtimeParamSearch || '').trim().toLowerCase();
-    if (!q) return list;
-    return list.filter((p) => {
-      const label = formatDisplayName(p, { withUnit: true });
-      return p.toLowerCase().includes(q) || (label || '').toLowerCase().includes(q);
-    });
-  }, [realtimeParams, realtimeParamSearch, formatDisplayName, isGpsDisplayField]);
+  const chartParamOptions = useMemo(
+    () => realtimeParams.filter((p) => p !== 'datetime' && p !== 'timestamp' && !isGpsDisplayField(p)),
+    [realtimeParams, isGpsDisplayField]
+  );
 
   const toggleVisibleParam = useCallback((param) => {
     setVisibleParams((v) => (v.includes(param) ? v.filter((p) => p !== param) : [...v, param]));
@@ -638,8 +632,8 @@ export default function UDashboard({ socket }) {
   }
 
   const pageShellSx = {
-    height: { xs: 'auto', md: 'calc(100dvh - 88px)' },
-    maxHeight: { md: 'calc(100dvh - 88px)' },
+    height: { xs: 'auto', md: 'calc(100dvh - 72px)' },
+    maxHeight: { md: 'calc(100dvh - 72px)' },
     overflow: { xs: 'visible', md: 'hidden' },
     display: 'flex',
     flexDirection: 'column',
@@ -650,10 +644,10 @@ export default function UDashboard({ socket }) {
     flex: 1,
     minHeight: { md: 0 },
     display: 'grid',
-    gap: 1,
+    gap: 0.75,
     gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
-    gridTemplateRows: { xs: 'none', md: 'minmax(0, 1fr) minmax(0, 1.2fr)' },
-    gridAutoRows: { xs: 'minmax(260px, auto)', md: 'none' },
+    gridTemplateRows: { xs: 'none', md: 'minmax(0, 1.35fr) minmax(0, 1fr)' },
+    gridAutoRows: { xs: 'minmax(240px, auto)', md: 'none' },
   };
 
   return (
@@ -663,8 +657,9 @@ export default function UDashboard({ socket }) {
         title="U-Dashboard"
         subtitle="Map, parameter overview, and realtime chart — single-screen layout"
         sx={{
-          mb: 1,
+          mb: 0.5,
           flexShrink: 0,
+          py: 0.5,
           border: 'none',
           boxShadow: 'none',
           borderRadius: 1,
@@ -709,20 +704,22 @@ export default function UDashboard({ socket }) {
           sx={{
             gridColumn: { xs: '1', md: '1' },
             gridRow: { xs: 'auto', md: '1' },
-            minHeight: { xs: 280, md: 0 },
+            minHeight: { xs: 260, md: 0 },
+            height: { md: '100%' },
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
             ...getChartCardSx(theme),
           }}
         >
-          <CardContent sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', p: 1.25, pt: 1 }}>
+          <CardContent sx={panelCardContentSx}>
             {panelTitle('Device location')}
             <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
               <DashboardMap
                 socket={socket}
                 fillHeight
                 cardSx={{ m: 0, mt: 0, mb: 0, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', boxShadow: 'none' }}
+                mapBoxSx={{ flex: 1, minHeight: 0, height: '100%' }}
               />
             </Box>
           </CardContent>
@@ -733,18 +730,20 @@ export default function UDashboard({ socket }) {
           sx={{
             gridColumn: { xs: '1', md: '2' },
             gridRow: { xs: 'auto', md: '1' },
-            minHeight: { xs: 260, md: 0 },
+            minHeight: { xs: 240, md: 0 },
+            height: { md: '100%' },
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
             ...getChartCardSx(theme),
           }}
         >
-          <CardContent sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', p: 1.25, pt: 1 }}>
+          <CardContent sx={panelCardContentSx}>
             {panelTitle('Parameter overview')}
-            <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+            <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
               {realtimeParams.length > 0 ? (
                 <DashboardParameterDoughnuts
+                  compact
                   data={realtimeLatest}
                   realtimeParams={realtimeParams}
                   realtimeData={realtimeData}
@@ -752,7 +751,7 @@ export default function UDashboard({ socket }) {
                   formatDisplayName={formatDisplayName}
                 />
               ) : (
-                <Alert severity="info" sx={{ py: 0.5 }}>
+                <Alert severity="info" sx={{ py: 0.35, fontSize: '0.75rem' }}>
                   Select a device with a mapper to see parameters.
                 </Alert>
               )}
@@ -765,7 +764,8 @@ export default function UDashboard({ socket }) {
           sx={{
             gridColumn: { xs: '1', md: '1 / -1' },
             gridRow: { xs: 'auto', md: '2' },
-            minHeight: { xs: 360, md: 0 },
+            minHeight: { xs: 320, md: 0 },
+            height: { md: '100%' },
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
@@ -775,31 +775,27 @@ export default function UDashboard({ socket }) {
           <CardContent sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', p: 0 }}>
             <Box
               sx={{
-                px: 1.25,
-                py: 0.75,
+                px: 0.75,
+                py: 0.5,
                 borderBottom: '1px solid',
                 borderColor: 'divider',
                 display: 'flex',
                 flexWrap: 'wrap',
                 alignItems: 'center',
-                gap: 1,
+                gap: 0.75,
                 justifyContent: 'space-between',
+                flexShrink: 0,
               }}
             >
-              <Box>
-                {panelTitle('Realtime graph')}
-                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                  Period &amp; line visibility
-                </Typography>
-              </Box>
-              <FormControl size="small" sx={{ minWidth: 160 }}>
+              {panelTitle('Realtime graph')}
+              <FormControl size="small" sx={{ minWidth: 140 }}>
                 <InputLabel id="ud-range">Period</InputLabel>
                 <Select
                   labelId="ud-range"
                   label="Period"
                   value={realtimeChartRange}
                   onChange={(e) => setRealtimeChartRange(e.target.value)}
-                  sx={{ height: 32, fontSize: '0.82rem', fontWeight: 700 }}
+                  sx={{ height: 30, fontSize: '0.78rem', fontWeight: 700 }}
                 >
                   {REALTIME_RANGE_OPTIONS.map((opt) => (
                     <MenuItem key={opt.value} value={opt.value}>
@@ -814,11 +810,12 @@ export default function UDashboard({ socket }) {
               <LocalizationProvider dateAdapter={AdapterDateFns}>
                 <Box
                   sx={{
-                    px: 1.25,
-                    pb: 1,
+                    px: 0.75,
+                    py: 0.5,
                     display: 'grid',
                     gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
-                    gap: 1,
+                    gap: 0.5,
+                    flexShrink: 0,
                   }}
                 >
                   <DateTimePicker
@@ -841,51 +838,20 @@ export default function UDashboard({ socket }) {
               </LocalizationProvider>
             )}
 
-            <Box sx={{ px: 1.25, pt: 1, flexShrink: 0 }}>
+            <Box sx={{ px: 0.75, py: 0.5, flexShrink: 0, borderBottom: '1px solid', borderColor: 'divider' }}>
               {realtimeError && (
-                <Alert severity="error" sx={{ mb: 1, py: 0 }}>
+                <Alert severity="error" sx={{ mb: 0.5, py: 0, fontSize: '0.75rem' }}>
                   {realtimeError}
                 </Alert>
               )}
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }} sx={{ mb: 0.75 }}>
-                <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', flexShrink: 0 }}>
-                  Parameters
-                </Typography>
-                <TextField
-                  size="small"
-                  placeholder="Search…"
-                  value={realtimeParamSearch}
-                  onChange={(e) => setRealtimeParamSearch(e.target.value)}
-                  sx={{ flex: 1, minWidth: 0, '& input': { fontSize: '0.78rem', py: 0.65 } }}
-                />
-                <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0 }}>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    onClick={() => {
-                      const chartParams = realtimeParams.filter(
-                        (p) => p !== 'datetime' && p !== 'timestamp' && !isGpsDisplayField(p)
-                      );
-                      setVisibleParams(chartParams);
-                      setActiveRealtimeParam('');
-                    }}
-                    sx={{ minHeight: 28, fontSize: '0.7rem', px: 1 }}
-                  >
-                    All
-                  </Button>
-                  <Button size="small" variant="text" onClick={() => setActiveRealtimeParam('')} sx={{ minHeight: 28, fontSize: '0.7rem' }}>
-                    Clear focus
-                  </Button>
-                </Stack>
-              </Stack>
-              <Box sx={{ maxHeight: 100, overflowY: 'auto', pr: 0.5, mb: 0.75 }}>
+              <Box sx={{ maxHeight: 56, overflowY: 'auto', pr: 0.25 }}>
                 <ToggleButtonGroup
                   value={visibleParams}
                   onChange={(_, newValue) => setVisibleParams(newValue)}
                   size="small"
-                  sx={{ flexWrap: 'wrap', gap: 0.5, '& .MuiToggleButtonGroup-grouped': { border: 'none' } }}
+                  sx={{ flexWrap: 'wrap', gap: 0.35, '& .MuiToggleButtonGroup-grouped': { border: 'none' } }}
                 >
-                  {selectableRealtimeParams.map((param) => {
+                  {chartParamOptions.map((param) => {
                     const color = getParameterColor(param);
                     const selected = visibleParams.includes(param);
                     const dim = activeRealtimeParam && activeRealtimeParam !== param;
@@ -899,16 +865,16 @@ export default function UDashboard({ socket }) {
                         sx={{
                           textTransform: 'none',
                           borderRadius: 1,
-                          px: 0.65,
-                          py: 0.25,
-                          minHeight: 26,
+                          px: 0.5,
+                          py: 0.15,
+                          minHeight: 22,
                           opacity: dim ? 0.45 : 1,
                           bgcolor: selected ? `${color}14` : 'transparent',
                           border: `1px solid ${selected ? `${color}45` : 'rgba(0,0,0,0.1)'}`,
                         }}
                       >
-                        <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: color, mr: 0.5 }} />
-                        <Typography sx={{ fontSize: '0.68rem', fontWeight: 650 }}>
+                        <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: color, mr: 0.35 }} />
+                        <Typography sx={{ fontSize: '0.62rem', fontWeight: 650, lineHeight: 1.1 }}>
                           {formatDisplayName(param, { withUnit: true })}
                         </Typography>
                       </ToggleButton>
@@ -918,8 +884,8 @@ export default function UDashboard({ socket }) {
               </Box>
             </Box>
 
-            <Box sx={{ flex: 1, minHeight: { xs: 220, md: 0 }, px: 0.5, pb: 0.5, display: 'flex', flexDirection: 'column' }}>
-              <Box sx={{ flex: 1, minHeight: 160, ...getChartCardSx(theme), overflow: 'hidden' }}>
+            <Box sx={{ flex: 1, minHeight: { xs: 200, md: 0 }, px: 0.35, pb: 0.35, pt: 0.25, display: 'flex', flexDirection: 'column' }}>
+              <Box sx={{ flex: 1, minHeight: 120, ...getChartCardSx(theme), overflow: 'hidden' }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={chartDataWithAlerts} margin={REALTIME_LINE_CHART_MARGIN}>
                     <defs>{memoizedGradientDefs}</defs>
@@ -951,8 +917,8 @@ export default function UDashboard({ socket }) {
                   </ComposedChart>
                 </ResponsiveContainer>
               </Box>
-              <Typography variant="caption" color="text.secondary" sx={{ px: 1, pt: 0.35, fontSize: '0.65rem' }}>
-                Toggle lines: click · double-click focus · red dot = threshold breach in range
+              <Typography variant="caption" color="text.secondary" sx={{ px: 0.5, pt: 0.2, fontSize: '0.6rem', lineHeight: 1.2 }}>
+                Click line on/off · double-click focus · red dot = threshold breach
               </Typography>
             </Box>
           </CardContent>
