@@ -198,21 +198,62 @@ const DashboardParameterDoughnuts = ({
   const piePaddingAngle = compact ? 1 : 2;
   const pieStrokeWidth = compact ? 0.5 : 1;
 
+  const compactCount = compact ? paramsToShow.length : 0;
+  // Fewer than 5 params: spread cards across the row (no top-left cluster + empty right)
+  const compactGridLayout = useMemo(() => {
+    if (!compact || compactCount === 0) return null;
+    if (compactCount >= 5) {
+      return {
+        display: 'grid',
+        gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(auto-fill, minmax(148px, 1fr))' },
+        alignContent: 'start',
+      };
+    }
+    if (compactCount === 1) {
+      return {
+        display: 'flex',
+        flexWrap: 'wrap',
+        justifyContent: 'center',
+        alignContent: 'flex-start',
+      };
+    }
+    const smCols = `repeat(${compactCount}, minmax(0, 1fr))`;
+    if (compactCount === 2) {
+      return { display: 'grid', gridTemplateColumns: { xs: smCols, sm: smCols }, alignContent: 'start' };
+    }
+    if (compactCount === 3) {
+      return {
+        display: 'grid',
+        gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: smCols },
+        alignContent: 'start',
+      };
+    }
+    return {
+      display: 'grid',
+      gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(4, minmax(0, 1fr))' },
+      alignContent: 'start',
+    };
+  }, [compact, compactCount]);
+
   return (
     <Box sx={{ width: '100%', height: compact ? '100%' : 'auto', mb: compact ? 0 : 3 }}>
       <Box
         sx={{
-          display: compact ? 'grid' : 'flex',
-          gridTemplateColumns: compact
-            ? { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(auto-fill, minmax(148px, 1fr))' }
-            : undefined,
+          ...(compact && compactGridLayout ? compactGridLayout : {}),
+          display: compact ? (compactGridLayout?.display || 'grid') : 'flex',
+          gridTemplateColumns:
+            compact && compactGridLayout?.gridTemplateColumns
+              ? compactGridLayout.gridTemplateColumns
+              : compact
+                ? { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(auto-fill, minmax(148px, 1fr))' }
+                : undefined,
           flexDirection: compact ? undefined : isMobile ? 'column' : 'row',
           flexWrap: compact ? undefined : 'wrap',
           gap: compact ? 0.5 : 2,
           width: '100%',
           height: compact ? '100%' : 'auto',
           alignItems: 'stretch',
-          alignContent: compact ? 'start' : undefined,
+          alignContent: compact ? compactGridLayout?.alignContent || 'start' : undefined,
         }}
       >
         {paramsToShow.map((param) => {
@@ -234,6 +275,7 @@ const DashboardParameterDoughnuts = ({
               variant="outlined"
               sx={{
                 width: compact ? 'auto' : isMobile ? '100%' : cardWidth,
+                maxWidth: compact && compactCount === 1 ? { xs: '100%', sm: 220 } : undefined,
                 flex: compact ? undefined : isMobile ? 'none' : '1 1 0',
                 minWidth: compact ? 0 : isMobile ? '100%' : 180,
                 borderRadius: compact ? 1.25 : 2,
