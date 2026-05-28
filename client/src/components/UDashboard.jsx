@@ -721,6 +721,7 @@ export default function UDashboard({ socket }) {
                 fillHeight
                 cardSx={{ m: 0, mt: 0, mb: 0, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', boxShadow: 'none' }}
                 mapBoxSx={{ flex: 1, minHeight: 0, height: '100%' }}
+                compactPopup
               />
             </Box>
           </CardContent>

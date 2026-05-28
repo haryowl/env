@@ -334,7 +334,7 @@ const buildPopupParameterEntries = (data, formatLabelForPopup, formatValueForPop
     .filter(Boolean);
 };
 
-const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false }) => {
+const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compactPopup = false }) => {
   const theme = useTheme();
   const { formatDisplayName, getUnit } = useFieldMetadata();
   const [devices, setDevices] = useState([]);
@@ -725,7 +725,7 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false }) => 
                           sx={{ 
                             color: theme.palette.text.primary,
                             mb: 0.5,
-                            fontSize: '1.1rem'
+                            fontSize: compactPopup ? '0.92rem' : '1.1rem'
                           }}
                         >
                           {device.name}
@@ -735,7 +735,7 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false }) => 
                             label={device.status} 
                             color={device.status === 'online' ? 'success' : 'error'}
                             size="small"
-                            sx={{ fontSize: '0.7rem', height: 18 }}
+                            sx={{ fontSize: compactPopup ? '0.62rem' : '0.7rem', height: compactPopup ? 16 : 18 }}
                           />
                           {deviceAlerts[device.device_id] && (
                             <Chip 
@@ -744,8 +744,8 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false }) => 
                               size="small"
                               sx={{ 
                                 animation: 'alertBlink 1s infinite',
-                                fontSize: '0.7rem',
-                                height: 18
+                                fontSize: compactPopup ? '0.62rem' : '0.7rem',
+                                height: compactPopup ? 16 : 18
                               }}
                             />
                           )}
@@ -754,7 +754,7 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false }) => 
                           variant="body2"
                           sx={{
                             color: theme.palette.text.secondary,
-                            fontSize: '0.78rem',
+                            fontSize: compactPopup ? '0.68rem' : '0.78rem',
                             mb: 0.5,
                           }}
                         >
@@ -770,7 +770,7 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false }) => 
                             mb: 0.3,
                             color: theme.palette.text.primary,
                             fontWeight: 'bold',
-                            fontSize: '0.9rem'
+                            fontSize: compactPopup ? '0.78rem' : '0.9rem'
                           }}
                         >
                           Latest Parameters:
@@ -785,7 +785,7 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false }) => 
                             return (
                               <Typography
                                 variant="body2"
-                                sx={{ color: theme.palette.text.secondary }}
+                                sx={{ color: theme.palette.text.secondary, fontSize: compactPopup ? '0.68rem' : undefined }}
                               >
                                 No recent data available
                               </Typography>
@@ -794,12 +794,12 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false }) => 
                           return (
                             <Box
                               sx={{
-                                fontSize: '0.8rem',
-                                lineHeight: 1.5,
+                                fontSize: compactPopup ? '0.68rem' : '0.8rem',
+                                lineHeight: compactPopup ? 1.35 : 1.5,
                                 '& > div': {
                                   margin: 0,
                                   padding: 0,
-                                  lineHeight: 1.5,
+                                  lineHeight: compactPopup ? 1.35 : 1.5,
                                 },
                               }}
                             >
@@ -811,8 +811,8 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false }) => 
                                     justifyContent: 'space-between',
                                     margin: 0,
                                     padding: 0,
-                                    lineHeight: 1.5,
-                                    fontSize: '0.8rem',
+                                    lineHeight: compactPopup ? 1.35 : 1.5,
+                                    fontSize: compactPopup ? '0.68rem' : '0.8rem',
                                     color: theme.palette.text.primary,
                                   }}
                                 >
