@@ -191,8 +191,9 @@ const DashboardParameterDoughnuts = ({
 
   const cardWidth = paramsToShow.length > 0 ? `${100 / Math.min(paramsToShow.length, 6)}%` : '100%';
   const pieHeight = compact ? 132 : 200;
-  const innerR = compact ? 36 : 52;
-  const outerR = compact ? 58 : 78;
+  const innerR = compact ? 34 : 52;
+  const outerR = compact ? 54 : 78;
+  const pieMargin = compact ? { top: 6, right: 6, bottom: 6, left: 6 } : undefined;
 
   return (
     <Box sx={{ width: '100%', height: compact ? '100%' : 'auto', mb: compact ? 0 : 3 }}>
@@ -303,7 +304,7 @@ const DashboardParameterDoughnuts = ({
                 {hasPie ? (
                   <Box sx={{ width: '100%', height: pieHeight, position: 'relative' }}>
                     <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
+                      <PieChart margin={pieMargin}>
                         <Pie
                           data={segments}
                           dataKey="value"
@@ -361,9 +362,56 @@ const DashboardParameterDoughnuts = ({
                       minHeight: pieHeight,
                     }}
                   >
-                    <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                      {displayValue}
-                    </Typography>
+                    {compact ? (
+                      <Box sx={{ width: '100%', height: pieHeight, position: 'relative' }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart margin={pieMargin}>
+                            <Pie
+                              data={[{ name: 'Value', value: 1, color: theme.palette.grey[500] }]}
+                              dataKey="value"
+                              nameKey="name"
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={innerR}
+                              outerRadius={outerR}
+                              paddingAngle={0}
+                              stroke="#fff"
+                              strokeWidth={1}
+                              isAnimationActive={false}
+                            >
+                              <Cell fill={`${theme.palette.grey[500]}AA`} />
+                            </Pie>
+                          </PieChart>
+                        </ResponsiveContainer>
+                        <Box
+                          sx={{
+                            position: 'absolute',
+                            left: '50%',
+                            top: '50%',
+                            transform: 'translate(-50%, -50%)',
+                            pointerEvents: 'none',
+                            textAlign: 'center',
+                            maxWidth: '46%',
+                          }}
+                        >
+                          <Typography
+                            variant="h6"
+                            sx={{
+                              fontWeight: 800,
+                              color: theme.palette.text.primary,
+                              fontSize: '0.82rem',
+                              lineHeight: 1.15,
+                            }}
+                          >
+                            {displayValue}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    ) : (
+                      <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                        {displayValue}
+                      </Typography>
+                    )}
                   </Box>
                 )}
                 <Typography
