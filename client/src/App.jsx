@@ -57,9 +57,23 @@ import { API_BASE_URL } from './config/api';
 import { PermissionProvider, usePermissions } from './hooks/usePermissions.jsx';
 
 function HomeRedirect({ user }) {
-  if (user?.role === 'technician') {
+  const { loading, canAccessMenu, userPermissions } = usePermissions();
+
+  if (loading) {
+    return null;
+  }
+
+  const role = user?.role || userPermissions?.role;
+  if (role === 'technician') {
     return <Navigate to="/technician" replace />;
   }
+  if (canAccessMenu('/dashboard')) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  if (canAccessMenu('/u-dashboard')) {
+    return <Navigate to="/u-dashboard" replace />;
+  }
+
   return <Navigate to="/dashboard" replace />;
 }
 

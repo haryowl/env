@@ -9,6 +9,14 @@ function redirectPathForRole(role) {
   return '/dashboard';
 }
 
+function defaultLandingPath({ role, canAccessMenu }) {
+  if (role === 'technician') return '/technician';
+  if (canAccessMenu?.('/dashboard')) return '/dashboard';
+  if (canAccessMenu?.('/u-dashboard')) return '/u-dashboard';
+  // fall back to dashboard (will show "No access" if nothing else is allowed)
+  return '/dashboard';
+}
+
 /**
  * Enforces the same menu access rules as the sidebar for direct URL visits.
  */
@@ -30,7 +38,7 @@ export default function ProtectedRoute({ children }) {
 
   if (!canAccessMenu(menuPath)) {
     const role = userPermissions?.role;
-    const to = redirectPathForRole(role);
+    const to = defaultLandingPath({ role, canAccessMenu });
     if (to !== location.pathname) {
       return <Navigate to={to} replace state={{ from: location.pathname }} />;
     }
