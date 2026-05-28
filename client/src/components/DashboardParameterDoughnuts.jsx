@@ -202,14 +202,13 @@ const DashboardParameterDoughnuts = ({
           gridTemplateColumns: compact
             ? { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(auto-fill, minmax(168px, 1fr))' }
             : undefined,
-          gridAutoRows: compact ? 'minmax(0, 1fr)' : undefined,
           flexDirection: compact ? undefined : isMobile ? 'column' : 'row',
           flexWrap: compact ? undefined : 'wrap',
           gap: compact ? 0.75 : 2,
           width: '100%',
           height: compact ? '100%' : 'auto',
           alignItems: 'stretch',
-          alignContent: compact ? 'stretch' : undefined,
+          alignContent: compact ? 'start' : undefined,
         }}
       >
         {paramsToShow.map((param) => {
@@ -233,7 +232,6 @@ const DashboardParameterDoughnuts = ({
                 width: compact ? 'auto' : isMobile ? '100%' : cardWidth,
                 flex: compact ? undefined : isMobile ? 'none' : '1 1 0',
                 minWidth: compact ? 0 : isMobile ? '100%' : 180,
-                height: compact ? '100%' : undefined,
                 borderRadius: compact ? 1.25 : 2,
                 border: `${compact ? 1.5 : 2}px solid ${TEAL_BORDER}`,
                 overflow: 'hidden',
@@ -299,7 +297,6 @@ const DashboardParameterDoughnuts = ({
                   textAlign: 'center',
                   position: 'relative',
                   minHeight: pieHeight,
-                  flex: 1,
                   minWidth: 0,
                 }}
               >

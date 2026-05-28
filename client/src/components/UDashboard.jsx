@@ -646,7 +646,8 @@ export default function UDashboard({ socket }) {
     display: 'grid',
     gap: 0.75,
     gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
-    gridTemplateRows: { xs: 'none', md: 'minmax(0, 1.35fr) minmax(0, 1fr)' },
+    // Desktop layout ratio: top 35% / chart 65%
+    gridTemplateRows: { xs: 'none', md: 'minmax(0, 0.35fr) minmax(0, 0.65fr)' },
     gridAutoRows: { xs: 'minmax(240px, auto)', md: 'none' },
   };
 
