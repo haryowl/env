@@ -190,10 +190,13 @@ const DashboardParameterDoughnuts = ({
   }, [deviceId, paramsToShow.join(',')]);
 
   const cardWidth = paramsToShow.length > 0 ? `${100 / Math.min(paramsToShow.length, 6)}%` : '100%';
-  const pieHeight = compact ? 132 : 200;
-  const innerR = compact ? 34 : 52;
-  const outerR = compact ? 54 : 78;
-  const pieMargin = compact ? { top: 6, right: 6, bottom: 6, left: 6 } : undefined;
+  // Compact: fixed chart height + % radii so ring stays inside box (label sits below chart area)
+  const pieHeight = compact ? 88 : 200;
+  const innerR = compact ? '78%' : 52;
+  const outerR = compact ? '92%' : 78;
+  const pieMargin = compact ? { top: 2, right: 8, bottom: 2, left: 8 } : undefined;
+  const piePaddingAngle = compact ? 1 : 2;
+  const pieStrokeWidth = compact ? 0.5 : 1;
 
   return (
     <Box sx={{ width: '100%', height: compact ? '100%' : 'auto', mb: compact ? 0 : 3 }}>
@@ -201,11 +204,11 @@ const DashboardParameterDoughnuts = ({
         sx={{
           display: compact ? 'grid' : 'flex',
           gridTemplateColumns: compact
-            ? { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(auto-fill, minmax(168px, 1fr))' }
+            ? { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(auto-fill, minmax(148px, 1fr))' }
             : undefined,
           flexDirection: compact ? undefined : isMobile ? 'column' : 'row',
           flexWrap: compact ? undefined : 'wrap',
-          gap: compact ? 0.75 : 2,
+          gap: compact ? 0.5 : 2,
           width: '100%',
           height: compact ? '100%' : 'auto',
           alignItems: 'stretch',
@@ -235,7 +238,7 @@ const DashboardParameterDoughnuts = ({
                 minWidth: compact ? 0 : isMobile ? '100%' : 180,
                 borderRadius: compact ? 1.25 : 2,
                 border: `${compact ? 1.5 : 2}px solid ${TEAL_BORDER}`,
-                overflow: 'hidden',
+                overflow: compact ? 'visible' : 'hidden',
                 transition: 'all 0.2s ease',
                 '&:hover': { boxShadow: `0 4px 12px ${TEAL_BORDER}40` },
                 display: 'flex',
@@ -246,8 +249,8 @@ const DashboardParameterDoughnuts = ({
                 sx={{
                   display: 'flex',
                   bgcolor: TOP_BG,
-                  px: compact ? 0.75 : 1.5,
-                  py: compact ? 0.35 : 1,
+                  px: compact ? 0.5 : 1.5,
+                  py: compact ? 0.25 : 1,
                   borderBottom: `1px solid ${TEAL_BORDER}40`,
                   flexShrink: 0,
                 }}
@@ -293,12 +296,14 @@ const DashboardParameterDoughnuts = ({
               <Box
                 sx={{
                   bgcolor: BOTTOM_BG,
-                  py: compact ? 0.35 : 1,
-                  px: compact ? 0.5 : 1,
+                  py: compact ? 0.2 : 1,
+                  px: compact ? 0.35 : 1,
                   textAlign: 'center',
                   position: 'relative',
-                  minHeight: pieHeight,
                   minWidth: 0,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'stretch',
                 }}
               >
                 {hasPie ? (
@@ -313,9 +318,9 @@ const DashboardParameterDoughnuts = ({
                           cy="50%"
                           innerRadius={innerR}
                           outerRadius={outerR}
-                          paddingAngle={2}
+                          paddingAngle={piePaddingAngle}
                           stroke="#fff"
-                          strokeWidth={1}
+                          strokeWidth={pieStrokeWidth}
                         >
                           {segments.map((entry, i) => (
                             <Cell key={i} fill={entry.color} />
@@ -376,7 +381,7 @@ const DashboardParameterDoughnuts = ({
                               outerRadius={outerR}
                               paddingAngle={0}
                               stroke="#fff"
-                              strokeWidth={1}
+                              strokeWidth={pieStrokeWidth}
                               isAnimationActive={false}
                             >
                               <Cell fill={`${theme.palette.grey[500]}AA`} />
@@ -418,11 +423,13 @@ const DashboardParameterDoughnuts = ({
                   variant="caption"
                   sx={{
                     display: 'block',
-                    mt: compact ? 0.25 : 0.5,
+                    mt: compact ? 0.15 : 0.5,
+                    pb: compact ? 0.15 : 0,
+                    flexShrink: 0,
                     color: theme.palette.text.secondary,
                     fontWeight: 600,
-                    fontSize: compact ? '0.62rem' : '0.75rem',
-                    lineHeight: 1.2,
+                    fontSize: compact ? '0.58rem' : '0.75rem',
+                    lineHeight: 1.15,
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: compact ? 'nowrap' : 'normal',

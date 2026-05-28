@@ -92,6 +92,12 @@ function panelTitle(text) {
 }
 
 const panelCardContentSx = { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', p: 0.75, pt: 0.5, '&:last-child': { pb: 0.75 } };
+const parameterPanelContentSx = {
+  ...panelCardContentSx,
+  p: 0.5,
+  pt: 0.35,
+  '&:last-child': { pb: 0.5 },
+};
 
 export default function UDashboard({ socket }) {
   const theme = useMuiTheme();
@@ -740,7 +746,7 @@ export default function UDashboard({ socket }) {
             ...getChartCardSx(theme),
           }}
         >
-          <CardContent sx={panelCardContentSx}>
+          <CardContent sx={parameterPanelContentSx}>
             {panelTitle('Parameter overview')}
             <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
               {realtimeParams.length > 0 ? (
