@@ -190,9 +190,9 @@ const DashboardParameterDoughnuts = ({
   }, [deviceId, paramsToShow.join(',')]);
 
   const cardWidth = paramsToShow.length > 0 ? `${100 / Math.min(paramsToShow.length, 6)}%` : '100%';
-  const pieHeight = compact ? 92 : 200;
-  const innerR = compact ? 26 : 52;
-  const outerR = compact ? 40 : 78;
+  const pieHeight = compact ? 132 : 200;
+  const innerR = compact ? 36 : 52;
+  const outerR = compact ? 58 : 78;
 
   return (
     <Box sx={{ width: '100%', height: compact ? '100%' : 'auto', mb: compact ? 0 : 3 }}>
@@ -200,15 +200,16 @@ const DashboardParameterDoughnuts = ({
         sx={{
           display: compact ? 'grid' : 'flex',
           gridTemplateColumns: compact
-            ? { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(auto-fill, minmax(128px, 1fr))' }
+            ? { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(auto-fill, minmax(168px, 1fr))' }
             : undefined,
+          gridAutoRows: compact ? 'minmax(0, 1fr)' : undefined,
           flexDirection: compact ? undefined : isMobile ? 'column' : 'row',
           flexWrap: compact ? undefined : 'wrap',
           gap: compact ? 0.75 : 2,
           width: '100%',
           height: compact ? '100%' : 'auto',
           alignItems: 'stretch',
-          alignContent: compact ? 'start' : undefined,
+          alignContent: compact ? 'stretch' : undefined,
         }}
       >
         {paramsToShow.map((param) => {
@@ -232,11 +233,14 @@ const DashboardParameterDoughnuts = ({
                 width: compact ? 'auto' : isMobile ? '100%' : cardWidth,
                 flex: compact ? undefined : isMobile ? 'none' : '1 1 0',
                 minWidth: compact ? 0 : isMobile ? '100%' : 180,
+                height: compact ? '100%' : undefined,
                 borderRadius: compact ? 1.25 : 2,
                 border: `${compact ? 1.5 : 2}px solid ${TEAL_BORDER}`,
                 overflow: 'hidden',
                 transition: 'all 0.2s ease',
                 '&:hover': { boxShadow: `0 4px 12px ${TEAL_BORDER}40` },
+                display: 'flex',
+                flexDirection: 'column',
               }}
             >
               <Box
@@ -246,6 +250,7 @@ const DashboardParameterDoughnuts = ({
                   px: compact ? 0.75 : 1.5,
                   py: compact ? 0.35 : 1,
                   borderBottom: `1px solid ${TEAL_BORDER}40`,
+                  flexShrink: 0,
                 }}
               >
                 <Box sx={{ flex: 1, textAlign: 'center' }}>
@@ -294,6 +299,8 @@ const DashboardParameterDoughnuts = ({
                   textAlign: 'center',
                   position: 'relative',
                   minHeight: pieHeight,
+                  flex: 1,
+                  minWidth: 0,
                 }}
               >
                 {hasPie ? (

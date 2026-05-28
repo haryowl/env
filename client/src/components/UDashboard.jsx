@@ -740,7 +740,7 @@ export default function UDashboard({ socket }) {
         >
           <CardContent sx={panelCardContentSx}>
             {panelTitle('Parameter overview')}
-            <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+            <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
               {realtimeParams.length > 0 ? (
                 <DashboardParameterDoughnuts
                   compact
