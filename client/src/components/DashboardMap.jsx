@@ -22,6 +22,7 @@ import 'leaflet/dist/leaflet.css';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import 'react-leaflet-cluster/dist/assets/MarkerCluster.css';
 import 'react-leaflet-cluster/dist/assets/MarkerCluster.Default.css';
+import { subHours } from 'date-fns';
 import { API_BASE_URL } from '../config/api';
 import { MAP_BASE_LAYERS } from '../config/mapLayers';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
@@ -437,28 +438,66 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
     }
   };
 
-  // Load device data for popup and update marker alert state from latest data vs thresholds
+  // Same source as Dashboard "Current Values": mapper + /data-dash newest row (not /latest-data merge)
   const loadDeviceData = async (deviceId) => {
     try {
       const token = localStorage.getItem('iot_token');
-      const response = await fetch(`${API_BASE_URL}/devices/${deviceId}/latest-data`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        const latest = data.data || {};
-        setDeviceData(prev => ({ ...prev, [deviceId]: latest }));
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const assignRes = await fetch(`${API_BASE_URL}/device-mapper-assignments/${deviceId}`, { headers });
+      if (!assignRes.ok) return;
+
+      const assignJson = await assignRes.json();
+      const mappings = assignJson.assignment?.mappings || [];
+      const params = mappings.map((m) => m.target_field).filter(Boolean);
+      if (params.length === 0) return;
+
+      const paramList = [...params];
+      if (!paramList.includes('datetime')) {
+        paramList.unshift('datetime');
+      }
+
+      const endDate = new Date().toISOString();
+      const startDate = subHours(new Date(), 2).toISOString();
+      const dashUrl = new URL(`${API_BASE_URL}/data-dash`);
+      dashUrl.searchParams.set('deviceIds', deviceId);
+      dashUrl.searchParams.set('parameters', paramList.join(','));
+      dashUrl.searchParams.set('startDate', startDate);
+      dashUrl.searchParams.set('endDate', endDate);
+      dashUrl.searchParams.set('limit', '1000');
+
+      const dashRes = await fetch(dashUrl.toString(), { headers });
+      if (!dashRes.ok) return;
+
+      const dashJson = await dashRes.json();
+      const mappedData = dashJson.data || [];
+      const fromDash = {};
+
+      if (mappedData.length > 0) {
+        const sortedData = [...mappedData].sort(
+          (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
+        );
+        const latestRecord = sortedData[0];
+        params.forEach((k) => {
+          if (latestRecord[k] !== undefined && latestRecord[k] !== null) {
+            fromDash[k] = latestRecord[k];
+          }
+        });
+        const lastTs = latestRecord.timestamp || latestRecord.datetime;
         setDeviceLastUpdated((prev) => ({
           ...prev,
-          [deviceId]: data.last_updated_at || null,
+          [deviceId]: lastTs ? new Date(lastTs).toISOString() : prev[deviceId] || null,
         }));
-        setDeviceAlerts(prev => {
-          const thresholds = alertThresholdsByDevice[deviceId] || [];
-          const outOfRange = isLatestDataOutOfRange(latest, thresholds);
-          return { ...prev, [deviceId]: outOfRange };
-        });
       }
+
+      setDeviceData((prev) => {
+        const thresholds = alertThresholdsByDevice[deviceId] || [];
+        setDeviceAlerts((prevAlerts) => ({
+          ...prevAlerts,
+          [deviceId]: isLatestDataOutOfRange(fromDash, thresholds),
+        }));
+        return { ...prev, [deviceId]: fromDash };
+      });
     } catch (error) {
       console.error('Error loading device data:', error);
     }

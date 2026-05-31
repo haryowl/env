@@ -94,94 +94,47 @@ function applyFormulaToLatestData(latestData, mappings) {
 }
 
 /**
- * Latest mapped values using the same merge rules as GET /api/data-dash (then dashboard cards).
- * Merges readings that share the same server timestamp; fills each mapper target from the
- * newest merged row(s) so partial uploads do not leave stale values from an older full batch.
+ * Latest value per mapper source field (newest sensor_readings row each), then map + formula.
+ * Matches live socket updates and avoids mixing fields from different merged timestamps.
  */
-async function fetchLatestMappedLikeDataDash(deviceId, dataMappings) {
+async function fetchLatestPerMappedField(deviceId, dataMappings) {
   if (!dataMappings.length) {
     return null;
   }
 
-  const rows = await getRows(
-    `SELECT sr.timestamp, sr.sensor_type, sr.value, (sr.metadata->>'datetime') AS datetime
-     FROM sensor_readings sr
-     WHERE sr.device_id = $1
-       AND sr.timestamp <= NOW() + INTERVAL '5 minutes'
-     ORDER BY sr.timestamp DESC
-     LIMIT 5000`,
-    [deviceId]
-  );
-
-  if (!rows.length) {
-    return null;
-  }
-
-  const mappedData = [];
-  for (const row of rows) {
-    if (POPUP_SKIP_SENSOR_TYPES.has(row.sensor_type)) continue;
-    for (const m of dataMappings) {
-      const src = mappingSourceKey(m);
-      if (src !== row.sensor_type || !m.target_field) continue;
-      let mappedValue = normalizeReadingValue(row.value);
-      if (m.formula) {
-        try {
-          mappedValue = mathFormulaService.evaluateFormula(m.formula, { value: row.value });
-        } catch (_) {
-          /* keep mappedValue */
-        }
-      }
-      mappedData.push({
-        timestamp: row.timestamp,
-        datetime: row.datetime,
-        device_id: deviceId,
-        [m.target_field]: mappedValue,
-      });
-    }
-  }
-
-  if (!mappedData.length) {
-    return null;
-  }
-
-  const merged = {};
-  for (const row of mappedData) {
-    const key = `${row.timestamp}_${row.device_id}`;
-    if (!merged[key]) {
-      merged[key] = {
-        timestamp: row.timestamp,
-        datetime: row.datetime,
-        device_id: deviceId,
-      };
-    }
-    Object.keys(row).forEach((k) => {
-      if (!['timestamp', 'device_id', 'datetime'].includes(k)) {
-        merged[key][k] = row[k];
-      }
-    });
-  }
-
-  const mergedRows = Object.values(merged).sort(
-    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-  );
-
-  const targets = dataMappings
-    .map((m) => m.target_field)
-    .filter((t) => t && !POPUP_SKIP_SENSOR_TYPES.has(t));
-
   const latestData = {};
   let lastUpdatedAt = null;
 
-  for (const row of mergedRows) {
-    const ts = row.timestamp ? new Date(row.timestamp).getTime() : null;
-    for (const target of targets) {
-      if (row[target] === undefined || row[target] === null) continue;
-      if (latestData[target] === undefined) {
-        latestData[target] = row[target];
-        if (ts != null && (lastUpdatedAt == null || ts > lastUpdatedAt)) {
-          lastUpdatedAt = ts;
-        }
+  for (const m of dataMappings) {
+    const src = mappingSourceKey(m);
+    const target = m.target_field;
+    if (!src || !target || POPUP_SKIP_SENSOR_TYPES.has(target)) continue;
+
+    const row = await getRow(
+      `SELECT value, timestamp
+       FROM sensor_readings
+       WHERE device_id = $1 AND sensor_type = $2
+         AND timestamp <= NOW() + INTERVAL '5 minutes'
+       ORDER BY timestamp DESC
+       LIMIT 1`,
+      [deviceId, src]
+    );
+
+    if (!row) continue;
+
+    let mappedValue = normalizeReadingValue(row.value);
+    if (m.formula) {
+      try {
+        mappedValue = mathFormulaService.evaluateFormula(m.formula, { value: row.value });
+      } catch (_) {
+        /* keep mappedValue */
       }
+    }
+
+    latestData[target] = mappedValue;
+    const ts = row.timestamp ? new Date(row.timestamp).getTime() : null;
+    if (ts != null && (lastUpdatedAt == null || ts > lastUpdatedAt)) {
+      lastUpdatedAt = ts;
     }
   }
 
@@ -928,7 +881,7 @@ router.get('/:deviceId/latest-data', authenticateToken, async (req, res) => {
     let latestData = {};
     let lastUpdatedAt = null;
 
-    const merged = await fetchLatestMappedLikeDataDash(deviceId, dataMappings);
+    const merged = await fetchLatestPerMappedField(deviceId, dataMappings);
     if (merged) {
       latestData = merged.latestData;
       lastUpdatedAt = merged.lastUpdatedAt;
