@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   Box,
   Card,
@@ -27,6 +27,7 @@ import { API_BASE_URL } from '../config/api';
 import { MAP_BASE_LAYERS } from '../config/mapLayers';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import { getChartCardSx } from '../utils/chartStyles';
+import { formatInUserTimezone } from '../utils/timezoneUtils';
 
 // Custom styled popup component that respects theme
 const ThemedPopup = ({ children, theme }) => {
@@ -89,7 +90,6 @@ const ThemedPopup = ({ children, theme }) => {
 
   return children;
 };
-import { formatInUserTimezone } from '../utils/timezoneUtils';
 
 // Add CSS for blinking animation
 const alertBlinkStyle = `
@@ -365,6 +365,175 @@ const buildPopupParameterEntries = (data, allowedParams, formatLabelForPopup, fo
     .filter(Boolean);
 };
 
+/** Leaflet popups do not always re-render when React state updates — refresh open popup + key remount */
+const DeviceMapMarker = React.memo(function DeviceMapMarker({
+  device,
+  status,
+  hasAlert,
+  popupData,
+  allowedParams,
+  lastUpdated,
+  isLoading,
+  compactPopup,
+  theme,
+  formatLabelForPopup,
+  formatValueForPopup,
+  onMarkerClick,
+  onPopupOpen,
+}) {
+  const markerRef = useRef(null);
+
+  const entries = useMemo(
+    () => buildPopupParameterEntries(popupData, allowedParams, formatLabelForPopup, formatValueForPopup),
+    [popupData, allowedParams, formatLabelForPopup, formatValueForPopup]
+  );
+
+  const popupContentKey = useMemo(
+    () =>
+      `${lastUpdated || 'none'}|${isLoading ? 'loading' : 'ready'}|${entries
+        .map((e) => `${e.key}=${e.displayValue}`)
+        .join('|')}`,
+    [lastUpdated, isLoading, entries]
+  );
+
+  useEffect(() => {
+    const marker = markerRef.current;
+    if (!marker?.isPopupOpen?.()) return;
+    const popup = marker.getPopup?.();
+    if (popup) {
+      popup.update();
+    }
+  }, [popupContentKey]);
+
+  const handlePopupOpen = useCallback(() => {
+    onPopupOpen(device.device_id);
+  }, [device.device_id, onPopupOpen]);
+
+  const handleClick = useCallback(() => {
+    onMarkerClick(device);
+  }, [device, onMarkerClick]);
+
+  return (
+    <Marker
+      ref={markerRef}
+      position={[device.latitude, device.longitude]}
+      icon={createDeviceIcon(status, hasAlert, device.name)}
+      eventHandlers={{
+        click: handleClick,
+        popupopen: handlePopupOpen,
+      }}
+    >
+      <Popup key={popupContentKey}>
+        <ThemedPopup theme={theme}>
+          <Box
+            sx={{
+              minWidth: 200,
+              maxWidth: 280,
+              color: theme.palette.text.primary,
+              backgroundColor: 'transparent',
+            }}
+          >
+            <Typography
+              variant="h6"
+              fontWeight="bold"
+              sx={{
+                color: theme.palette.text.primary,
+                mb: 0.5,
+                fontSize: compactPopup ? '0.92rem' : '1.1rem',
+              }}
+            >
+              {device.name}
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 0.5, mb: 0.4 }}>
+              <Chip
+                label={status}
+                color={status === 'online' ? 'success' : 'error'}
+                size="small"
+                sx={{ fontSize: compactPopup ? '0.62rem' : '0.7rem', height: compactPopup ? 16 : 18 }}
+              />
+              {hasAlert && (
+                <Chip
+                  label="ALERT"
+                  color="error"
+                  size="small"
+                  sx={{
+                    animation: 'alertBlink 1s infinite',
+                    fontSize: compactPopup ? '0.62rem' : '0.7rem',
+                    height: compactPopup ? 16 : 18,
+                  }}
+                />
+              )}
+            </Box>
+            <Typography
+              variant="body2"
+              sx={{
+                color: theme.palette.text.secondary,
+                fontSize: compactPopup ? '0.68rem' : '0.78rem',
+                mb: 0.5,
+              }}
+            >
+              Last update:{' '}
+              {lastUpdated ? formatInUserTimezone(lastUpdated) : 'no data yet'}
+            </Typography>
+            <Typography
+              variant="subtitle2"
+              sx={{
+                mt: 0.5,
+                mb: 0.3,
+                color: theme.palette.text.primary,
+                fontWeight: 'bold',
+                fontSize: compactPopup ? '0.78rem' : '0.9rem',
+              }}
+            >
+              Latest Parameters:
+            </Typography>
+            {entries.length === 0 ? (
+              <Typography
+                variant="body2"
+                sx={{ color: theme.palette.text.secondary, fontSize: compactPopup ? '0.68rem' : undefined }}
+              >
+                {isLoading ? 'Loading latest values...' : 'No recent data available'}
+              </Typography>
+            ) : (
+              <Box
+                sx={{
+                  fontSize: compactPopup ? '0.68rem' : '0.8rem',
+                  lineHeight: compactPopup ? 1.35 : 1.5,
+                  '& > div': {
+                    margin: 0,
+                    padding: 0,
+                    lineHeight: compactPopup ? 1.35 : 1.5,
+                  },
+                }}
+              >
+                {entries.map(({ key, label, displayValue }) => (
+                  <div
+                    key={key}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      margin: 0,
+                      padding: 0,
+                      lineHeight: compactPopup ? 1.35 : 1.5,
+                      fontSize: compactPopup ? '0.68rem' : '0.8rem',
+                      color: theme.palette.text.primary,
+                    }}
+                  >
+                    <span style={{ color: theme.palette.text.secondary }}>{label}:</span>
+                    <span style={{ fontWeight: 'bold', color: theme.palette.text.primary }}>
+                      {displayValue}
+                    </span>
+                  </div>
+                ))}
+              </Box>
+            )}
+          </Box>
+        </ThemedPopup>
+      </Popup>
+    </Marker>
+  );
+});
+
 const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compactPopup = false }) => {
   const theme = useTheme();
   const { formatDisplayName, getUnit } = useFieldMetadata();
@@ -383,7 +552,11 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
   const [centerCoords, setCenterCoords] = useState(null);
   const mapRef = useRef(null);
   const refreshTimersRef = useRef({});
-  const loadDeviceDataGenRef = useRef({});
+  const alertThresholdsRef = useRef({});
+
+  useEffect(() => {
+    alertThresholdsRef.current = alertThresholdsByDevice;
+  }, [alertThresholdsByDevice]);
 
   const formatLabelForPopup = (key) => {
     if (key === 'datetime') return 'Data Time';
@@ -466,7 +639,7 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
 
     setDeviceData((prev) => {
       const merged = { ...pickMappedSnapshot(prev[deviceId] || {}, chartParams), ...patch };
-      const thresholds = alertThresholdsByDevice[deviceId] || [];
+      const thresholds = alertThresholdsRef.current[deviceId] || [];
       setDeviceAlerts((prevAlerts) => ({
         ...prevAlerts,
         [deviceId]: isLatestDataOutOfRange(merged, thresholds),
@@ -484,9 +657,7 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
   };
 
   // Hydrate popup on login: data-dash newest row (48h, same as Dashboard) + DB latest-data fallback
-  const loadDeviceData = async (deviceId) => {
-    const gen = (loadDeviceDataGenRef.current[deviceId] || 0) + 1;
-    loadDeviceDataGenRef.current[deviceId] = gen;
+  const loadDeviceData = useCallback(async (deviceId) => {
     setDeviceDataLoading((prev) => ({ ...prev, [deviceId]: true }));
 
     try {
@@ -495,7 +666,7 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
       const headers = { Authorization: `Bearer ${token}` };
 
       const assignRes = await fetch(`${API_BASE_URL}/device-mapper-assignments/${deviceId}`, { headers });
-      if (!assignRes.ok || gen !== loadDeviceDataGenRef.current[deviceId]) return;
+      if (!assignRes.ok) return;
 
       const assignJson = await assignRes.json();
       const mappings = assignJson.assignment?.mappings || [];
@@ -523,8 +694,6 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
         fetch(dashUrl.toString(), { headers }),
         fetch(`${API_BASE_URL}/devices/${deviceId}/latest-data`, { headers }),
       ]);
-
-      if (gen !== loadDeviceDataGenRef.current[deviceId]) return;
 
       let dashRecord = null;
       let dashLastTs = null;
@@ -560,11 +729,24 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
     } catch (error) {
       console.error('Error loading device data:', error);
     } finally {
-      if (gen === loadDeviceDataGenRef.current[deviceId]) {
-        setDeviceDataLoading((prev) => ({ ...prev, [deviceId]: false }));
-      }
+      setDeviceDataLoading((prev) => ({ ...prev, [deviceId]: false }));
     }
-  };
+  }, []);
+
+  const handleMarkerClick = useCallback(
+    (device) => {
+      loadDeviceData(device.device_id);
+      setCenterCoords({ lat: device.latitude, lng: device.longitude });
+    },
+    [loadDeviceData]
+  );
+
+  const handlePopupOpen = useCallback(
+    (deviceId) => {
+      loadDeviceData(deviceId);
+    },
+    [loadDeviceData]
+  );
 
   // Load devices and alert thresholds on mount
   useEffect(() => {
@@ -593,7 +775,7 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
       if (livePatch) {
         setDeviceData((prev) => {
           const merged = { ...pickMappedSnapshot(prev[deviceId] || {}, allowed), ...livePatch };
-          const thresholds = alertThresholdsByDevice[deviceId] || [];
+          const thresholds = alertThresholdsRef.current[deviceId] || [];
           setDeviceAlerts((prevAlerts) => ({
             ...prevAlerts,
             [deviceId]: isLatestDataOutOfRange(merged, thresholds),
@@ -629,23 +811,42 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
       }
       Object.values(refreshTimersRef.current).forEach(clearTimeout);
     };
-  }, [socket]);
+  }, [socket, loadDeviceData]);
 
-  // Preload latest data for all devices with coordinates; derive red/green from latest data vs thresholds
+  // Preload latest data once devices are on the map (do not re-fetch when alert rules load)
   useEffect(() => {
-    const withCoords = devices.filter(d => d.latitude && d.longitude && !isNaN(d.latitude) && !isNaN(d.longitude));
-    withCoords.forEach(device => loadDeviceData(device.device_id));
-  }, [devices, alertThresholdsByDevice]);
+    if (loading) return;
+    const withCoords = devices.filter(
+      (d) => d.latitude && d.longitude && !isNaN(d.latitude) && !isNaN(d.longitude)
+    );
+    withCoords.forEach((device) => loadDeviceData(device.device_id));
+  }, [devices, loading, loadDeviceData]);
+
+  // Recompute marker alert state when thresholds arrive (without re-fetching all device data)
+  useEffect(() => {
+    if (Object.keys(alertThresholdsByDevice).length === 0) return;
+    setDeviceAlerts((prevAlerts) => {
+      const next = { ...prevAlerts };
+      Object.entries(deviceData).forEach(([deviceId, data]) => {
+        if (!data || typeof data !== 'object') return;
+        next[deviceId] = isLatestDataOutOfRange(data, alertThresholdsByDevice[deviceId] || []);
+      });
+      return next;
+    });
+  }, [alertThresholdsByDevice]);
 
   // Periodic refresh of latest data so "next data" in range turns marker green
   useEffect(() => {
-    const withCoords = devices.filter(d => d.latitude && d.longitude && !isNaN(d.latitude) && !isNaN(d.longitude));
+    if (loading) return;
+    const withCoords = devices.filter(
+      (d) => d.latitude && d.longitude && !isNaN(d.latitude) && !isNaN(d.longitude)
+    );
     if (withCoords.length === 0) return;
     const interval = setInterval(() => {
-      withCoords.forEach(device => loadDeviceData(device.device_id));
+      withCoords.forEach((device) => loadDeviceData(device.device_id));
     }, 60 * 1000);
     return () => clearInterval(interval);
-  }, [devices, alertThresholdsByDevice]);
+  }, [devices, loading, loadDeviceData]);
 
   // Stable reference unless `devices` from API changes — avoids MapBoundsUpdater refitting on unrelated state (popup data).
   const devicesWithCoordinates = useMemo(
@@ -838,144 +1039,27 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
               disableClusteringAtZoom={17}
               maxClusterRadius={55}
             >
-              {devicesWithCoordinates.map(device => (
-                <Marker
+              {devicesWithCoordinates.map((device) => (
+                <DeviceMapMarker
                   key={device.device_id}
-                  position={[device.latitude, device.longitude]}
-                  icon={createDeviceIcon(device.status, deviceAlerts[device.device_id], device.name)}
-                  eventHandlers={{
-                    click: () => {
-                      loadDeviceData(device.device_id);
-                      setCenterCoords({ lat: device.latitude, lng: device.longitude });
-                    },
-                    popupopen: () => {
-                      loadDeviceData(device.device_id);
-                    },
-                  }}
-                >
-                  <Popup>
-                    <ThemedPopup theme={theme}>
-                      <Box 
-                        sx={{ 
-                          minWidth: 200,
-                          maxWidth: 280,
-                          color: theme.palette.text.primary,
-                          backgroundColor: 'transparent'
-                        }}
-                      >
-                        <Typography 
-                          variant="h6" 
-                          fontWeight="bold" 
-                          sx={{ 
-                            color: theme.palette.text.primary,
-                            mb: 0.5,
-                            fontSize: compactPopup ? '0.92rem' : '1.1rem'
-                          }}
-                        >
-                          {device.name}
-                        </Typography>
-                        <Box sx={{ display: 'flex', gap: 0.5, mb: 0.4 }}>
-                          <Chip 
-                            label={device.status} 
-                            color={device.status === 'online' ? 'success' : 'error'}
-                            size="small"
-                            sx={{ fontSize: compactPopup ? '0.62rem' : '0.7rem', height: compactPopup ? 16 : 18 }}
-                          />
-                          {deviceAlerts[device.device_id] && (
-                            <Chip 
-                              label="ALERT" 
-                              color="error"
-                              size="small"
-                              sx={{ 
-                                animation: 'alertBlink 1s infinite',
-                                fontSize: compactPopup ? '0.62rem' : '0.7rem',
-                                height: compactPopup ? 16 : 18
-                              }}
-                            />
-                          )}
-                        </Box>
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            color: theme.palette.text.secondary,
-                            fontSize: compactPopup ? '0.68rem' : '0.78rem',
-                            mb: 0.5,
-                          }}
-                        >
-                          Last update:{' '}
-                          {deviceLastUpdated[device.device_id]
-                            ? formatInUserTimezone(deviceLastUpdated[device.device_id])
-                            : 'no data yet'}
-                        </Typography>
-                        <Typography 
-                          variant="subtitle2" 
-                          sx={{ 
-                            mt: 0.5, 
-                            mb: 0.3,
-                            color: theme.palette.text.primary,
-                            fontWeight: 'bold',
-                            fontSize: compactPopup ? '0.78rem' : '0.9rem'
-                          }}
-                        >
-                          Latest Parameters:
-                        </Typography>
-                        {(() => {
-                          const entries = buildPopupParameterEntries(
-                            deviceData[device.device_id],
-                            deviceMappedParams[device.device_id] || [],
-                            formatLabelForPopup,
-                            formatValueForPopup
-                          );
-                          if (entries.length === 0) {
-                            return (
-                              <Typography
-                                variant="body2"
-                                sx={{ color: theme.palette.text.secondary, fontSize: compactPopup ? '0.68rem' : undefined }}
-                              >
-                                {deviceDataLoading[device.device_id]
-                                  ? 'Loading latest values...'
-                                  : 'No recent data available'}
-                              </Typography>
-                            );
-                          }
-                          return (
-                            <Box
-                              sx={{
-                                fontSize: compactPopup ? '0.68rem' : '0.8rem',
-                                lineHeight: compactPopup ? 1.35 : 1.5,
-                                '& > div': {
-                                  margin: 0,
-                                  padding: 0,
-                                  lineHeight: compactPopup ? 1.35 : 1.5,
-                                },
-                              }}
-                            >
-                              {entries.map(({ key, label, displayValue }) => (
-                                <div
-                                  key={key}
-                                  style={{
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    margin: 0,
-                                    padding: 0,
-                                    lineHeight: compactPopup ? 1.35 : 1.5,
-                                    fontSize: compactPopup ? '0.68rem' : '0.8rem',
-                                    color: theme.palette.text.primary,
-                                  }}
-                                >
-                                  <span style={{ color: theme.palette.text.secondary }}>{label}:</span>
-                                  <span style={{ fontWeight: 'bold', color: theme.palette.text.primary }}>
-                                    {displayValue}
-                                  </span>
-                                </div>
-                              ))}
-                            </Box>
-                          );
-                        })()}
-                      </Box>
-                    </ThemedPopup>
-                  </Popup>
-                </Marker>
+                  device={device}
+                  status={device.status}
+                  hasAlert={!!deviceAlerts[device.device_id]}
+                  popupData={deviceData[device.device_id]}
+                  allowedParams={
+                    deviceMappedParams[device.device_id] ||
+                    deviceMappedParamsRef.current[device.device_id] ||
+                    []
+                  }
+                  lastUpdated={deviceLastUpdated[device.device_id]}
+                  isLoading={!!deviceDataLoading[device.device_id]}
+                  compactPopup={compactPopup}
+                  theme={theme}
+                  formatLabelForPopup={formatLabelForPopup}
+                  formatValueForPopup={formatValueForPopup}
+                  onMarkerClick={handleMarkerClick}
+                  onPopupOpen={handlePopupOpen}
+                />
               ))}
             </MarkerClusterGroup>
             
