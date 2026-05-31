@@ -377,11 +377,13 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
   const [deviceMappedParams, setDeviceMappedParams] = useState({});
   const deviceMappedParamsRef = useRef({});
   const [deviceLastUpdated, setDeviceLastUpdated] = useState({});
+  const [deviceDataLoading, setDeviceDataLoading] = useState({});
   const [deviceAlerts, setDeviceAlerts] = useState({});
   const [alertThresholdsByDevice, setAlertThresholdsByDevice] = useState({});
   const [centerCoords, setCenterCoords] = useState(null);
   const mapRef = useRef(null);
   const refreshTimersRef = useRef({});
+  const loadDeviceDataGenRef = useRef({});
 
   const formatLabelForPopup = (key) => {
     if (key === 'datetime') return 'Data Time';
@@ -458,14 +460,42 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
     }
   };
 
-  // Same source as Dashboard "Current Values": mapper + /data-dash newest row (not /latest-data merge)
+  const applyMappedDeviceSnapshot = (deviceId, chartParams, incoming, lastUpdatedIso) => {
+    const patch = pickMappedSnapshot(incoming, chartParams);
+    if (Object.keys(patch).length === 0) return false;
+
+    setDeviceData((prev) => {
+      const merged = { ...pickMappedSnapshot(prev[deviceId] || {}, chartParams), ...patch };
+      const thresholds = alertThresholdsByDevice[deviceId] || [];
+      setDeviceAlerts((prevAlerts) => ({
+        ...prevAlerts,
+        [deviceId]: isLatestDataOutOfRange(merged, thresholds),
+      }));
+      return { ...prev, [deviceId]: merged };
+    });
+
+    if (lastUpdatedIso) {
+      setDeviceLastUpdated((prev) => ({
+        ...prev,
+        [deviceId]: new Date(lastUpdatedIso).toISOString(),
+      }));
+    }
+    return true;
+  };
+
+  // Hydrate popup on login: data-dash newest row (48h, same as Dashboard) + DB latest-data fallback
   const loadDeviceData = async (deviceId) => {
+    const gen = (loadDeviceDataGenRef.current[deviceId] || 0) + 1;
+    loadDeviceDataGenRef.current[deviceId] = gen;
+    setDeviceDataLoading((prev) => ({ ...prev, [deviceId]: true }));
+
     try {
       const token = localStorage.getItem('iot_token');
+      if (!token) return;
       const headers = { Authorization: `Bearer ${token}` };
 
       const assignRes = await fetch(`${API_BASE_URL}/device-mapper-assignments/${deviceId}`, { headers });
-      if (!assignRes.ok) return;
+      if (!assignRes.ok || gen !== loadDeviceDataGenRef.current[deviceId]) return;
 
       const assignJson = await assignRes.json();
       const mappings = assignJson.assignment?.mappings || [];
@@ -481,44 +511,58 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
       }
 
       const endDate = new Date().toISOString();
-      const startDate = subHours(new Date(), 2).toISOString();
+      const startDate = subHours(new Date(), 48).toISOString();
       const dashUrl = new URL(`${API_BASE_URL}/data-dash`);
       dashUrl.searchParams.set('deviceIds', deviceId);
       dashUrl.searchParams.set('parameters', paramList.join(','));
       dashUrl.searchParams.set('startDate', startDate);
       dashUrl.searchParams.set('endDate', endDate);
-      dashUrl.searchParams.set('limit', '1000');
+      dashUrl.searchParams.set('limit', '5000');
 
-      const dashRes = await fetch(dashUrl.toString(), { headers });
-      if (!dashRes.ok) return;
+      const [dashRes, latestRes] = await Promise.all([
+        fetch(dashUrl.toString(), { headers }),
+        fetch(`${API_BASE_URL}/devices/${deviceId}/latest-data`, { headers }),
+      ]);
 
-      const dashJson = await dashRes.json();
-      const mappedData = dashJson.data || [];
-      const fromDash = {};
+      if (gen !== loadDeviceDataGenRef.current[deviceId]) return;
 
-      if (mappedData.length > 0) {
-        const sortedData = [...mappedData].sort(
-          (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
-        );
-        const latestRecord = sortedData[0];
-        Object.assign(fromDash, pickMappedSnapshot(latestRecord, chartParams));
-        const lastTs = latestRecord.timestamp || latestRecord.datetime;
-        setDeviceLastUpdated((prev) => ({
-          ...prev,
-          [deviceId]: lastTs ? new Date(lastTs).toISOString() : prev[deviceId] || null,
-        }));
+      let dashRecord = null;
+      let dashLastTs = null;
+      if (dashRes.ok) {
+        const dashJson = await dashRes.json();
+        const mappedData = dashJson.data || [];
+        if (mappedData.length > 0) {
+          const sortedData = [...mappedData].sort(
+            (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
+          );
+          dashRecord = sortedData[0];
+          dashLastTs = dashRecord.timestamp || dashRecord.datetime;
+        }
       }
 
-      setDeviceData((prev) => {
-        const thresholds = alertThresholdsByDevice[deviceId] || [];
-        setDeviceAlerts((prevAlerts) => ({
-          ...prevAlerts,
-          [deviceId]: isLatestDataOutOfRange(fromDash, thresholds),
-        }));
-        return { ...prev, [deviceId]: fromDash };
-      });
+      let dbRecord = null;
+      let dbLastTs = null;
+      if (latestRes.ok) {
+        const latestJson = await latestRes.json();
+        dbRecord = latestJson.data || {};
+        dbLastTs = latestJson.last_updated_at;
+      }
+
+      const dashPatch = pickMappedSnapshot(dashRecord, chartParams);
+      const dbPatch = pickMappedSnapshot(dbRecord, chartParams);
+      const mergedIncoming = { ...dbPatch, ...dashPatch };
+      const lastTs =
+        Object.keys(dashPatch).length > 0
+          ? dashLastTs
+          : dbLastTs;
+
+      applyMappedDeviceSnapshot(deviceId, chartParams, mergedIncoming, lastTs);
     } catch (error) {
       console.error('Error loading device data:', error);
+    } finally {
+      if (gen === loadDeviceDataGenRef.current[deviceId]) {
+        setDeviceDataLoading((prev) => ({ ...prev, [deviceId]: false }));
+      }
     }
   };
 
@@ -888,7 +932,9 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
                                 variant="body2"
                                 sx={{ color: theme.palette.text.secondary, fontSize: compactPopup ? '0.68rem' : undefined }}
                               >
-                                No recent data available
+                                {deviceDataLoading[device.device_id]
+                                  ? 'Loading latest values...'
+                                  : 'No recent data available'}
                               </Typography>
                             );
                           }
