@@ -315,14 +315,35 @@ const isLatestDataOutOfRange = (latestData, thresholds) => {
   return false;
 };
 
-const popupIgnoredKeys = ['device_id', 'deviceId', 'device_name', 'metadata', 'status', 'sensor_type', '_id', 'created_at', 'updated_at'];
+/** Same exclusions as Dashboard realtime cards / chart series */
+const isGpsDisplayField = (p) => {
+  const k = String(p || '').toLowerCase();
+  return ['latitude', 'longitude', 'lat', 'lng', 'lon', 'altitude', 'speed', 'heading', 'accuracy', 'satellites'].includes(k);
+};
 
-const mergeSocketPayloadIntoDeviceData = (raw) => {
-  if (!raw || typeof raw !== 'object') return null;
+const chartParamsFromMappings = (mappings) =>
+  (mappings || [])
+    .map((m) => m.target_field)
+    .filter((p) => p && p !== 'datetime' && p !== 'timestamp' && !isGpsDisplayField(p));
+
+const pickMappedSnapshot = (record, allowedParams) => {
+  if (!record || !allowedParams?.length) return {};
+  const out = {};
+  allowedParams.forEach((key) => {
+    if (record[key] !== undefined && record[key] !== null) {
+      out[key] = record[key];
+    }
+  });
+  return out;
+};
+
+const mergeSocketPayloadIntoDeviceData = (raw, allowedParams) => {
+  if (!raw || typeof raw !== 'object' || !allowedParams?.length) return null;
+  const allowed = new Set(allowedParams);
   const next = {};
   let changed = false;
-  for (const [key, value] of Object.entries(raw)) {
-    if (popupIgnoredKeys.includes(key)) continue;
+  for (const key of allowedParams) {
+    const value = raw[key];
     if (value === null || value === undefined || typeof value === 'object') continue;
     next[key] = value;
     changed = true;
@@ -330,16 +351,12 @@ const mergeSocketPayloadIntoDeviceData = (raw) => {
   return changed ? next : null;
 };
 
-const buildPopupParameterEntries = (data, formatLabelForPopup, formatValueForPopup) => {
-  if (!data || typeof data !== 'object') return [];
-  return Object.entries(data)
-    .filter(([key, value]) => {
-      if (popupIgnoredKeys.includes(key)) return false;
-      if (value === null || value === undefined) return false;
-      if (typeof value === 'object') return false;
-      return true;
-    })
-    .map(([key, value]) => {
+const buildPopupParameterEntries = (data, allowedParams, formatLabelForPopup, formatValueForPopup) => {
+  if (!data || typeof data !== 'object' || !allowedParams?.length) return [];
+  return allowedParams
+    .map((key) => {
+      const value = data[key];
+      if (value === null || value === undefined || typeof value === 'object') return null;
       const label = formatLabelForPopup(key);
       const displayValue = formatValueForPopup(key, value);
       if (!label || displayValue === '') return null;
@@ -356,6 +373,9 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
   const [error, setError] = useState('');
   const [selectedLayer, setSelectedLayer] = useState('dark');
   const [deviceData, setDeviceData] = useState({});
+  /** Mapper target fields per device — popup shows only these (same as Realtime Data View cards) */
+  const [deviceMappedParams, setDeviceMappedParams] = useState({});
+  const deviceMappedParamsRef = useRef({});
   const [deviceLastUpdated, setDeviceLastUpdated] = useState({});
   const [deviceAlerts, setDeviceAlerts] = useState({});
   const [alertThresholdsByDevice, setAlertThresholdsByDevice] = useState({});
@@ -449,10 +469,13 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
 
       const assignJson = await assignRes.json();
       const mappings = assignJson.assignment?.mappings || [];
-      const params = mappings.map((m) => m.target_field).filter(Boolean);
-      if (params.length === 0) return;
+      const chartParams = chartParamsFromMappings(mappings);
+      if (chartParams.length === 0) return;
 
-      const paramList = [...params];
+      setDeviceMappedParams((prev) => ({ ...prev, [deviceId]: chartParams }));
+      deviceMappedParamsRef.current[deviceId] = chartParams;
+
+      const paramList = [...chartParams];
       if (!paramList.includes('datetime')) {
         paramList.unshift('datetime');
       }
@@ -478,11 +501,7 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
           (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
         );
         const latestRecord = sortedData[0];
-        params.forEach((k) => {
-          if (latestRecord[k] !== undefined && latestRecord[k] !== null) {
-            fromDash[k] = latestRecord[k];
-          }
-        });
+        Object.assign(fromDash, pickMappedSnapshot(latestRecord, chartParams));
         const lastTs = latestRecord.timestamp || latestRecord.datetime;
         setDeviceLastUpdated((prev) => ({
           ...prev,
@@ -520,10 +539,16 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
       const deviceId = payload?.deviceId || payload?.device_id;
       if (!deviceId) return;
 
-      const livePatch = mergeSocketPayloadIntoDeviceData(payload?.data);
+      const allowed = deviceMappedParamsRef.current[deviceId];
+      if (!allowed?.length) {
+        loadDeviceData(deviceId);
+        return;
+      }
+
+      const livePatch = mergeSocketPayloadIntoDeviceData(payload?.data, allowed);
       if (livePatch) {
         setDeviceData((prev) => {
-          const merged = { ...(prev[deviceId] || {}), ...livePatch };
+          const merged = { ...pickMappedSnapshot(prev[deviceId] || {}, allowed), ...livePatch };
           const thresholds = alertThresholdsByDevice[deviceId] || [];
           setDeviceAlerts((prevAlerts) => ({
             ...prevAlerts,
@@ -853,6 +878,7 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
                         {(() => {
                           const entries = buildPopupParameterEntries(
                             deviceData[device.device_id],
+                            deviceMappedParams[device.device_id] || [],
                             formatLabelForPopup,
                             formatValueForPopup
                           );
