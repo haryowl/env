@@ -62,10 +62,18 @@ function remapReadingsByMappings(rawBySource, mappings) {
       out[target] = rawBySource[src];
     }
   }
-  for (const [key, value] of Object.entries(rawBySource)) {
-    if (out[key] === undefined && value !== undefined && value !== null) {
-      out[key] = value;
-    }
+  return out;
+}
+
+/** Keep only mapper target fields (exclude raw/unmapped sensor types). */
+function filterLatestDataToMappedTargets(latestData, mappings) {
+  if (!mappings?.length) return latestData;
+  const allowed = new Set(
+    mappings.map((m) => m.target_field).filter((t) => t && !POPUP_SKIP_SENSOR_TYPES.has(t))
+  );
+  const out = {};
+  for (const [key, value] of Object.entries(latestData || {})) {
+    if (allowed.has(key)) out[key] = value;
   }
   return out;
 }
@@ -891,6 +899,10 @@ router.get('/:deviceId/latest-data', authenticateToken, async (req, res) => {
           ? remapReadingsByMappings(fallback.latestData, dataMappings)
           : fallback.latestData;
       latestData = applyFormulaToLatestData(latestData, dataMappings);
+    }
+
+    if (dataMappings.length > 0) {
+      latestData = filterLatestDataToMappedTargets(latestData, dataMappings);
     }
 
     res.json({
