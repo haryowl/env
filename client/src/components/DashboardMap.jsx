@@ -467,10 +467,11 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
     const onDeviceData = (payload) => {
       const deviceId = payload?.deviceId || payload?.device_id;
       if (!deviceId) return;
+      loadDeviceData(deviceId);
       clearTimeout(refreshTimersRef.current[deviceId]);
       refreshTimersRef.current[deviceId] = setTimeout(() => {
         loadDeviceData(deviceId);
-      }, 400);
+      }, 600);
     };
 
     if (socket) {
@@ -702,11 +703,13 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
                   position={[device.latitude, device.longitude]}
                   icon={createDeviceIcon(device.status, deviceAlerts[device.device_id], device.name)}
                   eventHandlers={{
-                    click: (e) => {
+                    click: () => {
                       loadDeviceData(device.device_id);
-                      // Center the map on the clicked marker
                       setCenterCoords({ lat: device.latitude, lng: device.longitude });
-                    }
+                    },
+                    popupopen: () => {
+                      loadDeviceData(device.device_id);
+                    },
                   }}
                 >
                   <Popup>

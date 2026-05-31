@@ -70,21 +70,6 @@ function remapReadingsByMappings(rawBySource, mappings) {
   return out;
 }
 
-/** Latest sensor/GPS instant for a device (UTC), ignoring far-future clock skew. */
-async function getLatestReadingTimestamp(deviceId) {
-  const row = await getRow(
-    `SELECT GREATEST(
-      (SELECT MAX(timestamp) FROM sensor_readings
-        WHERE device_id = $1 AND timestamp <= NOW() + INTERVAL '5 minutes'),
-      (SELECT MAX(timestamp) FROM gps_tracks
-        WHERE device_id = $1 AND timestamp <= NOW() + INTERVAL '5 minutes')
-    ) AS ts`,
-    [deviceId]
-  );
-  if (!row?.ts) return null;
-  return new Date(row.ts).getTime();
-}
-
 function applyFormulaToLatestData(latestData, mappings) {
   for (const m of mappings) {
     const target = m.target_field;
@@ -98,6 +83,62 @@ function applyFormulaToLatestData(latestData, mappings) {
     }
   }
   return latestData;
+}
+
+/**
+ * Latest mapped snapshot at one server timestamp (same merge idea as /data-dash).
+ * Avoids mixing per-sensor "latest" rows from different times while showing a newer last_updated_at.
+ */
+async function fetchLatestMergedMappedSnapshot(deviceId, dataMappings) {
+  const rows = await getRows(
+    `SELECT sensor_type, value, timestamp
+     FROM sensor_readings
+     WHERE device_id = $1
+       AND timestamp <= NOW() + INTERVAL '5 minutes'
+     ORDER BY timestamp DESC
+     LIMIT 2000`,
+    [deviceId]
+  );
+
+  if (!rows.length) {
+    return null;
+  }
+
+  const byTs = new Map();
+  for (const row of rows) {
+    if (POPUP_SKIP_SENSOR_TYPES.has(row.sensor_type)) continue;
+    const tsKey =
+      row.timestamp instanceof Date
+        ? row.timestamp.toISOString()
+        : new Date(row.timestamp).toISOString();
+    if (!byTs.has(tsKey)) {
+      byTs.set(tsKey, { timestamp: row.timestamp, raw: {} });
+    }
+    byTs.get(tsKey).raw[row.sensor_type] = normalizeReadingValue(row.value);
+  }
+
+  const buckets = [...byTs.values()].sort(
+    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+  );
+
+  for (const bucket of buckets) {
+    let latestData =
+      dataMappings.length > 0
+        ? remapReadingsByMappings(bucket.raw, dataMappings)
+        : { ...bucket.raw };
+    latestData = applyFormulaToLatestData(latestData, dataMappings);
+
+    if (Object.keys(latestData).length > 0) {
+      return {
+        latestData,
+        lastUpdatedAt: bucket.timestamp
+          ? new Date(bucket.timestamp).getTime()
+          : null,
+      };
+    }
+  }
+
+  return null;
 }
 
 // Validation schemas
@@ -836,28 +877,10 @@ router.get('/:deviceId/latest-data', authenticateToken, async (req, res) => {
     let latestData = {};
     let lastUpdatedAt = null;
 
-    if (dataMappings.length > 0) {
-      for (const m of dataMappings) {
-        const srcField = mappingSourceKey(m);
-        const result = await getRow(
-          `SELECT value, timestamp
-           FROM sensor_readings
-           WHERE device_id = $1 AND sensor_type = $2
-             AND timestamp <= NOW() + INTERVAL '5 minutes'
-           ORDER BY timestamp DESC
-           LIMIT 1`,
-          [deviceId, srcField]
-        );
-
-        if (result) {
-          const ts = result.timestamp ? new Date(result.timestamp).getTime() : null;
-          if (ts != null && (lastUpdatedAt == null || ts > lastUpdatedAt)) {
-            lastUpdatedAt = ts;
-          }
-          latestData[m.target_field] = normalizeReadingValue(result.value);
-        }
-      }
-      latestData = applyFormulaToLatestData(latestData, dataMappings);
+    const merged = await fetchLatestMergedMappedSnapshot(deviceId, dataMappings);
+    if (merged) {
+      latestData = merged.latestData;
+      lastUpdatedAt = merged.lastUpdatedAt;
     }
 
     if (Object.keys(latestData).length === 0) {
@@ -868,11 +891,6 @@ router.get('/:deviceId/latest-data', authenticateToken, async (req, res) => {
           ? remapReadingsByMappings(fallback.latestData, dataMappings)
           : fallback.latestData;
       latestData = applyFormulaToLatestData(latestData, dataMappings);
-    }
-
-    const authoritativeTs = await getLatestReadingTimestamp(deviceId);
-    if (authoritativeTs != null) {
-      lastUpdatedAt = authoritativeTs;
     }
 
     res.json({
