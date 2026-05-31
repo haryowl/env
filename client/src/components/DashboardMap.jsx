@@ -316,6 +316,19 @@ const isLatestDataOutOfRange = (latestData, thresholds) => {
 
 const popupIgnoredKeys = ['device_id', 'deviceId', 'device_name', 'metadata', 'status', 'sensor_type', '_id', 'created_at', 'updated_at'];
 
+const mergeSocketPayloadIntoDeviceData = (raw) => {
+  if (!raw || typeof raw !== 'object') return null;
+  const next = {};
+  let changed = false;
+  for (const [key, value] of Object.entries(raw)) {
+    if (popupIgnoredKeys.includes(key)) continue;
+    if (value === null || value === undefined || typeof value === 'object') continue;
+    next[key] = value;
+    changed = true;
+  }
+  return changed ? next : null;
+};
+
 const buildPopupParameterEntries = (data, formatLabelForPopup, formatValueForPopup) => {
   if (!data || typeof data !== 'object') return [];
   return Object.entries(data)
@@ -467,11 +480,31 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
     const onDeviceData = (payload) => {
       const deviceId = payload?.deviceId || payload?.device_id;
       if (!deviceId) return;
-      loadDeviceData(deviceId);
+
+      const livePatch = mergeSocketPayloadIntoDeviceData(payload?.data);
+      if (livePatch) {
+        setDeviceData((prev) => {
+          const merged = { ...(prev[deviceId] || {}), ...livePatch };
+          const thresholds = alertThresholdsByDevice[deviceId] || [];
+          setDeviceAlerts((prevAlerts) => ({
+            ...prevAlerts,
+            [deviceId]: isLatestDataOutOfRange(merged, thresholds),
+          }));
+          return { ...prev, [deviceId]: merged };
+        });
+        setDeviceLastUpdated((prev) => ({
+          ...prev,
+          [deviceId]:
+            payload.timestamp != null
+              ? new Date(payload.timestamp).toISOString()
+              : new Date().toISOString(),
+        }));
+      }
+
       clearTimeout(refreshTimersRef.current[deviceId]);
       refreshTimersRef.current[deviceId] = setTimeout(() => {
         loadDeviceData(deviceId);
-      }, 600);
+      }, 800);
     };
 
     if (socket) {
