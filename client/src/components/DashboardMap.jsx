@@ -569,7 +569,7 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
     return label;
   };
 
-  const formatValueForPopup = (key, value) => {
+  const formatValueForPopup = (key, value, precision = 3) => {
     if (value === null || value === undefined || value === '') {
       return '-';
     }
@@ -578,12 +578,18 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
       return formatInUserTimezone(value);
     }
 
+    const formatNumeric = (num) =>
+      Number.isFinite(num) ? num.toFixed(precision) : String(num);
+
     if (typeof value === 'number') {
-      const formatted = Number.isFinite(value) ? value.toFixed(2) : value;
-      return `${formatted}`;
+      return formatNumeric(value);
     }
 
     if (typeof value === 'string') {
+      const numeric = parseFloat(value);
+      if (!Number.isNaN(numeric)) {
+        return formatNumeric(numeric);
+      }
       return value;
     }
 
