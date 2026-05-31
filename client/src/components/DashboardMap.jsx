@@ -390,11 +390,11 @@ const DeviceMapMarker = React.memo(function DeviceMapMarker({
 
   const popupContentKey = useMemo(
     () =>
-      `${lastUpdated || 'none'}|${isLoading ? 'loading' : 'ready'}|${entries
-        .map((e) => `${e.key}=${e.displayValue}`)
-        .join('|')}`,
-    [lastUpdated, isLoading, entries]
+      `${lastUpdated || 'none'}|${entries.map((e) => `${e.key}=${e.displayValue}`).join('|')}`,
+    [lastUpdated, entries]
   );
+
+  const popupRefreshSignature = `${popupContentKey}|${isLoading ? 'loading' : 'ready'}`;
 
   useEffect(() => {
     const marker = markerRef.current;
@@ -403,7 +403,7 @@ const DeviceMapMarker = React.memo(function DeviceMapMarker({
     if (popup) {
       popup.update();
     }
-  }, [popupContentKey]);
+  }, [popupRefreshSignature]);
 
   const handlePopupOpen = useCallback(() => {
     onPopupOpen(device.device_id);
@@ -423,7 +423,7 @@ const DeviceMapMarker = React.memo(function DeviceMapMarker({
         popupopen: handlePopupOpen,
       }}
     >
-      <Popup key={popupContentKey}>
+      <Popup>
         <ThemedPopup theme={theme}>
           <Box
             sx={{
@@ -683,15 +683,16 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
 
       const endDate = new Date().toISOString();
       const startDate = subHours(new Date(), 48).toISOString();
-      const dashUrl = new URL(`${API_BASE_URL}/data-dash`);
-      dashUrl.searchParams.set('deviceIds', deviceId);
-      dashUrl.searchParams.set('parameters', paramList.join(','));
-      dashUrl.searchParams.set('startDate', startDate);
-      dashUrl.searchParams.set('endDate', endDate);
-      dashUrl.searchParams.set('limit', '5000');
+      const dashQuery = new URLSearchParams({
+        deviceIds: deviceId,
+        parameters: paramList.join(','),
+        startDate,
+        endDate,
+        limit: '5000',
+      });
 
       const [dashRes, latestRes] = await Promise.all([
-        fetch(dashUrl.toString(), { headers }),
+        fetch(`${API_BASE_URL}/data-dash?${dashQuery}`, { headers }),
         fetch(`${API_BASE_URL}/devices/${deviceId}/latest-data`, { headers }),
       ]);
 
