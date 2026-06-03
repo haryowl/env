@@ -53,6 +53,12 @@ import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
 import { getDeviceDisplayName } from '../utils/deviceLabel';
 import { filterDataViewParams } from '../utils/fieldCategory';
+import {
+  buildRealtimeChartSeries,
+  isHourlyChartDisplayMode,
+  hourlyChartDisplayLabel,
+} from '../utils/realtimeChartAggregation';
+import RealtimeChartDisplaySelect from './RealtimeChartDisplaySelect';
 
 const REALTIME_LINE_CHART_MARGIN = { top: 6, right: 14, left: 2, bottom: 0 };
 
@@ -119,6 +125,13 @@ export default function UDashboard({ socket }) {
   const [realtimeAlertLogs, setRealtimeAlertLogs] = useState([]);
   const [realtimeAlertThresholds, setRealtimeAlertThresholds] = useState({});
   const [realtimeChartRange, setRealtimeChartRange] = useState('48h');
+  const [realtimeChartDisplayMode, setRealtimeChartDisplayMode] = useState(() => {
+    try {
+      return localStorage.getItem('realtime_chart_display_mode') || 'instant';
+    } catch {
+      return 'instant';
+    }
+  });
   const [realtimeCustomStart, setRealtimeCustomStart] = useState(() => subHours(new Date(), 2));
   const [realtimeCustomEnd, setRealtimeCustomEnd] = useState(() => new Date());
 
@@ -152,18 +165,31 @@ export default function UDashboard({ socket }) {
 
   const normalizeParamForAlert = (p) => (p || '').toString().toLowerCase().replace(/\s+/g, '_');
 
+  useEffect(() => {
+    try {
+      localStorage.setItem('realtime_chart_display_mode', realtimeChartDisplayMode);
+    } catch {
+      /* ignore */
+    }
+  }, [realtimeChartDisplayMode]);
+
+  const chartSeriesParams = useMemo(
+    () => realtimeParams.filter((p) => p !== 'datetime' && p !== 'timestamp' && !isGpsDisplayField(p)),
+    [realtimeParams, isGpsDisplayField]
+  );
+
   const memoizedChartData = useMemo(() => {
-    if (!realtimeData || realtimeData.length === 0) return [];
-    return realtimeData
-      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
-      .map((r) => ({
-        timestamp: formatInUserTimezone(r.timestamp),
-        originalTimestamp: r.timestamp,
-        ...r,
-      }));
-  }, [realtimeData]);
+    if (!realtimeData?.length) return [];
+    return buildRealtimeChartSeries(
+      realtimeData,
+      chartSeriesParams,
+      realtimeChartDisplayMode,
+      (iso) => formatInUserTimezone(iso)
+    );
+  }, [realtimeData, chartSeriesParams, realtimeChartDisplayMode]);
 
   const chartDataWithAlerts = useMemo(() => {
+    if (isHourlyChartDisplayMode(realtimeChartDisplayMode)) return memoizedChartData;
     if (!memoizedChartData.length || !realtimeAlertLogs.length) return memoizedChartData;
     const dataParams = realtimeParams.filter((p) => p !== 'datetime' && p !== 'timestamp' && !isGpsDisplayField(p));
     const points = memoizedChartData.map((pt) => ({ ...pt, _alerts: {} }));
@@ -198,7 +224,14 @@ export default function UDashboard({ socket }) {
     });
 
     return points;
-  }, [memoizedChartData, realtimeAlertLogs, realtimeParams, realtimeAlertThresholds, isGpsDisplayField]);
+  }, [
+    memoizedChartData,
+    realtimeAlertLogs,
+    realtimeParams,
+    realtimeAlertThresholds,
+    isGpsDisplayField,
+    realtimeChartDisplayMode,
+  ]);
 
   const chartParamOptions = useMemo(
     () => realtimeParams.filter((p) => p !== 'datetime' && p !== 'timestamp' && !isGpsDisplayField(p)),
@@ -819,22 +852,32 @@ export default function UDashboard({ socket }) {
               }}
             >
               {panelTitle('Realtime graph')}
-              <FormControl size="small" sx={{ minWidth: 140 }}>
-                <InputLabel id="ud-range">Period</InputLabel>
-                <Select
-                  labelId="ud-range"
-                  label="Period"
-                  value={realtimeChartRange}
-                  onChange={(e) => setRealtimeChartRange(e.target.value)}
-                  sx={{ height: 30, fontSize: '0.78rem', fontWeight: 700 }}
-                >
-                  {REALTIME_RANGE_OPTIONS.map((opt) => (
-                    <MenuItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
+                <FormControl size="small" sx={{ minWidth: 120 }}>
+                  <InputLabel id="ud-range">Period</InputLabel>
+                  <Select
+                    labelId="ud-range"
+                    label="Period"
+                    value={realtimeChartRange}
+                    onChange={(e) => setRealtimeChartRange(e.target.value)}
+                    sx={{ height: 30, fontSize: '0.78rem', fontWeight: 700 }}
+                  >
+                    {REALTIME_RANGE_OPTIONS.map((opt) => (
+                      <MenuItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <RealtimeChartDisplaySelect
+                  value={realtimeChartDisplayMode}
+                  onChange={setRealtimeChartDisplayMode}
+                  minWidth={130}
+                  label="Display"
+                  labelId="ud-chart-display"
+                  sx={{ '& .MuiSelect-select': { fontSize: '0.78rem' } }}
+                />
+              </Box>
             </Box>
 
             {realtimeChartRange === 'custom' && (
@@ -949,7 +992,9 @@ export default function UDashboard({ socket }) {
                 </ResponsiveContainer>
               </Box>
               <Typography variant="caption" color="text.secondary" sx={{ px: 0.5, pt: 0.2, fontSize: '0.6rem', lineHeight: 1.2 }}>
-                Click line on/off · double-click focus · red dot = threshold breach
+                {isHourlyChartDisplayMode(realtimeChartDisplayMode)
+                  ? `${hourlyChartDisplayLabel(realtimeChartDisplayMode)}. Alert dots: Instant mode only.`
+                  : 'Click line on/off · double-click focus · red dot = threshold breach'}
               </Typography>
             </Box>
           </CardContent>

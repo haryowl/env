@@ -65,6 +65,12 @@ import { usePermissions } from '../hooks/usePermissions';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
 import { getDeviceDisplayName } from '../utils/deviceLabel';
 import { filterDataViewParams } from '../utils/fieldCategory';
+import {
+  buildRealtimeChartSeries,
+  isHourlyChartDisplayMode,
+  hourlyChartDisplayLabel,
+} from '../utils/realtimeChartAggregation';
+import RealtimeChartDisplaySelect from './RealtimeChartDisplaySelect';
 
 /** Realtime line chart: no in-chart legend (toggles above), tighter margins for a larger plot. */
 const REALTIME_LINE_CHART_MARGIN = { top: 8, right: 18, left: 4, bottom: 2 };
@@ -117,6 +123,13 @@ const Dashboard = ({ socket }) => {
   const [realtimeAlertLogs, setRealtimeAlertLogs] = useState([]);
   const [realtimeAlertThresholds, setRealtimeAlertThresholds] = useState({}); // { normalizedParam: { min, max } } for realtime device
   const [realtimeChartRange, setRealtimeChartRange] = useState('48h'); // '2h' | '3h' | '6h' | '48h' (default) | 'custom'
+  const [realtimeChartDisplayMode, setRealtimeChartDisplayMode] = useState(() => {
+    try {
+      return localStorage.getItem('realtime_chart_display_mode') || 'instant';
+    } catch {
+      return 'instant';
+    }
+  });
   const [realtimeCustomStart, setRealtimeCustomStart] = useState(() => subHours(new Date(), 2));
   const [realtimeCustomEnd, setRealtimeCustomEnd] = useState(() => new Date());
   const { formatDisplayName, getUnit, metadata: fieldMetadata } = useFieldMetadata();
@@ -180,6 +193,19 @@ const Dashboard = ({ socket }) => {
     }
   }, [mapSectionOpen]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem('realtime_chart_display_mode', realtimeChartDisplayMode);
+    } catch {
+      /* ignore */
+    }
+  }, [realtimeChartDisplayMode]);
+
+  const chartSeriesParams = useMemo(
+    () => realtimeParams.filter((p) => p !== 'datetime' && p !== 'timestamp' && !isGpsDisplayField(p)),
+    [realtimeParams, isGpsDisplayField]
+  );
+
   // Normalize parameter name for matching (alert_logs may use spaces or underscores)
   const normalizeParamForAlert = (p) => (p || '').toString().toLowerCase().replace(/\s+/g, '_');
 
@@ -190,21 +216,20 @@ const Dashboard = ({ socket }) => {
     return userRole === 'admin' || userRole === 'super_admin';
   }, [userPermissions]);
 
-  // Memoized chart data to prevent flickering
+  // Memoized chart data to prevent flickering (optional hourly avg/sum aggregation)
   const memoizedChartData = useMemo(() => {
-    if (!realtimeData || realtimeData.length === 0) return [];
-    
-    return realtimeData
-      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)) // Sort by timestamp (oldest to newest)
-      .map(r => ({
-        timestamp: formatInUserTimezone(r.timestamp),
-        originalTimestamp: r.timestamp, // Keep original for sorting
-        ...r
-      }));
-  }, [realtimeData]);
+    if (!realtimeData?.length) return [];
+    return buildRealtimeChartSeries(
+      realtimeData,
+      chartSeriesParams,
+      realtimeChartDisplayMode,
+      (iso) => formatInUserTimezone(iso)
+    );
+  }, [realtimeData, chartSeriesParams, realtimeChartDisplayMode]);
 
   // Merge alert timestamps into chart data: one red dot per alert at the closest chart point, only if that point's value is actually out of range (above max or below min)
   const chartDataWithAlerts = useMemo(() => {
+    if (isHourlyChartDisplayMode(realtimeChartDisplayMode)) return memoizedChartData;
     if (!memoizedChartData.length || !realtimeAlertLogs.length) return memoizedChartData;
     const dataParams = realtimeParams.filter(p => p !== 'datetime' && p !== 'timestamp' && !isGpsDisplayField(p));
     const points = memoizedChartData.map(pt => ({ ...pt, _alerts: {} }));
@@ -238,7 +263,14 @@ const Dashboard = ({ socket }) => {
     });
 
     return points;
-  }, [memoizedChartData, realtimeAlertLogs, realtimeParams, realtimeAlertThresholds, isGpsDisplayField]);
+  }, [
+    memoizedChartData,
+    realtimeAlertLogs,
+    realtimeParams,
+    realtimeAlertThresholds,
+    isGpsDisplayField,
+    realtimeChartDisplayMode,
+  ]);
 
   const selectableRealtimeParams = useMemo(() => {
     const list = realtimeParams.filter(p => p !== 'datetime' && p !== 'timestamp' && !isGpsDisplayField(p));
@@ -1167,7 +1199,7 @@ const Dashboard = ({ socket }) => {
                 </Typography>
               </Box>
             </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
                 Time range
               </Typography>
@@ -1188,6 +1220,11 @@ const Dashboard = ({ socket }) => {
                   ))}
                 </Select>
               </FormControl>
+              <RealtimeChartDisplaySelect
+                value={realtimeChartDisplayMode}
+                onChange={setRealtimeChartDisplayMode}
+                minWidth={160}
+              />
             </Box>
           </Box>
 
@@ -1531,7 +1568,14 @@ const Dashboard = ({ socket }) => {
                     />
                     Alert = threshold breach
                   </Box>
-                  Toggles: click show/hide · double-click focus. Metric cards also set line focus.
+                  {isHourlyChartDisplayMode(realtimeChartDisplayMode) && (
+                    <>
+                      {' '}
+                      {hourlyChartDisplayLabel(realtimeChartDisplayMode)}. Alert dots apply in Instant mode only.
+                    </>
+                  )}
+                  {!isHourlyChartDisplayMode(realtimeChartDisplayMode) &&
+                    ' Toggles: click show/hide · double-click focus. Metric cards also set line focus.'}
                 </Typography>
             </>
           )}
