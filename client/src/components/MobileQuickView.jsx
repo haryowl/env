@@ -30,7 +30,6 @@ import { getUserTimezone } from '../utils/timezoneUtils';
 import { getDeviceDisplayName } from '../utils/deviceLabel';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import { filterDataViewParams } from '../utils/fieldCategory';
-import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import QuickViewChart from './QuickViewChart';
 import QuickViewAlertChart from './QuickViewAlertChart';
 import QuickViewTable from './QuickViewTable';
