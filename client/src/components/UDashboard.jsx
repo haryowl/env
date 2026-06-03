@@ -701,6 +701,26 @@ export default function UDashboard({ socket }) {
                 })}
               </Select>
             </FormControl>
+            {!isAdmin && realtimeDevice && (() => {
+              const sel = devices.find((d) => d.device_id === realtimeDevice);
+              if (!sel) return null;
+              const valid = isDeviceAccessValid(sel);
+              return (
+                <Typography
+                  variant="caption"
+                  sx={{
+                    mt: 0.5,
+                    fontSize: '0.95rem',
+                    fontWeight: 800,
+                    color: valid ? '#1B5E20' : 'error.main',
+                  }}
+                >
+                  {valid
+                    ? `Valid until ${sel.valid_to ? new Date(sel.valid_to).toLocaleDateString() : '–'}`
+                    : 'Access expired'}
+                </Typography>
+              );
+            })()}
           </Box>
         )}
       />
