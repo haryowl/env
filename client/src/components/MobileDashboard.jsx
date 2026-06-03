@@ -43,6 +43,7 @@ import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import { CHART_COLORS, getTooltipContentStyle, LEGEND_WRAPPER_STYLE } from '../utils/chartStyles';
 import { formatInUserTimezone, getUserTimezone } from '../utils/timezoneUtils';
 import { getDeviceDisplayName } from '../utils/deviceLabel';
+import { filterDataViewParams } from '../utils/fieldCategory';
 
 function rowTimeMs(row) {
   const raw = row?.datetime ?? row?.timestamp;
@@ -76,7 +77,7 @@ const TREND_HOURS_OPTIONS = [
  */
 const MobileDashboard = ({ socket }) => {
   const theme = useTheme();
-  const { formatDisplayName, getUnit } = useFieldMetadata();
+  const { formatDisplayName, getUnit, metadata: fieldMetadata } = useFieldMetadata();
   const { userPermissions } = usePermissions();
   const [overview, setOverview] = useState(null);
   const [devices, setDevices] = useState([]);
@@ -158,14 +159,15 @@ const MobileDashboard = ({ socket }) => {
         const res = await axios.get(`${API_BASE_URL}/device-mapper-assignments/${realtimeDevice}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        const mappedParams = (res.data.assignment?.mappings || []).map((m) => m.target_field);
+        let mappedParams = (res.data.assignment?.mappings || []).map((m) => m.target_field);
+        mappedParams = filterDataViewParams(mappedParams, fieldMetadata);
         if (!mappedParams.includes('datetime')) mappedParams.unshift('datetime');
         setRealtimeParams(mappedParams);
       } catch {
         setRealtimeParams([]);
       }
     })();
-  }, [realtimeDevice]);
+  }, [realtimeDevice, fieldMetadata]);
 
   const fetchRealtimeData = useCallback(async () => {
     if (!realtimeDevice || realtimeParams.length === 0) return;
@@ -182,6 +184,7 @@ const MobileDashboard = ({ socket }) => {
           startDate,
           endDate,
           limit,
+          excludeCategories: 'Status',
         },
         headers: { Authorization: `Bearer ${token}` },
       });

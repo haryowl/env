@@ -28,6 +28,7 @@ import { MAP_BASE_LAYERS } from '../config/mapLayers';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import { getChartCardSx } from '../utils/chartStyles';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
+import { filterDataViewParams } from '../utils/fieldCategory';
 
 // Custom styled popup component that respects theme
 const ThemedPopup = ({ children, theme }) => {
@@ -536,7 +537,7 @@ const DeviceMapMarker = React.memo(function DeviceMapMarker({
 
 const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compactPopup = false }) => {
   const theme = useTheme();
-  const { formatDisplayName, getUnit } = useFieldMetadata();
+  const { formatDisplayName, getUnit, metadata: fieldMetadata } = useFieldMetadata();
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -676,7 +677,8 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
 
       const assignJson = await assignRes.json();
       const mappings = assignJson.assignment?.mappings || [];
-      const chartParams = chartParamsFromMappings(mappings);
+      let chartParams = chartParamsFromMappings(mappings);
+      chartParams = filterDataViewParams(chartParams, fieldMetadata);
       if (chartParams.length === 0) return;
 
       setDeviceMappedParams((prev) => ({ ...prev, [deviceId]: chartParams }));
@@ -695,11 +697,12 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
         startDate,
         endDate,
         limit: '5000',
+        excludeCategories: 'Status',
       });
 
       const [dashRes, latestRes] = await Promise.all([
         fetch(`${API_BASE_URL}/data-dash?${dashQuery}`, { headers }),
-        fetch(`${API_BASE_URL}/devices/${deviceId}/latest-data`, { headers }),
+        fetch(`${API_BASE_URL}/devices/${deviceId}/latest-data?excludeCategories=Status`, { headers }),
       ]);
 
       let dashRecord = null;
@@ -738,7 +741,7 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
     } finally {
       setDeviceDataLoading((prev) => ({ ...prev, [deviceId]: false }));
     }
-  }, []);
+  }, [fieldMetadata]);
 
   const handleMarkerClick = useCallback(
     (device) => {

@@ -28,6 +28,8 @@ import moment from 'moment-timezone';
 import { API_BASE_URL } from '../config/api';
 import { getChartCardSx } from '../utils/chartStyles';
 import { getDeviceDisplayName } from '../utils/deviceLabel';
+import { useFieldMetadata } from '../hooks/useFieldMetadata';
+import { filterDataViewParams } from '../utils/fieldCategory';
 
 const getUserTimezone = () => localStorage.getItem('iot_timezone') || moment.tz.guess() || 'UTC';
 
@@ -254,6 +256,7 @@ function computeHistoricalPair(rows, param, tz, metricKind, periodPair) {
 
 export default function ComparisonDoughnutDashboard() {
   const theme = useTheme();
+  const { metadata: fieldMetadata } = useFieldMetadata();
   const [devices, setDevices] = useState([]);
   const [deviceId, setDeviceId] = useState('');
   const [paramList, setParamList] = useState([]);
@@ -303,22 +306,25 @@ export default function ComparisonDoughnutDashboard() {
       }
       const json = await res.json();
       const mappings = json.assignment?.mappings || [];
-      const names = [
-        ...new Set(
-          mappings
-            .map((m) => m.target_field)
-            .filter(
-              (f) =>
-                f &&
-                !['datetime', 'timestamp', 'device_id', 'device_name'].includes(f)
-            )
-        ),
-      ];
+      const names = filterDataViewParams(
+        [
+          ...new Set(
+            mappings
+              .map((m) => m.target_field)
+              .filter(
+                (f) =>
+                  f &&
+                  !['datetime', 'timestamp', 'device_id', 'device_name'].includes(f)
+              )
+          ),
+        ],
+        fieldMetadata
+      );
       setParamList(names.sort());
     } catch {
       setParamList([]);
     }
-  }, []);
+  }, [fieldMetadata]);
 
   useEffect(() => {
     loadDevices();
@@ -330,7 +336,7 @@ export default function ComparisonDoughnutDashboard() {
 
   const fetchRealtime = useCallback(async () => {
     const token = localStorage.getItem('iot_token');
-    const res = await fetch(`${API_BASE_URL}/devices/${deviceId}/latest-data`, {
+    const res = await fetch(`${API_BASE_URL}/devices/${deviceId}/latest-data?excludeCategories=Status`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) {
@@ -350,6 +356,7 @@ export default function ComparisonDoughnutDashboard() {
         startDate: startIso,
         endDate: endIso,
         limit: '100000',
+        excludeCategories: 'Status',
       });
       const res = await fetch(`${API_BASE_URL}/data-dash?${params}`, {
         headers: { Authorization: `Bearer ${token}` },

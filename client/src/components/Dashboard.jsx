@@ -64,6 +64,7 @@ import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import { usePermissions } from '../hooks/usePermissions';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
 import { getDeviceDisplayName } from '../utils/deviceLabel';
+import { filterDataViewParams } from '../utils/fieldCategory';
 
 /** Realtime line chart: no in-chart legend (toggles above), tighter margins for a larger plot. */
 const REALTIME_LINE_CHART_MARGIN = { top: 8, right: 18, left: 4, bottom: 2 };
@@ -118,7 +119,7 @@ const Dashboard = ({ socket }) => {
   const [realtimeChartRange, setRealtimeChartRange] = useState('48h'); // '2h' | '3h' | '6h' | '48h' (default) | 'custom'
   const [realtimeCustomStart, setRealtimeCustomStart] = useState(() => subHours(new Date(), 2));
   const [realtimeCustomEnd, setRealtimeCustomEnd] = useState(() => new Date());
-  const { formatDisplayName, getUnit } = useFieldMetadata();
+  const { formatDisplayName, getUnit, metadata: fieldMetadata } = useFieldMetadata();
   const isGpsDisplayField = useCallback((p) => {
     const k = String(p || '').toLowerCase();
     return k === 'latitude' || k === 'longitude' || k === 'lat' || k === 'lon' || k === 'lng';
@@ -683,8 +684,8 @@ const Dashboard = ({ socket }) => {
         const token = localStorage.getItem('iot_token');
         const res = await axios.get(`${API_BASE_URL}/device-mapper-assignments/${realtimeDevice}`, { headers: { 'Authorization': `Bearer ${token}` } });
         setRealtimeDeviceMapper(res.data.assignment);
-        const mappedParams = res.data.assignment.mappings.map(m => m.target_field);
-        // Add datetime if not already included
+        let mappedParams = res.data.assignment.mappings.map(m => m.target_field);
+        mappedParams = filterDataViewParams(mappedParams, fieldMetadata);
         if (!mappedParams.includes('datetime')) {
           mappedParams.unshift('datetime');
         }
@@ -696,7 +697,7 @@ const Dashboard = ({ socket }) => {
       }
     };
     fetchMapper();
-  }, [realtimeDevice]);
+  }, [realtimeDevice, fieldMetadata]);
 
   // Fetch mapped data from /data-dash for the selected time range (chart view); Parameter Overview still uses full 48h when range is default
   const fetchRealtimeData = async (deviceId, params, windowOrRangeHours = 48) => {
@@ -716,6 +717,7 @@ const Dashboard = ({ socket }) => {
           startDate,
           endDate,
           limit,
+          excludeCategories: 'Status',
         },
         headers: { 'Authorization': `Bearer ${token}` },
       });

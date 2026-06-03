@@ -29,6 +29,8 @@ import { API_BASE_URL } from '../config/api';
 import { getUserTimezone } from '../utils/timezoneUtils';
 import { getDeviceDisplayName } from '../utils/deviceLabel';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
+import { filterDataViewParams } from '../utils/fieldCategory';
+import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import QuickViewChart from './QuickViewChart';
 import QuickViewAlertChart from './QuickViewAlertChart';
 import QuickViewTable from './QuickViewTable';
@@ -53,7 +55,7 @@ function TabPanel({ children, value, index }) {
  */
 const MobileQuickView = () => {
   const theme = useTheme();
-  const { formatDisplayName } = useFieldMetadata();
+  const { formatDisplayName, metadata: fieldMetadata } = useFieldMetadata();
   const [devices, setDevices] = useState([]);
   const [selectedDevice, setSelectedDevice] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState('1h');
@@ -122,15 +124,18 @@ const MobileQuickView = () => {
       if (response.ok) {
         const data = await response.json();
         if (data.assignment?.mappings) {
-          const params = data.assignment.mappings
-            .map((m) => m.target_field)
-            .filter(
-              (param) =>
-                param.toLowerCase() !== 'datetime' &&
-                param.toLowerCase() !== 'timestamp' &&
-                param.toLowerCase() !== 'device_id' &&
-                param.toLowerCase() !== 'device_name'
-            );
+          const params = filterDataViewParams(
+            data.assignment.mappings
+              .map((m) => m.target_field)
+              .filter(
+                (param) =>
+                  param.toLowerCase() !== 'datetime' &&
+                  param.toLowerCase() !== 'timestamp' &&
+                  param.toLowerCase() !== 'device_id' &&
+                  param.toLowerCase() !== 'device_name'
+              ),
+            fieldMetadata
+          );
           setParameters(params);
         } else {
           setParameters([]);
@@ -177,7 +182,7 @@ const MobileQuickView = () => {
       const token = localStorage.getItem('iot_token');
       const endDate = getEndDate();
       const startDate = getStartDate(selectedPeriod);
-      const q = `deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=500`;
+      const q = `deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=500&excludeCategories=Status`;
 
       const [chartResponse, alertResponse, tableResponse] = await Promise.all([
         fetch(`${API_BASE_URL}/data-dash?${q}`, { headers: { Authorization: `Bearer ${token}` } }),
@@ -239,7 +244,7 @@ const MobileQuickView = () => {
     const endDate = getEndDate();
     const startDate = getStartDate(selectedPeriod);
     const res = await fetch(
-      `${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=100000`,
+      `${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=100000&excludeCategories=Status`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
     if (!res.ok) return [];

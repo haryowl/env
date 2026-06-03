@@ -52,6 +52,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
 import { getDeviceDisplayName } from '../utils/deviceLabel';
+import { filterDataViewParams } from '../utils/fieldCategory';
 
 const REALTIME_LINE_CHART_MARGIN = { top: 6, right: 14, left: 2, bottom: 0 };
 
@@ -102,7 +103,7 @@ const parameterPanelContentSx = {
 export default function UDashboard({ socket }) {
   const theme = useMuiTheme();
   const { userPermissions } = usePermissions();
-  const { formatDisplayName, getUnit } = useFieldMetadata();
+  const { formatDisplayName, getUnit, metadata: fieldMetadata } = useFieldMetadata();
 
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -468,7 +469,8 @@ export default function UDashboard({ socket }) {
         const res = await axios.get(`${API_BASE_URL}/device-mapper-assignments/${realtimeDevice}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        const mappedParams = res.data.assignment.mappings.map((m) => m.target_field);
+        let mappedParams = res.data.assignment.mappings.map((m) => m.target_field);
+        mappedParams = filterDataViewParams(mappedParams, fieldMetadata);
         if (!mappedParams.includes('datetime')) mappedParams.unshift('datetime');
         setRealtimeParams(mappedParams);
       } catch {
@@ -476,7 +478,7 @@ export default function UDashboard({ socket }) {
       }
     };
     fetchMapper();
-  }, [realtimeDevice]);
+  }, [realtimeDevice, fieldMetadata]);
 
   useEffect(() => {
     const chartParams = realtimeParams.filter((p) => p !== 'datetime' && p !== 'timestamp' && !isGpsDisplayField(p));
@@ -500,6 +502,7 @@ export default function UDashboard({ socket }) {
           startDate,
           endDate,
           limit,
+          excludeCategories: 'Status',
         },
         headers: { Authorization: `Bearer ${token}` },
       });

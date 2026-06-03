@@ -11,6 +11,11 @@ const {
   sqlLateralLastDataAt,
   sqlUiStatusCase,
 } = require('../utils/deviceOnlineFromData');
+const {
+  getFieldCategoryMap,
+  parseCategoryQuery,
+  fieldPassesCategoryFilter,
+} = require('../utils/fieldCategories');
 
 const router = express.Router();
 
@@ -869,12 +874,15 @@ router.get('/:deviceId/latest-data', authenticateToken, async (req, res) => {
     );
 
     const mappings = mapperAssignment?.mappings || [];
+    const categoryMap = await getFieldCategoryMap();
+    const categoryOpts = parseCategoryQuery(req);
     const dataMappings = mappings.filter((m) => {
       const src = mappingSourceKey(m);
       return (
         src != null &&
         m.target_field != null &&
-        !POPUP_SKIP_SENSOR_TYPES.has(m.target_field)
+        !POPUP_SKIP_SENSOR_TYPES.has(m.target_field) &&
+        fieldPassesCategoryFilter(m.target_field, categoryMap, categoryOpts)
       );
     });
 

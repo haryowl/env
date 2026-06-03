@@ -35,6 +35,7 @@ import {
   MyLocation as MyLocationIcon,
   DeleteSweep as DeleteSweepIcon,
   Public as PublicIcon,
+  InfoOutlined as StatusIcon,
 } from '@mui/icons-material';
 
 export const MENU_SECTIONS = [
@@ -44,6 +45,7 @@ export const MENU_SECTIONS = [
     items: [
       { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', menuPath: '/dashboard' },
       { text: 'U-Dashboard', icon: <UDashboardIcon />, path: '/u-dashboard', menuPath: '/u-dashboard' },
+      { text: 'Status', icon: <StatusIcon />, path: '/status', menuPath: '/status' },
       { text: 'Dashboard (mobile)', icon: <PhoneAndroidIcon />, path: '/m/dashboard', menuPath: '/dashboard' },
       { text: 'Quick View', icon: <VisibilityIcon />, path: '/quick-view', menuPath: '/quick-view' },
       { text: 'Quick View (mobile)', icon: <PhoneAndroidIcon />, path: '/m/quick-view', menuPath: '/quick-view' },

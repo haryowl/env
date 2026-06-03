@@ -902,6 +902,7 @@ const setupDatabase = async () => {
         menu_permissions: {
           '/dashboard': { access: true, create: true, read: true, update: true, delete: true },
           '/u-dashboard': { access: true, create: true, read: true, update: true, delete: true },
+          '/status': { access: true, create: true, read: true, update: true, delete: true },
           '/quick-view': { access: true, create: true, read: true, update: true, delete: true },
           '/devices': { access: true, create: true, read: true, update: true, delete: true },
           '/users': { access: true, create: true, read: true, update: true, delete: true },
@@ -937,6 +938,7 @@ const setupDatabase = async () => {
         menu_permissions: {
           '/dashboard': { access: true, create: true, read: true, update: true, delete: true },
           '/u-dashboard': { access: true, create: true, read: true, update: true, delete: true },
+          '/status': { access: true, create: true, read: true, update: true, delete: true },
           '/quick-view': { access: true, create: true, read: true, update: true, delete: true },
           '/devices': { access: true, create: true, read: true, update: true, delete: true },
           '/users': { access: true, create: true, read: true, update: true, delete: false },
@@ -972,6 +974,7 @@ const setupDatabase = async () => {
         menu_permissions: {
           '/dashboard': { access: true, create: false, read: true, update: false, delete: false },
           '/u-dashboard': { access: true, create: false, read: true, update: false, delete: false },
+          '/status': { access: true, create: false, read: true, update: false, delete: false },
           '/quick-view': { access: true, create: false, read: true, update: false, delete: false },
           '/devices': { access: true, create: false, read: true, update: true, delete: false },
           '/users': { access: false, create: false, read: false, update: false, delete: false },
@@ -1006,6 +1009,7 @@ const setupDatabase = async () => {
         menu_permissions: {
           '/dashboard': { access: true, create: false, read: true, update: false, delete: false },
           '/u-dashboard': { access: true, create: false, read: true, update: false, delete: false },
+          '/status': { access: true, create: false, read: true, update: false, delete: false },
           '/quick-view': { access: true, create: false, read: true, update: false, delete: false },
           '/devices': { access: true, create: false, read: true, update: false, delete: false },
           '/users': { access: false, create: false, read: false, update: false, delete: false },

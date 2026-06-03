@@ -48,10 +48,13 @@ import { getDeviceDisplayName } from '../utils/deviceLabel';
 import moment from 'moment-timezone';
 import { getChartCardSx } from '../utils/chartStyles';
 import SectionHeader from './SectionHeader';
+import { useFieldMetadata } from '../hooks/useFieldMetadata';
+import { filterDataViewParams } from '../utils/fieldCategory';
 
 const QuickView = () => {
   const theme = useTheme();
-  
+  const { metadata: fieldMetadata } = useFieldMetadata();
+
   // State management
   const [devices, setDevices] = useState([]);
   const [selectedDevice, setSelectedDevice] = useState('');
@@ -204,14 +207,18 @@ const QuickView = () => {
         
         // Extract parameters from mapper template mappings, excluding datetime
         if (data.assignment && data.assignment.mappings) {
-          const params = data.assignment.mappings
-            .map(mapping => mapping.target_field)
-            .filter(param => 
-              param.toLowerCase() !== 'datetime' && 
-              param.toLowerCase() !== 'timestamp' &&
-              param.toLowerCase() !== 'device_id' &&
-              param.toLowerCase() !== 'device_name'
-            );
+          const params = filterDataViewParams(
+            data.assignment.mappings
+              .map((mapping) => mapping.target_field)
+              .filter(
+                (param) =>
+                  param.toLowerCase() !== 'datetime' &&
+                  param.toLowerCase() !== 'timestamp' &&
+                  param.toLowerCase() !== 'device_id' &&
+                  param.toLowerCase() !== 'device_name'
+              ),
+            fieldMetadata
+          );
           setParameters(params);
         } else {
           setParameters([]);
@@ -281,7 +288,7 @@ const QuickView = () => {
       });
       
       // Load chart data (display limit 500 for performance)
-      const chartResponse = await fetch(`${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=500`, {
+      const chartResponse = await fetch(`${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=500&excludeCategories=Status`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -304,7 +311,7 @@ const QuickView = () => {
       }
       
       // Load table data (display limit 500 for performance)
-      const tableResponse = await fetch(`${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=500`, {
+      const tableResponse = await fetch(`${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=500&excludeCategories=Status`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -363,7 +370,7 @@ const QuickView = () => {
     const token = localStorage.getItem('iot_token');
     const endDate = getEndDate(selectedPeriod);
     const startDate = getStartDate(selectedPeriod);
-    const res = await fetch(`${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=100000`, {
+    const res = await fetch(`${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=100000&excludeCategories=Status`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     if (!res.ok) return [];
@@ -411,7 +418,7 @@ const QuickView = () => {
       const endDate = getEndDate(selectedPeriod);
       const startDate = getStartDate(selectedPeriod);
       let fullTableData = tableData;
-      const fullTableResponse = await fetch(`${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=100000`, {
+      const fullTableResponse = await fetch(`${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=100000&excludeCategories=Status`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (fullTableResponse.ok) {
@@ -441,7 +448,7 @@ const QuickView = () => {
       const endDate = getEndDate(selectedPeriod);
       const startDate = getStartDate(selectedPeriod);
       let fullTableData = tableData;
-      const fullTableResponse = await fetch(`${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=100000`, {
+      const fullTableResponse = await fetch(`${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=100000&excludeCategories=Status`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (fullTableResponse.ok) {

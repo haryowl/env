@@ -23,6 +23,7 @@ import { min as d3min, max as d3max } from 'd3-array';
 import moment from 'moment-timezone';
 import { alpha } from '@mui/material/styles';
 import SectionHeader from './SectionHeader';
+import { filterDataViewParams } from '../utils/fieldCategory';
 
 /** Match Layout.jsx sidebar: section labels ~0.875rem/500, items ~0.8125rem */
 const DATA_DASH_MENU_ITEM_FS = '0.8125rem';
@@ -164,7 +165,7 @@ export default function DataDash() {
     if (!fieldMetadata || Object.keys(fieldMetadata).length === 0) {
       return;
     }
-    setParameters(Object.keys(fieldMetadata));
+    setParameters(filterDataViewParams(Object.keys(fieldMetadata), fieldMetadata));
   }, [fieldMetadata, selectedDevices]);
 
   // Fetch device mapper when device changes
@@ -175,7 +176,12 @@ export default function DataDash() {
           const token = localStorage.getItem('iot_token');
           const res = await axios.get(`${API_BASE_URL}/device-mapper-assignments/${selectedDevices[0]}`, { headers: { 'Authorization': `Bearer ${token}` } });
           setDeviceMapper(res.data.assignment);
-          setParameters(res.data.assignment.mappings.map(m => m.target_field));
+          setParameters(
+            filterDataViewParams(
+              res.data.assignment.mappings.map((m) => m.target_field),
+              fieldMetadata
+            )
+          );
         } catch (e) {
           setDeviceMapper(null);
           setParameters([]);
@@ -186,7 +192,7 @@ export default function DataDash() {
       setDeviceMapper(null);
       setParameters([]);
     }
-  }, [selectedDevices]);
+  }, [selectedDevices, fieldMetadata]);
 
   // When parameters or selectedParameters change, reset visibleParams to all selectedParameters
   useEffect(() => {
@@ -203,6 +209,7 @@ export default function DataDash() {
         startDate: dateRange[0] ? dateRange[0].toISOString() : undefined,
         endDate: dateRange[1] ? dateRange[1].toISOString() : undefined,
         limit: 10000,
+        excludeCategories: 'Status',
       };
       const token = localStorage.getItem('iot_token');
       const response = await axios.get(`${API_BASE_URL}/data-dash`, {
@@ -253,6 +260,7 @@ export default function DataDash() {
         endDate: dateRange[1] ? dateRange[1].toISOString() : undefined,
         groupBy: aggregation,
         limit: 100000,
+        excludeCategories: 'Status',
       };
       const token = localStorage.getItem('iot_token');
       const response = await axios.get(`${API_BASE_URL}/data-dash`, {
@@ -311,6 +319,7 @@ export default function DataDash() {
       startDate: dateRange[0] ? dateRange[0].toISOString() : undefined,
       endDate: dateRange[1] ? dateRange[1].toISOString() : undefined,
       limit: 100000,
+      excludeCategories: 'Status',
     };
     const token = localStorage.getItem('iot_token');
     const response = await axios.get(`${API_BASE_URL}/data-dash`, {

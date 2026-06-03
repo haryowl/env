@@ -10,6 +10,7 @@ const getMenuName = (menuPath) => {
   const menuMap = {
     '/dashboard': 'Dashboard',
     '/u-dashboard': 'U-Dashboard',
+    '/status': 'Status',
     '/quick-view': 'Quick View',
     '/devices': 'Devices',
     '/users': 'Users',
@@ -119,6 +120,7 @@ router.get('/templates', authorizeRole(['super_admin', 'admin']), async (req, re
         menu_permissions: {
           '/dashboard': { access: true, read: true, create: true, update: true, delete: true },
           '/u-dashboard': { access: true, read: true, create: true, update: true, delete: true },
+          '/status': { access: true, read: true, create: true, update: true, delete: true },
           '/quick-view': { access: true, read: true, create: true, update: true, delete: true },
           '/devices': { access: true, read: true, create: true, update: true, delete: true },
           '/users': { access: true, read: true, create: true, update: true, delete: true },
@@ -160,6 +162,7 @@ router.get('/templates', authorizeRole(['super_admin', 'admin']), async (req, re
         menu_permissions: {
           '/dashboard': { access: true, read: true, create: true, update: true, delete: true },
           '/u-dashboard': { access: true, read: true, create: true, update: true, delete: true },
+          '/status': { access: true, read: true, create: true, update: true, delete: true },
           '/quick-view': { access: true, read: true, create: true, update: true, delete: true },
           '/devices': { access: true, read: true, create: true, update: true, delete: true },
           '/users': { access: true, read: true, create: true, update: true, delete: false },
@@ -203,6 +206,7 @@ router.get('/templates', authorizeRole(['super_admin', 'admin']), async (req, re
         menu_permissions: {
           '/dashboard': { access: true, read: true, create: false, update: true, delete: false },
           '/u-dashboard': { access: true, read: true, create: false, update: true, delete: false },
+          '/status': { access: true, read: true, create: false, update: false, delete: false },
           '/quick-view': { access: true, read: true, create: false, update: false, delete: false },
           '/devices': { access: true, read: true, create: false, update: true, delete: false },
           '/users': { access: false, read: false, create: false, update: false, delete: false },
@@ -240,6 +244,7 @@ router.get('/templates', authorizeRole(['super_admin', 'admin']), async (req, re
         menu_permissions: {
           '/dashboard': { access: true, read: true, create: false, update: false, delete: false },
           '/u-dashboard': { access: true, read: true, create: false, update: false, delete: false },
+          '/status': { access: true, read: true, create: false, update: false, delete: false },
           '/quick-view': { access: true, read: true, create: false, update: false, delete: false },
           '/devices': { access: true, read: true, create: false, update: false, delete: false },
           '/users': { access: false, read: false, create: false, update: false, delete: false },
@@ -277,6 +282,7 @@ router.get('/templates', authorizeRole(['super_admin', 'admin']), async (req, re
         menu_permissions: {
           '/dashboard': { access: true, read: true, create: false, update: true, delete: false },
           '/u-dashboard': { access: true, read: true, create: false, update: true, delete: false },
+          '/status': { access: true, read: true, create: false, update: false, delete: false },
           '/quick-view': { access: true, read: true, create: false, update: false, delete: false },
           '/devices': { access: true, read: true, create: false, update: false, delete: false },
           '/users': { access: true, read: true, create: true, update: true, delete: false },
@@ -314,6 +320,7 @@ router.get('/templates', authorizeRole(['super_admin', 'admin']), async (req, re
         menu_permissions: {
           '/dashboard': { access: true, read: true, create: false, update: false, delete: false },
           '/u-dashboard': { access: true, read: true, create: false, update: false, delete: false },
+          '/status': { access: true, read: true, create: false, update: false, delete: false },
           '/quick-view': { access: true, read: true, create: false, update: false, delete: false },
           '/devices': { access: false, read: false, create: false, update: false, delete: false },
           '/users': { access: false, read: false, create: false, update: false, delete: false },
@@ -384,6 +391,7 @@ router.post('/from-template', authorizeRole(['super_admin']), async (req, res) =
         menu_permissions: {
           '/dashboard': { access: true, read: true, create: true, update: true, delete: true },
           '/u-dashboard': { access: true, read: true, create: true, update: true, delete: true },
+          '/status': { access: true, read: true, create: true, update: true, delete: true },
           '/quick-view': { access: true, read: true, create: true, update: true, delete: true },
           '/devices': { access: true, read: true, create: true, update: true, delete: true },
           '/users': { access: true, read: true, create: true, update: true, delete: true },
@@ -425,6 +433,7 @@ router.post('/from-template', authorizeRole(['super_admin']), async (req, res) =
         menu_permissions: {
           '/dashboard': { access: true, read: true, create: true, update: true, delete: true },
           '/u-dashboard': { access: true, read: true, create: true, update: true, delete: true },
+          '/status': { access: true, read: true, create: true, update: true, delete: true },
           '/quick-view': { access: true, read: true, create: true, update: true, delete: true },
           '/devices': { access: true, read: true, create: true, update: true, delete: true },
           '/users': { access: true, read: true, create: true, update: true, delete: false },
@@ -468,6 +477,7 @@ router.post('/from-template', authorizeRole(['super_admin']), async (req, res) =
         menu_permissions: {
           '/dashboard': { access: true, read: true, create: false, update: true, delete: false },
           '/u-dashboard': { access: true, read: true, create: false, update: true, delete: false },
+          '/status': { access: true, read: true, create: false, update: false, delete: false },
           '/quick-view': { access: true, read: true, create: false, update: false, delete: false },
           '/devices': { access: true, read: true, create: false, update: true, delete: false },
           '/users': { access: false, read: false, create: false, update: false, delete: false },
@@ -505,6 +515,7 @@ router.post('/from-template', authorizeRole(['super_admin']), async (req, res) =
         menu_permissions: {
           '/dashboard': { access: true, read: true, create: false, update: false, delete: false },
           '/u-dashboard': { access: true, read: true, create: false, update: false, delete: false },
+          '/status': { access: true, read: true, create: false, update: false, delete: false },
           '/quick-view': { access: true, read: true, create: false, update: false, delete: false },
           '/devices': { access: true, read: true, create: false, update: false, delete: false },
           '/users': { access: false, read: false, create: false, update: false, delete: false },
@@ -542,6 +553,7 @@ router.post('/from-template', authorizeRole(['super_admin']), async (req, res) =
         menu_permissions: {
           '/dashboard': { access: true, read: true, create: false, update: true, delete: false },
           '/u-dashboard': { access: true, read: true, create: false, update: true, delete: false },
+          '/status': { access: true, read: true, create: false, update: false, delete: false },
           '/quick-view': { access: true, read: true, create: false, update: false, delete: false },
           '/devices': { access: true, read: true, create: false, update: false, delete: false },
           '/users': { access: true, read: true, create: true, update: true, delete: false },
@@ -579,6 +591,7 @@ router.post('/from-template', authorizeRole(['super_admin']), async (req, res) =
         menu_permissions: {
           '/dashboard': { access: true, read: true, create: false, update: false, delete: false },
           '/u-dashboard': { access: true, read: true, create: false, update: false, delete: false },
+          '/status': { access: true, read: true, create: false, update: false, delete: false },
           '/quick-view': { access: true, read: true, create: false, update: false, delete: false },
           '/devices': { access: false, read: false, create: false, update: false, delete: false },
           '/users': { access: false, read: false, create: false, update: false, delete: false },
@@ -1403,6 +1416,12 @@ router.get('/menus/available', authorizeRole(['super_admin', 'admin']), async (r
         path: '/u-dashboard',
         name: 'U-Dashboard',
         description: 'Compact single-view layout (map, parameters, realtime chart)',
+        category: 'Data'
+      },
+      {
+        path: '/status',
+        name: 'Status',
+        description: 'Status-category parameters (battery, health, etc.)',
         category: 'Data'
       },
       {

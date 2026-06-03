@@ -3,6 +3,12 @@ const { query, getRow } = require('../config/database');
 const mathFormulaService = require('../services/mathFormulaService');
 const parseDeviceDatetime = require('../services/parseDeviceDatetime');
 const { authenticateToken } = require('../middleware/auth');
+const {
+  getFieldCategoryMap,
+  parseCategoryQuery,
+  fieldPassesCategoryFilter,
+  filterFieldNames,
+} = require('../utils/fieldCategories');
 const router = express.Router();
 
 // Apply authentication middleware (filterDeviceData applied at app level)
@@ -19,7 +25,12 @@ router.get(['/', ''], async (req, res) => {
     } else if (req.allowedDeviceIds !== null && req.allowedDeviceIds && req.allowedDeviceIds.length > 0) {
       ids = ids.filter(id => req.allowedDeviceIds.includes(id));
     }
-    const params = parameters ? (Array.isArray(parameters) ? parameters : parameters.split(',')) : [];
+    let params = parameters ? (Array.isArray(parameters) ? parameters : parameters.split(',')) : [];
+    const categoryMap = await getFieldCategoryMap();
+    const categoryOpts = parseCategoryQuery(req);
+    if (categoryOpts.excludeCategories.length || categoryOpts.categories) {
+      params = filterFieldNames(params, categoryMap, categoryOpts);
+    }
     const start = startDate ? new Date(startDate) : null;
     const end = endDate ? new Date(endDate) : null;
     const group = groupBy || null;
@@ -121,7 +132,11 @@ router.get(['/', ''], async (req, res) => {
       let mapped = false;
       if (device.mappings && Array.isArray(device.mappings) && device.mappings.length > 0) {
         for (const mapping of device.mappings) {
-          if (mapping.source_field === row.sensor_type && mapping.target_field) {
+          if (
+            mapping.source_field === row.sensor_type &&
+            mapping.target_field &&
+            fieldPassesCategoryFilter(mapping.target_field, categoryMap, categoryOpts)
+          ) {
             let mappedValue = row.value;
             if (mapping.formula) {
               try {
@@ -176,6 +191,7 @@ router.get(['/', ''], async (req, res) => {
           const src = mapping.source_field ?? mapping.source;
           const tgt = mapping.target_field ?? mapping.target;
           if (!src || !tgt) continue;
+          if (!fieldPassesCategoryFilter(tgt, categoryMap, categoryOpts)) continue;
           const srcKey = String(src).trim().toLowerCase();
           if (!gpsFieldNames.includes(srcKey)) continue;
           if (row[srcKey] === undefined) continue;
@@ -232,15 +248,18 @@ router.get(['/', ''], async (req, res) => {
       }
       Object.keys(row).forEach(k => {
         if (!['timestamp', 'device_id', 'device_name', 'datetime', '_terminalTime'].includes(k)) {
-          merged[key][k] = row[k];
+          if (fieldPassesCategoryFilter(k, categoryMap, categoryOpts)) {
+            merged[key][k] = row[k];
+          }
         }
       });
     }
     // Always include all requested parameters as columns, set to null if missing
     const filteredParams = params.filter(p => !['timestamp', 'device_id', 'device_name'].includes(p));
-    const paramCols = filteredParams.length
+    let paramCols = filteredParams.length
       ? filteredParams
       : [...new Set(mappedData.flatMap(row => Object.keys(row)).filter(k => !['timestamp','device_id','device_name'].includes(k)))];
+    paramCols = filterFieldNames(paramCols, categoryMap, categoryOpts);
     Object.values(merged).forEach(row => {
       for (const p of paramCols) {
         if (!(p in row)) {
