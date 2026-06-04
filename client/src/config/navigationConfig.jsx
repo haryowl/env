@@ -36,6 +36,7 @@ import {
   DeleteSweep as DeleteSweepIcon,
   Public as PublicIcon,
   InfoOutlined as StatusIcon,
+  SettingsInputAntenna as MqttConfigIcon,
 } from '@mui/icons-material';
 
 export const MENU_SECTIONS = [
@@ -68,6 +69,7 @@ export const MENU_SECTIONS = [
       { text: 'Live tracking', icon: <MyLocationIcon />, path: '/live-tracking', menuPath: '/live-tracking' },
       { text: 'Device Mapper', icon: <MapIcon />, path: '/mapper', menuPath: '/mapper' },
       { text: 'Listeners', icon: <RadioIcon />, path: '/listeners', menuPath: '/listeners' },
+      { text: 'MQTT Configuration', icon: <MqttConfigIcon />, path: '/mqtt-config', menuPath: '/mqtt-config' },
     ],
   },
   {
@@ -137,6 +139,7 @@ export const ROUTE_MENU_PATH_MAP = {
   '/field-creator': '/field-creator',
   '/mapper': '/mapper',
   '/listeners': '/listeners',
+  '/mqtt-config': '/mqtt-config',
   '/data': '/data',
   '/data-dash': '/data-dash',
   '/data-dash-2': '/data-dash-2',

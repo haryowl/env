@@ -35,6 +35,7 @@ import ParameterColorCustomizer from './components/ParameterColorCustomizer';
 import ParameterColorDemo from './components/ParameterColorDemo';
 import FontColorCustomizer from './components/FontColorCustomizer';
 import ScheduledExports from './components/ScheduledExports';
+import MqttConfiguration from './components/MqttConfiguration';
 import MqttPublisher from './components/MqttPublisher';
 import { useFeatureFlags } from './hooks/useFeatureFlags';
 import CompanySite from './components/CompanySite';
@@ -371,6 +372,7 @@ function App() {
                 <Route path="/live-tracking" element={<ProtectedRoute><LiveTracking socket={socket} /></ProtectedRoute>} />
                 <Route path="/mapper" element={<ProtectedRoute><DeviceMapper /></ProtectedRoute>} />
                 <Route path="/listeners" element={<ProtectedRoute><Listeners socket={socket} /></ProtectedRoute>} />
+                <Route path="/mqtt-config" element={<ProtectedRoute><MqttConfiguration /></ProtectedRoute>} />
                 <Route path="/data" element={<ProtectedRoute><DataViewer /></ProtectedRoute>} />
                 <Route path="/data-dash" element={<ProtectedRoute><DataDash /></ProtectedRoute>} />
                 <Route path="/data-dash-2" element={<ProtectedRoute><DataDash2 /></ProtectedRoute>} />
