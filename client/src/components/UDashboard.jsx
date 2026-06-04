@@ -775,14 +775,32 @@ export default function UDashboard({ socket }) {
             ...getChartCardSx(theme),
           }}
         >
-          <CardContent sx={panelCardContentSx}>
-            {panelTitle('Device location')}
+          <CardContent
+            sx={{
+              flex: 1,
+              minHeight: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              p: 0,
+              '&:last-child': { pb: 0 },
+            }}
+          >
+            <Box
+              sx={{
+                px: 1,
+                py: 0.35,
+                flexShrink: 0,
+                borderBottom: '1px solid',
+                borderColor: 'divider',
+              }}
+            >
+              {panelTitle('Device location')}
+            </Box>
             <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
               <DashboardMap
                 socket={socket}
                 fillHeight
-                cardSx={{ m: 0, mt: 0, mb: 0, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', boxShadow: 'none' }}
-                mapBoxSx={{ flex: 1, minHeight: 0, height: '100%' }}
+                embedded
                 compactPopup
               />
             </Box>

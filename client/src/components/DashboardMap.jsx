@@ -535,7 +535,7 @@ const DeviceMapMarker = React.memo(function DeviceMapMarker({
   );
 });
 
-const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compactPopup = false }) => {
+const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compactPopup = false, embedded = false }) => {
   const theme = useTheme();
   const { formatDisplayName, getUnit, metadata: fieldMetadata } = useFieldMetadata();
   const [devices, setDevices] = useState([]);
@@ -871,48 +871,44 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
     [devices]
   );
 
-  if (loading) {
-    return (
-      <Card sx={{ mt: 1, mb: 1, borderRadius: 1, ...getChartCardSx(theme), ...cardSx }}>
-        <CardContent>
-          <Box display="flex" justifyContent="center" alignItems="center" minHeight={fillHeight ? 200 : 400}>
-            <CircularProgress />
-          </Box>
-        </CardContent>
-      </Card>
-    );
-  }
+  const mapShellSx = embedded && fillHeight
+    ? { flex: 1, minHeight: 0, height: '100%', width: '100%', display: 'flex', flexDirection: 'column', ...cardSx }
+    : {};
+  const mapInnerWrapSx = embedded && fillHeight
+    ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }
+    : { pt: 0.5, px: 1, pb: 1, ...(fillHeight ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } : {}) };
+  const mapBoxBaseSx = embedded && fillHeight
+    ? {
+        flex: 1,
+        minHeight: 0,
+        height: '100%',
+        borderRadius: 0,
+        border: 'none',
+        boxShadow: 'none',
+      }
+    : {
+        borderRadius: '4px',
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+        border: '1px solid rgba(0, 0, 0, 0.05)',
+        ...(fillHeight ? { flex: 1, minHeight: 160, height: '100%' } : { height: 500 }),
+      };
 
-  return (
-    <Card sx={{ 
-      mt: 1, 
-      mb: 1,
-      borderRadius: 1,
-      ...getChartCardSx(theme),
-      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)',
-      overflow: 'hidden',
-      ...(fillHeight ? { height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1, mt: 0, mb: 0 } : {}),
-      ...cardSx,
-    }}>
-      <CardContent sx={{ p: 0, ...(fillHeight ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } : {}) }}>
-        <Box sx={{ pt: 0.5, px: 1, pb: 1, ...(fillHeight ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } : {}) }}>
-
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
-          </Alert>
-        )}
-
-          <Box sx={{ 
-            width: '100%', 
-            position: 'relative',
-            borderRadius: '4px',
-            overflow: 'hidden',
-            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
-            border: '1px solid rgba(0, 0, 0, 0.05)',
-            ...(fillHeight ? { flex: 1, minHeight: 160, height: '100%' } : { height: 500 }),
-            ...mapBoxSx,
-          }}>
+  const mapBody = (
+    <>
+      {error && (
+        <Alert severity="error" sx={{ m: embedded ? 1 : 0, mb: embedded ? 1 : 2 }}>
+          {error}
+        </Alert>
+      )}
+      <Box
+        sx={{
+          width: '100%',
+          position: 'relative',
+          overflow: 'hidden',
+          ...mapBoxBaseSx,
+          ...mapBoxSx,
+        }}
+      >
           {/* Device count badge - inside map, adjacent to zoom controls (Future Map style) */}
           <Box
             sx={{
@@ -1076,8 +1072,45 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
             <MapBoundsUpdater devices={devicesWithCoordinates} />
             <MapCenterUpdater centerCoords={centerCoords} mapRef={mapRef} />
           </MapContainer>
-          </Box>
-        </Box>
+      </Box>
+    </>
+  );
+
+  if (loading) {
+    const loadingBox = (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight={fillHeight ? 200 : 400} sx={mapShellSx}>
+        <CircularProgress />
+      </Box>
+    );
+    if (embedded && fillHeight) return loadingBox;
+    return (
+      <Card sx={{ mt: 1, mb: 1, borderRadius: 1, ...getChartCardSx(theme), ...cardSx }}>
+        <CardContent>{loadingBox}</CardContent>
+      </Card>
+    );
+  }
+
+  if (embedded && fillHeight) {
+    return (
+      <Box sx={mapShellSx}>
+        <Box sx={mapInnerWrapSx}>{mapBody}</Box>
+      </Box>
+    );
+  }
+
+  return (
+    <Card sx={{
+      mt: 1,
+      mb: 1,
+      borderRadius: 1,
+      ...getChartCardSx(theme),
+      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)',
+      overflow: 'hidden',
+      ...(fillHeight ? { height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1, mt: 0, mb: 0 } : {}),
+      ...cardSx,
+    }}>
+      <CardContent sx={{ p: 0, ...(fillHeight ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } : {}) }}>
+        <Box sx={mapInnerWrapSx}>{mapBody}</Box>
       </CardContent>
     </Card>
   );
