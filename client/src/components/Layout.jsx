@@ -80,6 +80,13 @@ const Layout = ({ children, user, userContext, onLogout }) => {
           textSecondary: 'rgba(255,255,255,0.8)',
           textActive: 'white'
         };
+      case 'darkBlue':
+        return {
+          background: '#0F1D35',
+          text: '#E2E8F0',
+          textSecondary: 'rgba(148, 163, 184, 0.9)',
+          textActive: '#38BDF8',
+        };
       case 'kima':
       default:
         return {
@@ -107,6 +114,7 @@ const Layout = ({ children, user, userContext, onLogout }) => {
           border: 'rgba(0,0,0,0.1)'
         };
       case 'dark':
+      case 'darkBlue':
       case 'kima':
       default:
         return {
@@ -421,7 +429,12 @@ const Layout = ({ children, user, userContext, onLogout }) => {
                       width: 6, 
                       height: 6, 
                       borderRadius: '50%', 
-                      bgcolor: currentTheme === 'light' || currentTheme === 'green' ? theme.palette.primary.main : '#F59E0B',
+                      bgcolor:
+                        currentTheme === 'light' || currentTheme === 'green'
+                          ? theme.palette.primary.main
+                          : currentTheme === 'darkBlue'
+                            ? theme.palette.primary.main
+                            : '#F59E0B',
                       ml: 0.5
                     }} />
                   )}

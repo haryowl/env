@@ -22,6 +22,8 @@ const ThemeSelector = ({ variant = 'select', size = 'small' }) => {
         return '#ffffff';
       case 'dark':
         return '#000000';
+      case 'darkBlue':
+        return '#1e3a5f';
       case 'green':
         return '#2e7d32';
       case 'kima':
@@ -32,9 +34,25 @@ const ThemeSelector = ({ variant = 'select', size = 'small' }) => {
   };
 
   const getThemeIcon = (themeName) => {
+    if (themeName === 'darkBlue') {
+      return (
+        <Box
+          component="span"
+          sx={{
+            width: 20,
+            height: 20,
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #0B1220 0%, #1e40af 55%, #38bdf8 100%)',
+            display: 'inline-block',
+            border: '1px solid rgba(56, 189, 248, 0.45)',
+            boxSizing: 'border-box',
+          }}
+        />
+      );
+    }
     const color = getThemeCircleColor(themeName);
     const isLight = themeName === 'light';
-    if (['light', 'dark', 'green', 'kima'].includes(themeName)) {
+    if (['light', 'dark', 'darkBlue', 'green', 'kima'].includes(themeName)) {
       return (
         <Box
           component="span"
@@ -59,6 +77,8 @@ const ThemeSelector = ({ variant = 'select', size = 'small' }) => {
         return '#1976d2';
       case 'dark':
         return '#90caf9';
+      case 'darkBlue':
+        return '#38BDF8';
       case 'green':
         return '#2e7d32';
       case 'kima':

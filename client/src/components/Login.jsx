@@ -254,13 +254,19 @@ const Login = ({ onLogin }) => {
                 borderRadius: 3,
                 fontSize: '1.1rem',
                 fontWeight: 600,
-                background: currentTheme === 'green' 
-                  ? 'linear-gradient(135deg, #2e7d32 0%, #4caf50 100%)'
-                  : undefined,
+                background:
+                  currentTheme === 'green'
+                    ? 'linear-gradient(135deg, #2e7d32 0%, #4caf50 100%)'
+                    : currentTheme === 'darkBlue'
+                      ? 'linear-gradient(135deg, #0284C7 0%, #38BDF8 100%)'
+                      : undefined,
                 '&:hover': {
-                  background: currentTheme === 'green'
-                    ? 'linear-gradient(135deg, #1b5e20 0%, #388e3c 100%)'
-                    : undefined,
+                  background:
+                    currentTheme === 'green'
+                      ? 'linear-gradient(135deg, #1b5e20 0%, #388e3c 100%)'
+                      : currentTheme === 'darkBlue'
+                        ? 'linear-gradient(135deg, #0369A1 0%, #0EA5E9 100%)'
+                        : undefined,
                 },
               }}
             >
