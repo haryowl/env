@@ -7,6 +7,7 @@ const {
   prepareIngestPayload,
   validatePayload,
 } = require('../utils/mqttIngest');
+const { mergeObservedPayloadFields } = require('../utils/payloadFieldDiscovery');
 const { normalizeDatetimeToUtc } = require('../utils/deviceTimezone');
 const { evaluateThresholdAlertsOnData } = require('./alertEvaluationService');
 const bufferDataConfig = require('../config/bufferDataConfig');
@@ -301,8 +302,11 @@ class MQTTService {
       }
     }
 
+    const rawForKeys = rawPayload || rawData;
+    await mergeObservedPayloadFields(device.device_id, rawForKeys);
+
     const processedData = await processDeviceData(device, flatData);
-    await this.storeDeviceData(device, processedData, rawPayload || rawData);
+    await this.storeDeviceData(device, processedData, rawForKeys);
     return processedData;
   }
 

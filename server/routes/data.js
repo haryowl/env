@@ -1,6 +1,7 @@
 const express = require('express');
 const { authorizeDeviceAccess } = require('../middleware/auth');
 const { getRow, getRows, query } = require('../config/database');
+const { getDiscoveredPayloadFields } = require('../utils/payloadFieldDiscovery');
 
 const router = express.Router();
 
@@ -399,79 +400,37 @@ router.get('/fields/:deviceId', authorizeDeviceAccess('read'), async (req, res) 
   try {
     const { deviceId } = req.params;
 
-    // Try to get the latest MQTT payload from the device to extract actual fields
-    let fields = [];
+    let fields = await getDiscoveredPayloadFields(deviceId);
 
-    try {
-      // Get the most recent sensor readings to extract field names
-      const latestData = await query(`
-        SELECT metadata 
-        FROM sensor_readings 
-        WHERE device_id = $1 
-        ORDER BY timestamp DESC 
-        LIMIT 1
-      `, [deviceId]);
-
-      if (latestData.rows.length > 0 && latestData.rows[0].metadata) {
-        const metadata = latestData.rows[0].metadata;
-        if (metadata.payload) {
-          // Extract all field names from the payload
-          fields = Object.keys(metadata.payload);
-        }
-      }
-
-      // If no metadata found, try to get from unified device data
-      if (fields.length === 0) {
-        const unifiedData = await query(`
-          SELECT data 
-          FROM unified_device_data 
-          WHERE device_id = $1 
-          ORDER BY timestamp DESC 
-          LIMIT 1
-        `, [deviceId]);
-
-        if (unifiedData.rows.length > 0 && unifiedData.rows[0].data) {
-          fields = Object.keys(unifiedData.rows[0].data);
-        }
-      }
-
-    } catch (dbError) {
-      console.log('Could not get fields from database, using fallback');
-    }
-
-    // If still no fields found, use fallback based on device ID
+    // Legacy fallback when nothing has been ingested yet
     if (fields.length === 0) {
       if (deviceId === '7092139028080123021') {
-        // Updated fields based on the latest MQTT payload
         fields = [
           '_terminalTime',
-          '_groupName', 
+          '_groupName',
           'TSS',
           'COD',
           'PH',
           'Debit',
           'Dummy_ShowPH',
           'Dummy_ShowCOD',
-          'Dummy_ShowTSS'
+          'Dummy_ShowTSS',
         ];
       } else {
-        // For other devices, return common IoT fields as fallback
         fields = [
           '_terminalTime', '_groupName', 'TSS', 'COD', 'PH', 'Debit',
           'temperature', 'humidity', 'pressure', 'light', 'motion',
           'voltage', 'current', 'power', 'energy', 'status', 'error',
-          'latitude', 'longitude', 'altitude', 'speed', 'heading'
+          'latitude', 'longitude', 'altitude', 'speed', 'heading',
         ];
       }
     }
 
-    // Remove duplicates and sort
-    fields = [...new Set(fields)].sort();
-
     res.json({
       deviceId,
       fields,
-      count: fields.length
+      count: fields.length,
+      note: 'Union of keys from all observed payloads (including non-numeric status fields).',
     });
 
   } catch (error) {
