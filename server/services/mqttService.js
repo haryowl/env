@@ -1,6 +1,12 @@
 const mqtt = require('mqtt');
 const { getRow, query } = require('../config/database');
 const { processDeviceData } = require('./deviceMapper');
+const {
+  getMqttIngestFromDeviceConfig,
+  resolveDeviceId,
+  prepareIngestPayload,
+  validatePayload,
+} = require('../utils/mqttIngest');
 const { normalizeDatetimeToUtc } = require('../utils/deviceTimezone');
 const { evaluateThresholdAlertsOnData } = require('./alertEvaluationService');
 const bufferDataConfig = require('../config/bufferDataConfig');
@@ -10,6 +16,7 @@ class MQTTService {
     this.client = null;
     this.isConnected = false;
     this.subscribedTopics = new Set();
+    this.globalSubscribePatterns = new Set();
     this.deviceConnections = new Map();
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 10;
@@ -164,20 +171,18 @@ class MQTTService {
         await this.subscribeToDevice(device.device_id, device.config);
       }
 
-      // Subscribe to wildcard topics for dynamic device discovery
-      console.log('MQTT: Subscribing to wildcard topics for device discovery');
-      this.subscribeToTopic('devices/+/data');
-      this.subscribeToTopic('device/+/data');   // singular (common in IoT)
-      this.subscribeToTopic('+/data');          // e.g. <deviceId>/data
-      this.subscribeToTopic('sensors/+/reading');
-      this.subscribeToTopic('gps/+/location');
-      this.subscribeToTopic('+/telemetry');    // e.g. <deviceId>/telemetry
-      this.subscribeToTopic('+/state');        // e.g. <deviceId>/state
-      this.subscribeToTopic('+/message');      // e.g. <deviceId>/message
-      this.subscribeToTopic('telemetry/+');    // e.g. telemetry/<deviceId>
-      this.subscribeToTopic('data/+/+');       // e.g. data/<x>/<deviceId>
-      this.subscribeToTopic('data/sparing/sparing/+');
-      this.subscribeToTopic('data/+/+/+');
+      // Subscribe to global wildcard topics (DB settings or built-in defaults)
+      const { getGlobalSettings } = require('./mqttSettingsService');
+      const globalSettings = await getGlobalSettings();
+      console.log('MQTT: Subscribing to global wildcard topics for device discovery');
+      for (const topic of globalSettings.effective_patterns) {
+        if (!this.subscribedTopics.has(topic)) {
+          this.subscribeToTopic(topic);
+          this.subscribedTopics.add(topic);
+          this.globalSubscribePatterns.add(topic);
+          console.log(`MQTT: Global subscribe: ${topic}`);
+        }
+      }
       
       console.log('MQTT: All topic subscriptions completed');
 
@@ -218,6 +223,89 @@ class MQTTService {
     }
   }
 
+  unsubscribeFromTopic(topic) {
+    if (this.client && this.isConnected) {
+      this.client.unsubscribe(topic, (err) => {
+        if (err) {
+          console.error(`Failed to unsubscribe from ${topic}:`, err);
+        } else {
+          console.log(`Unsubscribed from topic: ${topic}`);
+        }
+      });
+    }
+    this.subscribedTopics.delete(topic);
+    this.globalSubscribePatterns.delete(topic);
+  }
+
+  async resyncGlobalSubscribePatterns(prevEffective, nextEffective) {
+    const prev = prevEffective instanceof Set ? prevEffective : new Set(prevEffective || []);
+    const next = nextEffective instanceof Set ? nextEffective : new Set(nextEffective || []);
+    for (const topic of prev) {
+      if (!next.has(topic)) {
+        this.unsubscribeFromTopic(topic);
+      }
+    }
+    for (const topic of next) {
+      if (!this.subscribedTopics.has(topic)) {
+        this.subscribeToTopic(topic);
+        this.subscribedTopics.add(topic);
+        this.globalSubscribePatterns.add(topic);
+      }
+    }
+  }
+
+  async getPayloadFieldsForDevice(deviceId) {
+    const row = await getRow(
+      `SELECT mt.mappings
+       FROM device_mapper_assignments dma
+       LEFT JOIN mapper_templates mt ON dma.template_id = mt.template_id
+       WHERE dma.device_id = $1`,
+      [deviceId]
+    );
+    if (!row?.mappings) return [];
+    let mappings = row.mappings;
+    if (typeof mappings === 'string') {
+      try {
+        mappings = JSON.parse(mappings);
+      } catch {
+        return [];
+      }
+    }
+    if (!Array.isArray(mappings)) return [];
+    return mappings
+      .filter((m) => m && String(m.source_field || '').trim())
+      .map((m) => ({
+        source_field: String(m.source_field).trim(),
+        target_field: String(m.target_field || '').trim(),
+        data_type: String(m.data_type || 'string').trim(),
+        is_required: Boolean(m.is_required),
+      }));
+  }
+
+  async runIngestPipeline(device, rawData, { rawPayload = null } = {}) {
+    const ingestCfg = getMqttIngestFromDeviceConfig(device.config);
+    const { data: flatData, warnings: flattenWarnings } = prepareIngestPayload(rawData, ingestCfg);
+    for (const w of flattenWarnings) {
+      console.warn(`MQTT ingest (${device.device_id}): ${w}`);
+    }
+
+    if (ingestCfg.validation_mode !== 'off') {
+      const payloadFields = await this.getPayloadFieldsForDevice(device.device_id);
+      const validation = validatePayload(flatData, payloadFields, ingestCfg.validation_mode);
+      for (const w of validation.warnings) {
+        console.warn(`MQTT validation warn (${device.device_id}): ${w}`);
+      }
+      if (!validation.ok) {
+        console.warn(`MQTT validation rejected (${device.device_id}):`, validation.errors);
+        return null;
+      }
+    }
+
+    const processedData = await processDeviceData(device, flatData);
+    await this.storeDeviceData(device, processedData, rawPayload || rawData);
+    return processedData;
+  }
+
   async handleMessage(topic, message) {
     console.log('handleMessage called', topic);
     try {
@@ -232,11 +320,19 @@ class MQTTService {
         return;
       }
 
-      // Extract device ID from topic
-      const deviceId = this.extractDeviceIdFromTopic(topic);
-      console.log(`MQTT: Extracted device ID: ${deviceId} from topic: ${topic}`);
+      const topicDeviceId = this.extractDeviceIdFromTopic(topic);
+      let hintIngest = null;
+      if (topicDeviceId) {
+        const hintDevice = await this.getActiveDevice(topicDeviceId);
+        if (hintDevice) {
+          hintIngest = getMqttIngestFromDeviceConfig(hintDevice.config);
+        }
+      }
+
+      const deviceId = resolveDeviceId({ topicDeviceId, data, ingestConfig: hintIngest });
+      console.log(`MQTT: Resolved device ID: ${deviceId} (topic: ${topicDeviceId || 'n/a'}) from topic: ${topic}`);
       if (!deviceId) {
-        console.error('Could not extract device ID from topic:', topic);
+        console.error('Could not resolve device ID from topic/payload:', topic);
         return;
       }
 
@@ -246,22 +342,18 @@ class MQTTService {
         return;
       }
 
-      // Process data through device mapper
-      const processedData = await processDeviceData(device, data);
+      const processedData = await this.runIngestPipeline(device, data, { rawPayload: data });
+      if (!processedData) {
+        return;
+      }
       console.log('MQTT: Processed data:', processedData);
-      
-      // Store data in database
-      await this.storeDeviceData(device, processedData, data);
 
-      // Update device status
       await this.updateDeviceStatus(deviceId, 'online');
 
-      // Evaluate alerts immediately with real-time data
       console.log('MQTT: About to evaluate alerts with real-time data...');
       await this.evaluateAlertsWithRealTimeData(deviceId, processedData);
       console.log('MQTT: Finished evaluating alerts with real-time data.');
 
-      // Emit real-time data to connected clients
       this.emitRealTimeData(deviceId, processedData);
 
     } catch (error) {
@@ -418,8 +510,10 @@ class MQTTService {
     if (!device) {
       throw new Error('Failed to create device');
     }
-    const processedData = await processDeviceData(device, data);
-    await this.storeDeviceData(device, processedData, data);
+    const processedData = await this.runIngestPipeline(device, data, { rawPayload: data });
+    if (!processedData) {
+      throw new Error('Payload validation failed');
+    }
     await this.updateDeviceStatus(deviceId, 'online');
     await this.evaluateAlertsWithRealTimeData(deviceId, processedData);
     this.emitRealTimeData(deviceId, processedData);
