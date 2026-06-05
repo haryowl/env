@@ -554,6 +554,7 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
   const mapRef = useRef(null);
   const refreshTimersRef = useRef({});
   const alertThresholdsRef = useRef({});
+  const deviceBootstrapPendingRef = useRef(new Set());
 
   useEffect(() => {
     alertThresholdsRef.current = alertThresholdsByDevice;
@@ -644,15 +645,17 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
     const patch = pickMappedSnapshot(incoming, chartParams);
     if (Object.keys(patch).length === 0) return false;
 
+    let merged;
     setDeviceData((prev) => {
-      const merged = { ...pickMappedSnapshot(prev[deviceId] || {}, chartParams), ...patch };
-      const thresholds = alertThresholdsRef.current[deviceId] || [];
-      setDeviceAlerts((prevAlerts) => ({
-        ...prevAlerts,
-        [deviceId]: isLatestDataOutOfRange(merged, thresholds),
-      }));
+      merged = { ...pickMappedSnapshot(prev[deviceId] || {}, chartParams), ...patch };
       return { ...prev, [deviceId]: merged };
     });
+
+    const thresholds = alertThresholdsRef.current[deviceId] || [];
+    setDeviceAlerts((prevAlerts) => ({
+      ...prevAlerts,
+      [deviceId]: isLatestDataOutOfRange(merged, thresholds),
+    }));
 
     if (lastUpdatedIso) {
       setDeviceLastUpdated((prev) => ({
@@ -777,21 +780,27 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
 
       const allowed = deviceMappedParamsRef.current[deviceId];
       if (!allowed?.length) {
-        loadDeviceData(deviceId);
+        if (!deviceBootstrapPendingRef.current.has(deviceId)) {
+          deviceBootstrapPendingRef.current.add(deviceId);
+          loadDeviceData(deviceId).finally(() => {
+            deviceBootstrapPendingRef.current.delete(deviceId);
+          });
+        }
         return;
       }
 
       const livePatch = mergeSocketPayloadIntoDeviceData(payload?.data, allowed);
       if (livePatch) {
+        const thresholds = alertThresholdsRef.current[deviceId] || [];
+        let merged;
         setDeviceData((prev) => {
-          const merged = { ...pickMappedSnapshot(prev[deviceId] || {}, allowed), ...livePatch };
-          const thresholds = alertThresholdsRef.current[deviceId] || [];
-          setDeviceAlerts((prevAlerts) => ({
-            ...prevAlerts,
-            [deviceId]: isLatestDataOutOfRange(merged, thresholds),
-          }));
+          merged = { ...pickMappedSnapshot(prev[deviceId] || {}, allowed), ...livePatch };
           return { ...prev, [deviceId]: merged };
         });
+        setDeviceAlerts((prevAlerts) => ({
+          ...prevAlerts,
+          [deviceId]: isLatestDataOutOfRange(merged, thresholds),
+        }));
         setDeviceLastUpdated((prev) => ({
           ...prev,
           [deviceId]:
