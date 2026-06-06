@@ -18,6 +18,8 @@ import {
   TableRow,
   Paper,
   Chip,
+  Button,
+  Stack,
   useTheme,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
@@ -46,6 +48,17 @@ import {
 } from '../utils/statusKeywords';
 import PageHeader from './PageHeader';
 import { getChartCardSx, CHART_COLORS, getTooltipContentStyle } from '../utils/chartStyles';
+import { exportTableToCSV, exportTableToXLSX } from '../utils/exportUtils';
+
+const HISTORY_PERIOD_OPTIONS = [
+  { label: 'Last 24 hours', value: 24 },
+  { label: 'Last 48 hours', value: 48 },
+  { label: 'Last 7 days', value: 168 },
+  { label: 'Last 30 days', value: 720 },
+];
+
+const getPeriodLabel = (hours) =>
+  HISTORY_PERIOD_OPTIONS.find((o) => o.value === hours)?.label?.replace(/^Last /i, '') || `${hours}h`;
 
 const formatStatusValue = (value, precision = 3) => {
   if (value === null || value === undefined || value === '') return '–';
@@ -68,7 +81,9 @@ export default function StatusDashboard({ socket }) {
   const [latest, setLatest] = useState({});
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
   const [history, setHistory] = useState([]);
+  const [historyPeriodHours, setHistoryPeriodHours] = useState(48);
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState('');
 
   const isAdmin = useMemo(() => {
@@ -135,7 +150,9 @@ export default function StatusDashboard({ socket }) {
       const token = localStorage.getItem('iot_token');
       const headers = { Authorization: `Bearer ${token}` };
       const endDate = new Date().toISOString();
-      const startDate = subHours(new Date(), 48).toISOString();
+      const startDate = subHours(new Date(), historyPeriodHours).toISOString();
+      const loadLimit =
+        historyPeriodHours >= 720 ? 50000 : historyPeriodHours >= 168 ? 10000 : 2000;
 
       const [latestRes, dashRes] = await Promise.all([
         fetch(`${API_BASE_URL}/devices/${deviceId}/latest-data?categories=Status`, { headers }),
@@ -145,7 +162,7 @@ export default function StatusDashboard({ socket }) {
             parameters: statusParams.join(','),
             startDate,
             endDate,
-            limit: 2000,
+            limit: loadLimit,
             categories: 'Status',
           },
           headers,
@@ -173,7 +190,7 @@ export default function StatusDashboard({ socket }) {
     } finally {
       setLoading(false);
     }
-  }, [deviceId, statusParams]);
+  }, [deviceId, statusParams, historyPeriodHours]);
 
   useEffect(() => {
     loadDevices();
@@ -277,7 +294,90 @@ export default function StatusDashboard({ socket }) {
     });
   }, [filteredHistory, statusParams, fieldMetadata]);
 
+  const historyExportColumns = useMemo(
+    () => [
+      { field: 'timestamp', headerName: 'Time' },
+      ...statusParams.map((p) => ({
+        field: p,
+        headerName: formatDisplayName(p, { withUnit: false }),
+      })),
+    ],
+    [statusParams, formatDisplayName]
+  );
+
+  const buildHistoryExportRows = useCallback(
+    (rows) =>
+      rows.map((row) => {
+        const out = { timestamp: formatInUserTimezone(row.timestamp) };
+        statusParams.forEach((p) => {
+          out[p] = formatStatusValue(row[p]);
+        });
+        return out;
+      }),
+    [statusParams]
+  );
+
+  const fetchHistoryForExport = useCallback(async () => {
+    const token = localStorage.getItem('iot_token');
+    const endDate = new Date().toISOString();
+    const startDate = subHours(new Date(), historyPeriodHours).toISOString();
+    const response = await axios.get(`${API_BASE_URL}/data-dash`, {
+      params: {
+        deviceIds: deviceId,
+        parameters: statusParams.join(','),
+        startDate,
+        endDate,
+        limit: 100000,
+        categories: 'Status',
+      },
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const rows = response.data?.data || [];
+    return rows
+      .filter((row) => rowHasStatusValues(row, statusParams))
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  }, [deviceId, statusParams, historyPeriodHours]);
+
+  const handleExportCSV = async () => {
+    setExporting(true);
+    try {
+      const rows = await fetchHistoryForExport();
+      const deviceLabel = selectedDevice ? getDeviceDisplayName(selectedDevice) : deviceId;
+      const periodSlug = getPeriodLabel(historyPeriodHours).replace(/\s+/g, '-');
+      exportTableToCSV(
+        buildHistoryExportRows(rows),
+        historyExportColumns,
+        `status-history_${deviceLabel}_${periodSlug}_${new Date().toISOString().slice(0, 10)}.csv`
+      );
+    } catch (e) {
+      console.error('Status history CSV export failed:', e);
+      setError('Failed to export status history');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportXLSX = async () => {
+    setExporting(true);
+    try {
+      const rows = await fetchHistoryForExport();
+      const deviceLabel = selectedDevice ? getDeviceDisplayName(selectedDevice) : deviceId;
+      const periodSlug = getPeriodLabel(historyPeriodHours).replace(/\s+/g, '-');
+      exportTableToXLSX(
+        buildHistoryExportRows(rows),
+        historyExportColumns,
+        `status-history_${deviceLabel}_${periodSlug}_${new Date().toISOString().slice(0, 10)}.xlsx`
+      );
+    } catch (e) {
+      console.error('Status history XLSX export failed:', e);
+      setError('Failed to export status history');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const selectedDevice = devices.find((d) => d.device_id === deviceId);
+  const periodLabel = getPeriodLabel(historyPeriodHours);
 
   return (
     <Box sx={{ p: { xs: 1, sm: 1.5 }, maxWidth: 1400, mx: 'auto' }}>
@@ -397,7 +497,7 @@ export default function StatusDashboard({ socket }) {
           <Card sx={{ mb: 1.5, borderRadius: 1, ...getChartCardSx(theme) }}>
             <CardContent>
               <Typography variant="subtitle1" fontWeight={700} gutterBottom>
-                Status value distribution (48h)
+                Status value distribution ({periodLabel})
               </Typography>
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
                 Count of received readings grouped by status keywords (Field Creator) or full value text
@@ -478,12 +578,63 @@ export default function StatusDashboard({ socket }) {
 
           <Card sx={{ borderRadius: 1, ...getChartCardSx(theme) }}>
             <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                <Typography variant="subtitle1" fontWeight={700}>
-                  Status history
-                </Typography>
-                <Chip label={`${filteredHistory.length} rows`} size="small" />
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: { xs: 'stretch', sm: 'center' },
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 1,
+                  mb: 1,
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                  <Typography variant="subtitle1" fontWeight={700}>
+                    Status history
+                  </Typography>
+                  <Chip label={`${filteredHistory.length} rows`} size="small" />
+                </Box>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} alignItems={{ sm: 'center' }}>
+                  <FormControl size="small" sx={{ minWidth: 160 }}>
+                    <InputLabel id="status-history-period-label">Period</InputLabel>
+                    <Select
+                      labelId="status-history-period-label"
+                      label="Period"
+                      value={historyPeriodHours}
+                      onChange={(e) => setHistoryPeriodHours(Number(e.target.value))}
+                    >
+                      {HISTORY_PERIOD_OPTIONS.map((opt) => (
+                        <MenuItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    disabled={exporting || !deviceId || statusParams.length === 0}
+                    onClick={handleExportCSV}
+                    sx={{ textTransform: 'none', fontWeight: 600, minHeight: 34 }}
+                  >
+                    Export CSV
+                  </Button>
+                  <Button
+                    variant="contained"
+                    size="small"
+                    disabled={exporting || !deviceId || statusParams.length === 0}
+                    onClick={handleExportXLSX}
+                    sx={{ textTransform: 'none', fontWeight: 600, minHeight: 34 }}
+                  >
+                    Export XLSX
+                  </Button>
+                </Stack>
               </Box>
+              {exporting && (
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                  Preparing export…
+                </Typography>
+              )}
               <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 360 }}>
                 <Table size="small" stickyHeader>
                   <TableHead>

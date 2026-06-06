@@ -354,6 +354,34 @@ export const exportTableToExcel = (tableData, parameters, deviceName) => {
   XLSX.writeFile(workbook, `table-${deviceName}-${new Date().toISOString().split('T')[0]}.xlsx`);
 };
 
+/** Generic table export — columns: { field, headerName }[] */
+export function exportTableToCSV(data, columns, filename = 'export.csv') {
+  const header = columns.map((col) => col.headerName).join(',');
+  const rows = data.map((row) =>
+    columns.map((col) => JSON.stringify(row[col.field] ?? '')).join(',')
+  );
+  const csvContent = [header, ...rows].join('\r\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(link.href);
+}
+
+export function exportTableToXLSX(data, columns, filename = 'export.xlsx') {
+  const wsData = [
+    columns.map((col) => col.headerName),
+    ...data.map((row) => columns.map((col) => row[col.field] ?? '')),
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Data');
+  XLSX.writeFile(wb, filename);
+}
+
 // Export chart data
 export const exportChartToPDF = (chartData, parameter, deviceName) => {
   const doc = new jsPDF();
