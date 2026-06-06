@@ -942,39 +942,97 @@ router.get('/me/permissions', async (req, res) => {
   }
 });
 
-// Delete user
-router.delete('/:userId', authorizeRole(['super_admin']), async (req, res) => {
-  try {
-    const { userId } = req.params;
+async function clearUserReferences(userId) {
+  const nullifyStatements = [
+    'UPDATE user_roles SET assigned_by = NULL WHERE assigned_by = $1',
+    'UPDATE roles SET created_by = NULL WHERE created_by = $1',
+    'UPDATE device_groups SET created_by = NULL WHERE created_by = $1',
+    'UPDATE field_definitions SET created_by = NULL WHERE created_by = $1',
+    'UPDATE mapper_templates SET created_by = NULL WHERE created_by = $1',
+    'UPDATE device_events SET user_id = NULL WHERE user_id = $1',
+    'UPDATE system_logs SET user_id = NULL WHERE user_id = $1',
+    'UPDATE email_config SET created_by = NULL WHERE created_by = $1',
+    'UPDATE sites SET user_id = NULL WHERE user_id = $1',
+  ];
 
-    // Check if user exists
+  for (const statement of nullifyStatements) {
+    try {
+      await query(statement, [userId]);
+    } catch (error) {
+      // Optional tables/columns may not exist on older databases.
+      if (error.code !== '42P01' && error.code !== '42703') {
+        throw error;
+      }
+    }
+  }
+}
+
+// Delete user permanently (removes row; related assignments cascade or are cleared first)
+router.delete('/:userId', authorizeRole(['super_admin', 'admin']), async (req, res) => {
+  try {
+    const targetUserId = parseInt(req.params.userId, 10);
+    if (!Number.isFinite(targetUserId)) {
+      return res.status(400).json({
+        error: 'Invalid user id',
+        code: 'INVALID_USER_ID',
+      });
+    }
+
+    if (Number(req.user.user_id) === targetUserId) {
+      return res.status(400).json({
+        error: 'You cannot delete your own account',
+        code: 'CANNOT_DELETE_SELF',
+      });
+    }
+
     const user = await getRow(
-      'SELECT user_id FROM users WHERE user_id = $1',
-      [userId]
+      'SELECT user_id, username, profile_picture FROM users WHERE user_id = $1',
+      [targetUserId]
     );
 
     if (!user) {
       return res.status(404).json({
         error: 'User not found',
-        code: 'USER_NOT_FOUND'
+        code: 'USER_NOT_FOUND',
       });
     }
 
-    // Soft delete - mark as suspended instead of actually deleting
-    await query(
-      'UPDATE users SET status = $1 WHERE user_id = $2',
-      ['suspended', userId]
-    );
+    await query('BEGIN');
+    try {
+      await clearUserReferences(targetUserId);
+      const deleted = await query('DELETE FROM users WHERE user_id = $1', [targetUserId]);
+      if (deleted.rowCount === 0) {
+        await query('ROLLBACK');
+        return res.status(404).json({
+          error: 'User not found',
+          code: 'USER_NOT_FOUND',
+        });
+      }
+      await query('COMMIT');
+    } catch (error) {
+      await query('ROLLBACK');
+      throw error;
+    }
+
+    if (user.profile_picture) {
+      const disk = profileUploadsDiskPath(user.profile_picture);
+      if (disk) await fs.unlink(disk).catch(() => {});
+    }
 
     res.json({
-      message: 'User deleted successfully'
+      message: 'User deleted successfully',
     });
-
   } catch (error) {
     console.error('Delete user error:', error);
+    if (error.code === '23503') {
+      return res.status(409).json({
+        error: 'User cannot be deleted because they are still referenced by other records',
+        code: 'USER_REFERENCED',
+      });
+    }
     res.status(500).json({
       error: 'Failed to delete user',
-      code: 'DELETE_USER_ERROR'
+      code: 'DELETE_USER_ERROR',
     });
   }
 });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Box, Snackbar, Alert } from '@mui/material';
 import { UserThemeContextProvider } from './contexts/UserThemeContext';
@@ -54,6 +54,7 @@ import { SocketService } from './services/socketService';
 
 // Config
 import { API_BASE_URL } from './config/api';
+import { resetAuthFailureGuard } from './utils/authSession';
 
 // Hooks
 import { PermissionProvider, usePermissions } from './hooks/usePermissions.jsx';
@@ -260,6 +261,7 @@ function App() {
       setUser(userWithId);
       localStorage.setItem('iot_token', token);
       localStorage.setItem('iot_user', JSON.stringify(userWithId));
+      resetAuthFailureGuard();
       // Initialize socket connection
       const socketService = new SocketService();
       socketService.connect(token);
@@ -275,7 +277,7 @@ function App() {
     }
   };
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     let redirectUrl = null;
     try {
       const authService = new AuthService();
@@ -293,7 +295,20 @@ function App() {
     if (redirectUrl) {
       window.location.assign(redirectUrl);
     }
-  };
+  }, [socket]);
+
+  useEffect(() => {
+    const onSessionExpired = () => {
+      setNotification({
+        open: true,
+        message: 'Your session has expired. Please sign in again.',
+        severity: 'warning',
+      });
+      handleLogout();
+    };
+    window.addEventListener('iot-session-expired', onSessionExpired);
+    return () => window.removeEventListener('iot-session-expired', onSessionExpired);
+  }, [handleLogout]);
 
   const handleFontChange = (newFontType) => {
     // Font change is now handled by UserThemeContext

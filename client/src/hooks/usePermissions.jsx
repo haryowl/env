@@ -1,5 +1,6 @@
 import { useState, useEffect, useContext, createContext } from 'react';
 import { API_BASE_URL } from '../config/api';
+import { notifyAuthFailure } from '../utils/authSession';
 
 const PermissionContext = createContext();
 
@@ -65,13 +66,14 @@ export const PermissionProvider = ({ children }) => {
             setLoading(false);
             return;
           }
-        } else {
-          // If unauthorized, maybe token expired
-          if (response.status === 401 && retryCount < 1) {
-            // Don't clear tokens immediately, just retry once
+        } else if (response.status === 401) {
+          if (retryCount < 1) {
             setTimeout(() => fetchUserPermissions(retryCount + 1), 1000);
             return;
           }
+          notifyAuthFailure(response);
+          setLoading(false);
+          return;
         }
       } catch (apiError) {
         console.warn('Failed to fetch dynamic permissions, falling back to defaults:', apiError);

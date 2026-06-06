@@ -12,6 +12,9 @@ const humanize = (value = '') =>
 let metadataCache = null;
 let metadataPromise = null;
 
+/** Stable fallback so consumers do not get a new {} reference every render while loading. */
+const EMPTY_METADATA = Object.freeze({});
+
 const normalizeFields = (fields = []) => {
   const map = {};
   fields.forEach((field) => {
@@ -136,7 +139,7 @@ export const useFieldMetadata = () => {
   );
 
   return {
-    metadata: metadata || {},
+    metadata: metadata ?? EMPTY_METADATA,
     loading,
     error,
     refresh,

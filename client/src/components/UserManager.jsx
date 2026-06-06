@@ -615,7 +615,10 @@ function UserManager() {
       <Dialog open={deleteDialogOpen} onClose={handleCloseDeleteDialog}>
         <DialogTitle>Delete User</DialogTitle>
         <DialogContent>
-          <Typography>Are you sure you want to delete user <b>{deleteUser?.username}</b>?</Typography>
+          <Typography>
+            Are you sure you want to permanently delete user <b>{deleteUser?.username}</b>?
+            This cannot be undone.
+          </Typography>
           {deleteError && <Typography color="error" sx={{ mt: 1 }}>{deleteError}</Typography>}
           {deleteSuccess && <Typography color="success.main" sx={{ mt: 1 }}>{deleteSuccess}</Typography>}
         </DialogContent>

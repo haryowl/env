@@ -28,6 +28,7 @@ import { MAP_BASE_LAYERS } from '../config/mapLayers';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import { getChartCardSx } from '../utils/chartStyles';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
+import { notifyAuthFailure } from '../utils/authSession';
 import { filterDataViewParams } from '../utils/fieldCategory';
 
 // Custom styled popup component that respects theme
@@ -555,6 +556,7 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
   const refreshTimersRef = useRef({});
   const alertThresholdsRef = useRef({});
   const deviceBootstrapPendingRef = useRef(new Set());
+  const loadDeviceDataRef = useRef(async () => {});
 
   useEffect(() => {
     alertThresholdsRef.current = alertThresholdsByDevice;
@@ -602,9 +604,11 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
   const loadAlertThresholds = async () => {
     try {
       const token = localStorage.getItem('iot_token');
+      if (!token) return;
       const response = await fetch(`${API_BASE_URL}/alerts`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      if (notifyAuthFailure(response)) return;
       if (response.ok) {
         const data = await response.json();
         const list = data.alerts || [];
@@ -616,28 +620,33 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
   };
 
   // Load devices with coordinates
-  const loadDevices = async () => {
-    setLoading(true);
-    setError('');
-    
+  const loadDevices = async ({ silent = false } = {}) => {
+    if (!silent) {
+      setLoading(true);
+      setError('');
+    }
+
     try {
       const token = localStorage.getItem('iot_token');
+      if (!token) return;
       const response = await fetch(`${API_BASE_URL}/devices/with-coordinates`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      
+
+      if (notifyAuthFailure(response)) return;
+
       if (response.ok) {
         const data = await response.json();
         const devicesList = data.devices || [];
         setDevices(devicesList);
-      } else {
+      } else if (!silent) {
         setError('Failed to load devices');
       }
     } catch (error) {
       console.error('Error loading devices:', error);
-      setError('Failed to load devices');
+      if (!silent) setError('Failed to load devices');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -676,6 +685,7 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
       const headers = { Authorization: `Bearer ${token}` };
 
       const assignRes = await fetch(`${API_BASE_URL}/device-mapper-assignments/${deviceId}`, { headers });
+      if (notifyAuthFailure(assignRes)) return;
       if (!assignRes.ok) return;
 
       const assignJson = await assignRes.json();
@@ -746,6 +756,10 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
     }
   }, [fieldMetadata]);
 
+  useEffect(() => {
+    loadDeviceDataRef.current = loadDeviceData;
+  }, [loadDeviceData]);
+
   const handleMarkerClick = useCallback(
     (device) => {
       loadDeviceData(device.device_id);
@@ -782,7 +796,7 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
       if (!allowed?.length) {
         if (!deviceBootstrapPendingRef.current.has(deviceId)) {
           deviceBootstrapPendingRef.current.add(deviceId);
-          loadDeviceData(deviceId).finally(() => {
+          loadDeviceDataRef.current(deviceId).finally(() => {
             deviceBootstrapPendingRef.current.delete(deviceId);
           });
         }
@@ -812,7 +826,7 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
 
       clearTimeout(refreshTimersRef.current[deviceId]);
       refreshTimersRef.current[deviceId] = setTimeout(() => {
-        loadDeviceData(deviceId);
+        loadDeviceDataRef.current(deviceId);
       }, 800);
     };
 
@@ -821,7 +835,7 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
       socket.on('device_data', onDeviceData);
     }
 
-    const interval = setInterval(loadDevices, 2 * 60 * 1000);
+    const interval = setInterval(() => loadDevices({ silent: true }), 2 * 60 * 1000);
     return () => {
       clearInterval(interval);
       if (socket) {
@@ -830,7 +844,7 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
       }
       Object.values(refreshTimersRef.current).forEach(clearTimeout);
     };
-  }, [socket, loadDeviceData]);
+  }, [socket]);
 
   // Preload latest data once devices are on the map (do not re-fetch when alert rules load)
   useEffect(() => {
