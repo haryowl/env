@@ -28,6 +28,7 @@ const normalizeFields = (fields = []) => {
       dataType: field.data_type || null,
       description: field.description || '',
       category: field.category || '',
+      statusKeywords: field.status_keywords || '',
     };
   });
   return map;

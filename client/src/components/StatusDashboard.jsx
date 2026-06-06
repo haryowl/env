@@ -38,6 +38,12 @@ import { usePermissions } from '../hooks/usePermissions';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
 import { getDeviceDisplayName } from '../utils/deviceLabel';
 import { filterStatusParams } from '../utils/fieldCategory';
+import {
+  classifyStatusValue,
+  hasStatusValue,
+  parseStatusKeywords,
+  rowHasStatusValues,
+} from '../utils/statusKeywords';
 import PageHeader from './PageHeader';
 import { getChartCardSx, CHART_COLORS, getTooltipContentStyle } from '../utils/chartStyles';
 
@@ -199,7 +205,7 @@ export default function StatusDashboard({ socket }) {
       const row = {
         timestamp: payload.timestamp ? new Date(payload.timestamp).toISOString() : new Date().toISOString(),
       };
-      let hasStatusValue = false;
+      let receivedStatusValue = false;
 
       setLatest((prev) => {
         const next = { ...prev };
@@ -208,14 +214,14 @@ export default function StatusDashboard({ socket }) {
           if (payload.data[param] !== undefined && payload.data[param] !== null) {
             next[param] = payload.data[param];
             row[param] = payload.data[param];
-            hasStatusValue = true;
+            receivedStatusValue = true;
             changed = true;
           }
         });
         return changed ? next : prev;
       });
 
-      if (hasStatusValue) {
+      if (receivedStatusValue && rowHasStatusValues(row, statusParams)) {
         setHistory((prev) => [row, ...prev].slice(0, 2000));
       }
       if (payload.timestamp) {
@@ -227,32 +233,49 @@ export default function StatusDashboard({ socket }) {
     return () => socket.off('device_data', handler);
   }, [socket, deviceId, statusParams]);
 
-  /** Count received readings grouped by status value text (48h history). */
+  const filteredHistory = useMemo(
+    () => history.filter((row) => rowHasStatusValues(row, statusParams)),
+    [history, statusParams]
+  );
+
+  /** Count received readings grouped by status keyword or value text (48h history). */
   const statusValueCounts = useMemo(() => {
-    if (!history.length || statusParams.length === 0) return [];
+    if (!filteredHistory.length || statusParams.length === 0) return [];
 
     return statusParams.map((param) => {
+      const keywords = fieldMetadata?.[param]?.statusKeywords || '';
       const counts = {};
-      history.forEach((row) => {
+
+      filteredHistory.forEach((row) => {
         const raw = row[param];
-        if (raw === null || raw === undefined || raw === '') return;
-        const label = formatStatusValue(raw);
-        if (label === '–') return;
-        counts[label] = (counts[label] || 0) + 1;
+        if (!hasStatusValue(raw)) return;
+        const bucket = classifyStatusValue(raw, keywords);
+        if (!bucket) return;
+        counts[bucket] = (counts[bucket] || 0) + 1;
       });
 
       const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
+      const keywordOrder = parseStatusKeywords(keywords);
       const segments = Object.entries(counts)
         .map(([name, value]) => ({
           name,
           value,
           pct: total > 0 ? (value / total) * 100 : 0,
         }))
-        .sort((a, b) => b.value - a.value);
+        .sort((a, b) => {
+          const ai = keywordOrder.indexOf(a.name);
+          const bi = keywordOrder.indexOf(b.name);
+          if (ai !== -1 && bi !== -1) return ai - bi;
+          if (ai !== -1) return -1;
+          if (bi !== -1) return 1;
+          if (a.name === 'Other') return 1;
+          if (b.name === 'Other') return -1;
+          return b.value - a.value;
+        });
 
-      return { param, segments, total };
+      return { param, segments, total, keywords };
     });
-  }, [history, statusParams]);
+  }, [filteredHistory, statusParams, fieldMetadata]);
 
   const selectedDevice = devices.find((d) => d.device_id === deviceId);
 
@@ -377,7 +400,7 @@ export default function StatusDashboard({ socket }) {
                 Status value distribution (48h)
               </Typography>
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
-                Count of received readings grouped by status value content
+                Count of received readings grouped by status keywords (Field Creator) or full value text
               </Typography>
               {statusValueCounts.every(({ segments }) => segments.length === 0) ? (
                 <Typography variant="body2" color="text.secondary">
@@ -391,13 +414,19 @@ export default function StatusDashboard({ socket }) {
                     gap: 2,
                   }}
                 >
-                  {statusValueCounts.map(({ param, segments, total }, chartIdx) => {
+                  {statusValueCounts.map(({ param, segments, total, keywords }, chartIdx) => {
                     if (segments.length === 0) return null;
+                    const keywordList = parseStatusKeywords(keywords);
                     return (
                       <Box key={param}>
                         {statusValueCounts.length > 1 && (
                           <Typography variant="body2" fontWeight={700} sx={{ mb: 0.5 }}>
                             {formatDisplayName(param, { withUnit: false })}
+                          </Typography>
+                        )}
+                        {keywordList.length > 0 && (
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                            Keywords: {keywordList.join(', ')}
                           </Typography>
                         )}
                         <Box sx={{ height: 280 }}>
@@ -453,7 +482,7 @@ export default function StatusDashboard({ socket }) {
                 <Typography variant="subtitle1" fontWeight={700}>
                   Status history
                 </Typography>
-                <Chip label={`${history.length} rows`} size="small" />
+                <Chip label={`${filteredHistory.length} rows`} size="small" />
               </Box>
               <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 360 }}>
                 <Table size="small" stickyHeader>
@@ -468,7 +497,7 @@ export default function StatusDashboard({ socket }) {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {history.slice(0, 200).map((row, idx) => (
+                    {filteredHistory.slice(0, 200).map((row, idx) => (
                       <TableRow key={`${row.timestamp}-${idx}`}>
                         <TableCell sx={{ whiteSpace: 'nowrap' }}>
                           {formatInUserTimezone(row.timestamp)}

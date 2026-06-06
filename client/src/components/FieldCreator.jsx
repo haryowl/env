@@ -53,6 +53,7 @@ const FieldCreator = () => {
     description: '',
     category: '',
     is_standard: true,
+    status_keywords: '',
   });
 
   const dataTypes = ['string', 'number', 'boolean', 'timestamp', 'json'];
@@ -106,6 +107,7 @@ const FieldCreator = () => {
         description: field.description || '',
         category: field.category || '',
         is_standard: field.is_standard !== false,
+        status_keywords: field.status_keywords || '',
       });
     } else {
       setEditingField(null);
@@ -117,6 +119,7 @@ const FieldCreator = () => {
         description: '',
         category: '',
         is_standard: true,
+        status_keywords: '',
       });
     }
     setDialogOpen(true);
@@ -133,6 +136,7 @@ const FieldCreator = () => {
       description: '',
       category: '',
       is_standard: true,
+      status_keywords: '',
     });
   };
 
@@ -444,6 +448,18 @@ const FieldCreator = () => {
                 placeholder="Describe what this field represents..."
               />
             </Grid>
+            {formData.category === 'Status' && (
+              <Grid size={{ xs: 12 }}>
+                <TextField
+                  fullWidth
+                  label="Status distribution keywords"
+                  value={formData.status_keywords}
+                  onChange={handleInputChange('status_keywords')}
+                  placeholder="e.g. sukses, success, false, true"
+                  helperText="Comma-separated words used to group status text on the Status chart (case-insensitive match inside the value)."
+                />
+              </Grid>
+            )}
           </Grid>
         </DialogContent>
         <DialogActions>

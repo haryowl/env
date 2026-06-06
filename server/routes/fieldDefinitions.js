@@ -1,12 +1,22 @@
 const express = require('express');
 const { authorizeRole } = require('../middleware/auth');
 const { getRow, getRows, query } = require('../config/database');
+const { ensureFieldDefinitionsSchema } = require('../utils/ensureFieldDefinitionsSchema');
 
 const router = express.Router();
+
+let schemaReady = false;
+async function ensureSchema() {
+  if (!schemaReady) {
+    await ensureFieldDefinitionsSchema();
+    schemaReady = true;
+  }
+}
 
 // GET /api/field-definitions - Get all field definitions
 router.get('/', async (req, res) => {
   try {
+    await ensureSchema();
     const { category, is_standard } = req.query;
     
     let conditions = [];
@@ -74,6 +84,8 @@ router.get('/', async (req, res) => {
 // POST /api/field-definitions - Create a new field definition
 router.post('/', authorizeRole(['super_admin', 'admin']), async (req, res) => {
   try {
+    await ensureSchema();
+
     const { 
       field_name, 
       display_name, 
@@ -81,7 +93,8 @@ router.post('/', authorizeRole(['super_admin', 'admin']), async (req, res) => {
       unit, 
       description, 
       category, 
-      is_standard 
+      is_standard,
+      status_keywords,
     } = req.body;
 
     // Validate required fields
@@ -109,8 +122,8 @@ router.post('/', authorizeRole(['super_admin', 'admin']), async (req, res) => {
     const result = await query(`
       INSERT INTO field_definitions (
         field_name, display_name, data_type, unit, description, 
-        category, is_standard, created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        category, is_standard, status_keywords, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
     `, [
       field_name,
@@ -120,6 +133,7 @@ router.post('/', authorizeRole(['super_admin', 'admin']), async (req, res) => {
       description || null,
       category || null,
       is_standard !== false,
+      status_keywords || null,
       req.user.user_id
     ]);
 
@@ -142,13 +156,16 @@ router.post('/', authorizeRole(['super_admin', 'admin']), async (req, res) => {
 router.put('/:id', authorizeRole(['super_admin', 'admin']), async (req, res) => {
   try {
     const { id } = req.params;
+    await ensureSchema();
+
     const { 
       display_name, 
       data_type, 
       unit, 
       description, 
       category, 
-      is_standard 
+      is_standard,
+      status_keywords,
     } = req.body;
 
     // Validate required fields
@@ -176,8 +193,8 @@ router.put('/:id', authorizeRole(['super_admin', 'admin']), async (req, res) => 
     const result = await query(`
       UPDATE field_definitions 
       SET display_name = $1, data_type = $2, unit = $3, description = $4, 
-          category = $5, is_standard = $6, updated_at = NOW()
-      WHERE field_id = $7
+          category = $5, is_standard = $6, status_keywords = $7, updated_at = NOW()
+      WHERE field_id = $8
       RETURNING *
     `, [
       display_name,
@@ -186,6 +203,7 @@ router.put('/:id', authorizeRole(['super_admin', 'admin']), async (req, res) => 
       description || null,
       category || null,
       is_standard !== false,
+      status_keywords || null,
       id
     ]);
 

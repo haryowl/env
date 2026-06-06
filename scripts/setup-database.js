@@ -252,6 +252,7 @@ const setupDatabase = async () => {
         unit VARCHAR(20),
         description TEXT,
         category VARCHAR(50),
+        status_keywords TEXT,
         is_standard BOOLEAN DEFAULT true,
         created_by INTEGER REFERENCES users(user_id),
         created_at TIMESTAMPTZ DEFAULT NOW(),
