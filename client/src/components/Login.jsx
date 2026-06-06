@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import {
   Box,
   Card,
@@ -10,6 +11,7 @@ import {
   CircularProgress,
   IconButton,
   Paper,
+  Link,
 } from '@mui/material';
 import {
   Visibility,
@@ -240,6 +242,12 @@ const Login = ({ onLogin }) => {
                 },
               }}
             />
+
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+              <Link component={RouterLink} to="/forgot-password" variant="body2" underline="hover">
+                Forgot password?
+              </Link>
+            </Box>
 
             <Button
               type="submit"

@@ -12,6 +12,12 @@ const {
 const { getRow, query } = require('../config/database');
 const { ensureTenantsSchema } = require('../utils/ensureTenantsSchema');
 const { resolveLogoutRedirectFromUserRow } = require('../utils/postLogoutRedirect');
+const { ensurePasswordResetSchema } = require('../utils/ensurePasswordResetSchema');
+const {
+  requestPasswordReset,
+  validateResetToken,
+  resetPasswordWithToken,
+} = require('../utils/passwordResetService');
 const moment = require('moment-timezone'); // Added missing import
 
 const router = express.Router();
@@ -49,6 +55,15 @@ const registerSchema = Joi.object({
 const changePasswordSchema = Joi.object({
   currentPassword: Joi.string().required(),
   newPassword: Joi.string().min(8).required()
+});
+
+const forgotPasswordSchema = Joi.object({
+  email: Joi.string().trim().required(),
+});
+
+const resetPasswordSchema = Joi.object({
+  token: Joi.string().trim().required(),
+  newPassword: Joi.string().min(8).required(),
 });
 
 // Login endpoint
@@ -170,6 +185,98 @@ router.post('/register', async (req, res) => {
     res.status(500).json({
       error: 'Registration failed',
       code: 'REGISTRATION_ERROR'
+    });
+  }
+});
+
+// Request password reset email (public)
+router.post('/forgot-password', authLimiter, async (req, res) => {
+  try {
+    await ensurePasswordResetSchema();
+
+    const { error, value } = forgotPasswordSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        error: 'Email or username is required',
+        code: 'VALIDATION_ERROR',
+      });
+    }
+
+    try {
+      await requestPasswordReset(value.email, req);
+    } catch (emailError) {
+      console.error('Forgot password email error:', emailError);
+    }
+
+    res.json({
+      message:
+        'If an account with that email or username exists, a password reset link has been sent.',
+    });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({
+      error: 'Failed to process password reset request',
+      code: 'FORGOT_PASSWORD_ERROR',
+    });
+  }
+});
+
+// Validate reset token (public; used by reset-password page)
+router.get('/reset-password/validate', async (req, res) => {
+  try {
+    await ensurePasswordResetSchema();
+    const token = req.query.token;
+    const result = await validateResetToken(token);
+    if (!result.valid) {
+      return res.status(400).json({
+        valid: false,
+        error: 'Invalid or expired reset link',
+        code: 'INVALID_RESET_TOKEN',
+      });
+    }
+    res.json({
+      valid: true,
+      username: result.username,
+      email: result.email,
+    });
+  } catch (error) {
+    console.error('Validate reset token error:', error);
+    res.status(500).json({
+      error: 'Failed to validate reset link',
+      code: 'VALIDATE_RESET_TOKEN_ERROR',
+    });
+  }
+});
+
+// Complete password reset with token (public)
+router.post('/reset-password', authLimiter, async (req, res) => {
+  try {
+    await ensurePasswordResetSchema();
+
+    const { error, value } = resetPasswordSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        error: 'Token and a new password (min 8 characters) are required',
+        code: 'VALIDATION_ERROR',
+      });
+    }
+
+    const result = await resetPasswordWithToken(value.token, value.newPassword);
+    if (!result.ok) {
+      return res.status(400).json({
+        error: result.error || 'Invalid or expired reset link',
+        code: 'INVALID_RESET_TOKEN',
+      });
+    }
+
+    res.json({
+      message: 'Password reset successfully. You can now sign in.',
+    });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({
+      error: 'Failed to reset password',
+      code: 'RESET_PASSWORD_ERROR',
     });
   }
 });

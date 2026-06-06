@@ -6,11 +6,55 @@ const bcrypt = require('bcryptjs');
 const { ensureTenantsSchema } = require('../utils/ensureTenantsSchema');
 const { ensureUsersSchema } = require('../utils/ensureUsersSchema');
 const { validatePostLogoutRedirectUrl } = require('../utils/postLogoutRedirect');
+const { ensurePasswordResetSchema } = require('../utils/ensurePasswordResetSchema');
+const {
+  setUserPassword,
+  requestPasswordResetForUser,
+} = require('../utils/passwordResetService');
 const path = require('path');
 const fs = require('fs').promises;
 const multer = require('multer');
 
 const router = express.Router();
+
+const adminPasswordSchema = Joi.object({
+  newPassword: Joi.string().min(8).required(),
+});
+
+async function assertCanManageTargetUserPassword(req, targetUserId) {
+  const actorId = Number(req.user.user_id);
+  const targetId = Number(targetUserId);
+  if (!Number.isFinite(targetId)) {
+    return { ok: false, status: 400, error: 'Invalid user id', code: 'INVALID_USER_ID' };
+  }
+  if (actorId === targetId) {
+    return {
+      ok: false,
+      status: 400,
+      error: 'Use Settings or change-password to update your own password',
+      code: 'CANNOT_RESET_SELF',
+    };
+  }
+
+  const targetUser = await getRow(
+    'SELECT user_id, username, email, role, status FROM users WHERE user_id = $1',
+    [targetId]
+  );
+  if (!targetUser) {
+    return { ok: false, status: 404, error: 'User not found', code: 'USER_NOT_FOUND' };
+  }
+
+  if (req.user.role === 'admin' && targetUser.role === 'super_admin') {
+    return {
+      ok: false,
+      status: 403,
+      error: 'Admins cannot reset super admin passwords',
+      code: 'FORBIDDEN_TARGET_ROLE',
+    };
+  }
+
+  return { ok: true, targetUser };
+}
 
 function profileUploadsDiskPath(webPath) {
   if (!webPath || typeof webPath !== 'string') return null;
@@ -265,6 +309,82 @@ router.delete('/:userId/profile-picture', canManageProfilePicture, async (req, r
   } catch (e) {
     console.error('Profile picture delete error:', e);
     res.status(500).json({ error: 'Failed to remove profile picture', code: 'DELETE_PICTURE_ERROR' });
+  }
+});
+
+// Admin: set a user's password directly
+router.put('/:userId/password', authorizeRole(['super_admin', 'admin']), async (req, res) => {
+  try {
+    const access = await assertCanManageTargetUserPassword(req, req.params.userId);
+    if (!access.ok) {
+      return res.status(access.status).json({ error: access.error, code: access.code });
+    }
+
+    const { error, value } = adminPasswordSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        error: 'New password must be at least 8 characters',
+        code: 'VALIDATION_ERROR',
+      });
+    }
+
+    await setUserPassword(access.targetUser.user_id, value.newPassword);
+
+    res.json({
+      message: `Password updated for ${access.targetUser.username}`,
+    });
+  } catch (error) {
+    console.error('Admin set password error:', error);
+    res.status(500).json({
+      error: 'Failed to update password',
+      code: 'ADMIN_SET_PASSWORD_ERROR',
+    });
+  }
+});
+
+// Admin: email password reset link to the user
+router.post('/:userId/send-password-reset', authorizeRole(['super_admin', 'admin']), async (req, res) => {
+  try {
+    await ensurePasswordResetSchema();
+
+    const access = await assertCanManageTargetUserPassword(req, req.params.userId);
+    if (!access.ok) {
+      return res.status(access.status).json({ error: access.error, code: access.code });
+    }
+
+    const targetUser = access.targetUser;
+    if (!targetUser.email) {
+      return res.status(400).json({
+        error: 'User has no email address on file',
+        code: 'USER_EMAIL_MISSING',
+      });
+    }
+    if (targetUser.status !== 'active') {
+      return res.status(400).json({
+        error: 'Password reset can only be sent to active users',
+        code: 'USER_NOT_ACTIVE',
+      });
+    }
+
+    try {
+      await requestPasswordResetForUser(targetUser, req);
+    } catch (emailError) {
+      console.error('Admin password reset email error:', emailError);
+      return res.status(503).json({
+        error: 'Unable to send reset email. Check Notification Config email settings.',
+        code: 'EMAIL_SEND_FAILED',
+      });
+    }
+
+    res.json({
+      message: `Password reset email sent to ${targetUser.email}`,
+    });
+  } catch (error) {
+    console.error('Admin send password reset error:', error);
+    res.status(500).json({
+      error: 'Failed to send password reset email',
+      code: 'ADMIN_SEND_RESET_ERROR',
+    });
   }
 });
 

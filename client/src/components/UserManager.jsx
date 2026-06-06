@@ -3,6 +3,7 @@ import { Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead
 import { API_BASE_URL } from '../config/api';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import LockResetIcon from '@mui/icons-material/LockReset';
 import { usePermissions } from '../hooks/usePermissions.jsx';
 import { broadcastUserProfilePicture, resolveProfilePictureUrl } from '../utils/profilePicture';
 
@@ -56,6 +57,22 @@ function UserManager() {
   const [deleteSuccess, setDeleteSuccess] = useState('');
   const [pictureUploading, setPictureUploading] = useState(false);
   const profilePicInputRef = useRef(null);
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [passwordUser, setPasswordUser] = useState(null);
+  const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' });
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [emailResetLoading, setEmailResetLoading] = useState(false);
+
+  const currentUserId = (() => {
+    try {
+      const me = JSON.parse(localStorage.getItem('iot_user') || '{}');
+      return me.user_id != null ? String(me.user_id) : '';
+    } catch {
+      return '';
+    }
+  })();
 
   useEffect(() => {
     fetchUsers();
@@ -320,6 +337,83 @@ function UserManager() {
     setEditLoading(false);
   };
 
+  const handleOpenPasswordDialog = (user) => {
+    setPasswordUser(user);
+    setPasswordForm({ newPassword: '', confirmPassword: '' });
+    setPasswordError('');
+    setPasswordSuccess('');
+    setPasswordDialogOpen(true);
+  };
+
+  const handleClosePasswordDialog = () => {
+    setPasswordDialogOpen(false);
+    setPasswordUser(null);
+  };
+
+  const handleSetUserPassword = async () => {
+    if (!passwordUser) return;
+    setPasswordError('');
+    setPasswordSuccess('');
+
+    if (passwordForm.newPassword.length < 8) {
+      setPasswordError('Password must be at least 8 characters.');
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordError('Passwords do not match.');
+      return;
+    }
+
+    setPasswordLoading(true);
+    try {
+      const token = localStorage.getItem('iot_token');
+      const res = await fetch(`${API_BASE_URL}/users/${passwordUser.user_id}/password`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ newPassword: passwordForm.newPassword }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setPasswordSuccess(data.message || 'Password updated successfully');
+        setPasswordForm({ newPassword: '', confirmPassword: '' });
+      } else {
+        setPasswordError(data.error || 'Failed to update password');
+      }
+    } catch {
+      setPasswordError('Failed to update password');
+    }
+    setPasswordLoading(false);
+  };
+
+  const handleSendPasswordResetEmail = async () => {
+    if (!passwordUser) return;
+    setPasswordError('');
+    setPasswordSuccess('');
+    setEmailResetLoading(true);
+    try {
+      const token = localStorage.getItem('iot_token');
+      const res = await fetch(
+        `${API_BASE_URL}/users/${passwordUser.user_id}/send-password-reset`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setPasswordSuccess(data.message || 'Password reset email sent');
+      } else {
+        setPasswordError(data.error || 'Failed to send reset email');
+      }
+    } catch {
+      setPasswordError('Failed to send reset email');
+    }
+    setEmailResetLoading(false);
+  };
+
   const handleOpenDeleteDialog = (user) => {
     setDeleteUser(user);
     setDeleteError('');
@@ -475,6 +569,19 @@ function UserManager() {
                     <IconButton onClick={() => handleOpenEditDialog(user)} size="small">
                       <EditIcon fontSize="small" />
                     </IconButton>
+                    <IconButton
+                      onClick={() => handleOpenPasswordDialog(user)}
+                      size="small"
+                      color="primary"
+                      disabled={String(user.user_id) === currentUserId}
+                      title={
+                        String(user.user_id) === currentUserId
+                          ? 'Use Settings to change your own password'
+                          : 'Reset password'
+                      }
+                    >
+                      <LockResetIcon fontSize="small" />
+                    </IconButton>
                     <IconButton onClick={() => handleOpenDeleteDialog(user)} size="small" color="error">
                       <DeleteIcon fontSize="small" />
                     </IconButton>
@@ -609,6 +716,54 @@ function UserManager() {
           <Button onClick={handleCloseEditDialog} disabled={editLoading}>Cancel</Button>
           <Button onClick={handleEditFormSubmit} variant="contained" disabled={editLoading}>
             {editLoading ? <CircularProgress size={20} /> : 'Save'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog open={passwordDialogOpen} onClose={handleClosePasswordDialog} maxWidth="sm" fullWidth>
+        <DialogTitle>Reset password</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            User: <strong>{passwordUser?.username}</strong>
+            {passwordUser?.email ? ` (${passwordUser.email})` : ''}
+          </Typography>
+          <TextField
+            label="New password"
+            type="password"
+            value={passwordForm.newPassword}
+            onChange={(e) => setPasswordForm((f) => ({ ...f, newPassword: e.target.value }))}
+            fullWidth
+            margin="normal"
+            autoComplete="new-password"
+          />
+          <TextField
+            label="Confirm new password"
+            type="password"
+            value={passwordForm.confirmPassword}
+            onChange={(e) => setPasswordForm((f) => ({ ...f, confirmPassword: e.target.value }))}
+            fullWidth
+            margin="normal"
+            autoComplete="new-password"
+          />
+          {passwordError && <Typography color="error" sx={{ mt: 1 }}>{passwordError}</Typography>}
+          {passwordSuccess && <Typography color="success.main" sx={{ mt: 1 }}>{passwordSuccess}</Typography>}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2, flexWrap: 'wrap', gap: 1 }}>
+          <Button onClick={handleClosePasswordDialog} disabled={passwordLoading || emailResetLoading}>
+            Close
+          </Button>
+          <Button
+            onClick={handleSendPasswordResetEmail}
+            variant="outlined"
+            disabled={passwordLoading || emailResetLoading || !passwordUser?.email}
+          >
+            {emailResetLoading ? <CircularProgress size={20} /> : 'Email reset link'}
+          </Button>
+          <Button
+            onClick={handleSetUserPassword}
+            variant="contained"
+            disabled={passwordLoading || emailResetLoading}
+          >
+            {passwordLoading ? <CircularProgress size={20} /> : 'Set password'}
           </Button>
         </DialogActions>
       </Dialog>

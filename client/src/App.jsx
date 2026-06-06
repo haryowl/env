@@ -6,6 +6,8 @@ import { FontProvider } from './contexts/FontContext';
 
 // Components
 import Login from './components/Login';
+import ForgotPassword from './components/ForgotPassword';
+import ResetPassword from './components/ResetPassword';
 import Dashboard from './components/Dashboard';
 import UDashboard from './components/UDashboard';
 import StatusDashboard from './components/StatusDashboard';
@@ -366,7 +368,14 @@ function App() {
       </Snackbar>
       <PermissionProvider>
         {!user ? (
-          <Login onLogin={handleLogin} />
+          <Router>
+            <Routes>
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/login" element={<Login onLogin={handleLogin} />} />
+              <Route path="*" element={<Login onLogin={handleLogin} />} />
+            </Routes>
+          </Router>
         ) : (
           <ErrorBoundary>
           <Router>

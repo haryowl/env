@@ -3,6 +3,7 @@ const { ensureSitesSchema } = require('./ensureSitesSchema');
 const { ensureAlertsSchema } = require('./ensureAlertsSchema');
 const { ensureDevicesSchema } = require('./ensureDevicesSchema');
 const { ensureFieldMappingsSchema } = require('./ensureFieldMappingsSchema');
+const { ensurePasswordResetSchema } = require('./ensurePasswordResetSchema');
 
 let ensured = false;
 
@@ -18,6 +19,7 @@ async function ensureCoreSchema() {
   await ensureAlertsSchema();
   await ensureDevicesSchema();
   await ensureFieldMappingsSchema();
+  await ensurePasswordResetSchema();
 
   ensured = true;
 }
