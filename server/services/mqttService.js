@@ -639,6 +639,21 @@ class MQTTService {
           }
         }
         
+        const readingMetadata = {
+          ...data.metadata,
+          datetime: canonicalDatetime || data.datetime,
+          _terminalTime: data._terminalTime,
+          _groupName: data._groupName,
+          payload: data,
+          dataAgeMinutes: freshnessInfo.ageMinutes,
+          dataAgeHours: freshnessInfo.ageHours,
+          dataAgeDays: freshnessInfo.ageDays,
+          isBufferedData: freshnessInfo.isBuffered,
+          isOldData: freshnessInfo.isOld,
+          isVeryOldData: freshnessInfo.isVeryOld,
+          serverReceivedAt: serverTimestamp.toISOString(),
+        };
+
         // Only insert if value is a valid number (including 0)
         if (typeof numericValue === 'number' && !isNaN(numericValue)) {
           // Check for duplicate data to avoid flooding database
@@ -659,23 +674,35 @@ class MQTTService {
             numericValue,
             data[`${field}_unit`] || null,
             timestamp,
-              JSON.stringify({
-                ...data.metadata,
-                datetime: canonicalDatetime || data.datetime,
-                _terminalTime: data._terminalTime,
-                _groupName: data._groupName,
-                payload: data,
-                dataAgeMinutes: freshnessInfo.ageMinutes,
-                dataAgeHours: freshnessInfo.ageHours,
-                dataAgeDays: freshnessInfo.ageDays,
-                isBufferedData: freshnessInfo.isBuffered,
-                isOldData: freshnessInfo.isOld,
-                isVeryOldData: freshnessInfo.isVeryOld,
-                serverReceivedAt: serverTimestamp.toISOString()
-              })
+            JSON.stringify(readingMetadata),
+          ]);
+        } else if (typeof value === 'string' && value.trim() !== '') {
+          const stringValue = value.trim();
+          const isDuplicate = await this.checkForDuplicateString(
+            device.device_id,
+            field,
+            stringValue,
+            timestamp
+          );
+
+          if (isDuplicate) {
+            console.log('storeDeviceData: Skipping duplicate string reading for', field, 'at', timestamp);
+            continue;
+          }
+
+          console.log('storeDeviceData: Inserting string sensor reading for field', field, 'value', stringValue);
+          await query(`
+            INSERT INTO sensor_readings (device_id, sensor_type, value, unit, timestamp, metadata)
+            VALUES ($1, $2, NULL, $3, $4, $5)
+          `, [
+            device.device_id,
+            field,
+            data[`${field}_unit`] || null,
+            timestamp,
+            JSON.stringify({ ...readingMetadata, string_value: stringValue }),
           ]);
         } else {
-          console.log('storeDeviceData: Skipping field', field, 'value', value, 'numericValue', numericValue, '(not a valid number)');
+          console.log('storeDeviceData: Skipping field', field, 'value', value, 'numericValue', numericValue, '(not storable)');
         }
         // If field is _terminalTime and is a valid date, store as metadata only (not as a sensor reading)
       }
@@ -703,6 +730,39 @@ class MQTTService {
       );
     } catch (error) {
       console.error('Failed to update device status:', error);
+    }
+  }
+
+  async checkForDuplicateString(deviceId, sensorType, stringValue, timestamp) {
+    try {
+      if (!bufferDataConfig.duplicateDetection.ENABLED) {
+        return false;
+      }
+
+      const DUPLICATE_WINDOW_SECONDS = bufferDataConfig.duplicateDetection.WINDOW_SECONDS;
+
+      const existing = await query(
+        `
+        SELECT id FROM sensor_readings
+        WHERE device_id = $1
+          AND sensor_type = $2
+          AND metadata->>'string_value' = $3
+          AND timestamp BETWEEN $4 AND $5
+        LIMIT 1
+      `,
+        [
+          deviceId,
+          sensorType,
+          stringValue,
+          new Date(timestamp.getTime() - DUPLICATE_WINDOW_SECONDS * 1000),
+          new Date(timestamp.getTime() + DUPLICATE_WINDOW_SECONDS * 1000),
+        ]
+      );
+
+      return existing.rows.length > 0;
+    } catch (error) {
+      console.error('Error checking for duplicate string data:', error);
+      return false;
     }
   }
 

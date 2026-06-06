@@ -16,6 +16,10 @@ const {
   parseCategoryQuery,
   fieldPassesCategoryFilter,
 } = require('../utils/fieldCategories');
+const {
+  normalizeReadingValue,
+  resolveSensorReadingValue,
+} = require('../utils/sensorReadingValue');
 
 const router = express.Router();
 
@@ -23,18 +27,10 @@ const POPUP_SKIP_SENSOR_TYPES = new Set(['datetime', 'timestamp', 'device_id', '
 
 const mappingSourceKey = (m) => m.source_field ?? m.source;
 
-function normalizeReadingValue(value) {
-  if (typeof value === 'string') {
-    const numValue = parseFloat(value);
-    return Number.isNaN(numValue) ? value : numValue;
-  }
-  return value;
-}
-
 async function fetchLatestSensorReadingsByType(deviceId) {
   const rows = await getRows(
     `SELECT DISTINCT ON (sensor_type)
-      sensor_type, value, timestamp
+      sensor_type, value, timestamp, metadata
      FROM sensor_readings
      WHERE device_id = $1
        AND timestamp <= NOW() + INTERVAL '5 minutes'
@@ -51,7 +47,7 @@ async function fetchLatestSensorReadingsByType(deviceId) {
     if (ts != null && (lastUpdatedAt == null || ts > lastUpdatedAt)) {
       lastUpdatedAt = ts;
     }
-    latestData[row.sensor_type] = normalizeReadingValue(row.value);
+    latestData[row.sensor_type] = resolveSensorReadingValue(row, row.sensor_type);
   }
 
   return { latestData, lastUpdatedAt };
@@ -115,22 +111,45 @@ async function fetchLatestPerMappedField(deviceId, dataMappings) {
     const target = m.target_field;
     if (!src || !target || POPUP_SKIP_SENSOR_TYPES.has(target)) continue;
 
-    const row = await getRow(
-      `SELECT value, timestamp
-       FROM sensor_readings
-       WHERE device_id = $1 AND sensor_type = $2
-         AND timestamp <= NOW() + INTERVAL '5 minutes'
-       ORDER BY timestamp DESC
-       LIMIT 1`,
-      [deviceId, src]
-    );
+    const typeKeys = [...new Set([src, target].filter(Boolean))];
+    let row = null;
+
+    for (const typeKey of typeKeys) {
+      row = await getRow(
+        `SELECT value, timestamp, metadata
+         FROM sensor_readings
+         WHERE device_id = $1 AND sensor_type = $2
+           AND timestamp <= NOW() + INTERVAL '5 minutes'
+         ORDER BY timestamp DESC
+         LIMIT 1`,
+        [deviceId, typeKey]
+      );
+      if (row) break;
+    }
+
+    if (!row) {
+      for (const typeKey of typeKeys) {
+        row = await getRow(
+          `SELECT value, timestamp, metadata
+           FROM sensor_readings
+           WHERE device_id = $1
+             AND metadata->'payload' ? $2
+             AND timestamp <= NOW() + INTERVAL '5 minutes'
+           ORDER BY timestamp DESC
+           LIMIT 1`,
+          [deviceId, typeKey]
+        );
+        if (row) break;
+      }
+    }
 
     if (!row) continue;
 
-    let mappedValue = normalizeReadingValue(row.value);
+    let mappedValue = resolveSensorReadingValue(row, ...typeKeys);
+    if (mappedValue === null || mappedValue === undefined) continue;
     if (m.formula) {
       try {
-        mappedValue = mathFormulaService.evaluateFormula(m.formula, { value: row.value });
+        mappedValue = mathFormulaService.evaluateFormula(m.formula, { value: mappedValue });
       } catch (_) {
         /* keep mappedValue */
       }

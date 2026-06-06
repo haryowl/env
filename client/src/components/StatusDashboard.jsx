@@ -25,11 +25,9 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import axios from 'axios';
 import { subHours } from 'date-fns';
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
+  PieChart,
+  Pie,
+  Cell,
   Tooltip,
   Legend,
   ResponsiveContainer,
@@ -41,7 +39,7 @@ import { formatInUserTimezone } from '../utils/timezoneUtils';
 import { getDeviceDisplayName } from '../utils/deviceLabel';
 import { filterStatusParams } from '../utils/fieldCategory';
 import PageHeader from './PageHeader';
-import { getChartCardSx, CHART_MARGIN, CARTESIAN_GRID_PROPS, getTooltipContentStyle } from '../utils/chartStyles';
+import { getChartCardSx, CHART_COLORS, getTooltipContentStyle } from '../utils/chartStyles';
 
 const formatStatusValue = (value, precision = 3) => {
   if (value === null || value === undefined || value === '') return '–';
@@ -197,17 +195,29 @@ export default function StatusDashboard({ socket }) {
     const handler = (payload) => {
       const id = payload?.deviceId || payload?.device_id;
       if (id !== deviceId || !payload?.data) return;
+
+      const row = {
+        timestamp: payload.timestamp ? new Date(payload.timestamp).toISOString() : new Date().toISOString(),
+      };
+      let hasStatusValue = false;
+
       setLatest((prev) => {
         const next = { ...prev };
         let changed = false;
         statusParams.forEach((param) => {
           if (payload.data[param] !== undefined && payload.data[param] !== null) {
             next[param] = payload.data[param];
+            row[param] = payload.data[param];
+            hasStatusValue = true;
             changed = true;
           }
         });
         return changed ? next : prev;
       });
+
+      if (hasStatusValue) {
+        setHistory((prev) => [row, ...prev].slice(0, 2000));
+      }
       if (payload.timestamp) {
         setLastUpdatedAt(new Date(payload.timestamp).toISOString());
       }
@@ -217,24 +227,31 @@ export default function StatusDashboard({ socket }) {
     return () => socket.off('device_data', handler);
   }, [socket, deviceId, statusParams]);
 
-  const chartData = useMemo(() => {
+  /** Count received readings grouped by status value text (48h history). */
+  const statusValueCounts = useMemo(() => {
     if (!history.length || statusParams.length === 0) return [];
-    return [...history]
-      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
-      .map((row) => {
-        const point = {
-          time: formatInUserTimezone(row.timestamp),
-          _ts: new Date(row.timestamp).getTime(),
-        };
-        statusParams.forEach((p) => {
-          const v = row[p];
-          if (v !== null && v !== undefined && v !== '') {
-            const n = typeof v === 'number' ? v : parseFloat(v);
-            point[p] = Number.isFinite(n) ? n : v;
-          }
-        });
-        return point;
+
+    return statusParams.map((param) => {
+      const counts = {};
+      history.forEach((row) => {
+        const raw = row[param];
+        if (raw === null || raw === undefined || raw === '') return;
+        const label = formatStatusValue(raw);
+        if (label === '–') return;
+        counts[label] = (counts[label] || 0) + 1;
       });
+
+      const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
+      const segments = Object.entries(counts)
+        .map(([name, value]) => ({
+          name,
+          value,
+          pct: total > 0 ? (value / total) * 100 : 0,
+        }))
+        .sort((a, b) => b.value - a.value);
+
+      return { param, segments, total };
+    });
   }, [history, statusParams]);
 
   const selectedDevice = devices.find((d) => d.device_id === deviceId);
@@ -357,35 +374,74 @@ export default function StatusDashboard({ socket }) {
           <Card sx={{ mb: 1.5, borderRadius: 1, ...getChartCardSx(theme) }}>
             <CardContent>
               <Typography variant="subtitle1" fontWeight={700} gutterBottom>
-                Status trend (48h)
+                Status value distribution (48h)
               </Typography>
-              {chartData.length === 0 ? (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+                Count of received readings grouped by status value content
+              </Typography>
+              {statusValueCounts.every(({ segments }) => segments.length === 0) ? (
                 <Typography variant="body2" color="text.secondary">
-                  No history in the selected period.
+                  No status values in the selected period.
                 </Typography>
               ) : (
-                <Box sx={{ height: 280 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData} margin={CHART_MARGIN}>
-                      <CartesianGrid {...CARTESIAN_GRID_PROPS} />
-                      <XAxis dataKey="time" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-                      <YAxis tick={{ fontSize: 10 }} width={48} />
-                      <Tooltip contentStyle={getTooltipContentStyle(theme)} />
-                      <Legend />
-                      {statusParams.map((param, idx) => (
-                        <Line
-                          key={param}
-                          type="monotone"
-                          dataKey={param}
-                          name={formatDisplayName(param, { withUnit: true })}
-                          stroke={['#2563eb', '#059669', '#d97706', '#dc2626', '#7c3aed'][idx % 5]}
-                          dot={false}
-                          strokeWidth={2}
-                          connectNulls
-                        />
-                      ))}
-                    </LineChart>
-                  </ResponsiveContainer>
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: { xs: '1fr', md: statusValueCounts.length > 1 ? '1fr 1fr' : '1fr' },
+                    gap: 2,
+                  }}
+                >
+                  {statusValueCounts.map(({ param, segments, total }, chartIdx) => {
+                    if (segments.length === 0) return null;
+                    return (
+                      <Box key={param}>
+                        {statusValueCounts.length > 1 && (
+                          <Typography variant="body2" fontWeight={700} sx={{ mb: 0.5 }}>
+                            {formatDisplayName(param, { withUnit: false })}
+                          </Typography>
+                        )}
+                        <Box sx={{ height: 280 }}>
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={segments}
+                                dataKey="value"
+                                nameKey="name"
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={56}
+                                outerRadius={96}
+                                paddingAngle={2}
+                                label={({ name, value, pct }) =>
+                                  `${name}: ${value} (${pct.toFixed(1)}%)`
+                                }
+                              >
+                                {segments.map((_, i) => (
+                                  <Cell
+                                    key={i}
+                                    fill={CHART_COLORS[(chartIdx * 3 + i) % CHART_COLORS.length]}
+                                    stroke="#fff"
+                                    strokeWidth={1}
+                                  />
+                                ))}
+                              </Pie>
+                              <Tooltip
+                                contentStyle={getTooltipContentStyle(theme)}
+                                formatter={(value, _name, entry) => [
+                                  `${Number(value)} readings (${entry.payload.pct.toFixed(1)}%)`,
+                                  entry.payload.name,
+                                ]}
+                              />
+                              <Legend />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center' }}>
+                          {total} readings with a value
+                        </Typography>
+                      </Box>
+                    );
+                  })}
                 </Box>
               )}
             </CardContent>

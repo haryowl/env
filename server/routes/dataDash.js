@@ -9,6 +9,11 @@ const {
   fieldPassesCategoryFilter,
   filterFieldNames,
 } = require('../utils/fieldCategories');
+const {
+  resolveSensorReadingValue,
+  isNonNumericFieldValue,
+  extractPayloadField,
+} = require('../utils/sensorReadingValue');
 const router = express.Router();
 
 // Apply authentication middleware (filterDeviceData applied at app level)
@@ -132,25 +137,50 @@ router.get(['/', ''], async (req, res) => {
       let mapped = false;
       if (device.mappings && Array.isArray(device.mappings) && device.mappings.length > 0) {
         for (const mapping of device.mappings) {
+          const src = mapping.source_field;
+          const tgt = mapping.target_field;
+          const typeKeys = [...new Set([src, tgt].filter(Boolean))];
           if (
-            mapping.source_field === row.sensor_type &&
-            mapping.target_field &&
-            fieldPassesCategoryFilter(mapping.target_field, categoryMap, categoryOpts)
+            typeKeys.includes(row.sensor_type) &&
+            tgt &&
+            fieldPassesCategoryFilter(tgt, categoryMap, categoryOpts)
           ) {
-            let mappedValue = row.value;
-            if (mapping.formula) {
+            let mappedValue = resolveSensorReadingValue(row, ...typeKeys);
+            if (mapping.formula && mappedValue !== null && mappedValue !== undefined) {
               try {
-                mappedValue = mathFormulaService.evaluateFormula(mapping.formula, { value: row.value });
+                mappedValue = mathFormulaService.evaluateFormula(mapping.formula, { value: mappedValue });
               } catch (e) {
-                mappedValue = row.value;
+                /* keep mappedValue */
               }
             }
+            if (mappedValue !== null && mappedValue !== undefined) {
+              mappedData.push({
+                datetime: row.datetime, // device time
+                timestamp: row.timestamp, // server receive time
+                device_id: row.device_id,
+                device_name: device.name,
+                [tgt]: mappedValue,
+              });
+              mapped = true;
+            }
+          }
+        }
+        // String/status fields may only exist inside metadata.payload on numeric rows.
+        if (device.mappings && row.metadata) {
+          for (const mapping of device.mappings) {
+            const src = mapping.source_field;
+            const tgt = mapping.target_field;
+            const typeKeys = [...new Set([src, tgt].filter(Boolean))];
+            if (!tgt || typeKeys.includes(row.sensor_type)) continue;
+            if (!fieldPassesCategoryFilter(tgt, categoryMap, categoryOpts)) continue;
+            const payloadVal = extractPayloadField(row.metadata, ...typeKeys);
+            if (!isNonNumericFieldValue(payloadVal)) continue;
             mappedData.push({
-              datetime: row.datetime, // device time
-              timestamp: row.timestamp, // server receive time
+              datetime: row.datetime,
+              timestamp: row.timestamp,
               device_id: row.device_id,
               device_name: device.name,
-              [mapping.target_field]: mappedValue
+              [tgt]: String(payloadVal).trim(),
             });
             mapped = true;
           }
