@@ -42,9 +42,11 @@ import { getDeviceDisplayName } from '../utils/deviceLabel';
 import { filterStatusParams } from '../utils/fieldCategory';
 import {
   classifyStatusValue,
+  getStatusKeywordsForParam,
   hasStatusValue,
   parseStatusKeywords,
   rowHasStatusValues,
+  usesDefaultStatusKeywords,
 } from '../utils/statusKeywords';
 import PageHeader from './PageHeader';
 import { getChartCardSx, CHART_COLORS, getTooltipContentStyle } from '../utils/chartStyles';
@@ -73,7 +75,7 @@ const formatStatusValue = (value, precision = 3) => {
 export default function StatusDashboard({ socket }) {
   const theme = useTheme();
   const { userPermissions } = usePermissions();
-  const { formatDisplayName, getUnit, metadata: fieldMetadata } = useFieldMetadata();
+  const { formatDisplayName, getUnit, metadata: fieldMetadata, refresh: refreshFieldMetadata } = useFieldMetadata();
 
   const [devices, setDevices] = useState([]);
   const [deviceId, setDeviceId] = useState('');
@@ -193,6 +195,10 @@ export default function StatusDashboard({ socket }) {
   }, [deviceId, statusParams, historyPeriodHours]);
 
   useEffect(() => {
+    refreshFieldMetadata();
+  }, [refreshFieldMetadata]);
+
+  useEffect(() => {
     loadDevices();
   }, [loadDevices]);
 
@@ -260,7 +266,8 @@ export default function StatusDashboard({ socket }) {
     if (!filteredHistory.length || statusParams.length === 0) return [];
 
     return statusParams.map((param) => {
-      const keywords = fieldMetadata?.[param]?.statusKeywords || '';
+      const keywords = getStatusKeywordsForParam(fieldMetadata, param);
+      const isDefaultKeywords = usesDefaultStatusKeywords(fieldMetadata, param);
       const counts = {};
 
       filteredHistory.forEach((row) => {
@@ -290,7 +297,7 @@ export default function StatusDashboard({ socket }) {
           return b.value - a.value;
         });
 
-      return { param, segments, total, keywords };
+      return { param, segments, total, keywords, isDefaultKeywords };
     });
   }, [filteredHistory, statusParams, fieldMetadata]);
 
@@ -514,7 +521,7 @@ export default function StatusDashboard({ socket }) {
                     gap: 2,
                   }}
                 >
-                  {statusValueCounts.map(({ param, segments, total, keywords }, chartIdx) => {
+                  {statusValueCounts.map(({ param, segments, total, keywords, isDefaultKeywords }, chartIdx) => {
                     if (segments.length === 0) return null;
                     const keywordList = parseStatusKeywords(keywords);
                     return (
@@ -527,6 +534,7 @@ export default function StatusDashboard({ socket }) {
                         {keywordList.length > 0 && (
                           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
                             Keywords: {keywordList.join(', ')}
+                            {isDefaultKeywords ? ' (default)' : ''}
                           </Typography>
                         )}
                         <Box sx={{ height: 280 }}>
