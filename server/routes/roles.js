@@ -768,6 +768,26 @@ router.get('/:roleId', authorizeRole(['super_admin', 'admin']), async (req, res)
       });
     }
 
+    const tableMenuPermissions = await getRows(`
+      SELECT menu_path, can_access, can_create, can_read, can_update, can_delete
+      FROM menu_permissions
+      WHERE role_id = $1
+    `, [roleId]);
+
+    if (tableMenuPermissions.length > 0) {
+      const fromTable = {};
+      tableMenuPermissions.forEach((perm) => {
+        fromTable[perm.menu_path] = {
+          access: Boolean(perm.can_access),
+          read: Boolean(perm.can_read),
+          create: Boolean(perm.can_create),
+          update: Boolean(perm.can_update),
+          delete: Boolean(perm.can_delete),
+        };
+      });
+      role.menu_permissions = fromTable;
+    }
+
     // Get users assigned to this role
     const users = await getRows(`
       SELECT 

@@ -128,6 +128,7 @@ export const ROUTE_MENU_PATH_MAP = {
   '/': '/dashboard',
   '/dashboard': '/dashboard',
   '/u-dashboard': '/u-dashboard',
+  '/status': '/status',
   '/m/dashboard': '/dashboard',
   '/quick-view': '/quick-view',
   '/m/quick-view': '/quick-view',

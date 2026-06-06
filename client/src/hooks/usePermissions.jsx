@@ -53,16 +53,11 @@ export const PermissionProvider = ({ children }) => {
           const data = await response.json();
           if (import.meta.env.DEV) console.log('API Permissions Response:', data);
           if (data.success && data.permissions) {
-            const defaultMenus = getDefaultMenuPermissions(user.role);
             const apiMenus = data.permissions.menu_permissions || {};
-            const mergedMenuPermissions = { ...defaultMenus };
-            Object.keys(apiMenus).forEach((path) => {
-              mergedMenuPermissions[path] = apiMenus[path];
-            });
             const permissions = {
               role: user.role,
               roles: data.permissions.roles || [],
-              menuPermissions: mergedMenuPermissions,
+              menuPermissions: apiMenus,
               devicePermissions: data.permissions.device_permissions || {}
             };
             if (import.meta.env.DEV) console.log('Processed Permissions:', permissions);
@@ -334,8 +329,11 @@ export const PermissionProvider = ({ children }) => {
     const backendPermission = permissionMap[permission] || permission;
     const perms = userPermissions.menuPermissions[menuPath];
     if (!perms) return false;
-    // Support both API format (can_access) and fallback format (access)
-    return perms[backendPermission] || perms[permission] || false;
+    // Support both API format (can_access) and fallback format (access).
+    // Use explicit === true so false can_access does not fall through to access: true.
+    if (perms[backendPermission] !== undefined) return perms[backendPermission] === true;
+    if (perms[permission] !== undefined) return perms[permission] === true;
+    return false;
   };
 
   const hasDevicePermission = (permission = 'read') => {

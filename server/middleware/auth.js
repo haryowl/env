@@ -187,6 +187,24 @@ const authorizeMenuAccess = (menuPath, requiredPermission = 'access') => {
         }
       }
       
+      const readMenuPermissionValue = (source, requiredPermission) => {
+        if (!source || typeof source !== 'object') return null;
+        const keyMap = {
+          access: ['can_access', 'access'],
+          create: ['can_create', 'create'],
+          read: ['can_read', 'read'],
+          update: ['can_update', 'update'],
+          delete: ['can_delete', 'delete'],
+        };
+        const keys = keyMap[requiredPermission] || [requiredPermission];
+        for (const key of keys) {
+          if (source[key] !== undefined) return source[key] === true;
+        }
+        return null;
+      };
+
+      let hasExplicitMenuConfig = false;
+
       // Check menu permissions for each role
       for (const userRole of userRoles) {
         // First, check menu_permissions table
@@ -199,33 +217,13 @@ const authorizeMenuAccess = (menuPath, requiredPermission = 'access') => {
         let permissionValue = null;
         
         if (menuPermission) {
-          // Use permission from table
-          if (requiredPermission === 'access') {
-            permissionValue = menuPermission.can_access;
-          } else if (requiredPermission === 'create') {
-            permissionValue = menuPermission.can_create;
-          } else if (requiredPermission === 'read') {
-            permissionValue = menuPermission.can_read;
-          } else if (requiredPermission === 'update') {
-            permissionValue = menuPermission.can_update;
-          } else if (requiredPermission === 'delete') {
-            permissionValue = menuPermission.can_delete;
-          }
+          hasExplicitMenuConfig = true;
+          permissionValue = readMenuPermissionValue(menuPermission, requiredPermission);
         } else if (userRole.menu_permissions && typeof userRole.menu_permissions === 'object') {
-          // Fallback to JSONB column if table is empty
           const menuPerms = userRole.menu_permissions[menuPath];
           if (menuPerms && typeof menuPerms === 'object') {
-            if (requiredPermission === 'access') {
-              permissionValue = menuPerms.access || menuPerms.can_access || false;
-            } else if (requiredPermission === 'create') {
-              permissionValue = menuPerms.create || menuPerms.can_create || false;
-            } else if (requiredPermission === 'read') {
-              permissionValue = menuPerms.read || menuPerms.can_read || false;
-            } else if (requiredPermission === 'update') {
-              permissionValue = menuPerms.update || menuPerms.can_update || false;
-            } else if (requiredPermission === 'delete') {
-              permissionValue = menuPerms.delete || menuPerms.can_delete || false;
-            }
+            hasExplicitMenuConfig = true;
+            permissionValue = readMenuPermissionValue(menuPerms, requiredPermission);
           }
         }
         
@@ -251,8 +249,8 @@ const authorizeMenuAccess = (menuPath, requiredPermission = 'access') => {
         }
       }
 
-      // Fallback: If no explicit permissions found, check role-based fallbacks
-      if (!hasAccess) {
+      // Fallback: legacy roles with no explicit row/config for this menu path
+      if (!hasAccess && !hasExplicitMenuConfig) {
         const fallbackPermissions = {
           'operator': ['/dashboard', '/u-dashboard', '/status', '/devices', '/live-tracking', '/data', '/data-dash', '/comparison-dashboard', '/alerts', '/alert-settings', '/scheduled-exports', '/maintenance', '/company-site', '/sensor-management'],
           'operate': ['/dashboard', '/u-dashboard', '/status', '/devices', '/live-tracking', '/data', '/data-dash', '/comparison-dashboard', '/alerts', '/alert-settings', '/scheduled-exports', '/maintenance', '/company-site', '/sensor-management'],
