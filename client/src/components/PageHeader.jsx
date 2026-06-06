@@ -29,7 +29,7 @@ export default function PageHeader({
         ...(sx || {}),
       }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0, flex: { xs: '1 1 100%', sm: '1 1 auto' } }}>
         <Box
           sx={{
             width: 32,
@@ -46,18 +46,34 @@ export default function PageHeader({
         >
           {icon}
         </Box>
-        <Box>
+        <Box sx={{ minWidth: 0 }}>
           <Typography sx={{ fontWeight: 800, color: 'text.primary', fontSize: '1.05rem', lineHeight: 1.15 }}>
             {title}
           </Typography>
           {subtitle ? (
-            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+            <Typography
+              variant="caption"
+              sx={{ color: 'text.secondary', fontWeight: 600, wordBreak: 'break-word', display: 'block' }}
+            >
               {subtitle}
             </Typography>
           ) : null}
         </Box>
       </Box>
-      {right ? <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>{right}</Box> : null}
+      {right ? (
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            minWidth: 0,
+            width: { xs: '100%', sm: 'auto' },
+            flex: { xs: '1 1 100%', sm: '0 0 auto' },
+          }}
+        >
+          {right}
+        </Box>
+      ) : null}
     </Box>
   );
 }

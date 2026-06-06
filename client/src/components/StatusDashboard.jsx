@@ -21,6 +21,7 @@ import {
   Button,
   Stack,
   useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
@@ -62,6 +63,30 @@ const HISTORY_PERIOD_OPTIONS = [
 const getPeriodLabel = (hours) =>
   HISTORY_PERIOD_OPTIONS.find((o) => o.value === hours)?.label?.replace(/^Last /i, '') || `${hours}h`;
 
+const responsiveCardSx = {
+  width: '100%',
+  minWidth: 0,
+  maxWidth: '100%',
+  overflow: 'hidden',
+  boxSizing: 'border-box',
+};
+
+const wrapTextCellSx = {
+  wordBreak: 'break-word',
+  overflowWrap: 'anywhere',
+  whiteSpace: 'normal',
+  verticalAlign: 'top',
+  fontSize: { xs: '0.72rem', sm: '0.8125rem' },
+  px: { xs: 0.75, sm: 1.5 },
+};
+
+const tableScrollSx = {
+  width: '100%',
+  maxWidth: '100%',
+  overflowX: 'auto',
+  WebkitOverflowScrolling: 'touch',
+};
+
 const formatStatusValue = (value, precision = 3) => {
   if (value === null || value === undefined || value === '') return '–';
   if (typeof value === 'number') {
@@ -74,6 +99,8 @@ const formatStatusValue = (value, precision = 3) => {
 
 export default function StatusDashboard({ socket }) {
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isCompact = useMediaQuery(theme.breakpoints.down('md'));
   const { userPermissions } = usePermissions();
   const { formatDisplayName, getUnit, metadata: fieldMetadata, refresh: refreshFieldMetadata } = useFieldMetadata();
 
@@ -387,24 +414,55 @@ export default function StatusDashboard({ socket }) {
   const periodLabel = getPeriodLabel(historyPeriodHours);
 
   return (
-    <Box sx={{ p: { xs: 1, sm: 1.5 }, maxWidth: 1400, mx: 'auto' }}>
+    <Box
+      sx={{
+        p: { xs: 0.5, sm: 1, md: 1.5 },
+        width: '100%',
+        maxWidth: '100%',
+        minWidth: 0,
+        boxSizing: 'border-box',
+        overflowX: 'hidden',
+      }}
+    >
       <PageHeader
         icon={<InfoOutlinedIcon sx={{ fontSize: 18 }} />}
         title="Status"
-        subtitle="Device health and status parameters (Field Creator category: Status)"
+        subtitle={
+          isMobile
+            ? 'Status parameters (Field Creator: Status)'
+            : 'Device health and status parameters (Field Creator category: Status)'
+        }
         sx={{
           mb: 1.5,
           border: 'none',
           boxShadow: 'none',
           borderRadius: 1,
           bgcolor: alpha(theme.palette.background.paper, 0.55),
+          width: '100%',
+          minWidth: 0,
         }}
         right={(
-          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: { xs: 'flex-start', sm: 'flex-end' } }}>
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: { xs: 'stretch', sm: 'flex-end' },
+              width: { xs: '100%', sm: 'auto' },
+              minWidth: 0,
+            }}
+          >
             <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
               Device
             </Typography>
-            <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 260 }, mt: 0.5 }}>
+            <FormControl
+              size="small"
+              sx={{
+                minWidth: 0,
+                width: { xs: '100%', sm: 260 },
+                maxWidth: '100%',
+                mt: 0.5,
+              }}
+            >
               <InputLabel id="status-device-label">Device</InputLabel>
               <Select
                 labelId="status-device-label"
@@ -466,9 +524,9 @@ export default function StatusDashboard({ socket }) {
 
       {!loading && statusParams.length > 0 && (
         <>
-          <Card sx={{ mb: 1.5, borderRadius: 1, ...getChartCardSx(theme) }}>
-            <CardContent>
-              <Typography variant="subtitle1" fontWeight={700} gutterBottom>
+          <Card sx={{ mb: 1.5, borderRadius: 1, ...getChartCardSx(theme), ...responsiveCardSx }}>
+            <CardContent sx={{ p: { xs: 1, sm: 1.5, md: 2 }, '&:last-child': { pb: { xs: 1, sm: 1.5, md: 2 } } }}>
+              <Typography variant="subtitle1" fontWeight={700} gutterBottom sx={{ fontSize: { xs: '0.95rem', sm: '1rem' } }}>
                 Current status values
               </Typography>
               {lastUpdatedAt && (
@@ -476,23 +534,23 @@ export default function StatusDashboard({ socket }) {
                   Last update: {formatInUserTimezone(lastUpdatedAt)}
                 </Typography>
               )}
-              <TableContainer component={Paper} variant="outlined">
-                <Table size="small">
+              <TableContainer component={Paper} variant="outlined" sx={tableScrollSx}>
+                <Table size="small" sx={{ tableLayout: 'fixed', width: '100%', minWidth: 0 }}>
                   <TableHead>
                     <TableRow>
-                      <TableCell>Parameter</TableCell>
-                      <TableCell align="right">Value</TableCell>
-                      <TableCell>Unit</TableCell>
+                      <TableCell sx={{ width: { xs: '28%', sm: '34%' } }}>Parameter</TableCell>
+                      <TableCell sx={{ width: { xs: '52%', sm: 'auto' } }}>Value</TableCell>
+                      <TableCell sx={{ width: { xs: '20%', sm: '12%' }, whiteSpace: 'nowrap' }}>Unit</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {statusParams.map((param) => (
                       <TableRow key={param}>
-                        <TableCell>{formatDisplayName(param, { withUnit: false })}</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 700 }}>
+                        <TableCell sx={wrapTextCellSx}>{formatDisplayName(param, { withUnit: false })}</TableCell>
+                        <TableCell sx={{ ...wrapTextCellSx, fontWeight: 700 }}>
                           {formatStatusValue(latest[param])}
                         </TableCell>
-                        <TableCell>{getUnit(param) || '–'}</TableCell>
+                        <TableCell sx={{ ...wrapTextCellSx, whiteSpace: 'nowrap' }}>{getUnit(param) || '–'}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -501,12 +559,16 @@ export default function StatusDashboard({ socket }) {
             </CardContent>
           </Card>
 
-          <Card sx={{ mb: 1.5, borderRadius: 1, ...getChartCardSx(theme) }}>
-            <CardContent>
-              <Typography variant="subtitle1" fontWeight={700} gutterBottom>
+          <Card sx={{ mb: 1.5, borderRadius: 1, ...getChartCardSx(theme), ...responsiveCardSx }}>
+            <CardContent sx={{ p: { xs: 1, sm: 1.5, md: 2 }, '&:last-child': { pb: { xs: 1, sm: 1.5, md: 2 } } }}>
+              <Typography variant="subtitle1" fontWeight={700} gutterBottom sx={{ fontSize: { xs: '0.95rem', sm: '1rem' } }}>
                 Status value distribution ({periodLabel})
               </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ display: 'block', mb: 1.5, wordBreak: 'break-word' }}
+              >
                 Count of received readings grouped by status keywords (Field Creator) or full value text
               </Typography>
               {statusValueCounts.every(({ segments }) => segments.length === 0) ? (
@@ -519,25 +581,31 @@ export default function StatusDashboard({ socket }) {
                     display: 'grid',
                     gridTemplateColumns: { xs: '1fr', md: statusValueCounts.length > 1 ? '1fr 1fr' : '1fr' },
                     gap: 2,
+                    width: '100%',
+                    minWidth: 0,
                   }}
                 >
                   {statusValueCounts.map(({ param, segments, total, keywords, isDefaultKeywords }, chartIdx) => {
                     if (segments.length === 0) return null;
                     const keywordList = parseStatusKeywords(keywords);
                     return (
-                      <Box key={param}>
+                      <Box key={param} sx={{ minWidth: 0, width: '100%' }}>
                         {statusValueCounts.length > 1 && (
-                          <Typography variant="body2" fontWeight={700} sx={{ mb: 0.5 }}>
+                          <Typography variant="body2" fontWeight={700} sx={{ mb: 0.5, wordBreak: 'break-word' }}>
                             {formatDisplayName(param, { withUnit: false })}
                           </Typography>
                         )}
                         {keywordList.length > 0 && (
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{ display: 'block', mb: 0.5, wordBreak: 'break-word' }}
+                          >
                             Keywords: {keywordList.join(', ')}
                             {isDefaultKeywords ? ' (default)' : ''}
                           </Typography>
                         )}
-                        <Box sx={{ height: 280 }}>
+                        <Box sx={{ height: { xs: 240, sm: 280 }, width: '100%', minWidth: 0 }}>
                           <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                               <Pie
@@ -546,11 +614,13 @@ export default function StatusDashboard({ socket }) {
                                 nameKey="name"
                                 cx="50%"
                                 cy="50%"
-                                innerRadius={56}
-                                outerRadius={96}
+                                innerRadius={isMobile ? 42 : isCompact ? 48 : 56}
+                                outerRadius={isMobile ? 68 : isCompact ? 82 : 96}
                                 paddingAngle={2}
-                                label={({ name, value, pct }) =>
-                                  `${name}: ${value} (${pct.toFixed(1)}%)`
+                                label={
+                                  isMobile
+                                    ? false
+                                    : ({ name, value, pct }) => `${name}: ${value} (${pct.toFixed(1)}%)`
                                 }
                               >
                                 {segments.map((_, i) => (
@@ -569,7 +639,13 @@ export default function StatusDashboard({ socket }) {
                                   entry.payload.name,
                                 ]}
                               />
-                              <Legend />
+                              <Legend
+                                wrapperStyle={{
+                                  width: '100%',
+                                  fontSize: isMobile ? 11 : 12,
+                                  paddingTop: 8,
+                                }}
+                              />
                             </PieChart>
                           </ResponsiveContainer>
                         </Box>
@@ -584,8 +660,8 @@ export default function StatusDashboard({ socket }) {
             </CardContent>
           </Card>
 
-          <Card sx={{ borderRadius: 1, ...getChartCardSx(theme) }}>
-            <CardContent>
+          <Card sx={{ borderRadius: 1, ...getChartCardSx(theme), ...responsiveCardSx }}>
+            <CardContent sx={{ p: { xs: 1, sm: 1.5, md: 2 }, '&:last-child': { pb: { xs: 1, sm: 1.5, md: 2 } } }}>
               <Box
                 sx={{
                   display: 'flex',
@@ -594,16 +670,30 @@ export default function StatusDashboard({ socket }) {
                   flexWrap: 'wrap',
                   gap: 1,
                   mb: 1,
+                  width: '100%',
+                  minWidth: 0,
                 }}
               >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                  <Typography variant="subtitle1" fontWeight={700}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', minWidth: 0 }}>
+                  <Typography variant="subtitle1" fontWeight={700} sx={{ fontSize: { xs: '0.95rem', sm: '1rem' } }}>
                     Status history
                   </Typography>
                   <Chip label={`${filteredHistory.length} rows`} size="small" />
                 </Box>
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} alignItems={{ sm: 'center' }}>
-                  <FormControl size="small" sx={{ minWidth: 160 }}>
+                <Stack
+                  direction={{ xs: 'column', sm: 'row' }}
+                  spacing={0.75}
+                  alignItems={{ xs: 'stretch', sm: 'center' }}
+                  sx={{ width: { xs: '100%', sm: 'auto' }, minWidth: 0 }}
+                >
+                  <FormControl
+                    size="small"
+                    sx={{
+                      minWidth: 0,
+                      width: { xs: '100%', sm: 160 },
+                      maxWidth: '100%',
+                    }}
+                  >
                     <InputLabel id="status-history-period-label">Period</InputLabel>
                     <Select
                       labelId="status-history-period-label"
@@ -621,6 +711,7 @@ export default function StatusDashboard({ socket }) {
                   <Button
                     variant="outlined"
                     size="small"
+                    fullWidth={isMobile}
                     disabled={exporting || !deviceId || statusParams.length === 0}
                     onClick={handleExportCSV}
                     sx={{ textTransform: 'none', fontWeight: 600, minHeight: 34 }}
@@ -630,6 +721,7 @@ export default function StatusDashboard({ socket }) {
                   <Button
                     variant="contained"
                     size="small"
+                    fullWidth={isMobile}
                     disabled={exporting || !deviceId || statusParams.length === 0}
                     onClick={handleExportXLSX}
                     sx={{ textTransform: 'none', fontWeight: 600, minHeight: 34 }}
@@ -643,13 +735,17 @@ export default function StatusDashboard({ socket }) {
                   Preparing export…
                 </Typography>
               )}
-              <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 360 }}>
-                <Table size="small" stickyHeader>
+              <TableContainer
+                component={Paper}
+                variant="outlined"
+                sx={{ ...tableScrollSx, maxHeight: { xs: 320, sm: 360 } }}
+              >
+                <Table size="small" stickyHeader sx={{ tableLayout: 'fixed', width: '100%', minWidth: 0 }}>
                   <TableHead>
                     <TableRow>
-                      <TableCell>Time</TableCell>
+                      <TableCell sx={{ width: { xs: '34%', sm: '28%' }, whiteSpace: 'nowrap' }}>Time</TableCell>
                       {statusParams.map((p) => (
-                        <TableCell key={p} align="right">
+                        <TableCell key={p} sx={{ ...wrapTextCellSx, width: { xs: '66%', sm: 'auto' } }}>
                           {formatDisplayName(p, { withUnit: false })}
                         </TableCell>
                       ))}
@@ -658,11 +754,11 @@ export default function StatusDashboard({ socket }) {
                   <TableBody>
                     {filteredHistory.slice(0, 200).map((row, idx) => (
                       <TableRow key={`${row.timestamp}-${idx}`}>
-                        <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                        <TableCell sx={{ ...wrapTextCellSx, whiteSpace: 'nowrap', width: { xs: '34%', sm: '28%' } }}>
                           {formatInUserTimezone(row.timestamp)}
                         </TableCell>
                         {statusParams.map((p) => (
-                          <TableCell key={p} align="right">
+                          <TableCell key={p} sx={{ ...wrapTextCellSx, width: { xs: '66%', sm: 'auto' } }}>
                             {formatStatusValue(row[p])}
                           </TableCell>
                         ))}
