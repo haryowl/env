@@ -57,6 +57,7 @@ import {
   buildRealtimeChartSeries,
   isHourlyChartDisplayMode,
   hourlyChartDisplayLabel,
+  formatChartTooltipTime,
 } from '../utils/realtimeChartAggregation';
 import RealtimeChartDisplaySelect from './RealtimeChartDisplaySelect';
 
@@ -184,7 +185,6 @@ export default function UDashboard({ socket }) {
       realtimeData,
       chartSeriesParams,
       realtimeChartDisplayMode,
-      (iso) => formatInUserTimezone(iso)
     );
   }, [realtimeData, chartSeriesParams, realtimeChartDisplayMode]);
 
@@ -311,7 +311,7 @@ export default function UDashboard({ socket }) {
       return (
         <Box sx={{ ...getTooltipContentStyle(theme), p: 1.1, borderRadius: 1.25, minWidth: 240 }}>
           <Typography sx={{ fontWeight: 800, fontSize: '0.85rem', mb: 0.5, color: 'text.primary' }}>
-            {formatInUserTimezone(label)}
+            {formatChartTooltipTime(payload, label)}
           </Typography>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.35 }}>
             {rows.map((r) => (
@@ -986,10 +986,7 @@ export default function UDashboard({ socket }) {
                       dataKey="timestamp"
                       minTickGap={20}
                       tick={AXIS_TICK_STYLE}
-                      tickFormatter={(value) => {
-                        if (typeof value === 'string' && !value.includes('T')) return value;
-                        return formatInUserTimezone(value);
-                      }}
+                      tickFormatter={(value) => formatInUserTimezone(value)}
                     />
                     <YAxis
                       type="number"

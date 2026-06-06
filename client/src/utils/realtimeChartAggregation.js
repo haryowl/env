@@ -1,5 +1,5 @@
 import moment from 'moment-timezone';
-import { getUserTimezone } from './timezoneUtils';
+import { getUserTimezone, formatInUserTimezone } from './timezoneUtils';
 
 export const REALTIME_CHART_DISPLAY_MODES = {
   INSTANT: 'instant',
@@ -45,12 +45,12 @@ function rowInstant(row) {
 
 /**
  * Build chart series from raw /data-dash rows.
+ * `timestamp` and `originalTimestamp` are always UTC ISO strings; format for display in the chart axis/tooltip only.
  * @param {object[]} rows
  * @param {string[]} params - numeric series keys (no datetime/timestamp)
  * @param {'instant'|'avg_hour'|'total_hour'} mode
- * @param {(iso: string) => string} formatTimestamp
  */
-export function buildRealtimeChartSeries(rows, params, mode, formatTimestamp) {
+export function buildRealtimeChartSeries(rows, params, mode) {
   if (!rows?.length) return [];
 
   const sorted = [...rows].sort((a, b) => {
@@ -63,9 +63,9 @@ export function buildRealtimeChartSeries(rows, params, mode, formatTimestamp) {
     return sorted.map((r) => {
       const iso = r.timestamp || r.datetime;
       return {
-        timestamp: formatTimestamp(iso),
-        originalTimestamp: iso,
         ...r,
+        originalTimestamp: iso,
+        timestamp: iso,
       };
     });
   }
@@ -99,7 +99,7 @@ export function buildRealtimeChartSeries(rows, params, mode, formatTimestamp) {
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([, bucket]) => {
       const point = {
-        timestamp: formatTimestamp(bucket.originalTimestamp),
+        timestamp: bucket.originalTimestamp,
         originalTimestamp: bucket.originalTimestamp,
         _hourlyAggregate: mode,
       };
@@ -111,4 +111,16 @@ export function buildRealtimeChartSeries(rows, params, mode, formatTimestamp) {
       }
       return point;
     });
+}
+
+/** Format chart tooltip time from payload (avoids double timezone conversion). */
+export function formatChartTooltipTime(payload, label) {
+  const iso = payload?.[0]?.payload?.originalTimestamp ?? payload?.[0]?.payload?.timestamp;
+  if (iso != null && iso !== '') {
+    return formatInUserTimezone(iso);
+  }
+  if (typeof label === 'string' && label.includes('T')) {
+    return formatInUserTimezone(label);
+  }
+  return label || '-';
 }
