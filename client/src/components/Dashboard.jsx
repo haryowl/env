@@ -496,7 +496,8 @@ const Dashboard = ({ socket }) => {
     }
 
     // Ensure chronological order (oldest -> newest)
-    const rows = [...realtimeData].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    const rowTime = (r) => r.datetime ?? r.timestamp;
+    const rows = [...realtimeData].sort((a, b) => new Date(rowTime(a)) - new Date(rowTime(b)));
     const getNum = (v) => {
       if (v === null || v === undefined || v === '') return null;
       const n = typeof v === 'number' ? v : parseFloat(String(v));
@@ -508,7 +509,7 @@ const Dashboard = ({ socket }) => {
 
     params.forEach((p) => {
       const series = rows
-        .map(r => ({ t: r.timestamp, v: getNum(r[p]) }))
+        .map(r => ({ t: rowTime(r), v: getNum(r[p]) }))
         .filter(pt => pt.v !== null);
 
       const sparkSlice = series.slice(Math.max(0, series.length - sparkPoints));
@@ -758,8 +759,8 @@ const Dashboard = ({ socket }) => {
       
       // Set latest values for cards - find the actual latest data by timestamp
       if (mappedData.length > 0) {
-        // Sort data by timestamp to find the actual latest
-        const sortedData = mappedData.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        const rowTime = (r) => r.datetime ?? r.timestamp;
+        const sortedData = mappedData.sort((a, b) => new Date(rowTime(b)) - new Date(rowTime(a)));
         const latestRecord = sortedData[0]; // Get the newest record
         
         const latest = {};
@@ -791,12 +792,13 @@ const Dashboard = ({ socket }) => {
       setRealtimeAlertLogs([]);
       return;
     }
+    const rowTime = (r) => r.datetime ?? r.timestamp;
     const startDate = realtimeData.reduce((min, r) => {
-      const t = new Date(r.timestamp).getTime();
+      const t = new Date(rowTime(r)).getTime();
       return t < min ? t : min;
     }, Infinity);
     const endDate = realtimeData.reduce((max, r) => {
-      const t = new Date(r.timestamp).getTime();
+      const t = new Date(rowTime(r)).getTime();
       return t > max ? t : max;
     }, -Infinity);
     if (!Number.isFinite(startDate) || !Number.isFinite(endDate)) {

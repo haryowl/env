@@ -540,18 +540,23 @@ class MQTTService {
       console.log('storeDeviceData: data received for storage:', data);
       
       const tz = device.timezone || device.effective_timezone || 'UTC';
-      const rawDt = rawPayload?.datetime ?? data?.datetime;
+      // `data` is processed/mapped payload — use mapper target field `datetime` only.
+      const mappedDatetime = data?.datetime;
       let deviceTimestamp = new Date();
       let canonicalDatetime = null;
-      if (rawDt != null && rawDt !== '') {
-        canonicalDatetime = normalizeDatetimeToUtc(rawDt, tz);
-        if (canonicalDatetime) {
-          deviceTimestamp = new Date(canonicalDatetime);
-        }
-      } else if (data?.datetime) {
-        canonicalDatetime = normalizeDatetimeToUtc(data.datetime, tz);
-        if (canonicalDatetime) {
-          deviceTimestamp = new Date(canonicalDatetime);
+
+      if (mappedDatetime != null && mappedDatetime !== '') {
+        const parsed = new Date(mappedDatetime);
+        if (!Number.isNaN(parsed.getTime())) {
+          canonicalDatetime =
+            typeof mappedDatetime === 'string' ? mappedDatetime : parsed.toISOString();
+          deviceTimestamp = parsed;
+        } else {
+          const normalized = normalizeDatetimeToUtc(mappedDatetime, tz);
+          if (normalized) {
+            canonicalDatetime = normalized;
+            deviceTimestamp = new Date(normalized);
+          }
         }
       }
       const serverTimestamp = new Date();
@@ -616,8 +621,13 @@ class MQTTService {
       
       // Store all fields from the payload as individual sensor readings
       for (const [field, value] of Object.entries(data)) {
-        // Skip metadata fields and null/undefined values
-        if (field === 'metadata' || value === null || value === undefined) {
+        // Skip metadata fields, mapped datetime, and null/undefined values
+        if (
+          field === 'metadata' ||
+          field === 'datetime' ||
+          value === null ||
+          value === undefined
+        ) {
           console.log('storeDeviceData: Skipping field', field, 'value:', value, '(metadata or null/undefined)');
           continue;
         }
@@ -641,7 +651,7 @@ class MQTTService {
         
         const readingMetadata = {
           ...data.metadata,
-          datetime: canonicalDatetime || data.datetime,
+          datetime: canonicalDatetime,
           _terminalTime: data._terminalTime,
           _groupName: data._groupName,
           payload: data,

@@ -45,7 +45,7 @@ function rowInstant(row) {
 
 /**
  * Build chart series from raw /data-dash rows.
- * `timestamp` and `originalTimestamp` are always UTC ISO strings; format for display in the chart axis/tooltip only.
+ * `datetime` is the mapped device time (primary); `timestamp` mirrors it for chart APIs.
  * @param {object[]} rows
  * @param {string[]} params - numeric series keys (no datetime/timestamp)
  * @param {'instant'|'avg_hour'|'total_hour'} mode
@@ -61,7 +61,7 @@ export function buildRealtimeChartSeries(rows, params, mode) {
 
   if (!mode || mode === REALTIME_CHART_DISPLAY_MODES.INSTANT) {
     return sorted.map((r) => {
-      const iso = r.timestamp || r.datetime;
+      const iso = r.datetime ?? r.timestamp;
       return {
         ...r,
         originalTimestamp: iso,
@@ -115,7 +115,7 @@ export function buildRealtimeChartSeries(rows, params, mode) {
 
 /** Format chart tooltip time from payload (avoids double timezone conversion). */
 export function formatChartTooltipTime(payload, label) {
-  const iso = payload?.[0]?.payload?.originalTimestamp ?? payload?.[0]?.payload?.timestamp;
+  const iso = payload?.[0]?.payload?.datetime ?? payload?.[0]?.payload?.originalTimestamp ?? payload?.[0]?.payload?.timestamp;
   if (iso != null && iso !== '') {
     return formatInUserTimezone(iso);
   }

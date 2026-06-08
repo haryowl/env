@@ -78,13 +78,14 @@ const QuickViewTable = ({ data, parameters, deviceName, alertConfigs = [], getEx
     if (!data || !Array.isArray(data)) return [];
     
     return data
-      .filter(item => item.datetime)
+      .filter(item => item.datetime ?? item.timestamp)
       .map(item => {
-        const formattedDateTime = formatInUserTimezone(item.datetime, 'YYYY-MM-DD HH:mm:ss');
+        const rawTime = item.datetime ?? item.timestamp;
+        const formattedDateTime = formatInUserTimezone(rawTime, 'YYYY-MM-DD HH:mm:ss');
         return {
           ...item,
-          datetime: formattedDateTime, // This should come AFTER the spread to override the original
-          timestamp: new Date(item.datetime).getTime(),
+          datetime: formattedDateTime,
+          timestamp: new Date(rawTime).getTime(),
         };
       })
       .sort((a, b) => b.timestamp - a.timestamp); // Most recent first

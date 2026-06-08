@@ -1,7 +1,6 @@
 const express = require('express');
 const { query, getRow } = require('../config/database');
 const mathFormulaService = require('../services/mathFormulaService');
-const parseDeviceDatetime = require('../services/parseDeviceDatetime');
 const { authenticateToken } = require('../middleware/auth');
 const {
   getFieldCategoryMap,
@@ -14,6 +13,12 @@ const {
   isNonNumericFieldValue,
   extractPayloadField,
 } = require('../utils/sensorReadingValue');
+const {
+  resolveDeviceDatetimeFromReading,
+  resolveServerReceivedAt,
+  deviceReadingMergeKey,
+  compareDeviceTime,
+} = require('../utils/deviceReadingTime');
 const router = express.Router();
 
 // Apply authentication middleware (filterDeviceData applied at app level)
@@ -130,10 +135,12 @@ router.get(['/', ''], async (req, res) => {
     const gpsRows = gpsResult.rows || [];
     console.log('Raw GPS tracks:', gpsRows.slice(0, 10));
 
-    // 3. Apply mapping to each row (use row.datetime as the main time axis)
+    // 3. Apply mapping to each row (device time = mapped target field `datetime`)
     let mappedData = [];
     for (const row of rawRows) {
       const device = deviceMap[row.device_id] || {};
+      const deviceDatetime = resolveDeviceDatetimeFromReading(row);
+      const serverReceivedAt = resolveServerReceivedAt(row);
       let mapped = false;
       if (device.mappings && Array.isArray(device.mappings) && device.mappings.length > 0) {
         for (const mapping of device.mappings) {
@@ -155,8 +162,8 @@ router.get(['/', ''], async (req, res) => {
             }
             if (mappedValue !== null && mappedValue !== undefined) {
               mappedData.push({
-                datetime: row.datetime, // device time
-                timestamp: row.timestamp, // server receive time
+                datetime: deviceDatetime,
+                server_received_at: serverReceivedAt,
                 device_id: row.device_id,
                 device_name: device.name,
                 [tgt]: mappedValue,
@@ -176,8 +183,8 @@ router.get(['/', ''], async (req, res) => {
             const payloadVal = extractPayloadField(row.metadata, ...typeKeys);
             if (!isNonNumericFieldValue(payloadVal)) continue;
             mappedData.push({
-              datetime: row.datetime,
-              timestamp: row.timestamp,
+              datetime: deviceDatetime,
+              server_received_at: serverReceivedAt,
               device_id: row.device_id,
               device_name: device.name,
               [tgt]: String(payloadVal).trim(),
@@ -189,11 +196,11 @@ router.get(['/', ''], async (req, res) => {
       // Fallback: if not mapped, push raw row
       if (!mapped) {
         mappedData.push({
-          datetime: row.datetime, // device time
-          timestamp: row.timestamp, // server receive time
+          datetime: deviceDatetime,
+          server_received_at: serverReceivedAt,
           device_id: row.device_id,
           device_name: device.name,
-          [row.sensor_type]: row.value
+          [row.sensor_type]: row.value,
         });
       }
     }
@@ -207,8 +214,8 @@ router.get(['/', ''], async (req, res) => {
     for (const row of gpsRows) {
       const device = deviceMap[row.device_id] || {};
       const base = {
-        datetime: row.timestamp ? new Date(row.timestamp).toISOString() : null,
-        timestamp: row.timestamp,
+        datetime: resolveDeviceDatetimeFromReading(row) || (row.timestamp ? new Date(row.timestamp).toISOString() : null),
+        server_received_at: null,
         device_id: row.device_id,
         device_name: device.name,
       };
@@ -252,32 +259,21 @@ router.get(['/', ''], async (req, res) => {
       }
     }
 
-    // 4. Merge rows with same timestamp/device (combine fields)
+    // 4. Merge rows with same mapped device datetime (combine fields)
     let merged = {};
     for (const row of mappedData) {
-      // If the row has a mapped datetime field (e.g., from _terminalTime), use it
-      let datetime = row.datetime;
-      if (!datetime) {
-        if (row._terminalTime) {
-          const parsed = parseDeviceDatetime(row._terminalTime);
-          datetime = parsed ? parsed.toISOString() : row._terminalTime;
-        } else if (row['timestamp']) {
-          datetime = row['timestamp'];
-        } else {
-          datetime = row.timestamp;
-        }
-      }
-      const key = `${row.timestamp}_${row.device_id}`;
+      const datetime = row.datetime || null;
+      const key = deviceReadingMergeKey(row.device_id, datetime, row.server_received_at);
       if (!merged[key]) {
         merged[key] = {
-          timestamp: row.timestamp, // server receive time
-          datetime: datetime,       // device data time (robustly parsed)
+          datetime,
+          server_received_at: row.server_received_at || null,
           device_id: row.device_id,
-          device_name: row.device_name
+          device_name: row.device_name,
         };
       }
-      Object.keys(row).forEach(k => {
-        if (!['timestamp', 'device_id', 'device_name', 'datetime', '_terminalTime'].includes(k)) {
+      Object.keys(row).forEach((k) => {
+        if (!['device_id', 'device_name', 'datetime', 'server_received_at', '_terminalTime'].includes(k)) {
           if (fieldPassesCategoryFilter(k, categoryMap, categoryOpts)) {
             merged[key][k] = row[k];
           }
@@ -285,10 +281,12 @@ router.get(['/', ''], async (req, res) => {
       });
     }
     // Always include all requested parameters as columns, set to null if missing
-    const filteredParams = params.filter(p => !['timestamp', 'device_id', 'device_name'].includes(p));
+    const filteredParams = params.filter(
+      (p) => !['timestamp', 'datetime', 'server_received_at', 'device_id', 'device_name'].includes(p)
+    );
     let paramCols = filteredParams.length
       ? filteredParams
-      : [...new Set(mappedData.flatMap(row => Object.keys(row)).filter(k => !['timestamp','device_id','device_name'].includes(k)))];
+      : [...new Set(mappedData.flatMap(row => Object.keys(row)).filter(k => !['timestamp', 'datetime', 'server_received_at', 'device_id', 'device_name'].includes(k)))];
     paramCols = filterFieldNames(paramCols, categoryMap, categoryOpts);
     Object.values(merged).forEach(row => {
       for (const p of paramCols) {
@@ -298,12 +296,13 @@ router.get(['/', ''], async (req, res) => {
       }
     });
     // Only include selected parameters (target fields) that are not null in each row
-    const data = Object.values(merged).map(row => {
+    let data = Object.values(merged).map((row) => {
       const filteredRow = {
-        timestamp: row.timestamp,
         datetime: row.datetime,
+        timestamp: row.datetime,
+        server_received_at: row.server_received_at || null,
         device_id: row.device_id,
-        device_name: row.device_name
+        device_name: row.device_name,
       };
       for (const p of paramCols) {
         if (row[p] !== null && row[p] !== undefined) {
@@ -312,6 +311,7 @@ router.get(['/', ''], async (req, res) => {
       }
       return filteredRow;
     });
+    data.sort((a, b) => compareDeviceTime(a.datetime, b.datetime));
     console.log('Final data returned (first 10):', data.slice(0, 10));
 
     // 5. Summary (max, min, avg for each param)
@@ -337,7 +337,8 @@ router.get(['/', ''], async (req, res) => {
       // Group data by period
       const groupMap = {};
       for (const row of data) {
-        const period = new Date(row.timestamp);
+        if (!row.datetime) continue;
+        const period = new Date(row.datetime);
         let key;
         if (trunc === 'hour') key = period.toISOString().slice(0, 13); // YYYY-MM-DDTHH
         else if (trunc === 'day') key = period.toISOString().slice(0, 10); // YYYY-MM-DD
