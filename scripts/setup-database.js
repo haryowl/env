@@ -189,6 +189,13 @@ const setupDatabase = async () => {
       );
     `);
 
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_alert_logs_device_detected_at ON alert_logs (device_id, detected_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_alert_logs_device_param_detected ON alert_logs (device_id, parameter, detected_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_alert_logs_active_lookup ON alert_logs (alert_id, device_id, parameter, detected_at DESC) WHERE status = 'active';
+      CREATE INDEX IF NOT EXISTS idx_alert_logs_detected_at ON alert_logs (detected_at);
+    `);
+
     // Device permissions by role table (requires devices)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS role_device_permissions (
@@ -856,6 +863,7 @@ const setupDatabase = async () => {
     // Create indexes for performance
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_sensor_readings_device_timestamp ON sensor_readings (device_id, timestamp DESC);
+      CREATE INDEX IF NOT EXISTS idx_sensor_readings_device_type_timestamp ON sensor_readings (device_id, sensor_type, timestamp DESC);
       CREATE INDEX IF NOT EXISTS idx_sensor_readings_sensor_type ON sensor_readings (sensor_type);
       CREATE INDEX IF NOT EXISTS idx_gps_tracks_device_timestamp ON gps_tracks (device_id, timestamp DESC);
       CREATE INDEX IF NOT EXISTS idx_device_events_device_timestamp ON device_events (device_id, timestamp DESC);

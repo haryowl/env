@@ -4,6 +4,7 @@ const { ensureAlertsSchema } = require('./ensureAlertsSchema');
 const { ensureDevicesSchema } = require('./ensureDevicesSchema');
 const { ensureFieldMappingsSchema } = require('./ensureFieldMappingsSchema');
 const { ensurePasswordResetSchema } = require('./ensurePasswordResetSchema');
+const { ensureDatabaseIndexes } = require('./ensureDatabaseIndexes');
 
 let ensured = false;
 
@@ -20,6 +21,7 @@ async function ensureCoreSchema() {
   await ensureDevicesSchema();
   await ensureFieldMappingsSchema();
   await ensurePasswordResetSchema();
+  await ensureDatabaseIndexes();
 
   ensured = true;
 }
