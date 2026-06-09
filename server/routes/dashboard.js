@@ -1,7 +1,8 @@
 const express = require('express');
-const { getRow, getRows, query } = require('../config/database');
+const { getRow, query } = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const { filterDeviceData } = require('../middleware/dataFilter');
+const { getCachedDashboardOverview } = require('../utils/dashboardOverviewCache');
 
 const router = express.Router();
 
@@ -20,46 +21,49 @@ router.get('/test-auth', (req, res) => {
   });
 });
 
-// Get system overview - Simplified version for debugging
-router.get('/overview', authenticateToken, async (req, res) => {
-  try {
-    console.log('Dashboard overview accessed by:', req.user.username, 'Role:', req.user.role);
-    await query('ALTER TABLE devices ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false');
-
-    // Exclude soft-deleted devices (is_deleted = true) from counts
-    const deviceCount = await getRow(
-      'SELECT COUNT(*) as count FROM devices WHERE COALESCE(is_deleted, false) = false'
-    );
-    const userCount = await getRow('SELECT COUNT(*) as count FROM users WHERE status = $1', ['active']);
-    const sensorDataCount = await getRow('SELECT COUNT(*) as count FROM sensor_readings');
-    const gpsDataCount = await getRow('SELECT COUNT(*) as count FROM gps_tracks');
-
-    // Get device status breakdown (exclude soft-deleted)
-    const deviceStatus = await query(`
-      SELECT status, COUNT(*) as count 
-      FROM devices 
+async function loadDashboardOverviewPayload() {
+  const [
+    deviceCount,
+    userCount,
+    sensorDataCount,
+    gpsDataCount,
+    deviceStatus,
+    recentEvents,
+  ] = await Promise.all([
+    getRow('SELECT COUNT(*) as count FROM devices WHERE COALESCE(is_deleted, false) = false'),
+    getRow('SELECT COUNT(*) as count FROM users WHERE status = $1', ['active']),
+    getRow('SELECT COUNT(*) as count FROM sensor_readings'),
+    getRow('SELECT COUNT(*) as count FROM gps_tracks'),
+    query(`
+      SELECT status, COUNT(*) as count
+      FROM devices
       WHERE COALESCE(is_deleted, false) = false
       GROUP BY status
-    `);
-
-    // Get recent activity
-    const recentEvents = await query(`
-      SELECT * FROM device_events 
-      ORDER BY timestamp DESC 
+    `),
+    query(`
+      SELECT * FROM device_events
+      ORDER BY timestamp DESC
       LIMIT 10
-    `);
+    `),
+  ]);
 
-    res.json({
-      overview: {
-        totalDevices: parseInt(deviceCount.count),
-        totalUsers: parseInt(userCount.count),
-        totalSensorData: parseInt(sensorDataCount.count),
-        totalGpsData: parseInt(gpsDataCount.count)
-      },
-      deviceStatus: deviceStatus.rows,
-      recentEvents: recentEvents.rows
-    });
+  return {
+    overview: {
+      totalDevices: parseInt(deviceCount.count, 10),
+      totalUsers: parseInt(userCount.count, 10),
+      totalSensorData: parseInt(sensorDataCount.count, 10),
+      totalGpsData: parseInt(gpsDataCount.count, 10),
+    },
+    deviceStatus: deviceStatus.rows,
+    recentEvents: recentEvents.rows,
+  };
+}
 
+// Get system overview
+router.get('/overview', authenticateToken, async (req, res) => {
+  try {
+    const payload = await getCachedDashboardOverview(loadDashboardOverviewPayload);
+    res.json(payload);
   } catch (error) {
     console.error('Get dashboard overview error:', error);
     console.error('Error stack:', error.stack);
@@ -89,20 +93,27 @@ router.get('/performance', async (req, res) => {
       deviceParams = [req.user.user_id];
     }
 
-    // Get devices with most data (filtered by permissions)
+    // Per-device counts via subqueries (avoids Cartesian inflation from dual LEFT JOIN)
     const topDevices = await query(`
-      SELECT 
+      SELECT
         d.device_id,
         d.name,
         d.device_type,
-        COUNT(sr.id) as sensor_readings,
-        COUNT(gt.id) as gps_tracks
+        COALESCE(sr.cnt, 0)::bigint AS sensor_readings,
+        COALESCE(gt.cnt, 0)::bigint AS gps_tracks
       FROM devices d
-      LEFT JOIN sensor_readings sr ON d.device_id = sr.device_id
-      LEFT JOIN gps_tracks gt ON d.device_id = gt.device_id
+      LEFT JOIN (
+        SELECT device_id, COUNT(*)::bigint AS cnt
+        FROM sensor_readings
+        GROUP BY device_id
+      ) sr ON d.device_id = sr.device_id
+      LEFT JOIN (
+        SELECT device_id, COUNT(*)::bigint AS cnt
+        FROM gps_tracks
+        GROUP BY device_id
+      ) gt ON d.device_id = gt.device_id
       WHERE d.status != 'deleted'${deviceFilter}
-      GROUP BY d.device_id, d.name, d.device_type
-      ORDER BY (COUNT(sr.id) + COUNT(gt.id)) DESC
+      ORDER BY (COALESCE(sr.cnt, 0) + COALESCE(gt.cnt, 0)) DESC
       LIMIT 10
     `, deviceParams);
 

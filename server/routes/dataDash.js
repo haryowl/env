@@ -9,13 +9,15 @@ const {
   filterFieldNames,
 } = require('../utils/fieldCategories');
 const {
-  resolveSensorReadingValue,
   isNonNumericFieldValue,
-  extractPayloadField,
 } = require('../utils/sensorReadingValue');
 const {
+  enrichSensorRow,
+  resolveReadingValueWithMeta,
+  payloadFieldFromMeta,
+} = require('../utils/dataDashRowContext');
+const {
   resolveDeviceDatetimeFromReading,
-  resolveServerReceivedAt,
   deviceReadingMergeKey,
   compareDeviceTime,
 } = require('../utils/deviceReadingTime');
@@ -138,9 +140,8 @@ router.get(['/', ''], async (req, res) => {
     // 3. Apply mapping to each row (device time = mapped target field `datetime`)
     let mappedData = [];
     for (const row of rawRows) {
+      const { meta, deviceDatetime, serverReceivedAt } = enrichSensorRow(row);
       const device = deviceMap[row.device_id] || {};
-      const deviceDatetime = resolveDeviceDatetimeFromReading(row);
-      const serverReceivedAt = resolveServerReceivedAt(row);
       let mapped = false;
       if (device.mappings && Array.isArray(device.mappings) && device.mappings.length > 0) {
         for (const mapping of device.mappings) {
@@ -152,7 +153,7 @@ router.get(['/', ''], async (req, res) => {
             tgt &&
             fieldPassesCategoryFilter(tgt, categoryMap, categoryOpts)
           ) {
-            let mappedValue = resolveSensorReadingValue(row, ...typeKeys);
+            let mappedValue = resolveReadingValueWithMeta(row, meta, ...typeKeys);
             if (mapping.formula && mappedValue !== null && mappedValue !== undefined) {
               try {
                 mappedValue = mathFormulaService.evaluateFormula(mapping.formula, { value: mappedValue });
@@ -173,14 +174,14 @@ router.get(['/', ''], async (req, res) => {
           }
         }
         // String/status fields may only exist inside metadata.payload on numeric rows.
-        if (device.mappings && row.metadata) {
+        if (device.mappings && Object.keys(meta).length > 0) {
           for (const mapping of device.mappings) {
             const src = mapping.source_field;
             const tgt = mapping.target_field;
             const typeKeys = [...new Set([src, tgt].filter(Boolean))];
             if (!tgt || typeKeys.includes(row.sensor_type)) continue;
             if (!fieldPassesCategoryFilter(tgt, categoryMap, categoryOpts)) continue;
-            const payloadVal = extractPayloadField(row.metadata, ...typeKeys);
+            const payloadVal = payloadFieldFromMeta(meta, ...typeKeys);
             if (!isNonNumericFieldValue(payloadVal)) continue;
             mappedData.push({
               datetime: deviceDatetime,
