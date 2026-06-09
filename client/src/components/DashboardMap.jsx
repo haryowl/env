@@ -537,7 +537,18 @@ const DeviceMapMarker = React.memo(function DeviceMapMarker({
   );
 });
 
-const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compactPopup = false, embedded = false }) => {
+const DashboardMap = ({
+  socket,
+  cardSx = {},
+  mapBoxSx,
+  fillHeight = false,
+  compactPopup = false,
+  embedded = false,
+  /** Skip bulk preload / periodic refresh; load marker data on demand (U-Dashboard). */
+  lazyDeviceData = false,
+  /** When lazy: preload + socket subscribe only this device (chart selection). */
+  priorityDeviceId = null,
+}) => {
   const theme = useTheme();
   const { formatDisplayName, getUnit, metadata: fieldMetadata } = useFieldMetadata();
   const [devices, setDevices] = useState([]);
@@ -548,7 +559,8 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
         .map((d) => d.device_id),
     [devices]
   );
-  useDeviceSocketSubscription(socket, mapDeviceIds);
+  const socketDeviceIds = lazyDeviceData && priorityDeviceId ? priorityDeviceId : mapDeviceIds;
+  useDeviceSocketSubscription(socket, socketDeviceIds);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedLayer, setSelectedLayer] = useState('dark');
@@ -711,42 +723,55 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
         paramList.unshift('datetime');
       }
 
-      const endDate = new Date().toISOString();
-      const startDate = subHours(new Date(), 48).toISOString();
-      const dashQuery = new URLSearchParams({
-        deviceIds: deviceId,
-        parameters: paramList.join(','),
-        startDate,
-        endDate,
-        limit: '5000',
-        excludeCategories: 'Status',
-      });
-
-      const [dashRes, latestRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/data-dash?${dashQuery}`, { headers }),
-        fetch(`${API_BASE_URL}/devices/${deviceId}/latest-data?excludeCategories=Status`, { headers }),
-      ]);
-
       let dashRecord = null;
       let dashLastTs = null;
-      if (dashRes.ok) {
-        const dashJson = await dashRes.json();
-        const mappedData = dashJson.data || [];
-        if (mappedData.length > 0) {
-          const sortedData = [...mappedData].sort(
-            (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
-          );
-          dashRecord = sortedData[0];
-          dashLastTs = dashRecord.timestamp || dashRecord.datetime;
-        }
-      }
-
       let dbRecord = null;
       let dbLastTs = null;
-      if (latestRes.ok) {
-        const latestJson = await latestRes.json();
-        dbRecord = latestJson.data || {};
-        dbLastTs = latestJson.last_updated_at;
+
+      if (lazyDeviceData) {
+        const latestRes = await fetch(
+          `${API_BASE_URL}/devices/${deviceId}/latest-data?excludeCategories=Status`,
+          { headers }
+        );
+        if (latestRes.ok) {
+          const latestJson = await latestRes.json();
+          dbRecord = latestJson.data || {};
+          dbLastTs = latestJson.last_updated_at;
+        }
+      } else {
+        const endDate = new Date().toISOString();
+        const startDate = subHours(new Date(), 48).toISOString();
+        const dashQuery = new URLSearchParams({
+          deviceIds: deviceId,
+          parameters: paramList.join(','),
+          startDate,
+          endDate,
+          limit: '5000',
+          excludeCategories: 'Status',
+        });
+
+        const [dashRes, latestRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/data-dash?${dashQuery}`, { headers }),
+          fetch(`${API_BASE_URL}/devices/${deviceId}/latest-data?excludeCategories=Status`, { headers }),
+        ]);
+
+        if (dashRes.ok) {
+          const dashJson = await dashRes.json();
+          const mappedData = dashJson.data || [];
+          if (mappedData.length > 0) {
+            const sortedData = [...mappedData].sort(
+              (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
+            );
+            dashRecord = sortedData[0];
+            dashLastTs = dashRecord.timestamp || dashRecord.datetime;
+          }
+        }
+
+        if (latestRes.ok) {
+          const latestJson = await latestRes.json();
+          dbRecord = latestJson.data || {};
+          dbLastTs = latestJson.last_updated_at;
+        }
       }
 
       const dashPatch = pickMappedSnapshot(dashRecord, chartParams);
@@ -763,7 +788,7 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
     } finally {
       setDeviceDataLoading((prev) => ({ ...prev, [deviceId]: false }));
     }
-  }, [fieldMetadata]);
+  }, [fieldMetadata, lazyDeviceData]);
 
   useEffect(() => {
     loadDeviceDataRef.current = loadDeviceData;
@@ -803,7 +828,10 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
 
       const allowed = deviceMappedParamsRef.current[deviceId];
       if (!allowed?.length) {
-        if (!deviceBootstrapPendingRef.current.has(deviceId)) {
+        if (
+          !lazyDeviceData &&
+          !deviceBootstrapPendingRef.current.has(deviceId)
+        ) {
           deviceBootstrapPendingRef.current.add(deviceId);
           loadDeviceDataRef.current(deviceId).finally(() => {
             deviceBootstrapPendingRef.current.delete(deviceId);
@@ -833,10 +861,12 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
         }));
       }
 
-      clearTimeout(refreshTimersRef.current[deviceId]);
-      refreshTimersRef.current[deviceId] = setTimeout(() => {
-        loadDeviceDataRef.current(deviceId);
-      }, 800);
+      if (!lazyDeviceData) {
+        clearTimeout(refreshTimersRef.current[deviceId]);
+        refreshTimersRef.current[deviceId] = setTimeout(() => {
+          loadDeviceDataRef.current(deviceId);
+        }, 800);
+      }
     };
 
     if (socket) {
@@ -855,14 +885,20 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
     };
   }, [socket]);
 
-  // Preload latest data once devices are on the map (do not re-fetch when alert rules load)
+  // Preload latest data once devices are on the map (skip when lazy — U-Dashboard)
   useEffect(() => {
-    if (loading) return;
+    if (loading || lazyDeviceData) return;
     const withCoords = devices.filter(
       (d) => d.latitude && d.longitude && !isNaN(d.latitude) && !isNaN(d.longitude)
     );
     withCoords.forEach((device) => loadDeviceData(device.device_id));
-  }, [devices, loading, loadDeviceData]);
+  }, [devices, loading, loadDeviceData, lazyDeviceData]);
+
+  // Lazy mode: load only the chart-selected device for marker popup / alert tint
+  useEffect(() => {
+    if (loading || !lazyDeviceData || !priorityDeviceId) return;
+    loadDeviceData(priorityDeviceId);
+  }, [loading, lazyDeviceData, priorityDeviceId, loadDeviceData]);
 
   // Recompute marker alert state when thresholds arrive (without re-fetching all device data)
   useEffect(() => {
@@ -879,7 +915,7 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
 
   // Periodic refresh of latest data so "next data" in range turns marker green
   useEffect(() => {
-    if (loading) return;
+    if (loading || lazyDeviceData) return;
     const withCoords = devices.filter(
       (d) => d.latitude && d.longitude && !isNaN(d.latitude) && !isNaN(d.longitude)
     );
@@ -888,7 +924,7 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
       withCoords.forEach((device) => loadDeviceData(device.device_id));
     }, 60 * 1000);
     return () => clearInterval(interval);
-  }, [devices, loading, loadDeviceData]);
+  }, [devices, loading, loadDeviceData, lazyDeviceData]);
 
   // Stable reference unless `devices` from API changes — avoids MapBoundsUpdater refitting on unrelated state (popup data).
   const devicesWithCoordinates = useMemo(

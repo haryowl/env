@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useDeviceSocketSubscription } from '../hooks/useDeviceSocketSubscription';
 import {
   Box,
@@ -103,7 +103,10 @@ export default function StatusDashboard({ socket }) {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isCompact = useMediaQuery(theme.breakpoints.down('md'));
   const { userPermissions } = usePermissions();
-  const { formatDisplayName, getUnit, metadata: fieldMetadata, refresh: refreshFieldMetadata } = useFieldMetadata();
+  const { formatDisplayName, getUnit, metadata: fieldMetadata } = useFieldMetadata();
+  const fieldMetadataRef = useRef(fieldMetadata);
+  const statusFetchAbortRef = useRef(null);
+  fieldMetadataRef.current = fieldMetadata;
 
   const [devices, setDevices] = useState([]);
   const [deviceId, setDeviceId] = useState('');
@@ -151,54 +154,71 @@ export default function StatusDashboard({ socket }) {
     }
   }, []);
 
-  const loadMapperParams = useCallback(async () => {
+  const statusLoadLimit = useMemo(() => {
+    if (historyPeriodHours >= 720) return 8000;
+    if (historyPeriodHours >= 168) return 3000;
+    return 600;
+  }, [historyPeriodHours]);
+
+  const loadStatusBundle = useCallback(async () => {
     if (!deviceId) {
       setStatusParams([]);
-      return;
-    }
-    try {
-      const token = localStorage.getItem('iot_token');
-      const res = await axios.get(`${API_BASE_URL}/device-mapper-assignments/${deviceId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const mapped = (res.data.assignment?.mappings || []).map((m) => m.target_field);
-      setStatusParams(filterStatusParams(mapped, fieldMetadata));
-    } catch {
-      setStatusParams([]);
-    }
-  }, [deviceId, fieldMetadata]);
-
-  const loadStatusData = useCallback(async () => {
-    if (!deviceId || statusParams.length === 0) {
       setLatest({});
       setHistory([]);
       setLastUpdatedAt(null);
       return;
     }
+
+    statusFetchAbortRef.current?.abort();
+    const controller = new AbortController();
+    statusFetchAbortRef.current = controller;
+    const requestDeviceId = deviceId;
+
     setLoading(true);
     setError('');
+    setStatusParams([]);
+    setLatest({});
+    setHistory([]);
+
     try {
       const token = localStorage.getItem('iot_token');
       const headers = { Authorization: `Bearer ${token}` };
+
+      const mapperRes = await axios.get(
+        `${API_BASE_URL}/device-mapper-assignments/${requestDeviceId}`,
+        { headers, signal: controller.signal }
+      );
+      if (controller.signal.aborted || requestDeviceId !== deviceId) return;
+
+      const mapped = (mapperRes.data.assignment?.mappings || []).map((m) => m.target_field);
+      const params = filterStatusParams(mapped, fieldMetadataRef.current);
+      setStatusParams(params);
+
+      if (params.length === 0) return;
+
       const endDate = new Date().toISOString();
       const startDate = subHours(new Date(), historyPeriodHours).toISOString();
-      const loadLimit =
-        historyPeriodHours >= 720 ? 50000 : historyPeriodHours >= 168 ? 10000 : 2000;
 
       const [latestRes, dashRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/devices/${deviceId}/latest-data?categories=Status`, { headers }),
+        fetch(`${API_BASE_URL}/devices/${requestDeviceId}/latest-data?categories=Status`, {
+          headers,
+          signal: controller.signal,
+        }),
         axios.get(`${API_BASE_URL}/data-dash`, {
           params: {
-            deviceIds: deviceId,
-            parameters: statusParams.join(','),
+            deviceIds: requestDeviceId,
+            parameters: params.join(','),
             startDate,
             endDate,
-            limit: loadLimit,
+            limit: statusLoadLimit,
             categories: 'Status',
           },
           headers,
+          signal: controller.signal,
         }),
       ]);
+
+      if (controller.signal.aborted || requestDeviceId !== deviceId) return;
 
       if (latestRes.ok) {
         const json = await latestRes.json();
@@ -210,22 +230,18 @@ export default function StatusDashboard({ socket }) {
       }
 
       const rows = dashRes.data?.data || [];
-      setHistory(
-        [...rows].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-      );
+      setHistory([...rows].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)));
     } catch (e) {
+      if (controller.signal.aborted || e?.code === 'ERR_CANCELED') return;
       console.error(e);
       setError('Failed to load status data');
       setLatest({});
       setHistory([]);
+      setStatusParams([]);
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
-  }, [deviceId, statusParams, historyPeriodHours]);
-
-  useEffect(() => {
-    refreshFieldMetadata();
-  }, [refreshFieldMetadata]);
+  }, [deviceId, historyPeriodHours, statusLoadLimit]);
 
   useEffect(() => {
     loadDevices();
@@ -238,14 +254,34 @@ export default function StatusDashboard({ socket }) {
   }, [devices, deviceId]);
 
   useEffect(() => {
-    loadMapperParams();
-  }, [loadMapperParams]);
+    loadStatusBundle();
+    let interval = null;
+    const startPolling = () => {
+      if (interval) return;
+      interval = setInterval(() => {
+        if (document.visibilityState === 'hidden') return;
+        loadStatusBundle();
+      }, 30000);
+    };
+    const stopPolling = () => {
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') stopPolling();
+      else startPolling();
+    };
+    if (document.visibilityState !== 'hidden') startPolling();
+    document.addEventListener('visibilitychange', onVisibility);
 
-  useEffect(() => {
-    loadStatusData();
-    const id = setInterval(loadStatusData, 30000);
-    return () => clearInterval(id);
-  }, [loadStatusData]);
+    return () => {
+      stopPolling();
+      document.removeEventListener('visibilitychange', onVisibility);
+      statusFetchAbortRef.current?.abort();
+    };
+  }, [loadStatusBundle]);
 
   useEffect(() => {
     if (!socket || !deviceId || statusParams.length === 0) return undefined;

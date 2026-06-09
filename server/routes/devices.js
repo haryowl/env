@@ -276,8 +276,6 @@ router.get('/dropdown', authenticateToken, async (req, res) => {
     }
     const staleIdx = queryParams.length + 1;
     queryParams.push(staleMins);
-    await query('ALTER TABLE devices ADD COLUMN IF NOT EXISTS valid_from DATE');
-    await query('ALTER TABLE devices ADD COLUMN IF NOT EXISTS valid_to DATE');
     const devices = await getRows(`
       SELECT d.device_id, d.name, d.device_type, d.protocol, d.valid_from, d.valid_to,
         eff.last_data_at AS last_data_at,

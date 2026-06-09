@@ -3,7 +3,7 @@
  * Menu permission path is /u-dashboard (see navigationConfig ROUTE_MENU_PATH_MAP).
  * Does not modify the classic Dashboard component.
  */
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useDeviceSocketSubscription } from '../hooks/useDeviceSocketSubscription';
 import {
   Box,
@@ -137,6 +137,12 @@ export default function UDashboard({ socket }) {
   });
   const [realtimeCustomStart, setRealtimeCustomStart] = useState(() => subHours(new Date(), 2));
   const [realtimeCustomEnd, setRealtimeCustomEnd] = useState(() => new Date());
+  const [chartLoading, setChartLoading] = useState(false);
+  const alertsCacheRef = useRef(null);
+  const fieldMetadataRef = useRef(fieldMetadata);
+  const realtimeFetchAbortRef = useRef(null);
+
+  fieldMetadataRef.current = fieldMetadata;
 
   const isGpsDisplayField = useCallback((p) => {
     const k = String(p || '').toLowerCase();
@@ -496,24 +502,34 @@ export default function UDashboard({ socket }) {
   useEffect(() => {
     if (!realtimeDevice) {
       setRealtimeParams([]);
+      setRealtimeData([]);
+      setRealtimeLatest({});
       return;
     }
+    let cancelled = false;
     const fetchMapper = async () => {
+      setRealtimeParams([]);
+      setRealtimeData([]);
+      setRealtimeLatest({});
       try {
         const token = localStorage.getItem('iot_token');
         const res = await axios.get(`${API_BASE_URL}/device-mapper-assignments/${realtimeDevice}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
+        if (cancelled) return;
         let mappedParams = res.data.assignment.mappings.map((m) => m.target_field);
-        mappedParams = filterDataViewParams(mappedParams, fieldMetadata);
+        mappedParams = filterDataViewParams(mappedParams, fieldMetadataRef.current);
         if (!mappedParams.includes('datetime')) mappedParams.unshift('datetime');
         setRealtimeParams(mappedParams);
       } catch {
-        setRealtimeParams([]);
+        if (!cancelled) setRealtimeParams([]);
       }
     };
     fetchMapper();
-  }, [realtimeDevice, fieldMetadata]);
+    return () => {
+      cancelled = true;
+    };
+  }, [realtimeDevice]);
 
   useEffect(() => {
     const chartParams = realtimeParams.filter((p) => p !== 'datetime' && p !== 'timestamp' && !isGpsDisplayField(p));
@@ -523,13 +539,17 @@ export default function UDashboard({ socket }) {
 
   const fetchRealtimeData = async (deviceId, params, windowOrRangeHours = 48) => {
     if (!deviceId || !params || params.length === 0) return;
+    realtimeFetchAbortRef.current?.abort();
+    const controller = new AbortController();
+    realtimeFetchAbortRef.current = controller;
     setRealtimeError('');
+    setChartLoading(true);
     try {
       const token = localStorage.getItem('iot_token');
       const isObj = windowOrRangeHours && typeof windowOrRangeHours === 'object';
       const startDate = isObj ? windowOrRangeHours.startISO : subHours(new Date(), windowOrRangeHours).toISOString();
       const endDate = isObj ? windowOrRangeHours.endISO : new Date().toISOString();
-      const limit = isObj ? windowOrRangeHours.limit : windowOrRangeHours <= 6 ? 1000 : 5000;
+      const limit = isObj ? windowOrRangeHours.limit : windowOrRangeHours <= 6 ? 800 : 1500;
       const response = await axios.get(`${API_BASE_URL}/data-dash`, {
         params: {
           deviceIds: deviceId,
@@ -540,7 +560,9 @@ export default function UDashboard({ socket }) {
           excludeCategories: 'Status',
         },
         headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
       });
+      if (controller.signal.aborted) return;
       const mappedData = response.data.data || [];
       setRealtimeData(mappedData);
       if (mappedData.length > 0) {
@@ -557,10 +579,13 @@ export default function UDashboard({ socket }) {
         setRealtimeLatest({});
       }
     } catch (e) {
+      if (controller.signal.aborted || e?.code === 'ERR_CANCELED') return;
       console.error(e);
       setRealtimeError('Failed to load realtime data');
       setRealtimeData([]);
       setRealtimeLatest({});
+    } finally {
+      if (!controller.signal.aborted) setChartLoading(false);
     }
   };
 
@@ -591,9 +616,32 @@ export default function UDashboard({ socket }) {
       .catch(() => setRealtimeAlertLogs([]));
   }, [realtimeDevice, realtimeData]);
 
+  const applyAlertThresholdsForDevice = useCallback((list, deviceId) => {
+    const byParam = {};
+    list
+      .filter((a) => a.device_id === deviceId)
+      .forEach((a) => {
+        const norm = normalizeParamForAlert(a.parameter);
+        if (!norm) return;
+        const min = a.min != null ? Number(a.min) : null;
+        const max = a.max != null ? Number(a.max) : null;
+        if (byParam[norm]) {
+          if (min != null && (byParam[norm].min == null || min < byParam[norm].min)) byParam[norm].min = min;
+          if (max != null && (byParam[norm].max == null || max > byParam[norm].max)) byParam[norm].max = max;
+        } else {
+          byParam[norm] = { min, max };
+        }
+      });
+    setRealtimeAlertThresholds(byParam);
+  }, []);
+
   useEffect(() => {
     if (!realtimeDevice) {
       setRealtimeAlertThresholds({});
+      return;
+    }
+    if (alertsCacheRef.current) {
+      applyAlertThresholdsForDevice(alertsCacheRef.current, realtimeDevice);
       return;
     }
     const token = localStorage.getItem('iot_token');
@@ -601,25 +649,11 @@ export default function UDashboard({ socket }) {
       .then((res) => (res.ok ? res.json() : Promise.resolve({ alerts: [] })))
       .then((data) => {
         const list = data.alerts || [];
-        const byParam = {};
-        list
-          .filter((a) => a.device_id === realtimeDevice)
-          .forEach((a) => {
-            const norm = normalizeParamForAlert(a.parameter);
-            if (!norm) return;
-            const min = a.min != null ? Number(a.min) : null;
-            const max = a.max != null ? Number(a.max) : null;
-            if (byParam[norm]) {
-              if (min != null && (byParam[norm].min == null || min < byParam[norm].min)) byParam[norm].min = min;
-              if (max != null && (byParam[norm].max == null || max > byParam[norm].max)) byParam[norm].max = max;
-            } else {
-              byParam[norm] = { min, max };
-            }
-          });
-        setRealtimeAlertThresholds(byParam);
+        alertsCacheRef.current = list;
+        applyAlertThresholdsForDevice(list, realtimeDevice);
       })
       .catch(() => setRealtimeAlertThresholds({}));
-  }, [realtimeDevice]);
+  }, [realtimeDevice, applyAlertThresholdsForDevice]);
 
   useEffect(() => {
     if (!realtimeDevice || realtimeParams.length === 0) return;
@@ -629,9 +663,26 @@ export default function UDashboard({ socket }) {
       return;
     }
     fetchRealtimeData(realtimeDevice, realtimeParams, realtimeRangeHours);
-    const interval = setInterval(() => {
-      fetchRealtimeData(realtimeDevice, realtimeParams, realtimeRangeHours);
-    }, 10000);
+    let interval = null;
+    const startPolling = () => {
+      if (interval) return;
+      interval = setInterval(() => {
+        if (document.visibilityState === 'hidden') return;
+        fetchRealtimeData(realtimeDevice, realtimeParams, realtimeRangeHours);
+      }, 15000);
+    };
+    const stopPolling = () => {
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') stopPolling();
+      else startPolling();
+    };
+    if (document.visibilityState !== 'hidden') startPolling();
+    document.addEventListener('visibilitychange', onVisibility);
 
     let deviceDataHandler;
     if (socket) {
@@ -654,7 +705,9 @@ export default function UDashboard({ socket }) {
     }
 
     return () => {
-      clearInterval(interval);
+      stopPolling();
+      document.removeEventListener('visibilitychange', onVisibility);
+      realtimeFetchAbortRef.current?.abort();
       if (socket && deviceDataHandler) socket.off('device_data', deviceDataHandler);
     };
   }, [realtimeDevice, realtimeParams, realtimeRangeHours, realtimeChartRange, realtimeCustomWindow, socket]);
@@ -804,6 +857,8 @@ export default function UDashboard({ socket }) {
                 fillHeight
                 embedded
                 compactPopup
+                lazyDeviceData
+                priorityDeviceId={realtimeDevice}
               />
             </Box>
           </CardContent>
