@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useDeviceSocketSubscription } from '../hooks/useDeviceSocketSubscription';
+import { useSocketEvent } from '../hooks/useSocketEvent';
 import {
   Box,
   Card,
@@ -578,6 +579,11 @@ const DashboardMap = ({
   const alertThresholdsRef = useRef({});
   const deviceBootstrapPendingRef = useRef(new Set());
   const loadDeviceDataRef = useRef(async () => {});
+  const lazyDeviceDataRef = useRef(lazyDeviceData);
+
+  useEffect(() => {
+    lazyDeviceDataRef.current = lazyDeviceData;
+  }, [lazyDeviceData]);
 
   useEffect(() => {
     alertThresholdsRef.current = alertThresholdsByDevice;
@@ -809,81 +815,72 @@ const DashboardMap = ({
     [loadDeviceData]
   );
 
+  useSocketEvent(socket, 'device_status_update', (data) => {
+    setDevices((prevDevices) =>
+      prevDevices.map((device) =>
+        device.device_id === data.device_id ? { ...device, status: data.status } : device
+      )
+    );
+  });
+
+  useSocketEvent(socket, 'device_data', (payload) => {
+    const deviceId = payload?.deviceId || payload?.device_id;
+    if (!deviceId) return;
+
+    const allowed = deviceMappedParamsRef.current[deviceId];
+    if (!allowed?.length) {
+      if (
+        !lazyDeviceDataRef.current &&
+        !deviceBootstrapPendingRef.current.has(deviceId)
+      ) {
+        deviceBootstrapPendingRef.current.add(deviceId);
+        loadDeviceDataRef.current(deviceId).finally(() => {
+          deviceBootstrapPendingRef.current.delete(deviceId);
+        });
+      }
+      return;
+    }
+
+    const livePatch = mergeSocketPayloadIntoDeviceData(payload?.data, allowed);
+    if (livePatch) {
+      const thresholds = alertThresholdsRef.current[deviceId] || [];
+      let merged;
+      setDeviceData((prev) => {
+        merged = { ...pickMappedSnapshot(prev[deviceId] || {}, allowed), ...livePatch };
+        return { ...prev, [deviceId]: merged };
+      });
+      setDeviceAlerts((prevAlerts) => ({
+        ...prevAlerts,
+        [deviceId]: isLatestDataOutOfRange(merged, thresholds),
+      }));
+      setDeviceLastUpdated((prev) => ({
+        ...prev,
+        [deviceId]:
+          payload.timestamp != null
+            ? new Date(payload.timestamp).toISOString()
+            : new Date().toISOString(),
+      }));
+    }
+
+    if (!lazyDeviceDataRef.current) {
+      clearTimeout(refreshTimersRef.current[deviceId]);
+      refreshTimersRef.current[deviceId] = setTimeout(() => {
+        loadDeviceDataRef.current(deviceId);
+      }, 800);
+    }
+  });
+
   // Load devices and alert thresholds on mount
   useEffect(() => {
     loadDevices();
     loadAlertThresholds();
 
-    const onStatusUpdate = (data) => {
-      setDevices((prevDevices) =>
-        prevDevices.map((device) =>
-          device.device_id === data.device_id ? { ...device, status: data.status } : device
-        )
-      );
-    };
-
-    const onDeviceData = (payload) => {
-      const deviceId = payload?.deviceId || payload?.device_id;
-      if (!deviceId) return;
-
-      const allowed = deviceMappedParamsRef.current[deviceId];
-      if (!allowed?.length) {
-        if (
-          !lazyDeviceData &&
-          !deviceBootstrapPendingRef.current.has(deviceId)
-        ) {
-          deviceBootstrapPendingRef.current.add(deviceId);
-          loadDeviceDataRef.current(deviceId).finally(() => {
-            deviceBootstrapPendingRef.current.delete(deviceId);
-          });
-        }
-        return;
-      }
-
-      const livePatch = mergeSocketPayloadIntoDeviceData(payload?.data, allowed);
-      if (livePatch) {
-        const thresholds = alertThresholdsRef.current[deviceId] || [];
-        let merged;
-        setDeviceData((prev) => {
-          merged = { ...pickMappedSnapshot(prev[deviceId] || {}, allowed), ...livePatch };
-          return { ...prev, [deviceId]: merged };
-        });
-        setDeviceAlerts((prevAlerts) => ({
-          ...prevAlerts,
-          [deviceId]: isLatestDataOutOfRange(merged, thresholds),
-        }));
-        setDeviceLastUpdated((prev) => ({
-          ...prev,
-          [deviceId]:
-            payload.timestamp != null
-              ? new Date(payload.timestamp).toISOString()
-              : new Date().toISOString(),
-        }));
-      }
-
-      if (!lazyDeviceData) {
-        clearTimeout(refreshTimersRef.current[deviceId]);
-        refreshTimersRef.current[deviceId] = setTimeout(() => {
-          loadDeviceDataRef.current(deviceId);
-        }, 800);
-      }
-    };
-
-    if (socket) {
-      socket.on('device_status_update', onStatusUpdate);
-      socket.on('device_data', onDeviceData);
-    }
-
     const interval = setInterval(() => loadDevices({ silent: true }), 2 * 60 * 1000);
     return () => {
       clearInterval(interval);
-      if (socket) {
-        socket.off('device_status_update', onStatusUpdate);
-        socket.off('device_data', onDeviceData);
-      }
       Object.values(refreshTimersRef.current).forEach(clearTimeout);
     };
-  }, [socket]);
+  }, []);
 
   // Preload latest data once devices are on the map (skip when lazy — U-Dashboard)
   useEffect(() => {

@@ -3,6 +3,15 @@ import { WS_BASE_URL } from '../config/api';
 
 const SOCKET_DEBUG = import.meta.env.DEV && import.meta.env.VITE_SOCKET_DEBUG === 'true';
 
+/** Events bridged from socket.io into SocketService listener map */
+const BRIDGED_SOCKET_EVENTS = [
+  'device_data',
+  'listener_data',
+  'new_alert_log',
+  'device_status_update',
+  'data_update',
+];
+
 export class SocketService {
   constructor() {
     this.socket = null;
@@ -36,25 +45,16 @@ export class SocketService {
         console.error('SocketService: WebSocket error:', error);
       });
 
-      // Handle incoming messages
       this.socket.on('message', (data) => {
-        console.log('SocketService: Received message:', data);
+        if (SOCKET_DEBUG) console.log('SocketService: Received message:', data);
         this.handleMessage(data);
       });
 
-      this.socket.on('device_data', (data) => {
-        if (SOCKET_DEBUG) console.log('SocketService: Received device_data:', data);
-        this.handleMessage({ type: 'device_data', payload: data });
-      });
-
-      this.socket.on('listener_data', (data) => {
-        if (SOCKET_DEBUG) console.log('SocketService: Received listener_data:', data);
-        this.handleMessage({ type: 'listener_data', payload: data });
-      });
-
-      this.socket.on('new_alert_log', (data) => {
-        if (SOCKET_DEBUG) console.log('SocketService: Received new_alert_log:', data);
-        this.handleMessage({ type: 'new_alert_log', payload: data });
+      BRIDGED_SOCKET_EVENTS.forEach((eventName) => {
+        this.socket.on(eventName, (payload) => {
+          if (SOCKET_DEBUG) console.log(`SocketService: Received ${eventName}:`, payload);
+          this.handleMessage({ type: eventName, payload });
+        });
       });
 
     } catch (error) {

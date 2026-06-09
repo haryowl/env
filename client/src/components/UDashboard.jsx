@@ -5,6 +5,7 @@
  */
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useDeviceSocketSubscription } from '../hooks/useDeviceSocketSubscription';
+import { useSocketEvent } from '../hooks/useSocketEvent';
 import {
   Box,
   Typography,
@@ -467,18 +468,11 @@ export default function UDashboard({ socket }) {
     };
   }, []);
 
-  useEffect(() => {
-    if (socket) {
-      const handleDeviceUpdate = (data) => {
-        setDevices((prev) =>
-          prev.map((device) => (device.device_id === data.device_id ? { ...device, status: data.status } : device))
-        );
-      };
-      socket.on('device_status_update', handleDeviceUpdate);
-      return () => socket.off('device_status_update', handleDeviceUpdate);
-    }
-    return undefined;
-  }, [socket]);
+  useSocketEvent(socket, 'device_status_update', (data) => {
+    setDevices((prev) =>
+      prev.map((device) => (device.device_id === data.device_id ? { ...device, status: data.status } : device))
+    );
+  });
 
   useEffect(() => {
     if (devices.length > 0 && !realtimeDevice) {
@@ -684,33 +678,33 @@ export default function UDashboard({ socket }) {
     if (document.visibilityState !== 'hidden') startPolling();
     document.addEventListener('visibilitychange', onVisibility);
 
-    let deviceDataHandler;
-    if (socket) {
-      deviceDataHandler = (payload) => {
-        if (payload.deviceId === realtimeDevice && payload.data) {
-          setRealtimeLatest((prevLatest) => {
-            const newLatest = { ...prevLatest };
-            let hasUpdates = false;
-            realtimeParams.forEach((param) => {
-              if (payload.data[param] !== undefined && payload.data[param] !== null) {
-                newLatest[param] = payload.data[param];
-                hasUpdates = true;
-              }
-            });
-            return hasUpdates ? newLatest : prevLatest;
-          });
-        }
-      };
-      socket.on('device_data', deviceDataHandler);
-    }
-
     return () => {
       stopPolling();
       document.removeEventListener('visibilitychange', onVisibility);
       realtimeFetchAbortRef.current?.abort();
-      if (socket && deviceDataHandler) socket.off('device_data', deviceDataHandler);
     };
-  }, [realtimeDevice, realtimeParams, realtimeRangeHours, realtimeChartRange, realtimeCustomWindow, socket]);
+  }, [realtimeDevice, realtimeParams, realtimeRangeHours, realtimeChartRange, realtimeCustomWindow]);
+
+  useSocketEvent(
+    socket,
+    'device_data',
+    (payload) => {
+      if (payload.deviceId === realtimeDevice && payload.data) {
+        setRealtimeLatest((prevLatest) => {
+          const newLatest = { ...prevLatest };
+          let hasUpdates = false;
+          realtimeParams.forEach((param) => {
+            if (payload.data[param] !== undefined && payload.data[param] !== null) {
+              newLatest[param] = payload.data[param];
+              hasUpdates = true;
+            }
+          });
+          return hasUpdates ? newLatest : prevLatest;
+        });
+      }
+    },
+    Boolean(realtimeDevice && realtimeParams.length > 0)
+  );
 
   if (loading) {
     return (

@@ -7,6 +7,25 @@ const proxyTarget = process.env.VITE_PROXY_TARGET || 'http://localhost:3000';
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          if (id.includes('@mui/x-data-grid')) return 'mui-datagrid';
+          if (id.includes('@mui')) return 'mui';
+          if (id.includes('recharts') || id.includes('d3-')) return 'charts-recharts';
+          if (id.includes('chart.js') || id.includes('react-chartjs-2') || id.includes('chartjs-')) {
+            return 'charts-chartjs';
+          }
+          if (id.includes('leaflet') || id.includes('react-leaflet')) return 'maps';
+          if (id.includes('xlsx') || id.includes('jspdf')) return 'export-tools';
+          if (id.includes('socket.io-client')) return 'socket';
+          return 'vendor';
+        },
+      },
+    },
+  },
   server: {
     allowedHosts: true,
     host: '0.0.0.0',

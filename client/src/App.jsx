@@ -68,6 +68,7 @@ import { resetAuthFailureGuard } from './utils/authSession';
 
 // Hooks
 import { PermissionProvider, usePermissions } from './hooks/usePermissions.jsx';
+import { useSocketEvent } from './hooks/useSocketEvent';
 
 function HomeRedirect({ user }) {
   const { loading, canAccessMenu, userPermissions } = usePermissions();
@@ -225,23 +226,24 @@ function App() {
     fetchGlobals();
   }, [user]);
 
-  // Global new_alert_log listener
-  useEffect(() => {
-    if (!socket || alerts.length === 0 || devices.length === 0) return;
-    const handleNewAlertLog = (log) => {
-      const alertDef = alerts.find(a => String(a.alert_id) === String(log.alert_id) || String(a.id) === String(log.alert_id));
-      const deviceName = devices.find(d => d.device_id === log.device_id)?.name || log.device_id;
+  useSocketEvent(
+    socket,
+    'new_alert_log',
+    (log) => {
+      const alertDef = alerts.find(
+        (a) => String(a.alert_id) === String(log.alert_id) || String(a.id) === String(log.alert_id)
+      );
+      const deviceName = devices.find((d) => d.device_id === log.device_id)?.name || log.device_id;
       if (alertDef?.actions?.popup) {
         setNotification({
           open: true,
           message: `ALERT: ${log.type === 'threshold' ? 'Threshold' : 'Inactivity'} on ${deviceName} (${log.parameter})`,
-          severity: 'error'
+          severity: 'error',
         });
       }
-    };
-    socket.on('new_alert_log', handleNewAlertLog);
-    return () => socket.off('new_alert_log', handleNewAlertLog);
-  }, [socket, alerts, devices]);
+    },
+    Boolean(socket && alerts.length > 0 && devices.length > 0)
+  );
 
   const handleLogin = async (credentials) => {
     try {

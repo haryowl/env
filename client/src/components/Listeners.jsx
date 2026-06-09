@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSocketEvent } from '../hooks/useSocketEvent';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
 import {
   Box,
@@ -74,40 +75,27 @@ const Listeners = ({ socket }) => {
   });
 
   useEffect(() => {
-    if (socket) {
-      if (typeof socket.subscribeListenersFeed === 'function') {
-        socket.subscribeListenersFeed();
+    if (!socket || typeof socket.subscribeListenersFeed !== 'function') return undefined;
+    socket.subscribeListenersFeed();
+    return () => {
+      if (typeof socket.unsubscribeListenersFeed === 'function') {
+        socket.unsubscribeListenersFeed();
       }
-
-      const handleListenerData = (data) => {
-        setListeners(prev => {
-          const newData = [data, ...prev];
-          // Keep only last 1000 records
-          return newData.slice(0, 1000);
-        });
-        // Update stats with the new data
-        setStats(prevStats => ({
-          ...prevStats,
-          total: prevStats.total + 1,
-          mqtt: prevStats.mqtt + (data.protocol === 'mqtt' ? 1 : 0),
-          http: prevStats.http + (data.protocol === 'http' ? 1 : 0),
-          tcp: prevStats.tcp + (data.protocol === 'tcp' ? 1 : 0),
-          udp: prevStats.udp + (data.protocol === 'udp' ? 1 : 0),
-          lastUpdate: new Date().toLocaleTimeString()
-        }));
-      };
-
-      socket.on('listener_data', handleListenerData);
-
-      return () => {
-        socket.off('listener_data', handleListenerData);
-        if (typeof socket.unsubscribeListenersFeed === 'function') {
-          socket.unsubscribeListenersFeed();
-        }
-      };
-    }
-    return undefined;
+    };
   }, [socket]);
+
+  useSocketEvent(socket, 'listener_data', (data) => {
+    setListeners((prev) => [data, ...prev].slice(0, 1000));
+    setStats((prevStats) => ({
+      ...prevStats,
+      total: prevStats.total + 1,
+      mqtt: prevStats.mqtt + (data.protocol === 'mqtt' ? 1 : 0),
+      http: prevStats.http + (data.protocol === 'http' ? 1 : 0),
+      tcp: prevStats.tcp + (data.protocol === 'tcp' ? 1 : 0),
+      udp: prevStats.udp + (data.protocol === 'udp' ? 1 : 0),
+      lastUpdate: new Date().toLocaleTimeString(),
+    }));
+  });
 
   // Mock data for demonstration
   const mockListeners = [

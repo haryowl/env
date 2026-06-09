@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useDeviceSocketSubscription } from '../hooks/useDeviceSocketSubscription';
+import { useSocketEvent } from '../hooks/useSocketEvent';
 import {
   Box,
   Typography,
@@ -513,9 +515,12 @@ export default function LiveTracking({ socket }) {
     setHistoryMeta(null);
   }, [selectedId]);
 
-  useEffect(() => {
-    if (!socket || typeof socket.on !== 'function') return undefined;
-    const handler = (payload) => {
+  useDeviceSocketSubscription(socket, selectedId);
+
+  useSocketEvent(
+    socket,
+    'device_data',
+    (payload) => {
       if (!payload?.deviceId || !payload.data) return;
       const gps = extractGpsFromDevicePayload(payload.data);
       if (!gps) return;
@@ -534,18 +539,9 @@ export default function LiveTracking({ socket }) {
         liveTrailRef.current = next;
         setLiveTrail(next);
       }
-    };
-    socket.on('device_data', handler);
-    if (selectedId && typeof socket.subscribeDevice === 'function') {
-      socket.subscribeDevice(selectedId);
-    }
-    return () => {
-      if (typeof socket.off === 'function') socket.off('device_data', handler);
-      if (selectedId && typeof socket.unsubscribeDevice === 'function') {
-        socket.unsubscribeDevice(selectedId);
-      }
-    };
-  }, [socket, selectedId]);
+    },
+    Boolean(selectedId)
+  );
 
   const filteredHistoryPoints = useMemo(() => {
     if (!settings) return historyPoints;

@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import { useDeviceSocketSubscription } from '../hooks/useDeviceSocketSubscription';
+import { useSocketEvent } from '../hooks/useSocketEvent';
 import {
   Box,
   Grid,
@@ -50,7 +51,7 @@ import { min as d3min, max as d3max } from 'd3-array';
 
 import { API_BASE_URL } from '../config/api';
 import { CHART_COLORS, CARTESIAN_GRID_PROPS, AXIS_TICK_STYLE, getTooltipContentStyle, getChartCardSx } from '../utils/chartStyles';
-import DashboardMap from './DashboardMap';
+const DashboardMap = lazy(() => import('./DashboardMap'));
 import KPICards from './KPICards';
 import DynamicParameterCards from './DynamicParameterCards';
 import FullWidthParameterCards from './FullWidthParameterCards';
@@ -570,12 +571,6 @@ const Dashboard = ({ socket }) => {
     // Listen for parameter color changes (throttled; paused when tab hidden)
     let colorInterval = null;
     
-    // Set up real-time updates
-    if (socket) {
-      socket.on('device_status_update', handleDeviceUpdate);
-      socket.on('data_update', handleDataUpdate);
-    }
-
     // Refresh data every 30 seconds (paused when tab hidden)
     let dataInterval = null;
 
@@ -616,12 +611,8 @@ const Dashboard = ({ socket }) => {
       if (typeof document !== 'undefined') {
         document.removeEventListener('visibilitychange', handleVisibility);
       }
-      if (socket) {
-        socket.off('device_status_update', handleDeviceUpdate);
-        socket.off('data_update', handleDataUpdate);
-      }
     };
-  }, [socket]);
+  }, []);
 
   // Set default device when devices are loaded
   useEffect(() => {
@@ -675,15 +666,15 @@ const Dashboard = ({ socket }) => {
     }
   };
 
-  const handleDeviceUpdate = (data) => {
-    setDevices(prevDevices =>
-      prevDevices.map(device =>
+  const handleDeviceUpdate = useCallback((data) => {
+    setDevices((prevDevices) =>
+      prevDevices.map((device) =>
         device.device_id === data.device_id
           ? { ...device, status: data.status }
           : device
       )
     );
-  };
+  }, []);
 
   // Check if device access is valid for non-admins (valid_from/valid_to period)
   const isDeviceAccessValid = useCallback((device) => {
@@ -696,16 +687,19 @@ const Dashboard = ({ socket }) => {
     return today >= (from?.slice?.(0, 10) ?? from) && today <= (to?.slice?.(0, 10) ?? to);
   }, [isAdmin]);
 
-  const handleDataUpdate = (data) => {
-    // Update overview statistics if needed
-    if (overview) {
-      setOverview(prev => ({
+  const handleDataUpdate = useCallback((data) => {
+    setOverview((prev) => {
+      if (!prev) return prev;
+      return {
         ...prev,
         totalSensorData: prev.totalSensorData + (data.data_type === 'sensor' ? 1 : 0),
         totalGpsData: prev.totalGpsData + (data.data_type === 'gps' ? 1 : 0),
-      }));
-    }
-  };
+      };
+    });
+  }, []);
+
+  useSocketEvent(socket, 'device_status_update', handleDeviceUpdate);
+  useSocketEvent(socket, 'data_update', handleDataUpdate);
 
   // Fetch device mapper assignment and mapped fields for selected device
   useEffect(() => {
@@ -863,38 +857,34 @@ const Dashboard = ({ socket }) => {
     const interval = setInterval(() => {
       fetchRealtimeData(realtimeDevice, realtimeParams, realtimeRangeHours);
     }, 10000);
-    
-    // WebSocket for real-time updates
-    let deviceDataHandler;
-    if (socket) {
-      deviceDataHandler = (payload) => {
-        if (payload.deviceId === realtimeDevice && payload.data) {
-          // Update cards with real-time data using functional update
-          setRealtimeLatest(prevLatest => {
-            const newLatest = { ...prevLatest };
-            let hasUpdates = false;
-            
-            realtimeParams.forEach(param => {
-              if (payload.data[param] !== undefined && payload.data[param] !== null) {
-                newLatest[param] = payload.data[param];
-                hasUpdates = true;
-              }
-            });
-            
-            return hasUpdates ? newLatest : prevLatest;
-          });
-        }
-      };
-      socket.on('device_data', deviceDataHandler);
-    }
-    
+
     return () => {
       clearInterval(interval);
-      if (socket && deviceDataHandler) {
-        socket.off('device_data', deviceDataHandler);
-      }
     };
-  }, [realtimeDevice, realtimeParams, realtimeRangeHours, realtimeChartRange, realtimeCustomWindow, socket]);
+  }, [realtimeDevice, realtimeParams, realtimeRangeHours, realtimeChartRange, realtimeCustomWindow]);
+
+  useSocketEvent(
+    socket,
+    'device_data',
+    (payload) => {
+      if (payload.deviceId === realtimeDevice && payload.data) {
+        setRealtimeLatest((prevLatest) => {
+          const newLatest = { ...prevLatest };
+          let hasUpdates = false;
+
+          realtimeParams.forEach((param) => {
+            if (payload.data[param] !== undefined && payload.data[param] !== null) {
+              newLatest[param] = payload.data[param];
+              hasUpdates = true;
+            }
+          });
+
+          return hasUpdates ? newLatest : prevLatest;
+        });
+      }
+    },
+    Boolean(realtimeDevice && realtimeParams.length > 0)
+  );
 
   const getStatusColor = (status) => {
     return status === 'online' ? 'success' : 'error';
@@ -1150,9 +1140,22 @@ const Dashboard = ({ socket }) => {
           }
         />
       </Box>
-      <Collapse in={mapSectionOpen}>
+      <Collapse in={mapSectionOpen} unmountOnExit>
         <Box>
-          <DashboardMap socket={socket} cardSx={{ mt: 0, mb: 1 }} />
+          <Suspense
+            fallback={
+              <Box display="flex" justifyContent="center" alignItems="center" py={3}>
+                <CircularProgress size={28} />
+              </Box>
+            }
+          >
+            <DashboardMap
+              socket={socket}
+              cardSx={{ mt: 0, mb: 1 }}
+              lazyDeviceData
+              priorityDeviceId={realtimeDevice}
+            />
+          </Suspense>
         </Box>
       </Collapse>
 

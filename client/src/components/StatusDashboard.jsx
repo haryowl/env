@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useDeviceSocketSubscription } from '../hooks/useDeviceSocketSubscription';
+import { useSocketEvent } from '../hooks/useSocketEvent';
 import {
   Box,
   Card,
@@ -283,10 +284,10 @@ export default function StatusDashboard({ socket }) {
     };
   }, [loadStatusBundle]);
 
-  useEffect(() => {
-    if (!socket || !deviceId || statusParams.length === 0) return undefined;
-
-    const handler = (payload) => {
+  useSocketEvent(
+    socket,
+    'device_data',
+    (payload) => {
       const id = payload?.deviceId || payload?.device_id;
       if (id !== deviceId || !payload?.data) return;
 
@@ -315,11 +316,9 @@ export default function StatusDashboard({ socket }) {
       if (payload.timestamp) {
         setLastUpdatedAt(new Date(payload.timestamp).toISOString());
       }
-    };
-
-    socket.on('device_data', handler);
-    return () => socket.off('device_data', handler);
-  }, [socket, deviceId, statusParams]);
+    },
+    Boolean(deviceId && statusParams.length > 0)
+  );
 
   const filteredHistory = useMemo(
     () => history.filter((row) => rowHasStatusValues(row, statusParams)),

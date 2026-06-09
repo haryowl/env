@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useDeviceSocketSubscription } from '../hooks/useDeviceSocketSubscription';
+import { useSocketEvent } from '../hooks/useSocketEvent';
 import {
   Box,
   Typography,
@@ -227,9 +228,10 @@ const MobileDashboard = ({ socket }) => {
     return () => clearInterval(interval);
   }, [realtimeDevice, realtimeParams, fetchRealtimeData]);
 
-  useEffect(() => {
-    if (!socket || !realtimeDevice) return undefined;
-    const handler = (payload) => {
+  useSocketEvent(
+    socket,
+    'device_data',
+    (payload) => {
       if (payload.deviceId !== realtimeDevice || !payload.data) return;
       setRealtimeLatest((prev) => {
         const next = { ...prev };
@@ -242,10 +244,9 @@ const MobileDashboard = ({ socket }) => {
         });
         return updated ? next : prev;
       });
-    };
-    socket.on('device_data', handler);
-    return () => socket.off('device_data', handler);
-  }, [socket, realtimeDevice]);
+    },
+    Boolean(realtimeDevice)
+  );
 
   const numericParams = useMemo(
     () => realtimeParams.filter((p) => p !== 'datetime' && p !== 'timestamp'),
