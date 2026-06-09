@@ -861,37 +861,29 @@ class MQTTService {
 
   emitRealTimeData(deviceId, data) {
     try {
-      console.log(`MQTT: Emitting real-time data for device ${deviceId}:`, data);
-      
-      // Get the global io instance
-      const io = global.io;
-      if (io) {
-        // Emit device data
-        io.emit('device_data', {
-          deviceId,
-          data,
-          timestamp: new Date()
-        });
+      const { emitToDevice, emitToRoom } = require('../socket');
+      const devicePayload = {
+        deviceId,
+        data,
+        timestamp: new Date(),
+      };
 
-        // Also emit as listener data for the Listeners component
-        const listenerData = {
-          id: Date.now().toString(),
-          timestamp: new Date().toISOString(),
-          protocol: 'mqtt',
-          topic: `data/sparing/sparing/${deviceId}`,
-          client_id: deviceId,
-          payload: data,
-          source_ip: 'mqtt_broker',
-          port: 1883,
-          size: JSON.stringify(data).length,
-          device_id: deviceId
-        };
+      const listenerData = {
+        id: Date.now().toString(),
+        timestamp: new Date().toISOString(),
+        protocol: 'mqtt',
+        topic: `data/sparing/sparing/${deviceId}`,
+        client_id: deviceId,
+        payload: data,
+        source_ip: 'mqtt_broker',
+        port: 1883,
+        size: JSON.stringify(data).length,
+        device_id: deviceId,
+      };
 
-        console.log(`MQTT: Emitting listener_data:`, listenerData);
-        io.emit('listener_data', listenerData);
-      } else {
-        console.log('MQTT: Global io instance not available');
-      }
+      emitToDevice(deviceId, 'device_data', devicePayload);
+      emitToDevice(deviceId, 'listener_data', listenerData);
+      emitToRoom('listeners_feed', 'listener_data', listenerData);
     } catch (error) {
       console.error('MQTT: Failed to emit real-time data:', error);
     }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useDeviceSocketSubscription } from '../hooks/useDeviceSocketSubscription';
 import {
   Box,
   Card,
@@ -540,6 +541,14 @@ const DashboardMap = ({ socket, cardSx = {}, mapBoxSx, fillHeight = false, compa
   const theme = useTheme();
   const { formatDisplayName, getUnit, metadata: fieldMetadata } = useFieldMetadata();
   const [devices, setDevices] = useState([]);
+  const mapDeviceIds = useMemo(
+    () =>
+      devices
+        .filter((d) => d.latitude && d.longitude && !isNaN(d.latitude) && !isNaN(d.longitude))
+        .map((d) => d.device_id),
+    [devices]
+  );
+  useDeviceSocketSubscription(socket, mapDeviceIds);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedLayer, setSelectedLayer] = useState('dark');

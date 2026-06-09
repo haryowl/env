@@ -94,55 +94,106 @@ function applyFormulaToLatestData(latestData, mappings) {
   return latestData;
 }
 
+function parseReadingMetadata(metadata) {
+  if (!metadata) return {};
+  if (typeof metadata === 'string') {
+    try {
+      return JSON.parse(metadata);
+    } catch {
+      return {};
+    }
+  }
+  return metadata;
+}
+
+function payloadContainsKey(metadata, typeKey) {
+  const payload = parseReadingMetadata(metadata)?.payload;
+  return payload && typeof payload === 'object' && !Array.isArray(payload) && typeKey in payload;
+}
+
 /**
  * Latest value per mapper source field (newest sensor_readings row each), then map + formula.
- * Matches live socket updates and avoids mixing fields from different merged timestamps.
+ * Batched to at most two queries instead of one per mapped field.
  */
 async function fetchLatestPerMappedField(deviceId, dataMappings) {
   if (!dataMappings.length) {
     return null;
   }
 
-  const latestData = {};
-  let lastUpdatedAt = null;
+  const mappingEntries = [];
+  const allTypeKeys = new Set();
 
   for (const m of dataMappings) {
     const src = mappingSourceKey(m);
     const target = m.target_field;
     if (!src || !target || POPUP_SKIP_SENSOR_TYPES.has(target)) continue;
-
     const typeKeys = [...new Set([src, target].filter(Boolean))];
-    let row = null;
+    mappingEntries.push({ m, target, typeKeys });
+    typeKeys.forEach((k) => allTypeKeys.add(k));
+  }
 
-    for (const typeKey of typeKeys) {
-      row = await getRow(
-        `SELECT value, timestamp, metadata
-         FROM sensor_readings
-         WHERE device_id = $1 AND sensor_type = $2
-           AND timestamp <= NOW() + INTERVAL '5 minutes'
-         ORDER BY timestamp DESC
-         LIMIT 1`,
-        [deviceId, typeKey]
-      );
-      if (row) break;
+  if (mappingEntries.length === 0) {
+    return null;
+  }
+
+  const rowsByType = new Map();
+  const typeKeyArray = [...allTypeKeys];
+
+  if (typeKeyArray.length > 0) {
+    const rows = await getRows(
+      `SELECT DISTINCT ON (sensor_type)
+        sensor_type, value, timestamp, metadata
+       FROM sensor_readings
+       WHERE device_id = $1
+         AND sensor_type = ANY($2)
+         AND timestamp <= NOW() + INTERVAL '5 minutes'
+       ORDER BY sensor_type, timestamp DESC`,
+      [deviceId, typeKeyArray]
+    );
+    for (const row of rows) {
+      rowsByType.set(row.sensor_type, row);
     }
+  }
 
-    if (!row) {
-      for (const typeKey of typeKeys) {
-        row = await getRow(
-          `SELECT value, timestamp, metadata
-           FROM sensor_readings
-           WHERE device_id = $1
-             AND metadata->'payload' ? $2
-             AND timestamp <= NOW() + INTERVAL '5 minutes'
-           ORDER BY timestamp DESC
-           LIMIT 1`,
-          [deviceId, typeKey]
-        );
-        if (row) break;
+  const needsPayloadScan = mappingEntries.some(
+    ({ typeKeys }) => !typeKeys.some((k) => rowsByType.has(k))
+  );
+
+  let recentRows = [];
+  if (needsPayloadScan) {
+    recentRows = await getRows(
+      `SELECT sensor_type, value, timestamp, metadata
+       FROM sensor_readings
+       WHERE device_id = $1
+         AND timestamp <= NOW() + INTERVAL '5 minutes'
+       ORDER BY timestamp DESC
+       LIMIT 500`,
+      [deviceId]
+    );
+  }
+
+  const findRowForTypeKeys = (typeKeys) => {
+    for (const typeKey of typeKeys) {
+      if (rowsByType.has(typeKey)) return rowsByType.get(typeKey);
+    }
+    for (const typeKey of typeKeys) {
+      for (const row of recentRows) {
+        if (row.sensor_type === typeKey) return row;
       }
     }
+    for (const typeKey of typeKeys) {
+      for (const row of recentRows) {
+        if (payloadContainsKey(row.metadata, typeKey)) return row;
+      }
+    }
+    return null;
+  };
 
+  const latestData = {};
+  let lastUpdatedAt = null;
+
+  for (const { m, target, typeKeys } of mappingEntries) {
+    const row = findRowForTypeKeys(typeKeys);
     if (!row) continue;
 
     let mappedValue = resolveSensorReadingValue(row, ...typeKeys);

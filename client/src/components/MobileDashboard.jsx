@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useDeviceSocketSubscription } from '../hooks/useDeviceSocketSubscription';
 import {
   Box,
   Typography,
@@ -84,6 +85,7 @@ const MobileDashboard = ({ socket }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [realtimeDevice, setRealtimeDevice] = useState('');
+  useDeviceSocketSubscription(socket, realtimeDevice);
   const [realtimeData, setRealtimeData] = useState([]);
   const [realtimeParams, setRealtimeParams] = useState([]);
   const [realtimeLatest, setRealtimeLatest] = useState({});

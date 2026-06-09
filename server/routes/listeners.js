@@ -85,33 +85,28 @@ router.post('/simulation/start', async (req, res) => {
         pressure: Math.random() * 50 + 1000 // 1000-1050 hPa
       };
 
-      // Emit as MQTT data
-      const io = global.io;
-      if (io) {
-        // Emit device data
-        io.emit('device_data', {
-          deviceId,
-          data: testData,
-          timestamp: new Date()
-        });
+      const { emitToDevice, emitToRoom } = require('../socket');
+      const devicePayload = {
+        deviceId,
+        data: testData,
+        timestamp: new Date(),
+      };
+      const listenerData = {
+        id: Date.now().toString(),
+        timestamp: new Date().toISOString(),
+        protocol: 'mqtt',
+        topic: `data/sparing/sparing/${deviceId}`,
+        client_id: deviceId,
+        payload: testData,
+        source_ip: 'simulation',
+        port: 1883,
+        size: JSON.stringify(testData).length,
+        device_id: deviceId,
+      };
 
-        // Emit listener data
-        const listenerData = {
-          id: Date.now().toString(),
-          timestamp: new Date().toISOString(),
-          protocol: 'mqtt',
-          topic: `data/sparing/sparing/${deviceId}`,
-          client_id: deviceId,
-          payload: testData,
-          source_ip: 'simulation',
-          port: 1883,
-          size: JSON.stringify(testData).length,
-          device_id: deviceId
-        };
-
-        io.emit('listener_data', listenerData);
-        console.log('Simulation: Emitted test data for device', deviceId);
-      }
+      emitToDevice(deviceId, 'device_data', devicePayload);
+      emitToDevice(deviceId, 'listener_data', listenerData);
+      emitToRoom('listeners_feed', 'listener_data', listenerData);
     }, 5000);
 
     // Store the interval ID globally so we can stop it later

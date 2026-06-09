@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useDeviceSocketSubscription } from '../hooks/useDeviceSocketSubscription';
 import {
   Box,
   Card,
@@ -106,6 +107,7 @@ export default function StatusDashboard({ socket }) {
 
   const [devices, setDevices] = useState([]);
   const [deviceId, setDeviceId] = useState('');
+  useDeviceSocketSubscription(socket, deviceId);
   const [statusParams, setStatusParams] = useState([]);
   const [latest, setLatest] = useState({});
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);

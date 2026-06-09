@@ -1,54 +1,62 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { Box, Snackbar, Alert } from '@mui/material';
+import { Box, Snackbar, Alert, CircularProgress } from '@mui/material';
 import { UserThemeContextProvider } from './contexts/UserThemeContext';
 import { FontProvider } from './contexts/FontContext';
 
-// Components
 import Login from './components/Login';
 import ForgotPassword from './components/ForgotPassword';
 import ResetPassword from './components/ResetPassword';
-import Dashboard from './components/Dashboard';
-import UDashboard from './components/UDashboard';
-import StatusDashboard from './components/StatusDashboard';
-import MobileDashboard from './components/MobileDashboard';
-import QuickView from './components/QuickView';
-import MobileQuickView from './components/MobileQuickView';
-import DeviceManager from './components/DeviceManager';
-import UserManager from './components/UserManager.jsx';
-import TenantManager from './components/TenantManager.jsx';
-import RoleManager from './components/RoleManager.jsx';
-import FieldCreator from './components/FieldCreator';
-import DeviceMapper from './components/DeviceMapper';
-import LiveTracking from './components/LiveTracking';
-import Listeners from './components/Listeners';
-import DataViewer from './components/DataViewer';
-import Settings from './components/Settings';
 import Layout from './components/Layout';
-import DataDash from './components/DataDash';
-import DataDash2 from './components/DataDash2';
-import ComparisonDoughnutDashboard from './components/ComparisonDoughnutDashboard';
-import Alerts from './components/Alerts';
-import AlertSettings from './components/AlertSettings';
-import NotificationConfig from './components/NotificationConfig';
-import ThemeDemo from './components/ThemeDemo';
-import ColorCustomizer from './components/ColorCustomizer';
-import ParameterColorCustomizer from './components/ParameterColorCustomizer';
-import ParameterColorDemo from './components/ParameterColorDemo';
-import FontColorCustomizer from './components/FontColorCustomizer';
-import ScheduledExports from './components/ScheduledExports';
-import MqttConfiguration from './components/MqttConfiguration';
-import MqttPublisher from './components/MqttPublisher';
-import { useFeatureFlags } from './hooks/useFeatureFlags';
-import CompanySite from './components/CompanySite';
-import SensorManagement from './components/SensorManagement';
-import Maintenance from './components/Maintenance';
-import TechnicianDashboard from './components/TechnicianDashboard';
-import SystemInfo from './components/SystemInfo';
-import DataCleanup from './components/DataCleanup';
-import DeploymentSettings from './components/DeploymentSettings';
 import ErrorBoundary from './components/ErrorBoundary';
 import ProtectedRoute from './components/ProtectedRoute';
+import { useFeatureFlags } from './hooks/useFeatureFlags';
+
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const UDashboard = lazy(() => import('./components/UDashboard'));
+const StatusDashboard = lazy(() => import('./components/StatusDashboard'));
+const MobileDashboard = lazy(() => import('./components/MobileDashboard'));
+const QuickView = lazy(() => import('./components/QuickView'));
+const MobileQuickView = lazy(() => import('./components/MobileQuickView'));
+const DeviceManager = lazy(() => import('./components/DeviceManager'));
+const UserManager = lazy(() => import('./components/UserManager.jsx'));
+const TenantManager = lazy(() => import('./components/TenantManager.jsx'));
+const RoleManager = lazy(() => import('./components/RoleManager.jsx'));
+const FieldCreator = lazy(() => import('./components/FieldCreator'));
+const DeviceMapper = lazy(() => import('./components/DeviceMapper'));
+const LiveTracking = lazy(() => import('./components/LiveTracking'));
+const Listeners = lazy(() => import('./components/Listeners'));
+const DataViewer = lazy(() => import('./components/DataViewer'));
+const Settings = lazy(() => import('./components/Settings'));
+const DataDash = lazy(() => import('./components/DataDash'));
+const DataDash2 = lazy(() => import('./components/DataDash2'));
+const ComparisonDoughnutDashboard = lazy(() => import('./components/ComparisonDoughnutDashboard'));
+const Alerts = lazy(() => import('./components/Alerts'));
+const AlertSettings = lazy(() => import('./components/AlertSettings'));
+const NotificationConfig = lazy(() => import('./components/NotificationConfig'));
+const ThemeDemo = lazy(() => import('./components/ThemeDemo'));
+const ColorCustomizer = lazy(() => import('./components/ColorCustomizer'));
+const ParameterColorCustomizer = lazy(() => import('./components/ParameterColorCustomizer'));
+const ParameterColorDemo = lazy(() => import('./components/ParameterColorDemo'));
+const FontColorCustomizer = lazy(() => import('./components/FontColorCustomizer'));
+const ScheduledExports = lazy(() => import('./components/ScheduledExports'));
+const MqttConfiguration = lazy(() => import('./components/MqttConfiguration'));
+const MqttPublisher = lazy(() => import('./components/MqttPublisher'));
+const CompanySite = lazy(() => import('./components/CompanySite'));
+const SensorManagement = lazy(() => import('./components/SensorManagement'));
+const Maintenance = lazy(() => import('./components/Maintenance'));
+const TechnicianDashboard = lazy(() => import('./components/TechnicianDashboard'));
+const SystemInfo = lazy(() => import('./components/SystemInfo'));
+const DataCleanup = lazy(() => import('./components/DataCleanup'));
+const DeploymentSettings = lazy(() => import('./components/DeploymentSettings'));
+
+function RouteFallback() {
+  return (
+    <Box display="flex" justifyContent="center" alignItems="center" minHeight="320px">
+      <CircularProgress />
+    </Box>
+  );
+}
 
 // Services
 import { AuthService } from './services/authService';
@@ -235,25 +243,6 @@ function App() {
     return () => socket.off('new_alert_log', handleNewAlertLog);
   }, [socket, alerts, devices]);
 
-  // Register real-time listeners for device_data and listener_data
-  useEffect(() => {
-    if (!socket) return;
-    const handleDeviceData = (payload) => {
-      console.log('App: Received device_data:', payload);
-      // TODO: Optionally update state/UI here
-    };
-    const handleListenerData = (payload) => {
-      console.log('App: Received listener_data:', payload);
-      // TODO: Optionally update state/UI here
-    };
-    socket.on('device_data', handleDeviceData);
-    socket.on('listener_data', handleListenerData);
-    return () => {
-      socket.off('device_data', handleDeviceData);
-      socket.off('listener_data', handleListenerData);
-    };
-  }, [socket]);
-
   const handleLogin = async (credentials) => {
     try {
       const authService = new AuthService();
@@ -380,6 +369,7 @@ function App() {
           <ErrorBoundary>
           <Router>
             <Layout user={user} userContext={userContext} onLogout={handleLogout}>
+              <Suspense fallback={<RouteFallback />}>
               <Routes>
                 <Route path="/" element={<HomeRedirect user={user} />} />
                 <Route path="/dashboard" element={<ProtectedRoute><Dashboard socket={socket} /></ProtectedRoute>} />
@@ -422,6 +412,7 @@ function App() {
                 <Route path="/deployment-settings" element={<ProtectedRoute><DeploymentSettings /></ProtectedRoute>} />
                 <Route path="/settings" element={<ProtectedRoute><Settings user={user} onFontChange={handleFontChange} /></ProtectedRoute>} />
               </Routes>
+              </Suspense>
             </Layout>
           </Router>
           </ErrorBoundary>

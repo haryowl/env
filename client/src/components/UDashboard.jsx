@@ -4,6 +4,7 @@
  * Does not modify the classic Dashboard component.
  */
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useDeviceSocketSubscription } from '../hooks/useDeviceSocketSubscription';
 import {
   Box,
   Typography,
@@ -117,6 +118,7 @@ export default function UDashboard({ socket }) {
   const [error, setError] = useState('');
 
   const [realtimeDevice, setRealtimeDevice] = useState('');
+  useDeviceSocketSubscription(socket, realtimeDevice);
   const [realtimeData, setRealtimeData] = useState([]);
   const [realtimeError, setRealtimeError] = useState('');
   const [realtimeParams, setRealtimeParams] = useState([]);

@@ -237,6 +237,7 @@ export default function DataDash2() {
         parameters: selectedParameters.join(','),
         startDate: dateRange[0] ? dateRange[0].toISOString() : undefined,
         endDate: dateRange[1] ? dateRange[1].toISOString() : undefined,
+        limit: 10000,
         excludeCategories: 'Status',
       };
       const token = localStorage.getItem('iot_token');
@@ -260,6 +261,7 @@ export default function DataDash2() {
         startDate: dateRange[0] ? dateRange[0].toISOString() : undefined,
         endDate: dateRange[1] ? dateRange[1].toISOString() : undefined,
         groupBy: aggregation,
+        limit: 10000,
         excludeCategories: 'Status',
       };
       const token = localStorage.getItem('iot_token');

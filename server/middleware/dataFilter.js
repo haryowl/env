@@ -87,30 +87,29 @@ const filterDeviceData = async (req, res, next) => {
       return next();
     }
 
-    // Get devices from role permissions
-    const allowedDeviceIds = [];
-    
+    // Full device access if any role grants it
     for (const userRole of userRoles) {
       if (!userRole) continue;
-      const roleId = userRole.role_id;
-      if (roleId) {
-        // Get device IDs from role_device_permissions table (always check - specific devices)
-        const roleDevicePermissions = await getRows(`
-          SELECT device_id FROM role_device_permissions 
-          WHERE role_id = $1
-          AND permissions->>'read' = 'true'
-        `, [roleId]);
-        allowedDeviceIds.push(...(roleDevicePermissions || []).map(d => d.device_id));
-
-        // Check general device permissions (all_devices / all_groups)
-        const devicePerms = userRole.device_permissions;
-        if (devicePerms && (devicePerms.all_devices?.read === true || devicePerms.all_groups?.read === true)) {
-          console.log('Role has full device access');
-          req.allowedDeviceIds = null;
-          req.allowedDeviceIdsForData = null;
-          return next();
-        }
+      const devicePerms = userRole.device_permissions;
+      if (devicePerms && (devicePerms.all_devices?.read === true || devicePerms.all_groups?.read === true)) {
+        console.log('Role has full device access');
+        req.allowedDeviceIds = null;
+        req.allowedDeviceIdsForData = null;
+        return next();
       }
+    }
+
+    const allowedDeviceIds = [];
+    const roleIds = userRoles.map((r) => r?.role_id).filter(Boolean);
+
+    if (roleIds.length > 0) {
+      const roleDevicePermissions = await getRows(
+        `SELECT device_id FROM role_device_permissions
+         WHERE role_id = ANY($1)
+         AND permissions->>'read' = 'true'`,
+        [roleIds]
+      );
+      allowedDeviceIds.push(...(roleDevicePermissions || []).map((d) => d.device_id));
     }
 
     // Only check direct user device permissions if NO role permissions exist

@@ -183,26 +183,23 @@ const MobileQuickView = () => {
       const startDate = getStartDate(selectedPeriod);
       const q = `deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=500&excludeCategories=Status`;
 
-      const [chartResponse, alertResponse, tableResponse] = await Promise.all([
+      const [dataDashResponse, alertResponse] = await Promise.all([
         fetch(`${API_BASE_URL}/data-dash?${q}`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch(
           `${API_BASE_URL}/alert-logs?deviceId=${selectedDevice}&startDate=${startDate}&endDate=${endDate}`,
           { headers: { Authorization: `Bearer ${token}` } }
         ),
-        fetch(`${API_BASE_URL}/data-dash?${q}`, { headers: { Authorization: `Bearer ${token}` } }),
       ]);
 
-      if (chartResponse.ok) {
-        const j = await chartResponse.json();
-        setChartData(j.data || []);
+      if (dataDashResponse.ok) {
+        const j = await dataDashResponse.json();
+        const rows = j.data || [];
+        setChartData(rows);
+        setTableData(rows);
       }
       if (alertResponse.ok) {
         const j = await alertResponse.json();
         setAlertData(j.logs || []);
-      }
-      if (tableResponse.ok) {
-        const j = await tableResponse.json();
-        setTableData(j.data || []);
       }
     } catch (e) {
       console.error(e);

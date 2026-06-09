@@ -287,37 +287,27 @@ const QuickView = () => {
         timeRangeHours: moment(endDate).diff(moment(startDate), 'hours', true)
       });
       
-      // Load chart data (display limit 500 for performance)
-      const chartResponse = await fetch(`${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=500&excludeCategories=Status`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (chartResponse.ok) {
-        const chartData = await chartResponse.json();
-        setChartData(chartData.data || []);
+      const dataDashUrl = `${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=500&excludeCategories=Status`;
+
+      const [dataDashResponse, alertResponse] = await Promise.all([
+        fetch(dataDashUrl, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_BASE_URL}/alert-logs?deviceId=${selectedDevice}&startDate=${startDate}&endDate=${endDate}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+
+      if (dataDashResponse.ok) {
+        const payload = await dataDashResponse.json();
+        const rows = payload.data || [];
+        setChartData(rows);
+        setTableData(rows);
       }
-      
-      // Load alert data
-      const alertResponse = await fetch(`${API_BASE_URL}/alert-logs?deviceId=${selectedDevice}&startDate=${startDate}&endDate=${endDate}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
+
       if (alertResponse.ok) {
         const alertData = await alertResponse.json();
-        console.log('Alert data loaded:', alertData);
         setAlertData(alertData.logs || []);
       } else {
         console.error('Failed to load alert data:', alertResponse.status, alertResponse.statusText);
-      }
-      
-      // Load table data (display limit 500 for performance)
-      const tableResponse = await fetch(`${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=500&excludeCategories=Status`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (tableResponse.ok) {
-        const tableData = await tableResponse.json();
-        setTableData(tableData.data || []);
       }
       
     } catch (error) {

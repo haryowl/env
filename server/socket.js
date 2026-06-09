@@ -52,6 +52,14 @@ const initializeSocket = (server) => {
       console.log(`Client ${socket.id} unsubscribed from dashboard ${dashboardId}`);
     });
 
+    socket.on('subscribe_listeners_feed', () => {
+      socket.join('listeners_feed');
+    });
+
+    socket.on('unsubscribe_listeners_feed', () => {
+      socket.leave('listeners_feed');
+    });
+
     // Handle real-time data requests
     socket.on('get_latest_data', async (deviceId) => {
       try {

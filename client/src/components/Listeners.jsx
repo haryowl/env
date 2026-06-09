@@ -73,14 +73,13 @@ const Listeners = ({ socket }) => {
     lastUpdate: null
   });
 
-  // Listen for real-time listener data from WebSocket
   useEffect(() => {
     if (socket) {
-      console.log('Listeners: Socket available, setting up listener_data handler');
-      console.log('Listeners: Socket object:', socket);
-      
+      if (typeof socket.subscribeListenersFeed === 'function') {
+        socket.subscribeListenersFeed();
+      }
+
       const handleListenerData = (data) => {
-        console.log('Listeners: Received listener_data from WebSocket:', data);
         setListeners(prev => {
           const newData = [data, ...prev];
           // Keep only last 1000 records
@@ -98,18 +97,17 @@ const Listeners = ({ socket }) => {
         }));
       };
 
-      // Register the event listener
       socket.on('listener_data', handleListenerData);
-      console.log('Listeners: Registered listener_data event handler');
 
       return () => {
-        console.log('Listeners: Cleaning up listener_data handler');
         socket.off('listener_data', handleListenerData);
+        if (typeof socket.unsubscribeListenersFeed === 'function') {
+          socket.unsubscribeListenersFeed();
+        }
       };
-    } else {
-      console.log('Listeners: No socket available');
     }
-  }, [socket]); // Remove listeners dependency to prevent infinite loop
+    return undefined;
+  }, [socket]);
 
   // Mock data for demonstration
   const mockListeners = [
