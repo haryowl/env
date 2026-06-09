@@ -21,7 +21,17 @@ const {
   deviceReadingMergeKey,
   compareDeviceTime,
 } = require('../utils/deviceReadingTime');
+const {
+  resolveDataDashDeviceIds,
+  resolveDataDashLimit,
+} = require('../utils/dataDashQueryLimits');
 const router = express.Router();
+
+const EMPTY_DATA_DASH_RESPONSE = {
+  data: [],
+  summary: {},
+  summaryTable: [],
+};
 
 // Apply authentication middleware (filterDeviceData applied at app level)
 router.use(authenticateToken);
@@ -29,14 +39,29 @@ router.use(authenticateToken);
 // GET /api/data-dash
 router.get(['/', ''], async (req, res) => {
   try {
-    const { deviceIds, parameters, startDate, endDate, groupBy, limit: limitParam } = req.query;
-    let ids = deviceIds ? (Array.isArray(deviceIds) ? deviceIds : deviceIds.split(',')) : [];
-    // For non-admin: only return data for devices in valid access period
-    if (req.allowedDeviceIdsForData !== null) {
-      ids = ids.filter(id => req.allowedDeviceIdsForData && req.allowedDeviceIdsForData.includes(id));
-    } else if (req.allowedDeviceIds !== null && req.allowedDeviceIds && req.allowedDeviceIds.length > 0) {
-      ids = ids.filter(id => req.allowedDeviceIds.includes(id));
+    const {
+      deviceIds,
+      parameters,
+      startDate,
+      endDate,
+      groupBy,
+      limit: limitParam,
+      export: exportParam,
+    } = req.query;
+
+    const scope = resolveDataDashDeviceIds(req, deviceIds);
+    if (scope.error) {
+      return res.status(400).json({
+        error: scope.error,
+        code: 'DEVICE_IDS_REQUIRED',
+        ...EMPTY_DATA_DASH_RESPONSE,
+      });
     }
+    if (scope.empty) {
+      return res.json(EMPTY_DATA_DASH_RESPONSE);
+    }
+    const ids = scope.ids;
+
     let params = parameters ? (Array.isArray(parameters) ? parameters : parameters.split(',')) : [];
     const categoryMap = await getFieldCategoryMap();
     const categoryOpts = parseCategoryQuery(req);
@@ -46,8 +71,8 @@ router.get(['/', ''], async (req, res) => {
     const start = startDate ? new Date(startDate) : null;
     const end = endDate ? new Date(endDate) : null;
     const group = groupBy || null;
-    // Limit for display (default 500), export can request up to 100000 (e.g. 1 month at 2–5 min interval)
-    const limit = Math.min(Math.max(1, parseInt(limitParam, 10) || 500), 100000);
+    // Display cap 10k; export=true allows up to 100k (CSV/XLSX / summary exports)
+    const limit = resolveDataDashLimit(limitParam, exportParam);
 
     // 1. Get all devices and their mapper assignments
     let deviceMap = {};

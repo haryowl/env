@@ -199,8 +199,16 @@ export default function DataDash() {
     setVisibleParams(selectedParameters);
   }, [selectedParameters]);
 
-  // Fetch real data from backend
+  const hasActiveFilters =
+    selectedDevices.length > 0 && selectedParameters.length > 0;
+
+  // Fetch real data from backend (Apply Filters only — no mount fetch)
   const fetchData = async () => {
+    if (!hasActiveFilters) {
+      setData([]);
+      setSummary({});
+      return;
+    }
     setLoading(true);
     try {
       const params = {
@@ -242,15 +250,12 @@ export default function DataDash() {
     setLoading(false);
   };
 
-  // Replace mock data loading with fetchData
-  useEffect(() => {
-    // Optionally, fetch devices/parameters from backend here
-    fetchData();
-    // eslint-disable-next-line
-  }, []);
-
   // Fetch summary table data and transform to time-period + parameter format
   const fetchSummaryTableData = async () => {
+    if (!hasActiveFilters) {
+      setSummaryTableData([]);
+      return;
+    }
     setLoadingSummary(true);
     try {
       const params = {
@@ -260,6 +265,7 @@ export default function DataDash() {
         endDate: dateRange[1] ? dateRange[1].toISOString() : undefined,
         groupBy: aggregation,
         limit: 100000,
+        export: true,
         excludeCategories: 'Status',
       };
       const token = localStorage.getItem('iot_token');
@@ -305,20 +311,22 @@ export default function DataDash() {
     setLoadingSummary(false);
   };
 
-  // Fetch summary table data when aggregation or filters change
+  // Fetch summary table data when aggregation or filters change (summary tab only)
   useEffect(() => {
-    if (summaryTab === 2) fetchSummaryTableData();
+    if (summaryTab === 2 && hasActiveFilters) fetchSummaryTableData();
     // eslint-disable-next-line
-  }, [aggregation, selectedDevices, selectedParameters, dateRange, summaryTab]);
+  }, [aggregation, selectedDevices, selectedParameters, dateRange, summaryTab, hasActiveFilters]);
 
   // Fetch up to ~1 month of data for export (high limit), then export CSV/XLSX
   const fetchDataForExport = async () => {
+    if (!hasActiveFilters) return [];
     const params = {
       deviceIds: selectedDevices.join(','),
       parameters: selectedParameters.join(','),
       startDate: dateRange[0] ? dateRange[0].toISOString() : undefined,
       endDate: dateRange[1] ? dateRange[1].toISOString() : undefined,
       limit: 100000,
+      export: true,
       excludeCategories: 'Status',
     };
     const token = localStorage.getItem('iot_token');

@@ -356,6 +356,7 @@ export default function ComparisonDoughnutDashboard() {
         startDate: startIso,
         endDate: endIso,
         limit: '100000',
+        export: 'true',
         excludeCategories: 'Status',
       });
       const res = await fetch(`${API_BASE_URL}/data-dash?${params}`, {

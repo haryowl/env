@@ -240,7 +240,7 @@ const MobileQuickView = () => {
     const endDate = getEndDate();
     const startDate = getStartDate(selectedPeriod);
     const res = await fetch(
-      `${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=100000&excludeCategories=Status`,
+      `${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=100000&export=true&excludeCategories=Status`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
     if (!res.ok) return [];

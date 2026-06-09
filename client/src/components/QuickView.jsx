@@ -360,7 +360,7 @@ const QuickView = () => {
     const token = localStorage.getItem('iot_token');
     const endDate = getEndDate(selectedPeriod);
     const startDate = getStartDate(selectedPeriod);
-    const res = await fetch(`${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=100000&excludeCategories=Status`, {
+    const res = await fetch(`${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=100000&export=true&excludeCategories=Status`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     if (!res.ok) return [];
@@ -408,7 +408,7 @@ const QuickView = () => {
       const endDate = getEndDate(selectedPeriod);
       const startDate = getStartDate(selectedPeriod);
       let fullTableData = tableData;
-      const fullTableResponse = await fetch(`${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=100000&excludeCategories=Status`, {
+      const fullTableResponse = await fetch(`${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=100000&export=true&excludeCategories=Status`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (fullTableResponse.ok) {
@@ -438,7 +438,7 @@ const QuickView = () => {
       const endDate = getEndDate(selectedPeriod);
       const startDate = getStartDate(selectedPeriod);
       let fullTableData = tableData;
-      const fullTableResponse = await fetch(`${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=100000&excludeCategories=Status`, {
+      const fullTableResponse = await fetch(`${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=100000&export=true&excludeCategories=Status`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (fullTableResponse.ok) {

@@ -229,7 +229,14 @@ export default function DataDash2() {
     ])
   ];
 
+  const hasActiveFilters =
+    selectedDevices.length > 0 && selectedParameters.length > 0;
+
   const fetchData = async () => {
+    if (!hasActiveFilters) {
+      setData([]);
+      return;
+    }
     setLoading(true);
     try {
       const params = {
@@ -253,6 +260,10 @@ export default function DataDash2() {
   };
 
   const fetchSummaryTableData = async () => {
+    if (!hasActiveFilters) {
+      setSummaryTableData([]);
+      return;
+    }
     setLoadingSummary(true);
     try {
       const params = {
@@ -277,9 +288,15 @@ export default function DataDash2() {
   };
 
   useEffect(() => {
+    if (!hasActiveFilters) {
+      setData([]);
+      setSummaryTableData([]);
+      return;
+    }
     fetchData();
     fetchSummaryTableData();
-  }, [selectedDevices, selectedParameters, dateRange, aggregation]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDevices, selectedParameters, dateRange, aggregation, hasActiveFilters]);
 
   return (
     <Box sx={{ fontFamily: 'Roboto Mono, monospace', fontSize: 13, background: '#f7fafd', minHeight: '100vh', p: { xs: 1, md: 3 } }}>

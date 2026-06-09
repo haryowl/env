@@ -400,6 +400,7 @@ export default function StatusDashboard({ socket }) {
         startDate,
         endDate,
         limit: 100000,
+        export: true,
         categories: 'Status',
       },
       headers: { Authorization: `Bearer ${token}` },
