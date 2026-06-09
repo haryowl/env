@@ -330,6 +330,18 @@ const chartParamsFromMappings = (mappings) =>
     .map((m) => m.target_field)
     .filter((p) => p && p !== 'datetime' && p !== 'timestamp' && !isGpsDisplayField(p));
 
+const rowTimeMs = (row) => {
+  const raw = row?.datetime ?? row?.timestamp;
+  if (raw == null || raw === '') return NaN;
+  const t = new Date(raw).getTime();
+  return Number.isFinite(t) ? t : NaN;
+};
+
+const newestMappedRow = (rows) => {
+  if (!rows?.length) return null;
+  return [...rows].sort((a, b) => rowTimeMs(b) - rowTimeMs(a))[0];
+};
+
 const pickMappedSnapshot = (record, allowedParams) => {
   if (!record || !allowedParams?.length) return {};
   const out = {};
@@ -577,6 +589,7 @@ const DashboardMap = ({
   const mapRef = useRef(null);
   const refreshTimersRef = useRef({});
   const alertThresholdsRef = useRef({});
+  const deviceLastUpdatedRef = useRef({});
   const deviceBootstrapPendingRef = useRef(new Set());
   const loadDeviceDataRef = useRef(async () => {});
   const lazyDeviceDataRef = useRef(lazyDeviceData);
@@ -584,6 +597,10 @@ const DashboardMap = ({
   useEffect(() => {
     lazyDeviceDataRef.current = lazyDeviceData;
   }, [lazyDeviceData]);
+
+  useEffect(() => {
+    deviceLastUpdatedRef.current = deviceLastUpdated;
+  }, [deviceLastUpdated]);
 
   useEffect(() => {
     alertThresholdsRef.current = alertThresholdsByDevice;
@@ -681,6 +698,17 @@ const DashboardMap = ({
     const patch = pickMappedSnapshot(incoming, chartParams);
     if (Object.keys(patch).length === 0) return false;
 
+    const incomingMs = lastUpdatedIso ? new Date(lastUpdatedIso).getTime() : NaN;
+    const existingIso = deviceLastUpdatedRef.current[deviceId];
+    const existingMs = existingIso ? new Date(existingIso).getTime() : NaN;
+    if (
+      Number.isFinite(incomingMs) &&
+      Number.isFinite(existingMs) &&
+      incomingMs < existingMs
+    ) {
+      return false;
+    }
+
     let merged;
     setDeviceData((prev) => {
       merged = { ...pickMappedSnapshot(prev[deviceId] || {}, chartParams), ...patch };
@@ -729,64 +757,55 @@ const DashboardMap = ({
         paramList.unshift('datetime');
       }
 
+      const endDate = new Date().toISOString();
+      const startDate = subHours(new Date(), 48).toISOString();
+      const dashQuery = new URLSearchParams({
+        deviceIds: deviceId,
+        parameters: paramList.join(','),
+        startDate,
+        endDate,
+        limit: '1500',
+        excludeCategories: 'Status',
+      });
+
+      const [dashRes, latestRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/data-dash?${dashQuery}`, { headers }),
+        fetch(`${API_BASE_URL}/devices/${deviceId}/latest-data?excludeCategories=Status`, { headers }),
+      ]);
+
       let dashRecord = null;
       let dashLastTs = null;
       let dbRecord = null;
       let dbLastTs = null;
 
-      if (lazyDeviceData) {
-        const latestRes = await fetch(
-          `${API_BASE_URL}/devices/${deviceId}/latest-data?excludeCategories=Status`,
-          { headers }
-        );
-        if (latestRes.ok) {
-          const latestJson = await latestRes.json();
-          dbRecord = latestJson.data || {};
-          dbLastTs = latestJson.last_updated_at;
+      if (dashRes.ok) {
+        const dashJson = await dashRes.json();
+        dashRecord = newestMappedRow(dashJson.data || []);
+        if (dashRecord) {
+          dashLastTs = dashRecord.datetime ?? dashRecord.timestamp;
         }
-      } else {
-        const endDate = new Date().toISOString();
-        const startDate = subHours(new Date(), 48).toISOString();
-        const dashQuery = new URLSearchParams({
-          deviceIds: deviceId,
-          parameters: paramList.join(','),
-          startDate,
-          endDate,
-          limit: '5000',
-          excludeCategories: 'Status',
-        });
+      }
 
-        const [dashRes, latestRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/data-dash?${dashQuery}`, { headers }),
-          fetch(`${API_BASE_URL}/devices/${deviceId}/latest-data?excludeCategories=Status`, { headers }),
-        ]);
-
-        if (dashRes.ok) {
-          const dashJson = await dashRes.json();
-          const mappedData = dashJson.data || [];
-          if (mappedData.length > 0) {
-            const sortedData = [...mappedData].sort(
-              (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
-            );
-            dashRecord = sortedData[0];
-            dashLastTs = dashRecord.timestamp || dashRecord.datetime;
-          }
-        }
-
-        if (latestRes.ok) {
-          const latestJson = await latestRes.json();
-          dbRecord = latestJson.data || {};
-          dbLastTs = latestJson.last_updated_at;
-        }
+      if (latestRes.ok) {
+        const latestJson = await latestRes.json();
+        dbRecord = latestJson.data || {};
+        dbLastTs = latestJson.last_updated_at;
       }
 
       const dashPatch = pickMappedSnapshot(dashRecord, chartParams);
       const dbPatch = pickMappedSnapshot(dbRecord, chartParams);
       const mergedIncoming = { ...dbPatch, ...dashPatch };
-      const lastTs =
-        Object.keys(dashPatch).length > 0
-          ? dashLastTs
-          : dbLastTs;
+
+      const dashMs = dashLastTs ? new Date(dashLastTs).getTime() : NaN;
+      const dbMs = dbLastTs ? new Date(dbLastTs).getTime() : NaN;
+      let lastTs = null;
+      if (Number.isFinite(dashMs) && Number.isFinite(dbMs)) {
+        lastTs = dashMs >= dbMs ? dashLastTs : dbLastTs;
+      } else if (Number.isFinite(dashMs)) {
+        lastTs = dashLastTs;
+      } else if (Number.isFinite(dbMs)) {
+        lastTs = dbLastTs;
+      }
 
       applyMappedDeviceSnapshot(deviceId, chartParams, mergedIncoming, lastTs);
     } catch (error) {
@@ -794,7 +813,7 @@ const DashboardMap = ({
     } finally {
       setDeviceDataLoading((prev) => ({ ...prev, [deviceId]: false }));
     }
-  }, [fieldMetadata, lazyDeviceData]);
+  }, [fieldMetadata]);
 
   useEffect(() => {
     loadDeviceDataRef.current = loadDeviceData;
@@ -853,12 +872,10 @@ const DashboardMap = ({
         ...prevAlerts,
         [deviceId]: isLatestDataOutOfRange(merged, thresholds),
       }));
+      const liveTs = payload?.data?.datetime ?? payload?.timestamp;
       setDeviceLastUpdated((prev) => ({
         ...prev,
-        [deviceId]:
-          payload.timestamp != null
-            ? new Date(payload.timestamp).toISOString()
-            : new Date().toISOString(),
+        [deviceId]: liveTs != null ? new Date(liveTs).toISOString() : new Date().toISOString(),
       }));
     }
 
