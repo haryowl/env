@@ -193,9 +193,7 @@ async function evaluateInactivityAlertsPeriodically() {
 }
 
 async function pollLatestDataAndEvaluateAlerts() {
-  console.log('Polling for alerts...');
   const alerts = await getRows(`SELECT * FROM alerts WHERE type = 'threshold'`);
-  console.log('Fetched alerts:', alerts);
   // Group alerts by device for efficiency
   const alertsByDevice = {};
   for (const alert of alerts) {
@@ -211,7 +209,6 @@ async function pollLatestDataAndEvaluateAlerts() {
        ORDER BY sensor_type, timestamp DESC`,
       [device_id]
     );
-    console.log('Latest sensor rows for device', device_id, rows);
     if (rows.length) {
       // Build the latest payload (merge metadata and sensor_type values)
       let latestPayload = {};
@@ -225,7 +222,6 @@ async function pollLatestDataAndEvaluateAlerts() {
           latestTimestamp = row.timestamp;
         }
       }
-      console.log('Latest payload for device', device_id, latestPayload);
       // --- Use mapper template if available ---
       let mapped;
       const template = await getDeviceMapperTemplate(device_id);
@@ -238,17 +234,14 @@ async function pollLatestDataAndEvaluateAlerts() {
           mappings = [];
         }
         mapped = applyTemplateMapping(latestPayload, mappings);
-        console.log('Mapped fields (template) for device', device_id, mapped);
       } else {
         // Fallback to processDeviceData (field_mappings)
         const device = await getRow('SELECT * FROM devices WHERE device_id = $1', [device_id]);
         if (!device) continue;
         mapped = await processDeviceData(device, latestPayload);
-        console.log('Mapped fields (fallback) for device', device_id, mapped);
       }
       for (const alert of alertsByDevice[device_id]) {
         const value = mapped[alert.parameter];
-        console.log('Evaluating alert', alert.parameter, 'with value', value, 'for device', device_id);
         if (typeof value === 'number') {
           await evaluateThresholdAlertsOnData(device_id, alert.parameter, value, latestTimestamp);
         }

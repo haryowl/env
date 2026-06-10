@@ -8,9 +8,9 @@ const pool = new Pool({
   user: process.env.DB_USER || 'postgres',
   password: process.env.DB_PASSWORD,
   ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
-  max: 20, // Maximum number of clients in the pool
-  idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
-  connectionTimeoutMillis: 10000, // Return an error after 10 seconds if connection could not be established
+  max: Math.max(10, parseInt(process.env.DB_POOL_MAX, 10) || 30),
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
 });
 
 // Test the connection (log only in dev or when LOG_LEVEL is debug)
@@ -21,8 +21,7 @@ pool.on('connect', () => {
 });
 
 pool.on('error', (err) => {
-  console.error('Unexpected error on idle client', err);
-  process.exit(-1);
+  console.error('Unexpected error on idle PostgreSQL client (pool will recover):', err.message);
 });
 
 // Only log queries in development or when explicitly enabled (reduces noise in production)

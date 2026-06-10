@@ -12,6 +12,9 @@ const { normalizeDatetimeToUtc } = require('../utils/deviceTimezone');
 const { evaluateThresholdAlertsOnData } = require('./alertEvaluationService');
 const bufferDataConfig = require('../config/bufferDataConfig');
 
+const MQTT_DEBUG = process.env.MQTT_DEBUG === 'true';
+const PAYLOAD_FIELDS_CACHE_MS = 60_000;
+
 class MQTTService {
   constructor() {
     this.client = null;
@@ -22,9 +25,58 @@ class MQTTService {
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 10;
     this.reconnectInterval = 5000; // 5 seconds
-    this.isShuttingDown = false; // Add shutdown flag
-    // Explicitly bind handleMessage to this instance
+    this.isShuttingDown = false;
+    this.ingestQueue = [];
+    this.ingestActive = 0;
+    this.maxIngestConcurrency = Math.max(
+      1,
+      parseInt(process.env.MQTT_INGEST_CONCURRENCY, 10) || 4
+    );
+    this.maxIngestQueue = Math.max(
+      100,
+      parseInt(process.env.MQTT_INGEST_QUEUE_MAX, 10) || 2000
+    );
+    this.droppedIngestMessages = 0;
+    this.payloadFieldsCache = new Map();
+    this.lastStatusUpdateAt = new Map();
+    this.statusUpdateThrottleMs = Math.max(
+      5000,
+      parseInt(process.env.MQTT_STATUS_THROTTLE_MS, 10) || 30000
+    );
     this.handleMessage = this.handleMessage.bind(this);
+  }
+
+  logDebug(...args) {
+    if (MQTT_DEBUG) console.log(...args);
+  }
+
+  enqueueIngest(topic, message) {
+    if (this.ingestQueue.length >= this.maxIngestQueue) {
+      this.droppedIngestMessages += 1;
+      if (this.droppedIngestMessages === 1 || this.droppedIngestMessages % 100 === 0) {
+        console.warn(
+          `MQTT ingest queue full (${this.maxIngestQueue}); dropped ${this.droppedIngestMessages} message(s)`
+        );
+      }
+      return;
+    }
+    this.ingestQueue.push({ topic, message });
+    this.drainIngestQueue();
+  }
+
+  drainIngestQueue() {
+    while (this.ingestActive < this.maxIngestConcurrency && this.ingestQueue.length > 0) {
+      const { topic, message } = this.ingestQueue.shift();
+      this.ingestActive += 1;
+      this.handleMessage(topic, message)
+        .catch((error) => {
+          console.error('MQTT ingest job failed:', error);
+        })
+        .finally(() => {
+          this.ingestActive -= 1;
+          this.drainIngestQueue();
+        });
+    }
   }
 
   publish(topic, payload, options = {}) {
@@ -88,14 +140,8 @@ class MQTTService {
       });
 
       this.client.on('message', (topic, message) => {
-        console.log(`MQTT: Raw message received on topic: ${topic}`);
-        console.log(`MQTT: Message content: ${message.toString()}`);
-        // Defensive: ensure handleMessage is called if defined
-        if (typeof this.handleMessage === 'function') {
-          this.handleMessage(topic, message);
-        } else {
-          console.error('handleMessage is not a function!', this.handleMessage);
-        }
+        this.logDebug(`MQTT: message on ${topic}`, message.toString().slice(0, 200));
+        this.enqueueIngest(topic, message);
       });
 
       this.client.on('error', (error) => {
@@ -256,6 +302,11 @@ class MQTTService {
   }
 
   async getPayloadFieldsForDevice(deviceId) {
+    const cached = this.payloadFieldsCache.get(deviceId);
+    if (cached && Date.now() - cached.at < PAYLOAD_FIELDS_CACHE_MS) {
+      return cached.fields;
+    }
+
     const row = await getRow(
       `SELECT mt.mappings
        FROM device_mapper_assignments dma
@@ -273,7 +324,7 @@ class MQTTService {
       }
     }
     if (!Array.isArray(mappings)) return [];
-    return mappings
+    const fields = mappings
       .filter((m) => m && String(m.source_field || '').trim())
       .map((m) => ({
         source_field: String(m.source_field).trim(),
@@ -281,6 +332,8 @@ class MQTTService {
         data_type: String(m.data_type || 'string').trim(),
         is_required: Boolean(m.is_required),
       }));
+    this.payloadFieldsCache.set(deviceId, { at: Date.now(), fields });
+    return fields;
   }
 
   async runIngestPipeline(device, rawData, { rawPayload = null } = {}) {
@@ -311,10 +364,8 @@ class MQTTService {
   }
 
   async handleMessage(topic, message) {
-    console.log('handleMessage called', topic);
+    this.logDebug('handleMessage', topic);
     try {
-      console.log(`Received message on topic: ${topic}`);
-      
       // Parse message
       let data;
       try {
@@ -334,7 +385,7 @@ class MQTTService {
       }
 
       const deviceId = resolveDeviceId({ topicDeviceId, data, ingestConfig: hintIngest });
-      console.log(`MQTT: Resolved device ID: ${deviceId} (topic: ${topicDeviceId || 'n/a'}) from topic: ${topic}`);
+      this.logDebug(`MQTT: device ${deviceId} from topic ${topic}`);
       if (!deviceId) {
         console.error('Could not resolve device ID from topic/payload:', topic);
         return;
@@ -350,14 +401,9 @@ class MQTTService {
       if (!processedData) {
         return;
       }
-      console.log('MQTT: Processed data:', processedData);
 
       await this.updateDeviceStatus(deviceId, 'online');
-
-      console.log('MQTT: About to evaluate alerts with real-time data...');
       await this.evaluateAlertsWithRealTimeData(deviceId, processedData);
-      console.log('MQTT: Finished evaluating alerts with real-time data.');
-
       this.emitRealTimeData(deviceId, processedData);
 
     } catch (error) {
@@ -400,7 +446,6 @@ class MQTTService {
 
   /** Active device only — soft-deleted rows are ignored so they can be re-discovered. */
   async getActiveDevice(deviceId) {
-    await query('ALTER TABLE devices ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false');
     return getRow(
       'SELECT * FROM devices WHERE device_id = $1 AND COALESCE(is_deleted, false) = false',
       [deviceId]
@@ -416,7 +461,6 @@ class MQTTService {
 
   /** Re-activate a soft-deleted device (keeps permissions and history links). */
   async resurrectDevice(deviceId, protocol, data, extraConfig = {}) {
-    await query('ALTER TABLE devices ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false');
     const { deviceType, name, configJson } = this.buildAutoDiscoveryFields(deviceId, protocol, data, extraConfig);
     const result = await query(
       `UPDATE devices SET
@@ -445,8 +489,6 @@ class MQTTService {
   async ensureDeviceForIngestion(deviceId, protocol, data, extraConfig = {}) {
     let device = await this.getActiveDevice(deviceId);
     if (device) return device;
-
-    await query('ALTER TABLE devices ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false');
 
     const existing = await getRow('SELECT device_id FROM devices WHERE device_id = $1', [deviceId]);
     if (existing) {
@@ -482,7 +524,6 @@ class MQTTService {
   }
 
   async createDeviceFromIngestion(deviceId, protocol, data, extraConfig = {}) {
-    await query('ALTER TABLE devices ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false');
     const { deviceType, name, configJson } = this.buildAutoDiscoveryFields(deviceId, protocol, data, extraConfig);
     const result = await query(
       `INSERT INTO devices (device_id, device_type, protocol, name, config, status, is_deleted, timezone, created_at, updated_at)
@@ -537,8 +578,6 @@ class MQTTService {
 
   async storeDeviceData(device, data, rawPayload = null) {
     try {
-      console.log('storeDeviceData: data received for storage:', data);
-      
       const tz = device.timezone || device.effective_timezone || 'UTC';
       // `data` is processed/mapped payload — use mapper target field `datetime` only.
       const mappedDatetime = data?.datetime;
@@ -563,13 +602,7 @@ class MQTTService {
       
       // Validate data freshness and get age information
       const freshnessInfo = this.validateDataFreshness(deviceTimestamp, serverTimestamp, device.device_id);
-      
-      console.log('storeDeviceData: Processing data for device', device.device_id);
-      console.log('storeDeviceData: Device timestamp:', deviceTimestamp);
-      console.log('storeDeviceData: Server timestamp:', serverTimestamp);
-      console.log('storeDeviceData: Data age:', freshnessInfo.ageMinutes.toFixed(2), 'minutes');
-      console.log('storeDeviceData: Is buffered data:', freshnessInfo.isBuffered);
-      
+      this.logDebug('storeDeviceData', device.device_id, freshnessInfo.ageMinutes.toFixed(2), 'min');
       // Use device timestamp for data storage (preserves original timing)
       const timestamp = deviceTimestamp;
 
@@ -628,24 +661,19 @@ class MQTTService {
           value === null ||
           value === undefined
         ) {
-          console.log('storeDeviceData: Skipping field', field, 'value:', value, '(metadata or null/undefined)');
           continue;
         }
         
-        // Skip if it's a GPS field (handled separately) - case-insensitive + aliases
         const fieldLower = String(field).toLowerCase();
         if (['latitude', 'longitude', 'lat', 'lon', 'lng', 'altitude', 'alt', 'speed', 'spd', 'heading', 'hdg', 'accuracy', 'acc', 'satellites', 'sat'].includes(fieldLower)) {
-          console.log('storeDeviceData: Skipping GPS field', field);
           continue;
         }
 
-        // Convert numeric strings to numbers
         let numericValue = value;
         if (typeof value === 'string' && value.trim() !== '') {
           const parsedValue = Number(value);
           if (!isNaN(parsedValue)) {
             numericValue = parsedValue;
-            console.log('storeDeviceData: Converted string', value, 'to number', numericValue);
           }
         }
         
@@ -670,11 +698,9 @@ class MQTTService {
           const isDuplicate = await this.checkForDuplicate(device.device_id, field, numericValue, timestamp);
           
           if (isDuplicate) {
-            console.log('storeDeviceData: Skipping duplicate reading for', field, 'value', numericValue, 'at', timestamp);
             continue;
           }
-          
-          console.log('storeDeviceData: Inserting sensor reading for field', field, 'value', numericValue);
+
           await query(`
             INSERT INTO sensor_readings (device_id, sensor_type, value, unit, timestamp, metadata)
             VALUES ($1, $2, $3, $4, $5, $6)
@@ -696,11 +722,9 @@ class MQTTService {
           );
 
           if (isDuplicate) {
-            console.log('storeDeviceData: Skipping duplicate string reading for', field, 'at', timestamp);
             continue;
           }
 
-          console.log('storeDeviceData: Inserting string sensor reading for field', field, 'value', stringValue);
           await query(`
             INSERT INTO sensor_readings (device_id, sensor_type, value, unit, timestamp, metadata)
             VALUES ($1, $2, NULL, $3, $4, $5)
@@ -711,19 +735,6 @@ class MQTTService {
             timestamp,
             JSON.stringify({ ...readingMetadata, string_value: stringValue }),
           ]);
-        } else {
-          console.log('storeDeviceData: Skipping field', field, 'value', value, 'numericValue', numericValue, '(not storable)');
-        }
-        // If field is _terminalTime and is a valid date, store as metadata only (not as a sensor reading)
-      }
-
-      // After storing sensor data, evaluate threshold alerts
-      if (device.device_type === 'sensor' && data) {
-        for (const [param, value] of Object.entries(data)) {
-          if (typeof value === 'number') {
-            console.log('Calling evaluateThresholdAlertsOnData for', device.device_id, param, value, timestamp);
-            await evaluateThresholdAlertsOnData(device.device_id, param, value, timestamp);
-          }
         }
       }
 
@@ -734,6 +745,13 @@ class MQTTService {
 
   async updateDeviceStatus(deviceId, status) {
     try {
+      const now = Date.now();
+      const last = this.lastStatusUpdateAt.get(deviceId) || 0;
+      if (now - last < this.statusUpdateThrottleMs) {
+        return;
+      }
+      this.lastStatusUpdateAt.set(deviceId, now);
+
       await query(
         'UPDATE devices SET status = $1, last_seen = NOW(), is_deleted = false WHERE device_id = $2',
         [status, deviceId]
@@ -843,7 +861,7 @@ class MQTTService {
         console.warn(`🔮 FUTURE DATA: Device ${deviceId} sent data ${dataAgeMinutes.toFixed(1)} minutes in the future`);
       }
       
-      if (bufferDataConfig.logging.LOG_DATA_AGE) {
+      if (bufferDataConfig.logging.LOG_DATA_AGE && MQTT_DEBUG) {
         console.log(`📊 Data age: ${dataAgeMinutes.toFixed(2)} minutes (${isBuffered ? 'buffered' : 'real-time'})`);
       }
     }
@@ -943,42 +961,45 @@ class MQTTService {
 
   async evaluateAlertsWithRealTimeData(deviceId, processedData) {
     try {
-      console.log('MQTT: Evaluating alerts with real-time data for device:', deviceId);
-      console.log('MQTT: Real-time data keys:', Object.keys(processedData || {}));
-      
       const alertsResult = await query(
         `SELECT * FROM alerts WHERE device_id = $1 AND type = 'threshold'`,
         [deviceId]
       );
       const alerts = alertsResult.rows || [];
-      
-      if (alerts.length === 0) {
-        console.log('MQTT: No threshold alerts found for device:', deviceId);
-        return;
+      if (alerts.length === 0) return;
+
+      const mappingRow = await getRow(
+        `SELECT mt.mappings FROM device_mapper_assignments dma
+         JOIN mapper_templates mt ON dma.template_id = mt.template_id
+         WHERE dma.device_id = $1`,
+        [deviceId]
+      );
+      let mappings = mappingRow?.mappings;
+      if (typeof mappings === 'string') {
+        try {
+          mappings = JSON.parse(mappings);
+        } catch {
+          mappings = [];
+        }
       }
-      
-      console.log('MQTT: Found', alerts.length, 'threshold alert(s) for device:', deviceId);
-      
+      const sourceByTarget = new Map(
+        (Array.isArray(mappings) ? mappings : [])
+          .filter((m) => m?.target_field)
+          .map((m) => [m.target_field, m.source_field || m.source])
+      );
+
       for (const alert of alerts) {
         let value = processedData[alert.parameter];
         if (value === undefined) {
-          const sourceField = await this.getSourceFieldForParameter(deviceId, alert.parameter);
-          if (sourceField !== null) value = processedData[sourceField];
+          const sourceField = sourceByTarget.get(alert.parameter);
+          if (sourceField != null) value = processedData[sourceField];
         }
-        
+
         const numericValue = typeof value === 'string' ? parseFloat(value) : value;
-        
-        if (typeof numericValue === 'number' && !isNaN(numericValue)) {
-          console.log(`MQTT: Evaluating alert ${alert.alert_id} (${alert.parameter}) with value:`, numericValue, 'min:', alert.min, 'max:', alert.max);
-          
-          if ((alert.min !== null && numericValue < alert.min) || (alert.max !== null && numericValue > alert.max)) {
-            console.log(`MQTT: Alert ${alert.alert_id} triggered! Value ${numericValue} outside [${alert.min}, ${alert.max}]`);
-            await evaluateThresholdAlertsOnData(deviceId, alert.parameter, numericValue, new Date());
-          } else {
-            console.log(`MQTT: Alert ${alert.alert_id} not triggered. Value ${numericValue} within range.`);
-          }
-        } else {
-          console.log(`MQTT: Parameter "${alert.parameter}" not found or not numeric in processedData. Keys:`, Object.keys(processedData || {}));
+        if (typeof numericValue !== 'number' || Number.isNaN(numericValue)) continue;
+
+        if ((alert.min !== null && numericValue < alert.min) || (alert.max !== null && numericValue > alert.max)) {
+          await evaluateThresholdAlertsOnData(deviceId, alert.parameter, numericValue, new Date());
         }
       }
     } catch (error) {

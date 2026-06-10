@@ -388,16 +388,17 @@ setInterval(() => {
   });
 }, 60 * 60 * 1000);
 
-// Every 30 seconds, poll latest data and evaluate threshold alerts
+// Poll latest DB rows for threshold alerts (backup to MQTT real-time evaluation)
+const ALERT_POLL_MS = Math.max(60_000, parseInt(process.env.ALERT_POLL_INTERVAL_MS, 10) || 60_000);
 setInterval(() => {
-  pollLatestDataAndEvaluateAlerts().catch(error => {
+  pollLatestDataAndEvaluateAlerts().catch((error) => {
     if (error.message && error.message.includes('Cannot use a pool after calling end')) {
       console.log('Alert evaluation skipped - database pool not available');
     } else {
       console.error('Alert evaluation error:', error);
     }
   });
-}, 30000);
+}, ALERT_POLL_MS);
 
 // Start maintenance reminder service
 maintenanceReminderService.start();
