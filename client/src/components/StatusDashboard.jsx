@@ -29,6 +29,7 @@ import { alpha } from '@mui/material/styles';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import axios from 'axios';
 import { subHours } from 'date-fns';
+import moment from 'moment-timezone';
 import {
   PieChart,
   Pie,
@@ -40,7 +41,7 @@ import {
 import { API_BASE_URL } from '../config/api';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import { usePermissions } from '../hooks/usePermissions';
-import { formatInUserTimezone } from '../utils/timezoneUtils';
+import { formatInUserTimezone, getUserTimezone } from '../utils/timezoneUtils';
 import { getDeviceDisplayName } from '../utils/deviceLabel';
 import { filterStatusParams } from '../utils/fieldCategory';
 import {
@@ -61,6 +62,27 @@ const HISTORY_PERIOD_OPTIONS = [
   { label: 'Last 7 days', value: 168 },
   { label: 'Last 30 days', value: 720 },
 ];
+
+const DAY_COMPARE_COLORS = {
+  Today: '#2563EB',
+  Yesterday: '#64748B',
+};
+
+const rowTimeMs = (row) => {
+  const raw = row?.datetime ?? row?.timestamp;
+  if (raw == null || raw === '') return NaN;
+  const t = new Date(raw).getTime();
+  return Number.isFinite(t) ? t : NaN;
+};
+
+const rowCalendarDayKey = (row, userTz) => {
+  const raw = row?.datetime ?? row?.timestamp;
+  if (!raw) return null;
+  const s = String(raw).trim();
+  const m = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(s) ? moment.parseZone(s) : moment.utc(s);
+  if (!m.isValid()) return null;
+  return m.tz(userTz || 'UTC').format('YYYY-MM-DD');
+};
 
 const getPeriodLabel = (hours) =>
   HISTORY_PERIOD_OPTIONS.find((o) => o.value === hours)?.label?.replace(/^Last /i, '') || `${hours}h`;
@@ -155,12 +177,6 @@ export default function StatusDashboard({ socket }) {
     }
   }, []);
 
-  const statusLoadLimit = useMemo(() => {
-    if (historyPeriodHours >= 720) return 10000;
-    if (historyPeriodHours >= 168) return 5000;
-    return 2000;
-  }, [historyPeriodHours]);
-
   const loadStatusBundle = useCallback(async () => {
     if (!deviceId) {
       setStatusParams([]);
@@ -198,7 +214,10 @@ export default function StatusDashboard({ socket }) {
       if (params.length === 0) return;
 
       const endDate = new Date().toISOString();
-      const startDate = subHours(new Date(), historyPeriodHours).toISOString();
+      const fetchHours = Math.max(historyPeriodHours, 48);
+      const startDate = subHours(new Date(), fetchHours).toISOString();
+      const fetchLimit =
+        fetchHours >= 720 ? 10000 : fetchHours >= 168 ? 5000 : 2000;
 
       const [latestRes, dashRes] = await Promise.all([
         fetch(`${API_BASE_URL}/devices/${requestDeviceId}/latest-data?categories=Status`, {
@@ -211,7 +230,7 @@ export default function StatusDashboard({ socket }) {
             parameters: params.join(','),
             startDate,
             endDate,
-            limit: statusLoadLimit,
+            limit: fetchLimit,
             categories: 'Status',
           },
           headers,
@@ -248,7 +267,7 @@ export default function StatusDashboard({ socket }) {
     } finally {
       if (!controller.signal.aborted) setLoading(false);
     }
-  }, [deviceId, historyPeriodHours, statusLoadLimit]);
+  }, [deviceId, historyPeriodHours]);
 
   useEffect(() => {
     loadDevices();
@@ -331,16 +350,24 @@ export default function StatusDashboard({ socket }) {
     [history, statusParams]
   );
 
-  /** Count received readings grouped by status keyword or value text (48h history). */
+  const historyInPeriod = useMemo(() => {
+    const cutoff = subHours(new Date(), historyPeriodHours).getTime();
+    return filteredHistory.filter((row) => {
+      const t = rowTimeMs(row);
+      return Number.isFinite(t) && t >= cutoff;
+    });
+  }, [filteredHistory, historyPeriodHours]);
+
+  /** Count received readings grouped by status keyword or value text (selected period). */
   const statusValueCounts = useMemo(() => {
-    if (!filteredHistory.length || statusParams.length === 0) return [];
+    if (!historyInPeriod.length || statusParams.length === 0) return [];
 
     return statusParams.map((param) => {
       const keywords = getStatusKeywordsForParam(fieldMetadata, param);
       const isDefaultKeywords = usesDefaultStatusKeywords(fieldMetadata, param);
       const counts = {};
 
-      filteredHistory.forEach((row) => {
+      historyInPeriod.forEach((row) => {
         const raw = row[param];
         if (!hasStatusValue(raw)) return;
         const bucket = classifyStatusValue(raw, keywords);
@@ -369,7 +396,36 @@ export default function StatusDashboard({ socket }) {
 
       return { param, segments, total, keywords, isDefaultKeywords };
     });
-  }, [filteredHistory, statusParams, fieldMetadata]);
+  }, [historyInPeriod, statusParams, fieldMetadata]);
+
+  /** Reading count: calendar Today vs Yesterday (user timezone). */
+  const statusDayComparison = useMemo(() => {
+    if (!filteredHistory.length || statusParams.length === 0) return [];
+
+    const userTz = getUserTimezone();
+    const todayKey = moment.tz(userTz).format('YYYY-MM-DD');
+    const yesterdayKey = moment.tz(userTz).subtract(1, 'day').format('YYYY-MM-DD');
+
+    return statusParams.map((param) => {
+      let today = 0;
+      let yesterday = 0;
+
+      filteredHistory.forEach((row) => {
+        if (!hasStatusValue(row[param])) return;
+        const dayKey = rowCalendarDayKey(row, userTz);
+        if (dayKey === todayKey) today += 1;
+        else if (dayKey === yesterdayKey) yesterday += 1;
+      });
+
+      const total = today + yesterday;
+      const segments = [
+        { name: 'Today', value: today, pct: total > 0 ? (today / total) * 100 : 0 },
+        { name: 'Yesterday', value: yesterday, pct: total > 0 ? (yesterday / total) * 100 : 0 },
+      ];
+
+      return { param, today, yesterday, total, segments };
+    });
+  }, [filteredHistory, statusParams]);
 
   const historyExportColumns = useMemo(
     () => [
@@ -704,6 +760,92 @@ export default function StatusDashboard({ socket }) {
             </CardContent>
           </Card>
 
+          <Card sx={{ mb: 1.5, borderRadius: 1, ...getChartCardSx(theme), ...responsiveCardSx }}>
+            <CardContent sx={{ p: { xs: 1, sm: 1.5, md: 2 }, '&:last-child': { pb: { xs: 1, sm: 1.5, md: 2 } } }}>
+              <Typography variant="subtitle1" fontWeight={700} gutterBottom sx={{ fontSize: { xs: '0.95rem', sm: '1rem' } }}>
+                Today vs yesterday
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+                Count of status readings by calendar day ({getUserTimezone()})
+              </Typography>
+              {statusDayComparison.every(({ total }) => total === 0) ? (
+                <Typography variant="body2" color="text.secondary">
+                  No status readings for today or yesterday yet.
+                </Typography>
+              ) : (
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: { xs: '1fr', md: statusDayComparison.length > 1 ? '1fr 1fr' : '1fr' },
+                    gap: 2,
+                    width: '100%',
+                    minWidth: 0,
+                  }}
+                >
+                  {statusDayComparison.map(({ param, segments, today, yesterday, total }, chartIdx) => {
+                    if (total === 0) return null;
+                    return (
+                      <Box key={`day-${param}`} sx={{ minWidth: 0, width: '100%' }}>
+                        {statusDayComparison.length > 1 && (
+                          <Typography variant="body2" fontWeight={700} sx={{ mb: 0.5, wordBreak: 'break-word' }}>
+                            {formatDisplayName(param, { withUnit: false })}
+                          </Typography>
+                        )}
+                        <Box sx={{ height: { xs: 220, sm: 260 }, width: '100%', minWidth: 0 }}>
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={segments}
+                                dataKey="value"
+                                nameKey="name"
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={isMobile ? 40 : isCompact ? 46 : 52}
+                                outerRadius={isMobile ? 64 : isCompact ? 78 : 88}
+                                paddingAngle={3}
+                                label={
+                                  isMobile
+                                    ? false
+                                    : ({ name, value, pct }) => `${name}: ${value} (${pct.toFixed(1)}%)`
+                                }
+                              >
+                                {segments.map((seg) => (
+                                  <Cell
+                                    key={seg.name}
+                                    fill={DAY_COMPARE_COLORS[seg.name] || CHART_COLORS[chartIdx % CHART_COLORS.length]}
+                                    stroke="#fff"
+                                    strokeWidth={1}
+                                  />
+                                ))}
+                              </Pie>
+                              <Tooltip
+                                contentStyle={getTooltipContentStyle(theme)}
+                                formatter={(value, _name, entry) => [
+                                  `${Number(value)} readings (${entry.payload.pct.toFixed(1)}%)`,
+                                  entry.payload.name,
+                                ]}
+                              />
+                              <Legend
+                                wrapperStyle={{
+                                  width: '100%',
+                                  fontSize: isMobile ? 11 : 12,
+                                  paddingTop: 8,
+                                }}
+                              />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center' }}>
+                          Today {today} · Yesterday {yesterday}
+                        </Typography>
+                      </Box>
+                    );
+                  })}
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+
           <Card sx={{ borderRadius: 1, ...getChartCardSx(theme), ...responsiveCardSx }}>
             <CardContent sx={{ p: { xs: 1, sm: 1.5, md: 2 }, '&:last-child': { pb: { xs: 1, sm: 1.5, md: 2 } } }}>
               <Box
@@ -722,7 +864,7 @@ export default function StatusDashboard({ socket }) {
                   <Typography variant="subtitle1" fontWeight={700} sx={{ fontSize: { xs: '0.95rem', sm: '1rem' } }}>
                     Status history
                   </Typography>
-                  <Chip label={`${filteredHistory.length} rows`} size="small" />
+                  <Chip label={`${historyInPeriod.length} rows`} size="small" />
                 </Box>
                 <Stack
                   direction={{ xs: 'column', sm: 'row' }}
@@ -796,7 +938,7 @@ export default function StatusDashboard({ socket }) {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {filteredHistory.slice(0, 200).map((row, idx) => (
+                    {historyInPeriod.slice(0, 200).map((row, idx) => (
                       <TableRow key={`${row.timestamp}-${idx}`}>
                         <TableCell sx={{ ...wrapTextCellSx, whiteSpace: 'nowrap', width: { xs: '34%', sm: '28%' } }}>
                           {formatInUserTimezone(row.timestamp)}
