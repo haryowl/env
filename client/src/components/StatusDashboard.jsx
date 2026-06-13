@@ -142,6 +142,8 @@ export default function StatusDashboard({ socket }) {
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState('');
+  /** Per-parameter keyword filter for Today vs yesterday chart (`all` = every reading). */
+  const [dayCompareFilterByParam, setDayCompareFilterByParam] = useState({});
 
   const isAdmin = useMemo(() => {
     const role = userPermissions?.role;
@@ -274,6 +276,10 @@ export default function StatusDashboard({ socket }) {
   }, [loadDevices]);
 
   useEffect(() => {
+    setDayCompareFilterByParam({});
+  }, [deviceId]);
+
+  useEffect(() => {
     if (devices.length > 0 && !deviceId) {
       setDeviceId(devices[0].device_id);
     }
@@ -398,7 +404,7 @@ export default function StatusDashboard({ socket }) {
     });
   }, [historyInPeriod, statusParams, fieldMetadata]);
 
-  /** Reading count: calendar Today vs Yesterday (user timezone). */
+  /** Reading count: calendar Today vs Yesterday (user timezone), optional keyword filter. */
   const statusDayComparison = useMemo(() => {
     if (!filteredHistory.length || statusParams.length === 0) return [];
 
@@ -407,11 +413,17 @@ export default function StatusDashboard({ socket }) {
     const yesterdayKey = moment.tz(userTz).subtract(1, 'day').format('YYYY-MM-DD');
 
     return statusParams.map((param) => {
+      const keywords = getStatusKeywordsForParam(fieldMetadata, param);
+      const filterKey = dayCompareFilterByParam[param] || 'all';
       let today = 0;
       let yesterday = 0;
 
       filteredHistory.forEach((row) => {
         if (!hasStatusValue(row[param])) return;
+        if (filterKey !== 'all') {
+          const bucket = classifyStatusValue(row[param], keywords);
+          if (bucket !== filterKey) return;
+        }
         const dayKey = rowCalendarDayKey(row, userTz);
         if (dayKey === todayKey) today += 1;
         else if (dayKey === yesterdayKey) yesterday += 1;
@@ -423,9 +435,18 @@ export default function StatusDashboard({ socket }) {
         { name: 'Yesterday', value: yesterday, pct: total > 0 ? (yesterday / total) * 100 : 0 },
       ];
 
-      return { param, today, yesterday, total, segments };
+      return {
+        param,
+        today,
+        yesterday,
+        total,
+        segments,
+        filterKey,
+        filterLabel: filterKey === 'all' ? 'All status values' : filterKey,
+        keywordOptions: parseStatusKeywords(keywords),
+      };
     });
-  }, [filteredHistory, statusParams]);
+  }, [filteredHistory, statusParams, fieldMetadata, dayCompareFilterByParam]);
 
   const historyExportColumns = useMemo(
     () => [
@@ -661,188 +682,224 @@ export default function StatusDashboard({ socket }) {
 
           <Card sx={{ mb: 1.5, borderRadius: 1, ...getChartCardSx(theme), ...responsiveCardSx }}>
             <CardContent sx={{ p: { xs: 1, sm: 1.5, md: 2 }, '&:last-child': { pb: { xs: 1, sm: 1.5, md: 2 } } }}>
-              <Typography variant="subtitle1" fontWeight={700} gutterBottom sx={{ fontSize: { xs: '0.95rem', sm: '1rem' } }}>
-                Status value distribution ({periodLabel})
-              </Typography>
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                sx={{ display: 'block', mb: 1.5, wordBreak: 'break-word' }}
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
+                  gap: { xs: 2, md: 2.5 },
+                  width: '100%',
+                  minWidth: 0,
+                  alignItems: 'start',
+                }}
               >
-                Count of received readings grouped by status keywords (Field Creator) or full value text
-              </Typography>
-              {statusValueCounts.every(({ segments }) => segments.length === 0) ? (
-                <Typography variant="body2" color="text.secondary">
-                  No status values in the selected period.
-                </Typography>
-              ) : (
-                <Box
-                  sx={{
-                    display: 'grid',
-                    gridTemplateColumns: { xs: '1fr', md: statusValueCounts.length > 1 ? '1fr 1fr' : '1fr' },
-                    gap: 2,
-                    width: '100%',
-                    minWidth: 0,
-                  }}
-                >
-                  {statusValueCounts.map(({ param, segments, total, keywords, isDefaultKeywords }, chartIdx) => {
-                    if (segments.length === 0) return null;
-                    const keywordList = parseStatusKeywords(keywords);
-                    return (
-                      <Box key={param} sx={{ minWidth: 0, width: '100%' }}>
-                        {statusValueCounts.length > 1 && (
-                          <Typography variant="body2" fontWeight={700} sx={{ mb: 0.5, wordBreak: 'break-word' }}>
-                            {formatDisplayName(param, { withUnit: false })}
-                          </Typography>
-                        )}
-                        {keywordList.length > 0 && (
-                          <Typography
-                            variant="caption"
-                            color="text.secondary"
-                            sx={{ display: 'block', mb: 0.5, wordBreak: 'break-word' }}
-                          >
-                            Keywords: {keywordList.join(', ')}
-                            {isDefaultKeywords ? ' (default)' : ''}
-                          </Typography>
-                        )}
-                        <Box sx={{ height: { xs: 240, sm: 280 }, width: '100%', minWidth: 0 }}>
-                          <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                              <Pie
-                                data={segments}
-                                dataKey="value"
-                                nameKey="name"
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={isMobile ? 42 : isCompact ? 48 : 56}
-                                outerRadius={isMobile ? 68 : isCompact ? 82 : 96}
-                                paddingAngle={2}
-                                label={
-                                  isMobile
-                                    ? false
-                                    : ({ name, value, pct }) => `${name}: ${value} (${pct.toFixed(1)}%)`
-                                }
+                {/* Distribution — selected period */}
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography variant="subtitle1" fontWeight={700} gutterBottom sx={{ fontSize: { xs: '0.95rem', sm: '1rem' } }}>
+                    Status value distribution ({periodLabel})
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ display: 'block', mb: 1.5, wordBreak: 'break-word' }}
+                  >
+                    Count of received readings grouped by status keywords (Field Creator) or full value text
+                  </Typography>
+                  {statusValueCounts.every(({ segments }) => segments.length === 0) ? (
+                    <Typography variant="body2" color="text.secondary">
+                      No status values in the selected period.
+                    </Typography>
+                  ) : (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      {statusValueCounts.map(({ param, segments, total, keywords, isDefaultKeywords }, chartIdx) => {
+                        if (segments.length === 0) return null;
+                        const keywordList = parseStatusKeywords(keywords);
+                        return (
+                          <Box key={param} sx={{ minWidth: 0, width: '100%' }}>
+                            {statusValueCounts.length > 1 && (
+                              <Typography variant="body2" fontWeight={700} sx={{ mb: 0.5, wordBreak: 'break-word' }}>
+                                {formatDisplayName(param, { withUnit: false })}
+                              </Typography>
+                            )}
+                            {keywordList.length > 0 && (
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{ display: 'block', mb: 0.5, wordBreak: 'break-word' }}
                               >
-                                {segments.map((_, i) => (
-                                  <Cell
-                                    key={i}
-                                    fill={CHART_COLORS[(chartIdx * 3 + i) % CHART_COLORS.length]}
-                                    stroke="#fff"
-                                    strokeWidth={1}
+                                Keywords: {keywordList.join(', ')}
+                                {isDefaultKeywords ? ' (default)' : ''}
+                              </Typography>
+                            )}
+                            <Box sx={{ height: { xs: 220, sm: 260 }, width: '100%', minWidth: 0 }}>
+                              <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                  <Pie
+                                    data={segments}
+                                    dataKey="value"
+                                    nameKey="name"
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={isMobile ? 38 : isCompact ? 44 : 50}
+                                    outerRadius={isMobile ? 62 : isCompact ? 74 : 84}
+                                    paddingAngle={2}
+                                    label={
+                                      isMobile
+                                        ? false
+                                        : ({ name, value, pct }) => `${name}: ${value} (${pct.toFixed(1)}%)`
+                                    }
+                                  >
+                                    {segments.map((_, i) => (
+                                      <Cell
+                                        key={i}
+                                        fill={CHART_COLORS[(chartIdx * 3 + i) % CHART_COLORS.length]}
+                                        stroke="#fff"
+                                        strokeWidth={1}
+                                      />
+                                    ))}
+                                  </Pie>
+                                  <Tooltip
+                                    contentStyle={getTooltipContentStyle(theme)}
+                                    formatter={(value, _name, entry) => [
+                                      `${Number(value)} readings (${entry.payload.pct.toFixed(1)}%)`,
+                                      entry.payload.name,
+                                    ]}
                                   />
-                                ))}
-                              </Pie>
-                              <Tooltip
-                                contentStyle={getTooltipContentStyle(theme)}
-                                formatter={(value, _name, entry) => [
-                                  `${Number(value)} readings (${entry.payload.pct.toFixed(1)}%)`,
-                                  entry.payload.name,
-                                ]}
-                              />
-                              <Legend
-                                wrapperStyle={{
-                                  width: '100%',
-                                  fontSize: isMobile ? 11 : 12,
-                                  paddingTop: 8,
-                                }}
-                              />
-                            </PieChart>
-                          </ResponsiveContainer>
-                        </Box>
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center' }}>
-                          {total} readings with a value
-                        </Typography>
-                      </Box>
-                    );
-                  })}
+                                  <Legend
+                                    wrapperStyle={{
+                                      width: '100%',
+                                      fontSize: isMobile ? 11 : 12,
+                                      paddingTop: 8,
+                                    }}
+                                  />
+                                </PieChart>
+                              </ResponsiveContainer>
+                            </Box>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center' }}>
+                              {total} readings with a value
+                            </Typography>
+                          </Box>
+                        );
+                      })}
+                    </Box>
+                  )}
                 </Box>
-              )}
-            </CardContent>
-          </Card>
 
-          <Card sx={{ mb: 1.5, borderRadius: 1, ...getChartCardSx(theme), ...responsiveCardSx }}>
-            <CardContent sx={{ p: { xs: 1, sm: 1.5, md: 2 }, '&:last-child': { pb: { xs: 1, sm: 1.5, md: 2 } } }}>
-              <Typography variant="subtitle1" fontWeight={700} gutterBottom sx={{ fontSize: { xs: '0.95rem', sm: '1rem' } }}>
-                Today vs yesterday
-              </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
-                Count of status readings by calendar day ({getUserTimezone()})
-              </Typography>
-              {statusDayComparison.every(({ total }) => total === 0) ? (
-                <Typography variant="body2" color="text.secondary">
-                  No status readings for today or yesterday yet.
-                </Typography>
-              ) : (
+                {/* Today vs yesterday — calendar days + keyword filter */}
                 <Box
                   sx={{
-                    display: 'grid',
-                    gridTemplateColumns: { xs: '1fr', md: statusDayComparison.length > 1 ? '1fr 1fr' : '1fr' },
-                    gap: 2,
-                    width: '100%',
                     minWidth: 0,
+                    pl: { md: 0 },
+                    borderTop: { xs: '1px solid', md: 'none' },
+                    borderColor: { xs: 'divider', md: 'transparent' },
+                    pt: { xs: 2, md: 0 },
                   }}
                 >
-                  {statusDayComparison.map(({ param, segments, today, yesterday, total }, chartIdx) => {
-                    if (total === 0) return null;
-                    return (
-                      <Box key={`day-${param}`} sx={{ minWidth: 0, width: '100%' }}>
-                        {statusDayComparison.length > 1 && (
-                          <Typography variant="body2" fontWeight={700} sx={{ mb: 0.5, wordBreak: 'break-word' }}>
-                            {formatDisplayName(param, { withUnit: false })}
-                          </Typography>
-                        )}
-                        <Box sx={{ height: { xs: 220, sm: 260 }, width: '100%', minWidth: 0 }}>
-                          <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                              <Pie
-                                data={segments}
-                                dataKey="value"
-                                nameKey="name"
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={isMobile ? 40 : isCompact ? 46 : 52}
-                                outerRadius={isMobile ? 64 : isCompact ? 78 : 88}
-                                paddingAngle={3}
-                                label={
-                                  isMobile
-                                    ? false
-                                    : ({ name, value, pct }) => `${name}: ${value} (${pct.toFixed(1)}%)`
+                  <Typography variant="subtitle1" fontWeight={700} gutterBottom sx={{ fontSize: { xs: '0.95rem', sm: '1rem' } }}>
+                    Today vs yesterday
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+                    Count by calendar day ({getUserTimezone()}) — filter by status keyword
+                  </Typography>
+                  {statusDayComparison.length === 0 ? (
+                    <Typography variant="body2" color="text.secondary">
+                      No status parameters loaded.
+                    </Typography>
+                  ) : (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      {statusDayComparison.map(
+                        ({ param, segments, today, yesterday, total, filterKey, filterLabel, keywordOptions }, chartIdx) => (
+                          <Box key={`day-${param}`} sx={{ minWidth: 0, width: '100%' }}>
+                            {statusDayComparison.length > 1 && (
+                              <Typography variant="body2" fontWeight={700} sx={{ mb: 0.5, wordBreak: 'break-word' }}>
+                                {formatDisplayName(param, { withUnit: false })}
+                              </Typography>
+                            )}
+                            <FormControl size="small" fullWidth sx={{ mb: 1, maxWidth: 280 }}>
+                              <InputLabel id={`day-compare-filter-${param}`}>Status keyword</InputLabel>
+                              <Select
+                                labelId={`day-compare-filter-${param}`}
+                                label="Status keyword"
+                                value={filterKey}
+                                onChange={(e) =>
+                                  setDayCompareFilterByParam((prev) => ({
+                                    ...prev,
+                                    [param]: e.target.value,
+                                  }))
                                 }
                               >
-                                {segments.map((seg) => (
-                                  <Cell
-                                    key={seg.name}
-                                    fill={DAY_COMPARE_COLORS[seg.name] || CHART_COLORS[chartIdx % CHART_COLORS.length]}
-                                    stroke="#fff"
-                                    strokeWidth={1}
-                                  />
+                                <MenuItem value="all">All status values</MenuItem>
+                                {keywordOptions.map((kw) => (
+                                  <MenuItem key={kw} value={kw}>
+                                    {kw}
+                                  </MenuItem>
                                 ))}
-                              </Pie>
-                              <Tooltip
-                                contentStyle={getTooltipContentStyle(theme)}
-                                formatter={(value, _name, entry) => [
-                                  `${Number(value)} readings (${entry.payload.pct.toFixed(1)}%)`,
-                                  entry.payload.name,
-                                ]}
-                              />
-                              <Legend
-                                wrapperStyle={{
-                                  width: '100%',
-                                  fontSize: isMobile ? 11 : 12,
-                                  paddingTop: 8,
-                                }}
-                              />
-                            </PieChart>
-                          </ResponsiveContainer>
-                        </Box>
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center' }}>
-                          Today {today} · Yesterday {yesterday}
-                        </Typography>
-                      </Box>
-                    );
-                  })}
+                                {keywordOptions.length > 0 && <MenuItem value="Other">Other</MenuItem>}
+                              </Select>
+                            </FormControl>
+                            {total === 0 ? (
+                              <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+                                No readings for today or yesterday
+                                {filterKey !== 'all' ? ` matching “${filterLabel}”` : ''}.
+                              </Typography>
+                            ) : (
+                              <>
+                                <Box sx={{ height: { xs: 220, sm: 260 }, width: '100%', minWidth: 0 }}>
+                                  <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                      <Pie
+                                        data={segments}
+                                        dataKey="value"
+                                        nameKey="name"
+                                        cx="50%"
+                                        cy="50%"
+                                        innerRadius={isMobile ? 38 : isCompact ? 44 : 50}
+                                        outerRadius={isMobile ? 62 : isCompact ? 74 : 84}
+                                        paddingAngle={3}
+                                        label={
+                                          isMobile
+                                            ? false
+                                            : ({ name, value, pct }) => `${name}: ${value} (${pct.toFixed(1)}%)`
+                                        }
+                                      >
+                                        {segments.map((seg) => (
+                                          <Cell
+                                            key={seg.name}
+                                            fill={DAY_COMPARE_COLORS[seg.name] || CHART_COLORS[chartIdx % CHART_COLORS.length]}
+                                            stroke="#fff"
+                                            strokeWidth={1}
+                                          />
+                                        ))}
+                                      </Pie>
+                                      <Tooltip
+                                        contentStyle={getTooltipContentStyle(theme)}
+                                        formatter={(value, _name, entry) => [
+                                          `${Number(value)} readings (${entry.payload.pct.toFixed(1)}%)`,
+                                          entry.payload.name,
+                                        ]}
+                                      />
+                                      <Legend
+                                        wrapperStyle={{
+                                          width: '100%',
+                                          fontSize: isMobile ? 11 : 12,
+                                          paddingTop: 8,
+                                        }}
+                                      />
+                                    </PieChart>
+                                  </ResponsiveContainer>
+                                </Box>
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center' }}>
+                                  {filterKey !== 'all' ? `${filterLabel}: ` : ''}
+                                  Today {today} · Yesterday {yesterday}
+                                </Typography>
+                              </>
+                            )}
+                          </Box>
+                        )
+                      )}
+                    </Box>
+                  )}
                 </Box>
-              )}
+              </Box>
             </CardContent>
           </Card>
 
