@@ -25,6 +25,10 @@ const {
   resolveDataDashDeviceIds,
   resolveDataDashLimit,
 } = require('../utils/dataDashQueryLimits');
+const {
+  collectScopedSensorQuery,
+  appendSensorScopeClause,
+} = require('../utils/dataDashSensorScope');
 const router = express.Router();
 
 const EMPTY_DATA_DASH_RESPONSE = {
@@ -94,6 +98,8 @@ router.get(['/', ''], async (req, res) => {
       console.log('Device mappers:', deviceMap);
     }
 
+    const sensorScope = collectScopedSensorQuery(deviceMap, categoryMap, categoryOpts, params);
+
     // 2. Get raw sensor data for all devices in range (using sr.timestamp for UTC filtering)
     let where = [];
     let sqlParams = [];
@@ -110,6 +116,7 @@ router.get(['/', ''], async (req, res) => {
       where.push(`sr.timestamp <= $${paramIdx++}`);
       sqlParams.push(end);
     }
+    paramIdx = appendSensorScopeClause(where, sqlParams, paramIdx, sensorScope);
     const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
     const rawSql = `
       SELECT sr.timestamp, sr.device_id, sr.sensor_type, sr.value, sr.unit, sr.metadata, (sr.metadata->>'datetime') as datetime
@@ -123,44 +130,50 @@ router.get(['/', ''], async (req, res) => {
     const rawRows = rawResult.rows;
     console.log('Raw sensor readings:', rawRows.slice(0, 10));
 
-    // 2b. Get raw GPS track rows for all devices in range (gps_tracks uses UTC timestamp)
-    // Use a separate query so we don't explode rows by joining.
-    let gpsWhere = [];
-    let gpsParams = [];
-    let gpsIdx = 1;
-    if (ids.length) {
-      gpsWhere.push(`gt.device_id = ANY($${gpsIdx++})`);
-      gpsParams.push(ids);
+    // 2b. GPS tracks (skip for Status-only queries — status history never uses GPS rows)
+    const skipGps =
+      categoryOpts.categories &&
+      categoryOpts.categories.length > 0 &&
+      categoryOpts.categories.every((c) => c === 'Status');
+    let gpsRows = [];
+    if (!skipGps) {
+      let gpsWhere = [];
+      let gpsParams = [];
+      let gpsIdx = 1;
+      if (ids.length) {
+        gpsWhere.push(`gt.device_id = ANY($${gpsIdx++})`);
+        gpsParams.push(ids);
+      }
+      if (start) {
+        gpsWhere.push(`gt.timestamp >= $${gpsIdx++}`);
+        gpsParams.push(start);
+      }
+      if (end) {
+        gpsWhere.push(`gt.timestamp <= $${gpsIdx++}`);
+        gpsParams.push(end);
+      }
+      const gpsWhereClause = gpsWhere.length ? `WHERE ${gpsWhere.join(' AND ')}` : '';
+      const gpsSql = `
+        SELECT
+          gt.timestamp,
+          gt.device_id,
+          gt.latitude,
+          gt.longitude,
+          gt.altitude,
+          gt.speed,
+          gt.heading,
+          gt.accuracy,
+          gt.satellites
+        FROM gps_tracks gt
+        ${gpsWhereClause}
+        ORDER BY gt.timestamp DESC
+        LIMIT $${gpsIdx}
+      `;
+      gpsParams.push(limit);
+      const gpsResult = await query(gpsSql, gpsParams);
+      gpsRows = gpsResult.rows || [];
+      console.log('Raw GPS tracks:', gpsRows.slice(0, 10));
     }
-    if (start) {
-      gpsWhere.push(`gt.timestamp >= $${gpsIdx++}`);
-      gpsParams.push(start);
-    }
-    if (end) {
-      gpsWhere.push(`gt.timestamp <= $${gpsIdx++}`);
-      gpsParams.push(end);
-    }
-    const gpsWhereClause = gpsWhere.length ? `WHERE ${gpsWhere.join(' AND ')}` : '';
-    const gpsSql = `
-      SELECT
-        gt.timestamp,
-        gt.device_id,
-        gt.latitude,
-        gt.longitude,
-        gt.altitude,
-        gt.speed,
-        gt.heading,
-        gt.accuracy,
-        gt.satellites
-      FROM gps_tracks gt
-      ${gpsWhereClause}
-      ORDER BY gt.timestamp DESC
-      LIMIT $${gpsIdx}
-    `;
-    gpsParams.push(limit);
-    const gpsResult = await query(gpsSql, gpsParams);
-    const gpsRows = gpsResult.rows || [];
-    console.log('Raw GPS tracks:', gpsRows.slice(0, 10));
 
     // 3. Apply mapping to each row (device time = mapped target field `datetime`)
     let mappedData = [];

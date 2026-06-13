@@ -156,9 +156,9 @@ export default function StatusDashboard({ socket }) {
   }, []);
 
   const statusLoadLimit = useMemo(() => {
-    if (historyPeriodHours >= 720) return 8000;
-    if (historyPeriodHours >= 168) return 3000;
-    return 600;
+    if (historyPeriodHours >= 720) return 10000;
+    if (historyPeriodHours >= 168) return 5000;
+    return 2000;
   }, [historyPeriodHours]);
 
   const loadStatusBundle = useCallback(async () => {
@@ -231,7 +231,13 @@ export default function StatusDashboard({ socket }) {
       }
 
       const rows = dashRes.data?.data || [];
-      setHistory([...rows].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)));
+      setHistory(
+        [...rows].sort(
+          (a, b) =>
+            new Date(b.datetime ?? b.timestamp).getTime() -
+            new Date(a.datetime ?? b.timestamp).getTime()
+        )
+      );
     } catch (e) {
       if (controller.signal.aborted || e?.code === 'ERR_CANCELED') return;
       console.error(e);
