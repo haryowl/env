@@ -293,12 +293,12 @@ const Layout = ({ children, user, userContext, onLogout }) => {
             alt=""
             sx={{
               bgcolor: 'rgba(255,255,255,0.2)',
-              width: 40,
-              height: 40,
+              width: 56,
+              height: 56,
               border: '2px solid rgba(255,255,255,0.3)',
             }}
           >
-            {!avatarSrc ? <AccountCircle /> : null}
+            {!avatarSrc ? <AccountCircle sx={{ fontSize: 40 }} /> : null}
           </Avatar>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography variant="subtitle2" sx={{ 
