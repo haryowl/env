@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Box, Typography, Tabs, Tab, Card, CardContent, Grid, Select, MenuItem, InputLabel, FormControl, Button, CircularProgress, TextField, Checkbox, ListItemText, Divider, Chip, Tooltip, useTheme, Stack, Collapse, IconButton
+  Box, Typography, Tabs, Tab, Card, CardContent, Grid, Select, MenuItem, InputLabel, FormControl, Button, CircularProgress, TextField, Checkbox, ListItemText, Divider, Chip, Tooltip, useTheme, Stack, Collapse, IconButton, useMediaQuery
 } from '@mui/material';
+import RestartAltIcon from '@mui/icons-material/RestartAlt';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import { DatePicker, LocalizationProvider, DateTimePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { DataGrid } from '@mui/x-data-grid';
@@ -140,7 +144,10 @@ export default function DataDash() {
   const [deviceMapper, setDeviceMapper] = useState(null);
   const [visibleParams, setVisibleParams] = useState([]);
   const [summaryExpanded, setSummaryExpanded] = useState(true);
+  const [filtersExpanded, setFiltersExpanded] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState(null);
   const { metadata: fieldMetadata, formatDisplayName, getUnit } = useFieldMetadata();
+  const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
 
   // Load devices (parameters loaded via field metadata hook)
   useEffect(() => {
@@ -243,11 +250,25 @@ export default function DataDash() {
         .sort((a, b) => a._chartTime - b._chartTime);
       setData(formattedData);
       setSummary(response.data.summary || {});
+      setLastUpdated(new Date());
+      // Collapse the filter panel on desktop after a successful apply to give the data more room.
+      if (isDesktop && formattedData.length > 0) setFiltersExpanded(false);
     } catch (error) {
       setData([]);
       setSummary({});
     }
     setLoading(false);
+  };
+
+  const handleResetFilters = () => {
+    setSelectedDevices([]);
+    setSelectedParameters([]);
+    setDateRange([null, null]);
+    setData([]);
+    setSummary({});
+    setSummaryTableData([]);
+    setLastUpdated(null);
+    setFiltersExpanded(true);
   };
 
   // Fetch summary table data and transform to time-period + parameter format
@@ -406,7 +427,7 @@ export default function DataDash() {
   const filterControls = (
     <Card
       sx={{
-        mb: 2,
+        mb: 1.5,
         borderRadius: 1,
         ...getChartCardSx(theme),
         p: 0,
@@ -421,15 +442,34 @@ export default function DataDash() {
             : '0 4px 18px rgba(15, 23, 42, 0.08)',
       }}
     >
-      <SectionHeader
-        compact
-        icon={<DeviceHubIcon sx={{ fontSize: 16 }} />}
-        title="Data Filters"
-        subtitle="Select devices, parameters, and time range"
-        sx={{ bgcolor: alpha(theme.palette.background.paper, 0.5) }}
-        titleSx={{ fontSize: DATA_DASH_SECTION_FS, fontWeight: 500 }}
-        subtitleSx={{ fontSize: DATA_DASH_MENU_ITEM_FS, fontWeight: 400 }}
-      />
+      <Box onClick={() => setFiltersExpanded((v) => !v)} sx={{ cursor: 'pointer' }}>
+        <SectionHeader
+          compact
+          icon={<DeviceHubIcon sx={{ fontSize: 16 }} />}
+          title="Data Filters"
+          subtitle={
+            filtersExpanded
+              ? 'Select devices, parameters, and time range'
+              : `${selectedDevices.length} device(s) · ${selectedParameters.length} parameter(s)${dateRange[0] || dateRange[1] ? ' · custom range' : ''}`
+          }
+          right={(
+            <IconButton
+              size="small"
+              sx={{
+                color: theme.palette.primary.main,
+                transition: 'transform 0.2s ease-in-out',
+                transform: filtersExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+              }}
+            >
+              <ExpandMoreIcon fontSize="small" />
+            </IconButton>
+          )}
+          sx={{ bgcolor: alpha(theme.palette.background.paper, 0.5) }}
+          titleSx={{ fontSize: DATA_DASH_SECTION_FS, fontWeight: 500 }}
+          subtitleSx={{ fontSize: DATA_DASH_MENU_ITEM_FS, fontWeight: 400 }}
+        />
+      </Box>
+      <Collapse in={filtersExpanded} timeout="auto">
       <CardContent sx={{ p: 1, pt: 1, pb: 1 }}>
         <Box
           sx={{
@@ -635,6 +675,7 @@ export default function DataDash() {
               display: 'flex',
               alignItems: 'flex-end',
               justifyContent: { xs: 'stretch', md: 'flex-start' },
+              gap: 0.75,
               pb: { md: '1px' },
             }}
           >
@@ -643,6 +684,7 @@ export default function DataDash() {
               onClick={fetchData}
               size="small"
               fullWidth
+              disabled={!hasActiveFilters}
               sx={{
                 borderRadius: 1,
                 px: 2,
@@ -658,8 +700,27 @@ export default function DataDash() {
                 },
               }}
             >
-              Apply Filters
+              Apply
             </Button>
+            <Tooltip title="Reset all filters">
+              <span>
+                <IconButton
+                  size="small"
+                  onClick={handleResetFilters}
+                  sx={{
+                    minHeight: 34,
+                    width: 34,
+                    borderRadius: 1,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    color: 'text.secondary',
+                    '&:hover': { color: theme.palette.error.main, borderColor: theme.palette.error.main },
+                  }}
+                >
+                  <RestartAltIcon sx={{ fontSize: 18 }} />
+                </IconButton>
+              </span>
+            </Tooltip>
           </Box>
         </Box>
 
@@ -695,6 +756,7 @@ export default function DataDash() {
                   label={devices.find(d => d.device_id === id)?.name || id} 
                   color="primary" 
                   size="small"
+                  onDelete={() => setSelectedDevices(selectedDevices.filter(d => d !== id))}
                   sx={{ 
                     borderRadius: 1,
                     fontWeight: 600,
@@ -712,6 +774,7 @@ export default function DataDash() {
                   label={formatDisplayName(param, { withUnit: true })}
                   color="secondary" 
                   size="small"
+                  onDelete={() => setSelectedParameters(selectedParameters.filter(p => p !== param))}
                   sx={{ 
                     borderRadius: 1,
                     fontWeight: 600,
@@ -727,6 +790,7 @@ export default function DataDash() {
                 label={`From: ${formatInUserTimezone(dateRange[0].toISOString())}`} 
                 color="info" 
                 size="small"
+                onDelete={() => setDateRange([null, dateRange[1]])}
                 sx={{ 
                   borderRadius: 1,
                   fontWeight: 600,
@@ -741,6 +805,7 @@ export default function DataDash() {
                 label={`To: ${formatInUserTimezone(dateRange[1].toISOString())}`} 
                 color="info" 
                 size="small"
+                onDelete={() => setDateRange([dateRange[0], null])}
                 sx={{ 
                   borderRadius: 1,
                   fontWeight: 600,
@@ -755,6 +820,7 @@ export default function DataDash() {
     </Box>
         )}
       </CardContent>
+      </Collapse>
     </Card>
   );
 
@@ -851,9 +917,11 @@ export default function DataDash() {
         headerName: formatDisplayName(param, { withUnit: true }),
         minWidth: 175,
         flex: 1,
+        headerAlign: 'right',
+        align: 'right',
         valueFormatter: (value) => formatParameterValue(param, value?.value),
         renderCell: (params) => (
-          <Typography component="span" sx={{ fontWeight: 500, fontSize: '0.72rem', lineHeight: 1.35 }}>
+          <Typography component="span" sx={{ fontWeight: 600, fontSize: '0.72rem', lineHeight: 1.35, fontVariantNumeric: 'tabular-nums' }}>
             {formatParameterValue(param, params.value)}
           </Typography>
         ),
@@ -931,75 +999,73 @@ export default function DataDash() {
     }
   ];
 
-  // Data Summary cards — compact typography (match Data Filters / grids)
-  const statLineRowSx = {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    gap: 1,
-    py: 0.15,
-  };
+  // Data Summary — colored KPI cards (avg prominent, min/max secondary)
   const summaryCards = (
     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' }, gap: 1 }}>
-      {parameters.map(param => summary[param] && (
+      {parameters.map(param => {
+        if (!summary[param]) return null;
+        const accent = getParameterColor(param);
+        return (
         <Card
           key={param}
           sx={{
-            p: 1.1,
-            borderRadius: 1,
+            p: 1.25,
+            borderRadius: 1.5,
             border: '1px solid',
-            borderColor: 'divider',
-            bgcolor: 'background.paper',
+            borderColor: alpha(accent, 0.25),
+            borderLeft: `4px solid ${accent}`,
+            background: theme.palette.mode === 'dark'
+              ? `linear-gradient(135deg, ${alpha(accent, 0.14)} 0%, ${alpha(theme.palette.background.paper, 0.6)} 60%)`
+              : `linear-gradient(135deg, ${alpha(accent, 0.08)} 0%, #fff 60%)`,
             display: 'flex',
             flexDirection: 'column',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-            transition: 'box-shadow 0.2s ease',
-            '&:hover': { boxShadow: '0 2px 8px rgba(0,0,0,0.07)' },
+            boxShadow: 'none',
+            transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+            '&:hover': { transform: 'translateY(-2px)', boxShadow: `0 6px 16px ${alpha(accent, 0.18)}` },
           }}
         >
           <Typography
             sx={{
               fontWeight: 700,
-              color: 'text.primary',
-              fontSize: '0.72rem',
+              color: 'text.secondary',
+              fontSize: '0.68rem',
               lineHeight: 1.25,
-              mb: 0.65,
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+              mb: 0.5,
               display: '-webkit-box',
               WebkitLineClamp: 2,
               WebkitBoxOrient: 'vertical',
               overflow: 'hidden',
             }}
           >
-            {formatDisplayName(param, { withUnit: true })}
+            {formatDisplayName(param, { withUnit: false })}
           </Typography>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.1 }}>
-            <Box sx={statLineRowSx}>
-              <Typography component="span" sx={{ fontSize: '0.68rem', color: 'text.secondary', fontWeight: 600 }}>
-                Max
-              </Typography>
-              <Typography component="span" sx={{ fontSize: '0.72rem', fontWeight: 700, color: 'text.primary', textAlign: 'right' }}>
-                {formatParameterValue(param, summary[param].max)}
-              </Typography>
-            </Box>
-            <Box sx={statLineRowSx}>
-              <Typography component="span" sx={{ fontSize: '0.68rem', color: 'text.secondary', fontWeight: 600 }}>
-                Min
-              </Typography>
-              <Typography component="span" sx={{ fontSize: '0.72rem', fontWeight: 700, color: 'text.primary', textAlign: 'right' }}>
-                {formatParameterValue(param, summary[param].min)}
+          <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, mb: 0.75 }}>
+            <Typography component="span" sx={{ fontSize: '1.35rem', fontWeight: 800, color: accent, lineHeight: 1.1 }}>
+              {formatParameterValue(param, summary[param].avg, 2, false)}
+            </Typography>
+            <Typography component="span" sx={{ fontSize: '0.68rem', fontWeight: 600, color: 'text.secondary' }}>
+              {getUnit(param) || ''} avg
+            </Typography>
+          </Box>
+          <Box sx={{ display: 'flex', gap: 1.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.35 }}>
+              <TrendingUpIcon sx={{ fontSize: 13, color: '#10B981' }} />
+              <Typography component="span" sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'text.primary' }}>
+                {formatParameterValue(param, summary[param].max, 2, false)}
               </Typography>
             </Box>
-            <Box sx={statLineRowSx}>
-              <Typography component="span" sx={{ fontSize: '0.68rem', color: 'text.secondary', fontWeight: 600 }}>
-                Avg
-              </Typography>
-              <Typography component="span" sx={{ fontSize: '0.72rem', fontWeight: 700, color: 'text.primary', textAlign: 'right' }}>
-                {formatParameterValue(param, summary[param].avg)}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.35 }}>
+              <TrendingDownIcon sx={{ fontSize: 13, color: '#EF4444' }} />
+              <Typography component="span" sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'text.primary' }}>
+                {formatParameterValue(param, summary[param].min, 2, false)}
               </Typography>
             </Box>
           </Box>
         </Card>
-      ))}
+        );
+      })}
     </Box>
   );
 
@@ -1034,7 +1100,7 @@ export default function DataDash() {
       {filterControls}
       
       {!loading && data.length > 0 && (
-        <Card sx={{ mt: 2, borderRadius: 1, ...getChartCardSx(theme) }}>
+        <Card sx={{ mt: 1.5, borderRadius: 1, ...getChartCardSx(theme) }}>
           <CardContent sx={{ p: 0 }}>
             <Box onClick={() => setSummaryExpanded(!summaryExpanded)} sx={{ cursor: 'pointer' }}>
               <SectionHeader
@@ -1066,25 +1132,33 @@ export default function DataDash() {
         </Card>
       )}
       
-      <Card sx={{ borderRadius: 1, ...getChartCardSx(theme), overflow: 'hidden', mt: 2 }}>
+      <Card sx={{ borderRadius: 1, ...getChartCardSx(theme), overflow: 'hidden', mt: 1.5 }}>
         <CardContent sx={{ p: 0 }}>
           <Box sx={{ px: 0.75, py: 0, bgcolor: 'background.paper', borderBottom: '1px solid', borderColor: 'divider' }}>
             <Tabs 
               value={summaryTab} 
               onChange={(_, v) => setSummaryTab(v)}
               sx={{
-                minHeight: 40,
+                minHeight: 42,
+                '& .MuiTabs-flexContainer': { gap: 0.5, py: 0.5 },
                 '& .MuiTab-root': {
                   color: 'text.secondary',
                   fontSize: '0.78rem',
-                  fontWeight: 700,
+                  fontWeight: 600,
                   textTransform: 'none',
-                  minHeight: 40,
-                  py: 0.75,
+                  minHeight: 32,
+                  py: 0.5,
+                  px: 1.25,
                   gap: 0.5,
+                  borderRadius: 1,
+                  transition: 'background-color 0.15s ease, color 0.15s ease',
+                  '&:hover': {
+                    backgroundColor: alpha(theme.palette.primary.main, 0.06),
+                  },
                   '&.Mui-selected': {
-                    color: 'text.primary',
-                    fontWeight: 800
+                    color: theme.palette.primary.main,
+                    fontWeight: 800,
+                    backgroundColor: alpha(theme.palette.primary.main, 0.1),
                   }
                 },
                 '& .MuiTabs-indicator': {
@@ -1104,9 +1178,33 @@ export default function DataDash() {
       {summaryTab === 0 && (
               <Box>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1, mb: 1 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '0.82rem', color: 'text.primary' }}>
-                    Data Records
-                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '0.82rem', color: 'text.primary' }}>
+                      Data Records
+                    </Typography>
+                    {data.length > 0 && (
+                      <Chip
+                        label={`${data.length.toLocaleString()} records`}
+                        size="small"
+                        sx={{
+                          height: 20,
+                          fontSize: '0.66rem',
+                          fontWeight: 700,
+                          bgcolor: alpha(theme.palette.primary.main, 0.1),
+                          color: theme.palette.primary.main,
+                          '& .MuiChip-label': { px: 0.85 },
+                        }}
+                      />
+                    )}
+                    {lastUpdated && (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.35 }}>
+                        <AccessTimeIcon sx={{ fontSize: 13, color: 'text.secondary' }} />
+                        <Typography component="span" sx={{ fontSize: '0.68rem', color: 'text.secondary' }}>
+                          Updated {lastUpdated.toLocaleTimeString()}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
                   <Stack direction="row" spacing={0.75}>
                     <Button 
                       variant="outlined" 
@@ -1408,14 +1506,16 @@ export default function DataDash() {
       
       
       {!loading && data.length === 0 && (
-        <Card sx={{ mt: 4, borderRadius: 1, ...getChartCardSx(theme) }}>
+        <Card sx={{ mt: 2, borderRadius: 1, ...getChartCardSx(theme) }}>
           <CardContent sx={{ p: 4, textAlign: 'center' }}>
-            <DeviceHubIcon sx={{ fontSize: 80, mb: 2, color: 'rgba(107, 70, 193, 0.3)' }} />
-            <Typography variant="h6" sx={{ color: theme.palette.text.secondary, mb: 1 }}>
-              No Data Available
+            <DeviceHubIcon sx={{ fontSize: 64, mb: 1.5, color: 'rgba(107, 70, 193, 0.3)' }} />
+            <Typography variant="h6" sx={{ color: theme.palette.text.secondary, mb: 1, fontSize: '1rem', fontWeight: 700 }}>
+              {hasActiveFilters ? 'No Data Available' : 'Start by choosing filters'}
             </Typography>
-            <Typography variant="body1" sx={{ color: theme.palette.text.secondary }}>
-              No data found for the selected filters. Try adjusting your criteria.
+            <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+              {hasActiveFilters
+                ? 'No data found for the selected filters. Try adjusting your criteria.'
+                : 'Select at least one device and one parameter above, then press Apply.'}
             </Typography>
           </CardContent>
         </Card>
