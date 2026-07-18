@@ -805,9 +805,33 @@ const Listeners = ({ socket }) => {
                 
                 <Grid size={{ xs: 12, md: 6 }}>
                   <Typography variant="h6" gutterBottom>Payload</Typography>
-                  <Accordion>
+                  {(selectedData.raw_payload != null || selectedData.raw_string != null) && (
+                    <Accordion defaultExpanded>
+                      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                        <Typography>Raw Device Payload (as sent)</Typography>
+                      </AccordionSummary>
+                      <AccordionDetails>
+                        <Box
+                          component="pre"
+                          sx={{
+                            backgroundColor: '#f5f5f5',
+                            p: 2,
+                            borderRadius: 1,
+                            overflow: 'auto',
+                            maxHeight: 300,
+                            fontSize: '0.875rem'
+                          }}
+                        >
+                          {selectedData.raw_payload != null
+                            ? formatPayload(selectedData.raw_payload)
+                            : selectedData.raw_string}
+                        </Box>
+                      </AccordionDetails>
+                    </Accordion>
+                  )}
+                  <Accordion defaultExpanded={selectedData.raw_payload == null && selectedData.raw_string == null}>
                     <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Typography>View Payload Data</Typography>
+                      <Typography>Processed / Mapped Payload</Typography>
                     </AccordionSummary>
                     <AccordionDetails>
                       <Box

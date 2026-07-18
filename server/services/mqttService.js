@@ -367,9 +367,10 @@ class MQTTService {
     this.logDebug('handleMessage', topic);
     try {
       // Parse message
+      const rawString = message ? message.toString() : '';
       let data;
       try {
-        data = JSON.parse(message.toString());
+        data = JSON.parse(rawString);
       } catch (error) {
         console.error('Failed to parse MQTT message as JSON:', error);
         return;
@@ -404,7 +405,11 @@ class MQTTService {
 
       await this.updateDeviceStatus(deviceId, 'online');
       await this.evaluateAlertsWithRealTimeData(deviceId, processedData);
-      this.emitRealTimeData(deviceId, processedData);
+      this.emitRealTimeData(deviceId, processedData, {
+        rawTopic: topic,
+        rawString,
+        rawPayload: data,
+      });
 
     } catch (error) {
       console.error('Error handling MQTT message:', error);
@@ -877,25 +882,36 @@ class MQTTService {
     };
   }
 
-  emitRealTimeData(deviceId, data) {
+  emitRealTimeData(deviceId, data, meta = {}) {
     try {
       const { emitToDevice, emitToRoom } = require('../socket');
+      const { rawTopic = null, rawString = null, rawPayload = null } = meta;
       const devicePayload = {
         deviceId,
         data,
         timestamp: new Date(),
       };
 
+      // Real size = byte length of the exact message received from the broker.
+      const rawSize = typeof rawString === 'string'
+        ? Buffer.byteLength(rawString, 'utf8')
+        : JSON.stringify(data).length;
+
       const listenerData = {
         id: Date.now().toString(),
         timestamp: new Date().toISOString(),
         protocol: 'mqtt',
-        topic: `data/sparing/sparing/${deviceId}`,
+        // Actual topic the broker delivered on (falls back to legacy synthetic value).
+        topic: rawTopic || `data/sparing/sparing/${deviceId}`,
         client_id: deviceId,
+        // Processed/mapped payload (kept for backward compatibility with the UI).
         payload: data,
+        // Exact JSON the device sent, before mapping/flattening/formulas.
+        raw_payload: rawPayload,
+        raw_string: rawString,
         source_ip: 'mqtt_broker',
         port: 1883,
-        size: JSON.stringify(data).length,
+        size: rawSize,
         device_id: deviceId,
       };
 
