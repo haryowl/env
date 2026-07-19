@@ -1,318 +1,325 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   Box,
-  Card,
-  CardContent,
   TextField,
   Button,
   Typography,
   Alert,
   CircularProgress,
   IconButton,
-  Paper,
   Link,
+  Checkbox,
+  FormControlLabel,
+  InputAdornment,
+  Chip,
 } from '@mui/material';
 import {
   Visibility,
   VisibilityOff,
+  PersonOutline,
+  LockOutlined,
+  ArrowForward,
 } from '@mui/icons-material';
-import { styled } from '@mui/material/styles';
-import { useUserTheme } from '../contexts/UserThemeContext';
 
-// Login background: use local image from public folder first (place login-background.jpg in client/public/)
-const LOCAL_LOGIN_BACKGROUND = '/login-background.jpg';
-const DEFAULT_BACKGROUNDS = [
-  LOCAL_LOGIN_BACKGROUND,
-  'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?ixlib=rb-4.0.3&auto=format&fit=crop&w=2071&q=80',
-  'https://images.unsplash.com/photo-1473773508845-188df298d2d1?ixlib=rb-4.0.3&auto=format&fit=crop&w=2074&q=80',
-  'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80',
-  'https://images.unsplash.com/photo-1518837695005-2083093ee35b?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80',
-  'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?ixlib=rb-4.0.3&auto=format&fit=crop&w=2074&q=80',
-];
+const BRAND_BLUE = '#0a84c7';
+const BRAND_BLUE_DARK = '#0868a0';
 
-const LoginContainer = styled(Box)(({ theme, backgroundImage }) => ({
-  minHeight: '100vh',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  position: 'relative',
-  padding: theme.spacing(2),
-  backgroundImage: backgroundImage ? `url(${backgroundImage})` : 'linear-gradient(145deg, #0F172A 0%, #1E293B 40%, #334155 100%)',
-  backgroundSize: 'cover',
-  backgroundPosition: 'center',
-  backgroundRepeat: 'no-repeat',
-  '&::before': {
-    content: '""',
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: backgroundImage 
-      ? (theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.5)' : 'rgba(15, 23, 42, 0.4)')
-      : 'transparent',
-    backdropFilter: backgroundImage ? 'blur(2px)' : 'none',
-  },
-}));
-
-const LoginCard = styled(Card)(({ theme }) => ({
-  width: '100%',
-  maxWidth: 420,
-  position: 'relative',
-  zIndex: 1,
-  backgroundColor: theme.palette.mode === 'dark' 
-    ? 'rgba(30, 41, 59, 0.4)' 
-    : 'rgba(255, 255, 255, 0.4)',
-  backdropFilter: 'blur(20px)',
-  borderRadius: 4,
-  boxShadow: theme.palette.mode === 'dark'
-    ? '0 24px 48px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255,255,255,0.06)'
-    : '0 24px 48px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05)',
-  border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)'}`,
-}));
-
-const BackgroundControls = styled(Paper)(({ theme }) => ({
-  position: 'absolute',
-  top: theme.spacing(2),
-  right: theme.spacing(2),
-  padding: theme.spacing(1),
-  backgroundColor: theme.palette.mode === 'dark' 
-    ? 'rgba(30, 30, 30, 0.9)' 
-    : 'rgba(255, 255, 255, 0.9)',
-  backdropFilter: 'blur(10px)',
-  borderRadius: theme.spacing(1),
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  zIndex: 2,
-}));
-
-const BrandContainer = styled(Box)(({ theme }) => ({
-  textAlign: 'center',
-  marginBottom: theme.spacing(3),
-  '& .brand-icon': {
-    fontSize: '2.5rem',
-    marginBottom: theme.spacing(1),
-    background: theme.palette.mode === 'dark' 
-      ? 'linear-gradient(135deg, #38BDF8 0%, #818CF8 100%)' 
-      : 'linear-gradient(135deg, #2563EB 0%, #0EA5E9 100%)',
-    backgroundClip: 'text',
-    WebkitBackgroundClip: 'text',
-    WebkitTextFillColor: 'transparent',
-  },
-}));
+/** Decorative line/area chart for the left hero panel (pure SVG, no chart lib). */
+function HeroChart() {
+  const line = 'M0,86 C30,80 55,74 85,70 C118,65 138,72 168,62 C200,52 222,58 252,48 C285,38 310,42 340,30 C368,20 388,24 410,16';
+  const area = `${line} L410,120 L0,120 Z`;
+  return (
+    <Box
+      sx={{
+        position: 'relative',
+        borderRadius: 3,
+        p: 2,
+        pt: 1.5,
+        bgcolor: 'rgba(255,255,255,0.10)',
+        border: '1px solid rgba(255,255,255,0.18)',
+        backdropFilter: 'blur(4px)',
+      }}
+    >
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 0.5 }}>
+        <Chip
+          size="small"
+          icon={<Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: '#4ADE80', ml: 0.5 }} />}
+          label="Live"
+          sx={{
+            height: 20,
+            fontSize: '0.62rem',
+            fontWeight: 700,
+            color: '#BBF7D0',
+            bgcolor: 'rgba(16,185,129,0.22)',
+            '& .MuiChip-label': { px: 0.6 },
+          }}
+        />
+      </Box>
+      <Box component="svg" viewBox="0 0 410 120" sx={{ width: '100%', height: { xs: 110, md: 130 }, display: 'block' }}>
+        <defs>
+          <linearGradient id="login-hero-fill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#ffffff" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="#ffffff" stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+        <path d={area} fill="url(#login-hero-fill)" />
+        <path d={line} fill="none" stroke="#ffffff" strokeWidth="3" strokeLinecap="round" />
+        <circle cx="410" cy="16" r="5" fill="#ffffff" />
+      </Box>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+        <Typography sx={{ fontSize: '0.58rem', color: 'rgba(255,255,255,0.65)' }}>7am</Typography>
+        <Typography sx={{ fontSize: '0.58rem', color: 'rgba(255,255,255,0.65)' }}>Now</Typography>
+      </Box>
+    </Box>
+  );
+}
 
 const Login = ({ onLogin }) => {
-  const { currentTheme } = useUserTheme();
-  const [credentials, setCredentials] = useState({
-    username: '',
-    password: '',
-  });
+  const [credentials, setCredentials] = useState({ username: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [backgroundImage, setBackgroundImage] = useState(() => {
-    const saved = localStorage.getItem('login-background');
-    // Prefer local image: ignore old Unsplash URLs so server image is used after deploy
-    if (!saved || saved.trim() === '') return LOCAL_LOGIN_BACKGROUND;
-    if (saved.includes('unsplash.com')) return LOCAL_LOGIN_BACKGROUND;
-    return saved;
-  });
-  useEffect(() => {
-    localStorage.setItem('login-background', backgroundImage);
-  }, [backgroundImage]);
+  const [keepSignedIn, setKeepSignedIn] = useState(true);
 
   const handleChange = (field) => (event) => {
-    setCredentials(prev => ({
-      ...prev,
-      [field]: event.target.value,
-    }));
-    setError(''); // Clear error when user types
+    setCredentials((prev) => ({ ...prev, [field]: event.target.value }));
+    setError('');
   };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     setLoading(true);
     setError('');
-
     try {
       const result = await onLogin(credentials);
       if (!result.success) {
         setError(result.error);
       }
-    } catch (error) {
+    } catch {
       setError('An unexpected error occurred');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleImageError = () => {
-    // Fallback to default if custom image fails to load
-    setBackgroundImage(DEFAULT_BACKGROUNDS[0]);
+  const fieldSx = {
+    '& .MuiOutlinedInput-root': {
+      borderRadius: 2,
+      bgcolor: '#fff',
+      fontSize: '0.875rem',
+      '& fieldset': { borderColor: 'rgba(15,23,42,0.12)' },
+      '&:hover fieldset': { borderColor: BRAND_BLUE },
+      '&.Mui-focused fieldset': { borderColor: BRAND_BLUE },
+    },
+    '& .MuiInputBase-input': { py: 1.1 },
   };
 
+  const fieldLabel = (text) => (
+    <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', mb: 0.5 }}>
+      {text}
+    </Typography>
+  );
+
   return (
-    <LoginContainer backgroundImage={backgroundImage}>
-      <BackgroundControls elevation={3} aria-hidden>
+    <Box sx={{ minHeight: '100vh', display: 'flex', bgcolor: '#EEF2F6' }}>
+      {/* ---- Left hero panel ---- */}
+      <Box
+        sx={{
+          flex: '0 0 52%',
+          display: { xs: 'none', md: 'flex' },
+          flexDirection: 'column',
+          justifyContent: 'center',
+          position: 'relative',
+          px: { md: 5, lg: 8 },
+          py: 5,
+          color: '#fff',
+          background: `linear-gradient(160deg, ${BRAND_BLUE} 0%, ${BRAND_BLUE_DARK} 100%)`,
+          overflow: 'hidden',
+        }}
+      >
         <Typography
-          component="span"
           sx={{
-            fontSize: '1.75rem',
-            lineHeight: 1,
+            position: 'absolute',
+            top: 28,
+            left: { md: 40, lg: 64 },
+            fontSize: '0.72rem',
+            fontWeight: 800,
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            color: 'rgba(255,255,255,0.92)',
           }}
         >
-          🌱
+          Aksadata Monitoring Solution
         </Typography>
-      </BackgroundControls>
 
-      <LoginCard>
-        <CardContent sx={{ p: 5 }}>
-          <BrandContainer>
-            <Typography variant="h2" component="div" className="brand-icon">
-              🌱
-            </Typography>
-            <Typography variant="h4" component="h1" gutterBottom sx={{ 
-              fontWeight: 600,
-              background: 'linear-gradient(135deg, #1b5e20 0%, #2e7d32 100%)',
-              backgroundClip: 'text',
-              textFillColor: 'transparent',
-              mb: 1
-            }}>
-              AksaData Monitor
-            </Typography>
-            <Typography variant="body1" color="text.secondary">
-              Environmental Monitoring & IoT Analytics
-            </Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-              Professional monitoring solutions for a sustainable future
-            </Typography>
-          </BrandContainer>
+        <Box sx={{ maxWidth: 560, width: '100%', mx: 'auto' }}>
+          <Typography sx={{ fontSize: { md: '1.9rem', lg: '2.2rem' }, fontWeight: 800, lineHeight: 1.2, mb: 1 }}>
+            Environment Quality Monitoring
+          </Typography>
+          <Typography sx={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.85)', mb: 4 }}>
+            Real-time environment data across all your monitoring sites
+          </Typography>
+          <HeroChart />
+        </Box>
+      </Box>
+
+      {/* ---- Right form panel ---- */}
+      <Box
+        sx={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          px: 2,
+          py: 4,
+        }}
+      >
+        <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%', maxWidth: 360 }}>
+          {/* Mobile-only brand */}
+          <Typography
+            sx={{
+              display: { xs: 'block', md: 'none' },
+              fontSize: '0.72rem',
+              fontWeight: 800,
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              color: BRAND_BLUE,
+              mb: 2,
+              textAlign: 'center',
+            }}
+          >
+            Aksadata Monitoring Solution
+          </Typography>
+
+          <Typography sx={{ fontSize: '1.15rem', fontWeight: 800, color: '#0F172A' }}>
+            Welcome back
+          </Typography>
+          <Typography sx={{ fontSize: '0.75rem', color: '#94A3B8', mb: 2.5 }}>
+            Sign in to your monitoring account
+          </Typography>
 
           {error && (
-            <Alert severity="error" sx={{ mb: 3, borderRadius: 1 }}>
+            <Alert severity="error" sx={{ mb: 2, borderRadius: 2, fontSize: '0.78rem' }}>
               {error}
             </Alert>
           )}
 
-          <Box component="form" onSubmit={handleSubmit}>
-            <TextField
-              fullWidth
-              label="Username"
-              variant="outlined"
-              margin="normal"
-              value={credentials.username}
-              onChange={handleChange('username')}
-              required
-              disabled={loading}
-              sx={{
-                mb: 2,
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 1,
-                },
-              }}
-            />
+          {fieldLabel('Username')}
+          <TextField
+            fullWidth
+            placeholder="your.username"
+            value={credentials.username}
+            onChange={handleChange('username')}
+            required
+            disabled={loading}
+            autoComplete="username"
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <PersonOutline sx={{ fontSize: 18, color: '#94A3B8' }} />
+                </InputAdornment>
+              ),
+            }}
+            sx={{ ...fieldSx, mb: 2 }}
+          />
 
-            <TextField
-              fullWidth
-              label="Password"
-              type={showPassword ? 'text' : 'password'}
-              variant="outlined"
-              margin="normal"
-              value={credentials.password}
-              onChange={handleChange('password')}
-              required
-              disabled={loading}
-              InputProps={{
-                endAdornment: (
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            {fieldLabel('Password')}
+            <Link
+              component={RouterLink}
+              to="/forgot-password"
+              underline="hover"
+              sx={{ fontSize: '0.7rem', fontWeight: 600, color: BRAND_BLUE }}
+            >
+              Forgot password?
+            </Link>
+          </Box>
+          <TextField
+            fullWidth
+            placeholder="••••••••"
+            type={showPassword ? 'text' : 'password'}
+            value={credentials.password}
+            onChange={handleChange('password')}
+            required
+            disabled={loading}
+            autoComplete="current-password"
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <LockOutlined sx={{ fontSize: 18, color: '#94A3B8' }} />
+                </InputAdornment>
+              ),
+              endAdornment: (
+                <InputAdornment position="end">
                   <IconButton
                     onClick={() => setShowPassword(!showPassword)}
                     edge="end"
                     disabled={loading}
+                    size="small"
                   >
-                    {showPassword ? <VisibilityOff /> : <Visibility />}
+                    {showPassword ? <VisibilityOff sx={{ fontSize: 18 }} /> : <Visibility sx={{ fontSize: 18 }} />}
                   </IconButton>
-                ),
-              }}
-              sx={{
-                mb: 3,
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 1,
-                },
-              }}
-            />
+                </InputAdornment>
+              ),
+            }}
+            sx={{ ...fieldSx, mb: 1 }}
+          />
 
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
-              <Link component={RouterLink} to="/forgot-password" variant="body2" underline="hover">
-                Forgot password?
-              </Link>
-            </Box>
+          <FormControlLabel
+            control={(
+              <Checkbox
+                checked={keepSignedIn}
+                onChange={(e) => setKeepSignedIn(e.target.checked)}
+                size="small"
+                sx={{ py: 0.5, color: BRAND_BLUE, '&.Mui-checked': { color: BRAND_BLUE } }}
+              />
+            )}
+            label={(
+              <Typography sx={{ fontSize: '0.72rem', color: '#64748B' }}>
+                Keep me signed in for 30 days
+              </Typography>
+            )}
+            sx={{ mb: 1.5, ml: -1 }}
+          />
 
-            <Button
-              type="submit"
-              fullWidth
-              variant="contained"
-              size="large"
-              disabled={loading}
-              sx={{
-                mt: 2,
-                mb: 2,
-                py: 1.5,
-                borderRadius: 3,
-                fontSize: '1.1rem',
-                fontWeight: 600,
-                background:
-                  currentTheme === 'green'
-                    ? 'linear-gradient(135deg, #2e7d32 0%, #4caf50 100%)'
-                    : currentTheme === 'darkBlue'
-                      ? 'linear-gradient(135deg, #0284C7 0%, #38BDF8 100%)'
-                      : undefined,
-                '&:hover': {
-                  background:
-                    currentTheme === 'green'
-                      ? 'linear-gradient(135deg, #1b5e20 0%, #388e3c 100%)'
-                      : currentTheme === 'darkBlue'
-                        ? 'linear-gradient(135deg, #0369A1 0%, #0EA5E9 100%)'
-                        : undefined,
-                },
-              }}
-            >
-              {loading ? (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <CircularProgress size={20} color="inherit" />
-                  <Typography>Authenticating...</Typography>
-                </Box>
-              ) : (
-                'Sign In to AksaData'
-              )}
-            </Button>
+          <Button
+            type="submit"
+            fullWidth
+            variant="contained"
+            disabled={loading}
+            endIcon={!loading ? <ArrowForward sx={{ fontSize: 16 }} /> : null}
+            sx={{
+              py: 1.1,
+              borderRadius: 5,
+              fontSize: '0.85rem',
+              fontWeight: 700,
+              textTransform: 'none',
+              bgcolor: BRAND_BLUE,
+              boxShadow: '0 6px 16px rgba(10,132,199,0.35)',
+              '&:hover': { bgcolor: BRAND_BLUE_DARK },
+            }}
+          >
+            {loading ? (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <CircularProgress size={18} color="inherit" />
+                <Typography sx={{ fontSize: '0.85rem', fontWeight: 700 }}>Signing in…</Typography>
+              </Box>
+            ) : (
+              'Sign in'
+            )}
+          </Button>
 
-            <Typography 
-              variant="caption" 
-              color="text.secondary" 
-              sx={{ 
-                display: 'block', 
-                textAlign: 'center', 
-                mt: 2,
-                opacity: 0.8 
-              }}
-            >
-              Secure access to environmental monitoring systems
+          <Typography sx={{ fontSize: '0.72rem', color: '#94A3B8', textAlign: 'center', mt: 4 }}>
+            Need access?{' '}
+            <Typography component="span" sx={{ fontSize: '0.72rem', fontWeight: 700, color: BRAND_BLUE }}>
+              Contact your administrator
             </Typography>
-          </Box>
-        </CardContent>
-      </LoginCard>
-      
-      {/* Hidden image for preloading/error handling */}
-      <img 
-        src={backgroundImage} 
-        alt="" 
-        style={{ display: 'none' }} 
-        onError={handleImageError}
-      />
-    </LoginContainer>
+          </Typography>
+        </Box>
+      </Box>
+    </Box>
   );
 };
 
-export default Login; 
+export default Login;
