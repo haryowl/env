@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Box, Card, CardContent, Typography, Chip, CircularProgress,
-  Select, MenuItem, FormControl, LinearProgress, useTheme, Button,
+  Select, MenuItem, FormControl, LinearProgress, useTheme, Button, TextField, InputLabel,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
+import { DateTimePicker, LocalizationProvider } from '@mui/x-date-pickers';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip,
   Legend, ResponsiveContainer,
@@ -25,6 +27,11 @@ import { getParameterColor as getChartParamColor } from '../utils/chartStyles';
 import { useDeviceSocketSubscription } from '../hooks/useDeviceSocketSubscription';
 import { useSocketEvent } from '../hooks/useSocketEvent';
 import DashboardMap from './DashboardMap';
+import RealtimeChartDisplaySelect from './RealtimeChartDisplaySelect';
+import {
+  buildRealtimeChartSeries,
+  REALTIME_CHART_DISPLAY_MODES,
+} from '../utils/realtimeChartAggregation';
 
 const NON_PARAM_KEYS = new Set([
   'datetime', 'timestamp', 'device_id', 'device_name', 'server_received_at',
@@ -41,10 +48,11 @@ const KPI_ICONS = [
 const KPI_TINTS = ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B'];
 
 const RANGE_OPTIONS = [
-  { label: 'Last 24 hours', hours: 24 },
-  { label: 'Last 48 hours', hours: 48 },
-  { label: 'Last 7 days', hours: 24 * 7 },
-  { label: 'Last 30 days', hours: 24 * 30 },
+  { value: '48h', label: 'Default' },
+  { value: '2h', label: 'Last 2 hours' },
+  { value: '3h', label: 'Last 3 hours' },
+  { value: '6h', label: 'Last 6 hours' },
+  { value: 'custom', label: 'Custom' },
 ];
 
 function toNumber(v) {
@@ -88,12 +96,30 @@ export default function NDashboard({ socket }) {
   const [latest, setLatest] = useState({ fields: {}, updatedAt: null });
   const [history, setHistory] = useState([]);
   const [alerts, setAlerts] = useState([]);
-  const [rangeHours, setRangeHours] = useState(24);
+  const [chartRange, setChartRange] = useState('48h');
+  const [chartDisplayMode, setChartDisplayMode] = useState(() => {
+    try {
+      return localStorage.getItem('realtime_chart_display_mode') || REALTIME_CHART_DISPLAY_MODES.INSTANT;
+    } catch {
+      return REALTIME_CHART_DISPLAY_MODES.INSTANT;
+    }
+  });
+  const [customStart, setCustomStart] = useState(() => new Date(Date.now() - 2 * 3600 * 1000));
+  const [customEnd, setCustomEnd] = useState(() => new Date());
   const [paramFilter, setParamFilter] = useState('all');
   const [loadingDevices, setLoadingDevices] = useState(true);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
   const selectedDevice = devices.find((d) => d.device_id === selectedDeviceId) || null;
+  const rangeHours = ({ '2h': 2, '3h': 3, '6h': 6, '48h': 48 })[chartRange] ?? 48;
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('realtime_chart_display_mode', chartDisplayMode);
+    } catch {
+      // Ignore storage restrictions.
+    }
+  }, [chartDisplayMode]);
 
   // ---- Data loading -------------------------------------------------------
   const authHeaders = useCallback(() => ({
@@ -150,8 +176,15 @@ export default function NDashboard({ socket }) {
     return orderParams(keys);
   }, [latest.fields]);
 
-  const chartParams = availableParams.slice(0, 6);
-  const kpiParams = availableParams.slice(0, 4);
+  // All numeric mapped parameters are represented. The layout wraps as needed.
+  const chartParams = availableParams;
+  const kpiParams = availableParams;
+
+  useEffect(() => {
+    if (paramFilter !== 'all' && !availableParams.includes(paramFilter)) {
+      setParamFilter('all');
+    }
+  }, [availableParams, paramFilter]);
 
   const fetchHistory = useCallback(async () => {
     if (!selectedDeviceId || chartParams.length === 0) {
@@ -160,35 +193,37 @@ export default function NDashboard({ socket }) {
     }
     setLoadingHistory(true);
     try {
-      const end = new Date();
-      const start = new Date(end.getTime() - rangeHours * 3600 * 1000);
+      const isCustom = chartRange === 'custom';
+      const end = isCustom ? new Date(customEnd) : new Date();
+      const start = isCustom ? new Date(customStart) : new Date(end.getTime() - rangeHours * 3600 * 1000);
+      if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || start >= end) {
+        setHistory([]);
+        setLoadingHistory(false);
+        return;
+      }
+      const windowHours = (end.getTime() - start.getTime()) / 3600000;
       const res = await axios.get(`${API_BASE_URL}/data-dash`, {
         params: {
           deviceIds: selectedDeviceId,
           parameters: ['datetime', ...chartParams].join(','),
           startDate: start.toISOString(),
           endDate: end.toISOString(),
-          limit: 3000,
+          limit: windowHours <= 6 ? 1000 : 5000,
           excludeCategories: 'Status',
         },
         headers: authHeaders(),
       });
-      const rows = (res.data.data || [])
-        .map((row) => {
-          const raw = row.datetime ?? row.timestamp;
-          const t = raw != null && raw !== '' ? new Date(raw).getTime() : NaN;
-          const out = { t: Number.isFinite(t) ? t : 0 };
-          chartParams.forEach((p) => { out[p] = toNumber(row[p]); });
-          return out;
-        })
-        .filter((r) => r.t > 0)
-        .sort((a, b) => a.t - b.t);
+      const rows = (res.data.data || []).map((row) => {
+        const out = { datetime: row.datetime, timestamp: row.timestamp };
+        chartParams.forEach((p) => { out[p] = toNumber(row[p]); });
+        return out;
+      });
       setHistory(rows);
     } catch {
       setHistory([]);
     }
     setLoadingHistory(false);
-  }, [selectedDeviceId, chartParams.join(','), rangeHours, authHeaders]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedDeviceId, chartParams.join(','), chartRange, rangeHours, customStart, customEnd, authHeaders]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { fetchHistory(); }, [fetchHistory]);
 
@@ -241,6 +276,17 @@ export default function NDashboard({ socket }) {
   }, []);
 
   const visibleChartParams = paramFilter === 'all' ? chartParams : chartParams.filter((p) => p === paramFilter);
+  const chartData = useMemo(
+    () => buildRealtimeChartSeries(history, chartParams, chartDisplayMode)
+      .map((row) => {
+        const raw = row.originalTimestamp ?? row.datetime ?? row.timestamp;
+        const t = raw != null && raw !== '' ? new Date(raw).getTime() : NaN;
+        return { ...row, t: Number.isFinite(t) ? t : 0 };
+      })
+      .filter((row) => row.t > 0),
+    [history, chartParams, chartDisplayMode]
+  );
+  const rangeLabel = RANGE_OPTIONS.find((o) => o.value === chartRange)?.label || 'Default';
 
   // ---- Shared styles ------------------------------------------------------
   const cardSx = {
@@ -283,18 +329,29 @@ export default function NDashboard({ socket }) {
             Water quality monitoring overview
           </Typography>
         </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <FormControl size="small">
+        <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+          <FormControl size="small" sx={{ minWidth: 125 }}>
+            <InputLabel id="nd-period">Period</InputLabel>
             <Select
-              value={rangeHours}
-              onChange={(e) => setRangeHours(e.target.value)}
+              labelId="nd-period"
+              label="Period"
+              value={chartRange}
+              onChange={(e) => setChartRange(e.target.value)}
               sx={{ fontSize: '0.75rem', minHeight: 32, borderRadius: 1.5, '& .MuiSelect-select': { py: 0.6 } }}
             >
               {RANGE_OPTIONS.map((o) => (
-                <MenuItem key={o.hours} value={o.hours} sx={{ fontSize: '0.78rem' }}>{o.label}</MenuItem>
+                <MenuItem key={o.value} value={o.value} sx={{ fontSize: '0.78rem' }}>{o.label}</MenuItem>
               ))}
             </Select>
           </FormControl>
+          <RealtimeChartDisplaySelect
+            value={chartDisplayMode}
+            onChange={setChartDisplayMode}
+            minWidth={130}
+            label="Display"
+            labelId="nd-chart-display"
+            sx={{ '& .MuiSelect-select': { fontSize: '0.75rem' } }}
+          />
           <FormControl size="small" sx={{ minWidth: 150 }}>
             <Select
               value={selectedDeviceId || ''}
@@ -308,6 +365,35 @@ export default function NDashboard({ socket }) {
           </FormControl>
         </Box>
       </Box>
+      {chartRange === 'custom' && (
+        <LocalizationProvider dateAdapter={AdapterDateFns}>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+              gap: 1,
+              maxWidth: 620,
+              ml: 'auto',
+              mb: 1.25,
+            }}
+          >
+            <DateTimePicker
+              label="Start"
+              value={customStart}
+              onChange={setCustomStart}
+              renderInput={(params) => <TextField {...params} size="small" fullWidth />}
+              ampm={false}
+            />
+            <DateTimePicker
+              label="End"
+              value={customEnd}
+              onChange={setCustomEnd}
+              renderInput={(params) => <TextField {...params} size="small" fullWidth />}
+              ampm={false}
+            />
+          </Box>
+        </LocalizationProvider>
+      )}
 
       {/* Main grid: content + right rail */}
       <Box
@@ -321,7 +407,13 @@ export default function NDashboard({ socket }) {
         {/* ---- Left column ---- */}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 0 }}>
           {/* KPI row */}
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: `repeat(${Math.max(kpiParams.length, 1)}, 1fr)` }, gap: 1.25 }}>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(auto-fit, minmax(185px, 1fr))' },
+              gap: 1.25,
+            }}
+          >
             {kpiParams.length === 0 && (
               <Card sx={{ ...cardSx, gridColumn: '1 / -1' }}>
                 <CardContent sx={{ p: 2, textAlign: 'center' }}>
@@ -396,7 +488,7 @@ export default function NDashboard({ socket }) {
                 ))}
               </Box>
             </Box>
-            <Box sx={{ height: { xs: 260, md: 320 }, display: 'flex', flexDirection: 'column' }}>
+            <Box sx={{ height: { xs: 210, md: 240 }, display: 'flex', flexDirection: 'column' }}>
               <DashboardMap
                 socket={socket}
                 fillHeight
@@ -413,9 +505,9 @@ export default function NDashboard({ socket }) {
             <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1 } }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 1 }}>
                 <Box>
-                  <Typography sx={sectionTitleSx}>Water Quality Time Series</Typography>
+                  <Typography sx={sectionTitleSx}>Environment Quality Time Series</Typography>
                   <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary' }}>
-                    {RANGE_OPTIONS.find((o) => o.hours === rangeHours)?.label} · {selectedDevice?.name || '-'}
+                    {rangeLabel} · {selectedDevice?.name || '-'}
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
@@ -450,8 +542,8 @@ export default function NDashboard({ socket }) {
                   <CircularProgress size={32} />
                 </Box>
               ) : (
-                <ResponsiveContainer width="100%" height={280}>
-                  <AreaChart data={history} margin={{ top: 6, right: 8, bottom: 4, left: 0 }}>
+                <ResponsiveContainer width="100%" height={390}>
+                  <AreaChart data={chartData} margin={{ top: 6, right: 8, bottom: 4, left: 0 }}>
                     <defs>
                       {visibleChartParams.map((p) => {
                         const c = getChartParamColor(p);
@@ -471,7 +563,7 @@ export default function NDashboard({ socket }) {
                       tick={{ fontSize: 9, fill: theme.palette.text.secondary }}
                       tickMargin={6}
                       minTickGap={40}
-                      tickFormatter={(ms) => (Number.isFinite(ms) ? formatInUserTimezone(new Date(ms).toISOString(), rangeHours > 48 ? 'MM/DD' : 'HH:mm') : '')}
+                      tickFormatter={(ms) => (Number.isFinite(ms) ? formatInUserTimezone(new Date(ms).toISOString(), chartRange === '48h' || chartRange === 'custom' ? 'MM/DD HH:mm' : 'HH:mm') : '')}
                     />
                     <YAxis tick={{ fontSize: 9, fill: theme.palette.text.secondary }} width={40} />
                     <ReTooltip
