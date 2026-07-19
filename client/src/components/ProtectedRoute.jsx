@@ -4,17 +4,16 @@ import { Box, CircularProgress, Typography } from '@mui/material';
 import { usePermissions } from '../hooks/usePermissions.jsx';
 import { getMenuPathForRoute } from '../config/navigationConfig';
 
-function redirectPathForRole(role) {
-  if (role === 'technician') return '/technician';
-  return '/dashboard';
-}
-
 function defaultLandingPath({ role, canAccessMenu }) {
-  if (role === 'technician') return '/technician';
-  if (canAccessMenu?.('/dashboard')) return '/dashboard';
+  const isAdmin = role === 'admin' || role === 'super_admin';
+  if (!isAdmin && canAccessMenu?.('/n-dashboard')) return '/n-dashboard';
+  if (isAdmin && canAccessMenu?.('/dashboard')) return '/dashboard';
+  if (canAccessMenu?.('/n-dashboard')) return '/n-dashboard';
   if (canAccessMenu?.('/u-dashboard')) return '/u-dashboard';
-  // fall back to dashboard (will show "No access" if nothing else is allowed)
-  return '/dashboard';
+  if (role === 'technician' && canAccessMenu?.('/technician')) return '/technician';
+  if (canAccessMenu?.('/dashboard')) return '/dashboard';
+  // N-Dashboard is the standard non-admin fallback.
+  return '/n-dashboard';
 }
 
 /**

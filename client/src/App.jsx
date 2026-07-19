@@ -79,17 +79,29 @@ function HomeRedirect({ user }) {
   }
 
   const role = user?.role || userPermissions?.role;
-  if (role === 'technician') {
+  const isAdmin = role === 'admin' || role === 'super_admin';
+
+  // Non-admin users land on the modern overview first.
+  if (!isAdmin && canAccessMenu('/n-dashboard')) {
+    return <Navigate to="/n-dashboard" replace />;
+  }
+  if (isAdmin && canAccessMenu('/dashboard')) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  if (canAccessMenu('/n-dashboard')) {
+    return <Navigate to="/n-dashboard" replace />;
+  }
+  if (canAccessMenu('/u-dashboard')) {
+    return <Navigate to="/u-dashboard" replace />;
+  }
+  if (role === 'technician' && canAccessMenu('/technician')) {
     return <Navigate to="/technician" replace />;
   }
   if (canAccessMenu('/dashboard')) {
     return <Navigate to="/dashboard" replace />;
   }
-  if (canAccessMenu('/u-dashboard')) {
-    return <Navigate to="/u-dashboard" replace />;
-  }
 
-  return <Navigate to="/dashboard" replace />;
+  return <Navigate to="/n-dashboard" replace />;
 }
 
 function App() {
@@ -252,6 +264,10 @@ function App() {
       const { user, token } = await authService.login(credentials);
       // Ensure user.id is always set
       const userWithId = { ...user, id: user.user_id };
+      const isAdmin = userWithId.role === 'admin' || userWithId.role === 'super_admin';
+      // The authenticated router is mounted after setUser. Set its initial URL now
+      // so non-admin users enter N-Dashboard directly after a successful login.
+      window.history.replaceState({}, '', isAdmin ? '/dashboard' : '/n-dashboard');
       setUser(userWithId);
       localStorage.setItem('iot_token', token);
       localStorage.setItem('iot_user', JSON.stringify(userWithId));
