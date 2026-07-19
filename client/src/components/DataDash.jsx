@@ -562,7 +562,29 @@ export default function DataDash() {
               multiple
               value={selectedParameters}
               onChange={e => setSelectedParameters(e.target.value)}
-              renderValue={selected => selected.map(param => formatDisplayName(param, { withUnit: true })).join(', ')}
+              renderValue={selected => (
+                <Box sx={{ display: 'flex', gap: 0.4, overflow: 'hidden', alignItems: 'center' }}>
+                  {selected.map(param => (
+                    <Chip
+                      key={param}
+                      label={formatDisplayName(param, { withUnit: true })}
+                      size="small"
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onDelete={() => setSelectedParameters(selectedParameters.filter(p => p !== param))}
+                      sx={{
+                        height: 20,
+                        fontSize: '0.64rem',
+                        fontWeight: 600,
+                        bgcolor: alpha(theme.palette.primary.main, 0.08),
+                        color: 'text.primary',
+                        flexShrink: 0,
+                        '& .MuiChip-label': { px: 0.75 },
+                        '& .MuiChip-deleteIcon': { fontSize: 13, m: 0, mr: 0.25 },
+                      }}
+                    />
+                  ))}
+                </Box>
+              )}
                   MenuProps={{
                     PaperProps: {
                       sx: {
@@ -861,7 +883,7 @@ export default function DataDash() {
       '&:hover': { backgroundColor: 'rgba(107, 70, 193, 0.05)' },
     },
     '& .MuiDataGrid-columnHeaders': {
-      bgcolor: 'background.paper',
+      bgcolor: theme.palette.mode === 'dark' ? 'rgba(148,163,184,0.06)' : 'rgba(248,250,252,1)',
       borderBottom: '1px solid',
       borderColor: 'divider',
       minHeight: '34px !important',
@@ -999,67 +1021,81 @@ export default function DataDash() {
     }
   ];
 
-  // Data Summary — colored KPI cards (avg prominent, min/max secondary)
+  // Data Summary — pastel KPI cards matching the reference design:
+  // fully tinted card, uppercase title, large dark avg value + unit, min/max footer strip.
+  const KPI_ACCENTS = ['#F97316', '#10B981', '#0D9488', '#D97706', '#3B82F6', '#8B5CF6'];
+  const summaryParams = parameters.filter((param) => summary[param]);
   const summaryCards = (
     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' }, gap: 1 }}>
-      {parameters.map(param => {
-        if (!summary[param]) return null;
-        const accent = getParameterColor(param);
+      {summaryParams.map((param, idx) => {
+        const accent = KPI_ACCENTS[idx % KPI_ACCENTS.length];
+        const isDark = theme.palette.mode === 'dark';
         return (
         <Card
           key={param}
           sx={{
-            p: 1.25,
             borderRadius: 1.5,
             border: '1px solid',
-            borderColor: alpha(accent, 0.25),
-            borderLeft: `4px solid ${accent}`,
-            background: theme.palette.mode === 'dark'
-              ? `linear-gradient(135deg, ${alpha(accent, 0.14)} 0%, ${alpha(theme.palette.background.paper, 0.6)} 60%)`
-              : `linear-gradient(135deg, ${alpha(accent, 0.08)} 0%, #fff 60%)`,
+            borderColor: alpha(accent, 0.2),
+            bgcolor: alpha(accent, isDark ? 0.16 : 0.09),
             display: 'flex',
             flexDirection: 'column',
             boxShadow: 'none',
+            overflow: 'hidden',
             transition: 'transform 0.15s ease, box-shadow 0.15s ease',
-            '&:hover': { transform: 'translateY(-2px)', boxShadow: `0 6px 16px ${alpha(accent, 0.18)}` },
+            '&:hover': { transform: 'translateY(-2px)', boxShadow: `0 6px 16px ${alpha(accent, 0.2)}` },
           }}
         >
-          <Typography
-            sx={{
-              fontWeight: 700,
-              color: 'text.secondary',
-              fontSize: '0.68rem',
-              lineHeight: 1.25,
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-              mb: 0.5,
-              display: '-webkit-box',
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical',
-              overflow: 'hidden',
-            }}
-          >
-            {formatDisplayName(param, { withUnit: false })}
-          </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, mb: 0.75 }}>
-            <Typography component="span" sx={{ fontSize: '1.35rem', fontWeight: 800, color: accent, lineHeight: 1.1 }}>
-              {formatParameterValue(param, summary[param].avg, 2, false)}
+          <Box sx={{ p: 1.25, pb: 1 }}>
+            <Typography
+              sx={{
+                fontWeight: 700,
+                color: isDark ? 'text.secondary' : alpha('#1E293B', 0.75),
+                fontSize: '0.66rem',
+                lineHeight: 1.25,
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                mb: 0.75,
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+              }}
+            >
+              {formatDisplayName(param, { withUnit: false })}
             </Typography>
-            <Typography component="span" sx={{ fontSize: '0.68rem', fontWeight: 600, color: 'text.secondary' }}>
-              {getUnit(param) || ''} avg
-            </Typography>
-          </Box>
-          <Box sx={{ display: 'flex', gap: 1.5 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.35 }}>
-              <TrendingUpIcon sx={{ fontSize: 13, color: '#10B981' }} />
-              <Typography component="span" sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'text.primary' }}>
-                {formatParameterValue(param, summary[param].max, 2, false)}
+            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.6 }}>
+              <Typography component="span" sx={{ fontSize: '1.5rem', fontWeight: 800, color: 'text.primary', lineHeight: 1.05 }}>
+                {formatParameterValue(param, summary[param].avg, 2, false)}
+              </Typography>
+              <Typography component="span" sx={{ fontSize: '0.72rem', fontWeight: 600, color: 'text.secondary' }}>
+                {[getUnit(param), 'avg'].filter(Boolean).join(' ')}
               </Typography>
             </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.35 }}>
-              <TrendingDownIcon sx={{ fontSize: 13, color: '#EF4444' }} />
-              <Typography component="span" sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'text.primary' }}>
-                {formatParameterValue(param, summary[param].min, 2, false)}
+          </Box>
+          <Box
+            sx={{
+              mt: 'auto',
+              px: 1.25,
+              py: 0.6,
+              bgcolor: alpha(accent, isDark ? 0.22 : 0.12),
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 1,
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4, minWidth: 0 }}>
+              <TrendingDownIcon sx={{ fontSize: 13, color: isDark ? '#F87171' : '#B91C1C', flexShrink: 0 }} />
+              <Typography component="span" noWrap sx={{ fontSize: '0.68rem', fontWeight: 700, color: 'text.primary' }}>
+                Min: {formatParameterValue(param, summary[param].min, 2, false)}
+              </Typography>
+            </Box>
+            <Divider orientation="vertical" flexItem sx={{ borderColor: alpha(accent, 0.35) }} />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4, minWidth: 0 }}>
+              <TrendingUpIcon sx={{ fontSize: 13, color: isDark ? '#4ADE80' : '#047857', flexShrink: 0 }} />
+              <Typography component="span" noWrap sx={{ fontSize: '0.68rem', fontWeight: 700, color: 'text.primary' }}>
+                Max: {formatParameterValue(param, summary[param].max, 2, false)}
               </Typography>
             </Box>
           </Box>
@@ -1140,31 +1176,28 @@ export default function DataDash() {
               onChange={(_, v) => setSummaryTab(v)}
               sx={{
                 minHeight: 42,
-                '& .MuiTabs-flexContainer': { gap: 0.5, py: 0.5 },
                 '& .MuiTab-root': {
                   color: 'text.secondary',
                   fontSize: '0.78rem',
                   fontWeight: 600,
                   textTransform: 'none',
-                  minHeight: 32,
-                  py: 0.5,
-                  px: 1.25,
+                  minHeight: 42,
+                  py: 0.75,
+                  px: 1.5,
                   gap: 0.5,
-                  borderRadius: 1,
-                  transition: 'background-color 0.15s ease, color 0.15s ease',
+                  transition: 'color 0.15s ease',
                   '&:hover': {
-                    backgroundColor: alpha(theme.palette.primary.main, 0.06),
+                    color: theme.palette.primary.main,
                   },
                   '&.Mui-selected': {
                     color: theme.palette.primary.main,
-                    fontWeight: 800,
-                    backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                    fontWeight: 700,
                   }
                 },
                 '& .MuiTabs-indicator': {
                   backgroundColor: 'primary.main',
-                  height: 2,
-                  borderRadius: '2px'
+                  height: 2.5,
+                  borderRadius: '2px 2px 0 0'
                 }
               }}
             >
