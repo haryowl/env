@@ -722,7 +722,11 @@ const Layout = ({ children, user, userContext, onLogout }) => {
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
-          backgroundColor: customColors?.background || theme.palette.background.default,
+          // Only apply KIMA custom colors when that theme is active; otherwise a stale
+          // light `card` value paints a white content shell over dark themes.
+          backgroundColor:
+            (currentTheme === 'kima' && customColors?.background)
+            || theme.palette.background.default,
           padding: isMobileDataShell ? { xs: 0.5, sm: 1.25, md: 1.5 } : { xs: 1, sm: 1.25, md: 1.5 },
           paddingTop: { xs: 8, sm: 9, md: 10 },
           className: 'main-content',
@@ -738,17 +742,19 @@ const Layout = ({ children, user, userContext, onLogout }) => {
             flex: 1,
             minHeight: 0,
             width: '100%',
-            backgroundColor: customColors?.card || theme.palette.background.paper,
+            backgroundColor:
+              (currentTheme === 'kima' && customColors?.card)
+              || theme.palette.background.paper,
             borderRadius: isMobileDataShell ? { xs: 0, sm: '4px' } : '4px',
             p: isMobileDataShell ? { xs: 0, sm: 1.25, md: 1.5 } : { xs: 1, sm: 1.25, md: 1.5 },
             boxShadow: isMobileDataShell
-              ? { xs: 'none', sm: customColors?.isDarkMode ? '0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2)' : '0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06)' }
-              : customColors?.isDarkMode
+              ? { xs: 'none', sm: theme.palette.mode === 'dark' ? '0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2)' : '0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06)' }
+              : theme.palette.mode === 'dark'
                 ? '0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2)'
                 : '0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06)',
             border: isMobileDataShell
-              ? { xs: 'none', sm: customColors?.isDarkMode ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(0, 0, 0, 0.1)' }
-              : customColors?.isDarkMode
+              ? { xs: 'none', sm: theme.palette.mode === 'dark' ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(0, 0, 0, 0.1)' }
+              : theme.palette.mode === 'dark'
                 ? '1px solid rgba(255, 255, 255, 0.1)'
                 : '1px solid rgba(0, 0, 0, 0.1)',
             overflow: 'auto',

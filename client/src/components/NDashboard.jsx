@@ -320,11 +320,21 @@ export default function NDashboard({ socket }) {
   }
 
   return (
-    <Box sx={{ fontFamily: 'Inter, sans-serif', minHeight: '100vh', p: { xs: 0.5, md: 1 } }}>
+    <Box
+      sx={{
+        fontFamily: 'Inter, sans-serif',
+        minHeight: '100%',
+        p: { xs: 0.5, md: 1 },
+        bgcolor: 'transparent',
+        color: 'text.primary',
+      }}
+    >
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 1.25, px: 0.25 }}>
         <Box>
-          <Typography sx={{ fontWeight: 800, fontSize: '1.05rem', lineHeight: 1.2 }}>N-Dashboard</Typography>
+          <Typography sx={{ fontWeight: 800, fontSize: '1.05rem', lineHeight: 1.2, color: 'text.primary' }}>
+            N-Dashboard
+          </Typography>
           <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary' }}>
             Water quality monitoring overview
           </Typography>
@@ -452,8 +462,10 @@ export default function NDashboard({ socket }) {
                             height: 20,
                             fontSize: '0.62rem',
                             fontWeight: 700,
-                            color: up ? '#047857' : '#B91C1C',
-                            bgcolor: up ? alpha('#10B981', 0.12) : alpha('#EF4444', 0.12),
+                            color: up
+                              ? (isDark ? '#6EE7B7' : '#047857')
+                              : (isDark ? '#FCA5A5' : '#B91C1C'),
+                            bgcolor: up ? alpha('#10B981', isDark ? 0.18 : 0.12) : alpha('#EF4444', isDark ? 0.18 : 0.12),
                             '& .MuiChip-label': { px: 0.6 },
                             '& .MuiChip-icon': { color: 'inherit', ml: 0.5 },
                           }}
@@ -611,7 +623,14 @@ export default function NDashboard({ socket }) {
                   size="small"
                   icon={<Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: '#10B981', ml: 0.5 }} />}
                   label="Live"
-                  sx={{ height: 20, fontSize: '0.62rem', fontWeight: 700, color: '#047857', bgcolor: alpha('#10B981', 0.1), '& .MuiChip-label': { px: 0.6 } }}
+                  sx={{
+                    height: 20,
+                    fontSize: '0.62rem',
+                    fontWeight: 700,
+                    color: isDark ? '#6EE7B7' : '#047857',
+                    bgcolor: alpha('#10B981', isDark ? 0.18 : 0.1),
+                    '& .MuiChip-label': { px: 0.6 },
+                  }}
                 />
               </Box>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.6, maxHeight: 240, overflowY: 'auto' }}>
