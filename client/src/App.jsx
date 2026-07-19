@@ -14,6 +14,7 @@ import { useFeatureFlags } from './hooks/useFeatureFlags';
 
 const Dashboard = lazy(() => import('./components/Dashboard'));
 const UDashboard = lazy(() => import('./components/UDashboard'));
+const NDashboard = lazy(() => import('./components/NDashboard'));
 const StatusDashboard = lazy(() => import('./components/StatusDashboard'));
 const MobileDashboard = lazy(() => import('./components/MobileDashboard'));
 const QuickView = lazy(() => import('./components/QuickView'));
@@ -376,6 +377,7 @@ function App() {
                 <Route path="/" element={<HomeRedirect user={user} />} />
                 <Route path="/dashboard" element={<ProtectedRoute><Dashboard socket={socket} /></ProtectedRoute>} />
                 <Route path="/u-dashboard" element={<ProtectedRoute><UDashboard socket={socket} /></ProtectedRoute>} />
+                <Route path="/n-dashboard" element={<ProtectedRoute><NDashboard socket={socket} /></ProtectedRoute>} />
                 <Route path="/status" element={<ProtectedRoute><StatusDashboard socket={socket} /></ProtectedRoute>} />
                 <Route path="/m/dashboard" element={<ProtectedRoute><MobileDashboard socket={socket} /></ProtectedRoute>} />
                 <Route path="/quick-view" element={<ProtectedRoute><QuickView /></ProtectedRoute>} />

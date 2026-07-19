@@ -100,6 +100,7 @@ export const PermissionProvider = ({ children }) => {
     const permissions = {
       '/dashboard': { access: true, read: true, create: false, update: false, delete: false },
       '/u-dashboard': { access: true, read: true, create: false, update: false, delete: false },
+      '/n-dashboard': { access: true, read: true, create: false, update: false, delete: false },
       '/status': { access: true, read: true, create: false, update: false, delete: false },
       '/quick-view': { access: false, read: false, create: false, update: false, delete: false },
       '/devices': { access: false, read: false, create: false, update: false, delete: false },
@@ -132,6 +133,7 @@ export const PermissionProvider = ({ children }) => {
         // Full access to everything
         '/dashboard': { access: true, read: true, create: true, update: true, delete: true },
         '/u-dashboard': { access: true, read: true, create: true, update: true, delete: true },
+        '/n-dashboard': { access: true, read: true, create: true, update: true, delete: true },
         '/status': { access: true, read: true, create: true, update: true, delete: true },
         '/quick-view': { access: true, read: true, create: true, update: true, delete: true },
         '/devices': { access: true, read: true, create: true, update: true, delete: true },
@@ -166,6 +168,7 @@ export const PermissionProvider = ({ children }) => {
         // Admin access - can manage most things but not roles
         '/dashboard': { access: true, read: true, create: true, update: true, delete: true },
         '/u-dashboard': { access: true, read: true, create: true, update: true, delete: true },
+        '/n-dashboard': { access: true, read: true, create: true, update: true, delete: true },
         '/status': { access: true, read: true, create: true, update: true, delete: true },
         '/quick-view': { access: true, read: true, create: true, update: true, delete: true },
         '/devices': { access: true, read: true, create: true, update: true, delete: true },
@@ -200,6 +203,7 @@ export const PermissionProvider = ({ children }) => {
         // Demo access - limited but functional
         '/dashboard': { access: true, read: true, create: false, update: true, delete: false },
         '/u-dashboard': { access: true, read: true, create: false, update: true, delete: false },
+        '/n-dashboard': { access: true, read: true, create: false, update: true, delete: false },
         '/status': { access: true, read: true, create: false, update: false, delete: false },
         '/quick-view': { access: true, read: true, create: false, update: false, delete: false },
         '/devices': { access: true, read: true, create: false, update: false, delete: false },
@@ -223,6 +227,7 @@ export const PermissionProvider = ({ children }) => {
         // Operator access - can configure devices and manage maintenance
         '/dashboard': { access: true, read: true, create: false, update: false, delete: false },
         '/u-dashboard': { access: true, read: true, create: false, update: false, delete: false },
+        '/n-dashboard': { access: true, read: true, create: false, update: false, delete: false },
         '/status': { access: true, read: true, create: false, update: false, delete: false },
         '/quick-view': { access: true, read: true, create: false, update: false, delete: false },
         '/devices': { access: true, read: true, create: false, update: true, delete: false },
@@ -246,6 +251,7 @@ export const PermissionProvider = ({ children }) => {
         // Read-only access
         '/dashboard': { access: true, read: true, create: false, update: false, delete: false },
         '/u-dashboard': { access: true, read: true, create: false, update: false, delete: false },
+        '/n-dashboard': { access: true, read: true, create: false, update: false, delete: false },
         '/status': { access: true, read: true, create: false, update: false, delete: false },
         '/quick-view': { access: true, read: true, create: false, update: false, delete: false },
         '/devices': { access: true, read: true, create: false, update: false, delete: false },
@@ -272,6 +278,7 @@ export const PermissionProvider = ({ children }) => {
         // Operate role - similar to operator but with full maintenance access
         '/dashboard': { access: true, read: true, create: false, update: false, delete: false },
         '/u-dashboard': { access: true, read: true, create: false, update: false, delete: false },
+        '/n-dashboard': { access: true, read: true, create: false, update: false, delete: false },
         '/status': { access: true, read: true, create: false, update: false, delete: false },
         '/quick-view': { access: true, read: true, create: false, update: false, delete: false },
         '/devices': { access: true, read: true, create: false, update: true, delete: false },

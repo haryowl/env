@@ -46,6 +46,7 @@ export const MENU_SECTIONS = [
     items: [
       { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', menuPath: '/dashboard' },
       { text: 'U-Dashboard', icon: <UDashboardIcon />, path: '/u-dashboard', menuPath: '/u-dashboard' },
+      { text: 'N-Dashboard', icon: <UDashboardIcon />, path: '/n-dashboard', menuPath: '/n-dashboard' },
       { text: 'Status', icon: <StatusIcon />, path: '/status', menuPath: '/status' },
       { text: 'Dashboard (mobile)', icon: <PhoneAndroidIcon />, path: '/m/dashboard', menuPath: '/dashboard' },
       { text: 'Quick View', icon: <VisibilityIcon />, path: '/quick-view', menuPath: '/quick-view' },
@@ -128,6 +129,7 @@ export const ROUTE_MENU_PATH_MAP = {
   '/': '/dashboard',
   '/dashboard': '/dashboard',
   '/u-dashboard': '/u-dashboard',
+  '/n-dashboard': '/n-dashboard',
   '/status': '/status',
   '/m/dashboard': '/dashboard',
   '/quick-view': '/quick-view',
