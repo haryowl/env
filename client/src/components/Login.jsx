@@ -107,12 +107,36 @@ const Login = ({ onLogin }) => {
     '& .MuiOutlinedInput-root': {
       borderRadius: 2,
       bgcolor: '#fff',
+      color: '#0F172A',
       fontSize: '0.875rem',
       '& fieldset': { borderColor: 'rgba(15,23,42,0.12)' },
       '&:hover fieldset': { borderColor: BRAND_BLUE },
       '&.Mui-focused fieldset': { borderColor: BRAND_BLUE },
+      '&.Mui-disabled': {
+        bgcolor: '#F8FAFC',
+        color: '#64748B',
+      },
     },
-    '& .MuiInputBase-input': { py: 1.1 },
+    '& .MuiInputBase-input': {
+      py: 1.1,
+      color: '#0F172A',
+      WebkitTextFillColor: '#0F172A',
+      caretColor: '#0F172A',
+      '&::placeholder': {
+        color: '#94A3B8',
+        opacity: 1,
+      },
+      // Keep typed/autofilled text dark even when the app theme is still dark after logout.
+      '&:-webkit-autofill, &:-webkit-autofill:hover, &:-webkit-autofill:focus': {
+        WebkitTextFillColor: '#0F172A',
+        caretColor: '#0F172A',
+        transition: 'background-color 9999s ease-out',
+        boxShadow: '0 0 0 1000px #fff inset',
+      },
+    },
+    '& .MuiInputAdornment-root, & .MuiIconButton-root': {
+      color: '#94A3B8',
+    },
   };
 
   const fieldLabel = (text) => (
@@ -295,9 +319,11 @@ const Login = ({ onLogin }) => {
               fontSize: '0.85rem',
               fontWeight: 700,
               textTransform: 'none',
+              color: '#fff',
               bgcolor: BRAND_BLUE,
               boxShadow: '0 6px 16px rgba(10,132,199,0.35)',
-              '&:hover': { bgcolor: BRAND_BLUE_DARK },
+              '&:hover': { bgcolor: BRAND_BLUE_DARK, color: '#fff' },
+              '&.Mui-disabled': { color: 'rgba(255,255,255,0.7)' },
             }}
           >
             {loading ? (
