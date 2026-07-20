@@ -26,6 +26,7 @@ import { formatInUserTimezone } from '../utils/timezoneUtils';
 import { getParameterColor as getChartParamColor } from '../utils/chartStyles';
 import { useDeviceSocketSubscription } from '../hooks/useDeviceSocketSubscription';
 import { useSocketEvent } from '../hooks/useSocketEvent';
+import { filterDataViewParams } from '../utils/fieldCategory';
 import DashboardMap from './DashboardMap';
 import RealtimeChartDisplaySelect from './RealtimeChartDisplaySelect';
 import {
@@ -68,6 +69,29 @@ function orderParams(keys) {
   return [...ordered, ...rest];
 }
 
+function newestHistoryRow(rows) {
+  if (!rows?.length) return null;
+  return rows.reduce((best, row) => {
+    const t = new Date(row.datetime ?? row.timestamp).getTime();
+    if (!Number.isFinite(t)) return best;
+    const bt = best ? new Date(best.datetime ?? best.timestamp).getTime() : -Infinity;
+    return t > bt ? row : best;
+  }, null);
+}
+
+function snapshotFromHistoryRow(row, params) {
+  if (!row) return { fields: {}, updatedAt: null };
+  const fields = {};
+  params.forEach((p) => {
+    const v = toNumber(row[p]);
+    if (v !== null) fields[p] = v;
+  });
+  return {
+    fields,
+    updatedAt: row.datetime ?? row.timestamp ?? null,
+  };
+}
+
 function timeAgo(dateStr) {
   if (!dateStr) return '';
   const ms = Date.now() - new Date(dateStr).getTime();
@@ -89,11 +113,12 @@ const statusDotColor = (status) => {
 export default function NDashboard({ socket }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
-  const { formatDisplayName, getUnit } = useFieldMetadata();
+  const { formatDisplayName, getUnit, metadata: fieldMetadata } = useFieldMetadata();
 
   const [devices, setDevices] = useState([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState(null);
   const [latest, setLatest] = useState({ fields: {}, updatedAt: null });
+  const [mappedParams, setMappedParams] = useState([]);
   const [history, setHistory] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [chartRange, setChartRange] = useState('48h');
@@ -152,29 +177,47 @@ export default function NDashboard({ socket }) {
     load();
   }, [authHeaders]);
 
-  const fetchLatest = useCallback(async (deviceId) => {
-    if (!deviceId) return;
-    try {
-      const res = await axios.get(
-        `${API_BASE_URL}/devices/${deviceId}/latest-data`,
-        { params: { excludeCategories: 'Status' }, headers: authHeaders() }
-      );
-      setLatest({ fields: res.data.data || {}, updatedAt: res.data.last_updated_at || null });
-    } catch {
+  // Load mapped parameters from device mapper (same source as U-Dashboard)
+  useEffect(() => {
+    if (!selectedDeviceId) {
+      setMappedParams([]);
       setLatest({ fields: {}, updatedAt: null });
+      return;
     }
-  }, [authHeaders]);
-
-  useEffect(() => { fetchLatest(selectedDeviceId); }, [selectedDeviceId, fetchLatest]);
+    let cancelled = false;
+    const loadMapper = async () => {
+      setMappedParams([]);
+      setLatest({ fields: {}, updatedAt: null });
+      try {
+        const res = await axios.get(
+          `${API_BASE_URL}/device-mapper-assignments/${selectedDeviceId}`,
+          { headers: authHeaders() }
+        );
+        if (cancelled) return;
+        let params = (res.data.assignment?.mappings || []).map((m) => m.target_field);
+        params = filterDataViewParams(params, fieldMetadata);
+        setMappedParams(orderParams(params.filter((p) => !NON_PARAM_KEYS.has(p))));
+      } catch {
+        if (!cancelled) setMappedParams([]);
+      }
+    };
+    loadMapper();
+    return () => { cancelled = true; };
+  }, [selectedDeviceId, authHeaders, fieldMetadata]);
 
   // Numeric parameters available on the selected device (drives KPIs, chart, readings)
   const availableParams = useMemo(() => {
-    const keys = Object.keys(latest.fields || {}).filter((k) => {
-      if (NON_PARAM_KEYS.has(k)) return false;
-      return toNumber(latest.fields[k]) !== null;
-    });
-    return orderParams(keys);
-  }, [latest.fields]);
+    const keySet = new Set(mappedParams);
+    const addKeysFrom = (obj) => {
+      Object.keys(obj || {}).forEach((k) => {
+        if (NON_PARAM_KEYS.has(k)) return;
+        if (toNumber(obj[k]) !== null) keySet.add(k);
+      });
+    };
+    addKeysFrom(latest.fields);
+    history.forEach((row) => addKeysFrom(row));
+    return orderParams([...keySet]);
+  }, [mappedParams, latest.fields, history]);
 
   // All numeric mapped parameters are represented. The layout wraps as needed.
   const chartParams = availableParams;
@@ -219,8 +262,13 @@ export default function NDashboard({ socket }) {
         return out;
       });
       setHistory(rows);
+      const snapshot = snapshotFromHistoryRow(newestHistoryRow(rows), chartParams);
+      if (Object.keys(snapshot.fields).length > 0) {
+        setLatest(snapshot);
+      }
     } catch {
       setHistory([]);
+      setLatest({ fields: {}, updatedAt: null });
     }
     setLoadingHistory(false);
   }, [selectedDeviceId, chartParams.join(','), chartRange, rangeHours, customStart, customEnd, authHeaders]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -243,8 +291,15 @@ export default function NDashboard({ socket }) {
   useDeviceSocketSubscription(socket, selectedDeviceId);
   useSocketEvent(socket, 'device_data', (payload) => {
     if (!payload || payload.deviceId !== selectedDeviceId || !payload.data) return;
+    const patch = {};
+    availableParams.forEach((p) => {
+      if (payload.data[p] !== undefined && payload.data[p] !== null) {
+        patch[p] = payload.data[p];
+      }
+    });
+    if (Object.keys(patch).length === 0) return;
     setLatest((prev) => ({
-      fields: { ...prev.fields, ...payload.data },
+      fields: { ...prev.fields, ...patch },
       updatedAt: new Date().toISOString(),
     }));
   });
