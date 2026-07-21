@@ -265,7 +265,7 @@ const QuickViewChart = ({ parameter, data, alertLogs = [], alertConfigs = [], de
   // "Become" look: minimal header, neutral metric cards, clean chart
   const metricCardSx = {
     textAlign: 'center',
-    p: 2,
+    p: 1.25,
     borderRadius: 1.5,
     background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : '#FAFAF9',
     border: '1px solid',
@@ -277,9 +277,10 @@ const QuickViewChart = ({ parameter, data, alertLogs = [], alertConfigs = [], de
     }
   };
   const metricValueSx = (isAccent) => ({
-    fontWeight: 700,
-    fontSize: '1rem',
-    mb: 0.5,
+    fontWeight: 800,
+    fontSize: '0.82rem',
+    fontVariantNumeric: 'tabular-nums',
+    mb: 0.25,
     color: isAccent ? (isLatestOutOfRange ? '#EF4444' : colorScheme.line) : theme.palette.text.primary
   });
   const metricLabelSx = {
@@ -287,7 +288,7 @@ const QuickViewChart = ({ parameter, data, alertLogs = [], alertConfigs = [], de
     fontWeight: 600,
     textTransform: 'uppercase',
     letterSpacing: '0.5px',
-    fontSize: '0.7rem'
+    fontSize: '0.6rem'
   };
 
   return (
@@ -312,7 +313,7 @@ const QuickViewChart = ({ parameter, data, alertLogs = [], alertConfigs = [], de
           flexDirection: 'column',
           height: '100%',
           width: '100%',
-          p: 2.5,
+          p: 1.5,
           overflow: 'hidden',
           minHeight: 0,
         }}
@@ -322,8 +323,8 @@ const QuickViewChart = ({ parameter, data, alertLogs = [], alertConfigs = [], de
           display: 'flex', 
           justifyContent: 'space-between', 
           alignItems: 'flex-start', 
-          mb: 2,
-          pb: 1.5,
+          mb: 1.25,
+          pb: 1,
           borderBottom: '1px solid',
           borderColor: theme.palette.divider
         }}>
@@ -331,23 +332,22 @@ const QuickViewChart = ({ parameter, data, alertLogs = [], alertConfigs = [], de
             display: 'flex', 
             alignItems: 'stretch', 
             gap: 0,
-            borderLeft: '4px solid',
+            borderLeft: '3px solid',
             borderColor: colorScheme.line,
-            pl: 1.5
+            pl: 1.25
           }}>
             <Box>
-              <Typography variant="body1" component="h3" sx={{ 
-                fontWeight: 600,
-                fontSize: '1rem',
+              <Typography component="h3" sx={{ 
+                fontWeight: 700,
+                fontSize: '0.82rem',
                 color: theme.palette.text.primary,
                 lineHeight: 1.3
               }}>
                 {parameterDisplayName}
               </Typography>
-              <Typography variant="caption" sx={{ 
+              <Typography sx={{ 
                 color: theme.palette.text.secondary,
-                fontWeight: 500,
-                fontSize: '0.75rem',
+                fontSize: '0.68rem',
                 display: 'block',
                 mt: 0.25
               }}>
@@ -392,32 +392,32 @@ const QuickViewChart = ({ parameter, data, alertLogs = [], alertConfigs = [], de
         <Box sx={{ 
           display: 'grid', 
           gridTemplateColumns: 'repeat(4, 1fr)', 
-          gap: 1.5, 
-          mb: 2 
+          gap: 1, 
+          mb: 1.25 
         }}>
           <Box sx={metricCardSx}>
-            <Typography variant="body1" sx={metricValueSx(true)}>
+            <Typography sx={metricValueSx(true)}>
               {formatValue(stats.latest)}
             </Typography>
-            <Typography variant="caption" sx={metricLabelSx}>Latest</Typography>
+            <Typography sx={metricLabelSx}>Latest</Typography>
           </Box>
           <Box sx={metricCardSx}>
-            <Typography variant="body1" sx={metricValueSx(false)}>
+            <Typography sx={metricValueSx(false)}>
               {formatValue(stats.avg)}
             </Typography>
-            <Typography variant="caption" sx={metricLabelSx}>Average</Typography>
+            <Typography sx={metricLabelSx}>Average</Typography>
           </Box>
           <Box sx={metricCardSx}>
-            <Typography variant="body1" sx={metricValueSx(false)}>
+            <Typography sx={metricValueSx(false)}>
               {formatValue(stats.min)}
             </Typography>
-            <Typography variant="caption" sx={metricLabelSx}>Min</Typography>
+            <Typography sx={metricLabelSx}>Min</Typography>
           </Box>
           <Box sx={metricCardSx}>
-            <Typography variant="body1" sx={metricValueSx(false)}>
+            <Typography sx={metricValueSx(false)}>
               {formatValue(stats.max)}
             </Typography>
-            <Typography variant="caption" sx={metricLabelSx}>Max</Typography>
+            <Typography sx={metricLabelSx}>Max</Typography>
           </Box>
         </Box>
 
