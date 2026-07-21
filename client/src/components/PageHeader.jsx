@@ -52,8 +52,7 @@ export default function PageHeader({
           </Typography>
           {subtitle ? (
             <Typography
-              variant="caption"
-              sx={{ color: 'text.secondary', fontWeight: 600, wordBreak: 'break-word', display: 'block' }}
+              sx={{ fontSize: '0.72rem', color: 'text.secondary', wordBreak: 'break-word', display: 'block' }}
             >
               {subtitle}
             </Typography>

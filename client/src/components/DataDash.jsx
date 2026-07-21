@@ -30,8 +30,9 @@ import SectionHeader from './SectionHeader';
 import { filterDataViewParams } from '../utils/fieldCategory';
 
 /** Match Layout.jsx sidebar: section labels ~0.875rem/500, items ~0.8125rem */
-const DATA_DASH_MENU_ITEM_FS = '0.8125rem';
-const DATA_DASH_SECTION_FS = '0.875rem';
+// Aligned with N-Dashboard compact typography (see utils/compactUi.js)
+const DATA_DASH_MENU_ITEM_FS = '0.75rem';
+const DATA_DASH_SECTION_FS = '0.82rem';
 
 // Use shared timezone formatter (handles values with/without explicit TZ info)
 
@@ -381,12 +382,12 @@ export default function DataDash() {
     }
   };
 
-  /** Match Devices/Parameters Select row height (34px) — DateTimePicker adornment often stretches default TextField */
+  /** Match Devices/Parameters Select row height (32px) — DateTimePicker adornment often stretches default TextField */
   const dataDashDateTimeFieldSx = {
     '& .MuiInputBase-root': {
-      height: 34,
-      minHeight: 34,
-      maxHeight: 34,
+      height: 32,
+      minHeight: 32,
+      maxHeight: 32,
       boxSizing: 'border-box',
       alignItems: 'center',
       borderRadius: 1.5,
@@ -465,8 +466,8 @@ export default function DataDash() {
             </IconButton>
           )}
           sx={{ bgcolor: alpha(theme.palette.background.paper, 0.5) }}
-          titleSx={{ fontSize: DATA_DASH_SECTION_FS, fontWeight: 500 }}
-          subtitleSx={{ fontSize: DATA_DASH_MENU_ITEM_FS, fontWeight: 400 }}
+          titleSx={{ fontSize: DATA_DASH_SECTION_FS, fontWeight: 700 }}
+          subtitleSx={{ fontSize: '0.72rem', fontWeight: 400 }}
         />
       </Box>
       <Collapse in={filtersExpanded} timeout="auto">
@@ -486,7 +487,7 @@ export default function DataDash() {
             <Typography variant="subtitle2" sx={{ mb: 0.35, fontWeight: 600, fontSize: DATA_DASH_MENU_ITEM_FS, color: theme.palette.text.secondary, lineHeight: 1.2 }}>
               Devices
             </Typography>
-              <FormControl fullWidth variant="outlined" size="small" sx={{ width: '100%', maxWidth: '100%', minWidth: 0, '& .MuiInputBase-root': { minHeight: 34 } }}>
+              <FormControl fullWidth variant="outlined" size="small" sx={{ width: '100%', maxWidth: '100%', minWidth: 0, '& .MuiInputBase-root': { minHeight: 32 } }}>
             <Select
               multiple
               value={selectedDevices}
@@ -557,7 +558,7 @@ export default function DataDash() {
             <Typography variant="subtitle2" sx={{ mb: 0.35, fontWeight: 600, fontSize: DATA_DASH_MENU_ITEM_FS, color: theme.palette.text.secondary, lineHeight: 1.2 }}>
               Parameters
             </Typography>
-              <FormControl fullWidth variant="outlined" size="small" sx={{ width: '100%', maxWidth: '100%', minWidth: 0, '& .MuiInputBase-root': { minHeight: 34 } }}>
+              <FormControl fullWidth variant="outlined" size="small" sx={{ width: '100%', maxWidth: '100%', minWidth: 0, '& .MuiInputBase-root': { minHeight: 32 } }}>
             <Select
               multiple
               value={selectedParameters}
@@ -1175,13 +1176,13 @@ export default function DataDash() {
               value={summaryTab} 
               onChange={(_, v) => setSummaryTab(v)}
               sx={{
-                minHeight: 42,
+                minHeight: 36,
                 '& .MuiTab-root': {
                   color: 'text.secondary',
-                  fontSize: '0.78rem',
+                  fontSize: '0.75rem',
                   fontWeight: 600,
                   textTransform: 'none',
-                  minHeight: 42,
+                  minHeight: 36,
                   py: 0.75,
                   px: 1.5,
                   gap: 0.5,

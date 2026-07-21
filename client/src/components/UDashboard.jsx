@@ -62,6 +62,7 @@ import {
   formatChartTooltipTime,
 } from '../utils/realtimeChartAggregation';
 import RealtimeChartDisplaySelect from './RealtimeChartDisplaySelect';
+import { compactSelectSx, compactMenuItemSx } from '../utils/compactUi';
 
 const REALTIME_LINE_CHART_MARGIN = { top: 6, right: 14, left: 2, bottom: 0 };
 
@@ -759,22 +760,19 @@ export default function UDashboard({ socket }) {
         }}
         right={(
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: { xs: 'flex-start', sm: 'flex-end' } }}>
-            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
-              Device
-            </Typography>
-            <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 240 }, mt: 0.5 }}>
+            <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 200 }, mt: 0.5 }}>
               <InputLabel id="ud-device-label">Device</InputLabel>
               <Select
                 labelId="ud-device-label"
                 label="Device"
                 value={realtimeDevice}
                 onChange={(e) => setRealtimeDevice(e.target.value)}
-                sx={{ height: 34, fontWeight: 700, fontSize: '0.88rem' }}
+                sx={compactSelectSx}
               >
                 {devices.map((d) => {
                   const valid = isDeviceAccessValid(d);
                   return (
-                    <MenuItem key={d.device_id} value={d.device_id} sx={{ opacity: valid ? 1 : 0.55 }}>
+                    <MenuItem key={d.device_id} value={d.device_id} sx={{ ...compactMenuItemSx, opacity: valid ? 1 : 0.55 }}>
                       {getDeviceDisplayName(d)}
                       {!valid && (
                         <Typography component="span" variant="caption" color="error" sx={{ ml: 1 }}>
@@ -922,17 +920,17 @@ export default function UDashboard({ socket }) {
             >
               {panelTitle('Realtime graph')}
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
-                <FormControl size="small" sx={{ minWidth: 120 }}>
+                <FormControl size="small" sx={{ minWidth: 125 }}>
                   <InputLabel id="ud-range">Period</InputLabel>
                   <Select
                     labelId="ud-range"
                     label="Period"
                     value={realtimeChartRange}
                     onChange={(e) => setRealtimeChartRange(e.target.value)}
-                    sx={{ height: 30, fontSize: '0.78rem', fontWeight: 700 }}
+                    sx={compactSelectSx}
                   >
                     {REALTIME_RANGE_OPTIONS.map((opt) => (
-                      <MenuItem key={opt.value} value={opt.value}>
+                      <MenuItem key={opt.value} value={opt.value} sx={compactMenuItemSx}>
                         {opt.label}
                       </MenuItem>
                     ))}
@@ -944,7 +942,7 @@ export default function UDashboard({ socket }) {
                   minWidth={130}
                   label="Display"
                   labelId="ud-chart-display"
-                  sx={{ '& .MuiSelect-select': { fontSize: '0.78rem' } }}
+                  sx={{ '& .MuiSelect-select': { fontSize: '0.75rem' } }}
                 />
               </Box>
             </Box>

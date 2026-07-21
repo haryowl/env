@@ -44,6 +44,12 @@ import moment from 'moment-timezone';
 import { TIMEZONE_OPTIONS } from '../utils/timezoneUtils';
 import DeviceCoordinateManager from './DeviceCoordinateManager';
 import PageHeader from './PageHeader';
+import {
+  compactTextFieldSx,
+  compactTableHeadCellSx,
+  compactTableCellSx,
+  compactChipSx,
+} from '../utils/compactUi';
 
 const DeviceManager = () => {
   const [devices, setDevices] = useState([]);
@@ -408,7 +414,7 @@ const DeviceManager = () => {
         overflow: 'auto',
       }}
     >
-      <Box sx={{ mb: 3 }}>
+      <Box sx={{ mb: 1.5 }}>
         <PageHeader
           icon={<DevicesIcon sx={{ fontSize: 18 }} />}
           title="Device Management"
@@ -416,9 +422,10 @@ const DeviceManager = () => {
           right={(
             <Button
               variant="contained"
+              size="small"
               startIcon={<AddIcon />}
               onClick={() => handleOpenDialog()}
-              sx={{ minWidth: { xs: '100%', sm: 'auto' } }}
+              sx={{ minWidth: { xs: '100%', sm: 'auto' }, fontSize: '0.75rem', textTransform: 'none', fontWeight: 700 }}
             >
               Add Device
             </Button>
@@ -432,15 +439,17 @@ const DeviceManager = () => {
         </Alert>
       )}
 
-      <Card sx={{ mb: 3, flexShrink: 0 }}>
-        <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+      <Card sx={{ mb: 1.5, flexShrink: 0 }}>
+        <CardContent sx={{ p: 1.25, '&:last-child': { pb: 1.25 } }}>
           <TextField
             fullWidth
+            size="small"
             placeholder="Search devices..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            sx={compactTextFieldSx}
             InputProps={{
-              startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />,
+              startAdornment: <SearchIcon sx={{ mr: 1, fontSize: 18, color: 'text.secondary' }} />,
             }}
           />
         </CardContent>
@@ -451,14 +460,14 @@ const DeviceManager = () => {
           <Table stickyHeader sx={{ minWidth: 650 }}>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ minWidth: 120 }}>Name</TableCell>
-                <TableCell sx={{ minWidth: 100 }}>Device ID</TableCell>
-                <TableCell sx={{ minWidth: 80 }}>Protocol</TableCell>
-                <TableCell sx={{ minWidth: 80 }}>Type</TableCell>
-                <TableCell sx={{ minWidth: 80 }}>Status</TableCell>
-                <TableCell sx={{ minWidth: 100 }}>Location</TableCell>
-                <TableCell sx={{ minWidth: 120 }}>Mapper Template</TableCell>
-                <TableCell sx={{ minWidth: 100 }}>Actions</TableCell>
+                <TableCell sx={{ minWidth: 120, ...compactTableHeadCellSx }}>Name</TableCell>
+                <TableCell sx={{ minWidth: 100, ...compactTableHeadCellSx }}>Device ID</TableCell>
+                <TableCell sx={{ minWidth: 80, ...compactTableHeadCellSx }}>Protocol</TableCell>
+                <TableCell sx={{ minWidth: 80, ...compactTableHeadCellSx }}>Type</TableCell>
+                <TableCell sx={{ minWidth: 80, ...compactTableHeadCellSx }}>Status</TableCell>
+                <TableCell sx={{ minWidth: 100, ...compactTableHeadCellSx }}>Location</TableCell>
+                <TableCell sx={{ minWidth: 120, ...compactTableHeadCellSx }}>Mapper Template</TableCell>
+                <TableCell sx={{ minWidth: 100, ...compactTableHeadCellSx }}>Actions</TableCell>
               </TableRow>
             </TableHead>
           <TableBody>
@@ -471,48 +480,52 @@ const DeviceManager = () => {
             ) : (
               pagedDevices.map((device) => (
                 <TableRow key={device.device_id}>
-                  <TableCell>
+                  <TableCell sx={compactTableCellSx}>
                     <Box>
-                      <Typography variant="subtitle2">{device.name}</Typography>
+                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 600 }}>{device.name}</Typography>
                       {device.description && (
-                        <Typography variant="body2" color="text.secondary">
+                        <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary' }}>
                           {device.description}
                         </Typography>
                       )}
                     </Box>
                   </TableCell>
-                  <TableCell>
-                    <Chip label={device.device_id} size="small" variant="outlined" />
+                  <TableCell sx={compactTableCellSx}>
+                    <Chip label={device.device_id} size="small" variant="outlined" sx={compactChipSx} />
                   </TableCell>
-                  <TableCell>
+                  <TableCell sx={compactTableCellSx}>
                     <Chip 
                       label={device.protocol.toUpperCase()} 
                       color="primary" 
                       size="small" 
+                      sx={compactChipSx}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell sx={compactTableCellSx}>
                     <Chip 
                       label={device.device_type} 
                       color="secondary" 
                       size="small" 
+                      sx={compactChipSx}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell sx={compactTableCellSx}>
                     <Chip
                       label={device.status}
                       color={getStatusColor(device.status)}
                       size="small"
+                      sx={compactChipSx}
                     />
                   </TableCell>
-                  <TableCell>{device.location || '-'}</TableCell>
-                  <TableCell>
+                  <TableCell sx={compactTableCellSx}>{device.location || '-'}</TableCell>
+                  <TableCell sx={compactTableCellSx}>
                     {deviceAssignments[device.device_id] ? (
                       <Chip
                         label={deviceAssignments[device.device_id].template_name}
                         color="success"
                         size="small"
                         variant="outlined"
+                        sx={compactChipSx}
                       />
                     ) : (
                       <Chip
@@ -520,10 +533,11 @@ const DeviceManager = () => {
                         color="default"
                         size="small"
                         variant="outlined"
+                        sx={compactChipSx}
                       />
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell sx={compactTableCellSx}>
                     <IconButton
                       size="small"
                       onClick={() => handleOpenDialog(device)}

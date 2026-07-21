@@ -53,6 +53,7 @@ import {
   usesDefaultStatusKeywords,
 } from '../utils/statusKeywords';
 import PageHeader from './PageHeader';
+import { compactSelectSx, compactMenuItemSx, compactSectionTitleSx } from '../utils/compactUi';
 import { getChartCardSx, CHART_COLORS, getTooltipContentStyle } from '../utils/chartStyles';
 import { exportTableToCSV, exportTableToXLSX } from '../utils/exportUtils';
 
@@ -572,14 +573,11 @@ export default function StatusDashboard({ socket }) {
               minWidth: 0,
             }}
           >
-            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
-              Device
-            </Typography>
             <FormControl
               size="small"
               sx={{
                 minWidth: 0,
-                width: { xs: '100%', sm: 260 },
+                width: { xs: '100%', sm: 200 },
                 maxWidth: '100%',
                 mt: 0.5,
               }}
@@ -590,11 +588,12 @@ export default function StatusDashboard({ socket }) {
                 label="Device"
                 value={deviceId}
                 onChange={(e) => setDeviceId(e.target.value)}
+                sx={compactSelectSx}
               >
                 {devices.map((d) => {
                   const valid = isDeviceAccessValid(d);
                   return (
-                    <MenuItem key={d.device_id} value={d.device_id} sx={{ opacity: valid ? 1 : 0.55 }}>
+                    <MenuItem key={d.device_id} value={d.device_id} sx={{ ...compactMenuItemSx, opacity: valid ? 1 : 0.55 }}>
                       {getDeviceDisplayName(d)}
                       {!valid && (
                         <Typography component="span" variant="caption" color="error" sx={{ ml: 1 }}>
@@ -647,7 +646,7 @@ export default function StatusDashboard({ socket }) {
         <>
           <Card sx={{ mb: 1.5, borderRadius: 1, ...getChartCardSx(theme), ...responsiveCardSx }}>
             <CardContent sx={{ p: { xs: 1, sm: 1.5, md: 2 }, '&:last-child': { pb: { xs: 1, sm: 1.5, md: 2 } } }}>
-              <Typography variant="subtitle1" fontWeight={700} gutterBottom sx={{ fontSize: { xs: '0.95rem', sm: '1rem' } }}>
+              <Typography gutterBottom sx={compactSectionTitleSx}>
                 Current status values
               </Typography>
               {lastUpdatedAt && (
@@ -694,7 +693,7 @@ export default function StatusDashboard({ socket }) {
               >
                 {/* Distribution — selected period */}
                 <Box sx={{ minWidth: 0 }}>
-                  <Typography variant="subtitle1" fontWeight={700} gutterBottom sx={{ fontSize: { xs: '0.95rem', sm: '1rem' } }}>
+                  <Typography gutterBottom sx={compactSectionTitleSx}>
                     Status value distribution ({periodLabel})
                   </Typography>
                   <Typography
@@ -794,7 +793,7 @@ export default function StatusDashboard({ socket }) {
                     pt: { xs: 2, md: 0 },
                   }}
                 >
-                  <Typography variant="subtitle1" fontWeight={700} gutterBottom sx={{ fontSize: { xs: '0.95rem', sm: '1rem' } }}>
+                  <Typography gutterBottom sx={compactSectionTitleSx}>
                     Today vs yesterday
                   </Typography>
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
@@ -826,14 +825,15 @@ export default function StatusDashboard({ socket }) {
                                     [param]: e.target.value,
                                   }))
                                 }
+                                sx={compactSelectSx}
                               >
-                                <MenuItem value="all">All status values</MenuItem>
+                                <MenuItem value="all" sx={compactMenuItemSx}>All status values</MenuItem>
                                 {keywordOptions.map((kw) => (
-                                  <MenuItem key={kw} value={kw}>
+                                  <MenuItem key={kw} value={kw} sx={compactMenuItemSx}>
                                     {kw}
                                   </MenuItem>
                                 ))}
-                                {keywordOptions.length > 0 && <MenuItem value="Other">Other</MenuItem>}
+                                {keywordOptions.length > 0 && <MenuItem value="Other" sx={compactMenuItemSx}>Other</MenuItem>}
                               </Select>
                             </FormControl>
                             {total === 0 ? (
@@ -918,7 +918,7 @@ export default function StatusDashboard({ socket }) {
                 }}
               >
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', minWidth: 0 }}>
-                  <Typography variant="subtitle1" fontWeight={700} sx={{ fontSize: { xs: '0.95rem', sm: '1rem' } }}>
+                  <Typography sx={compactSectionTitleSx}>
                     Status history
                   </Typography>
                   <Chip label={`${historyInPeriod.length} rows`} size="small" />
@@ -943,9 +943,10 @@ export default function StatusDashboard({ socket }) {
                       label="Period"
                       value={historyPeriodHours}
                       onChange={(e) => setHistoryPeriodHours(Number(e.target.value))}
+                      sx={compactSelectSx}
                     >
                       {HISTORY_PERIOD_OPTIONS.map((opt) => (
-                        <MenuItem key={opt.value} value={opt.value}>
+                        <MenuItem key={opt.value} value={opt.value} sx={compactMenuItemSx}>
                           {opt.label}
                         </MenuItem>
                       ))}

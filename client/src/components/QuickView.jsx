@@ -48,6 +48,7 @@ import { getDeviceDisplayName } from '../utils/deviceLabel';
 import moment from 'moment-timezone';
 import { getChartCardSx } from '../utils/chartStyles';
 import SectionHeader from './SectionHeader';
+import { compactSelectSx, compactMenuItemSx, compactTextFieldSx } from '../utils/compactUi';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import { filterDataViewParams } from '../utils/fieldCategory';
 
@@ -571,38 +572,19 @@ const QuickView = () => {
           <Grid container spacing={1.25} sx={{ p: 1.25 }}>
             <Grid item xs={12} md={3}>
               <FormControl fullWidth size="small">
-                <InputLabel sx={{ 
-                  fontWeight: 700,
-                  fontSize: '0.82rem',
-                  '&.Mui-focused': { color: '#007BA7' }
-                }}>
+                <InputLabel sx={{ fontSize: '0.78rem', '&.Mui-focused': { color: '#007BA7' } }}>
                   Device
                 </InputLabel>
                 <Select
                   value={selectedDevice}
                   onChange={(e) => setSelectedDevice(e.target.value)}
                   label="Device"
-                  sx={{
-                    borderRadius: 1.5,
-                    minHeight: 40,
-                    fontSize: '0.84rem',
-                    '& .MuiOutlinedInput-notchedOutline': {
-                      borderColor: 'rgba(0,0,0,0.14)',
-                      borderWidth: 1
-                    },
-                    '&:hover .MuiOutlinedInput-notchedOutline': {
-                      borderColor: 'primary.main'
-                    },
-                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                      borderColor: 'primary.main',
-                      borderWidth: 1.5
-                    }
-                  }}
+                  sx={compactSelectSx}
                 >
                   {devices.map((device) => (
-                    <MenuItem key={device.device_id} value={device.device_id}>
+                    <MenuItem key={device.device_id} value={device.device_id} sx={compactMenuItemSx}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <DeviceHubIcon sx={{ fontSize: 20, color: '#007BA7' }} />
+                        <DeviceHubIcon sx={{ fontSize: 16, color: '#007BA7' }} />
                         {getDeviceDisplayName(device)}
                       </Box>
                     </MenuItem>
@@ -612,36 +594,17 @@ const QuickView = () => {
             </Grid>
             <Grid item xs={12} md={3}>
               <FormControl fullWidth size="small">
-                <InputLabel sx={{ 
-                  fontWeight: 700,
-                  fontSize: '0.82rem',
-                  '&.Mui-focused': { color: '#007BA7' }
-                }}>
+                <InputLabel sx={{ fontSize: '0.78rem', '&.Mui-focused': { color: '#007BA7' } }}>
                   Time Period
                 </InputLabel>
                 <Select
                   value={selectedPeriod}
                   onChange={(e) => setSelectedPeriod(e.target.value)}
                   label="Time Period"
-                  sx={{
-                    borderRadius: 1.5,
-                    minHeight: 40,
-                    fontSize: '0.84rem',
-                    '& .MuiOutlinedInput-notchedOutline': {
-                      borderColor: 'rgba(0,0,0,0.14)',
-                      borderWidth: 1
-                    },
-                    '&:hover .MuiOutlinedInput-notchedOutline': {
-                      borderColor: 'primary.main'
-                    },
-                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                      borderColor: 'primary.main',
-                      borderWidth: 1.5
-                    }
-                  }}
+                  sx={compactSelectSx}
                 >
                   {periodOptions.map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
+                    <MenuItem key={option.value} value={option.value} sx={compactMenuItemSx}>
                       {option.label}
                     </MenuItem>
                   ))}
@@ -661,23 +624,7 @@ const QuickView = () => {
                           {...params} 
                           fullWidth 
                           size="small"
-                          sx={{
-                            '& .MuiOutlinedInput-root': {
-                              borderRadius: 1.5,
-                              minHeight: 40,
-                              '& fieldset': {
-                                borderColor: 'rgba(0,0,0,0.14)',
-                                borderWidth: 1
-                              },
-                              '&:hover fieldset': {
-                                borderColor: 'primary.main'
-                              },
-                              '&.Mui-focused fieldset': {
-                                borderColor: 'primary.main',
-                                borderWidth: 1.5
-                              }
-                            }
-                          }}
+                          sx={compactTextFieldSx}
                         />
                       }
                       ampm={false}
@@ -696,23 +643,7 @@ const QuickView = () => {
                           {...params} 
                           fullWidth 
                           size="small"
-                          sx={{
-                            '& .MuiOutlinedInput-root': {
-                              borderRadius: 1.5,
-                              minHeight: 40,
-                              '& fieldset': {
-                                borderColor: 'rgba(0,0,0,0.14)',
-                                borderWidth: 1
-                              },
-                              '&:hover fieldset': {
-                                borderColor: 'primary.main'
-                              },
-                              '&.Mui-focused fieldset': {
-                                borderColor: 'primary.main',
-                                borderWidth: 1.5
-                              }
-                            }
-                          }}
+                          sx={compactTextFieldSx}
                         />
                       }
                       ampm={false}
