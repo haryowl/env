@@ -19,7 +19,6 @@ import {
   Chip,
   IconButton,
   Tooltip,
-  TextField,
   useTheme,
   Stack
 } from '@mui/material';
@@ -619,14 +618,7 @@ const QuickView = () => {
                       label="Start Date"
                       value={customStartDate}
                       onChange={handleStartDateChange}
-                      renderInput={(params) => 
-                        <TextField 
-                          {...params} 
-                          fullWidth 
-                          size="small"
-                          sx={compactTextFieldSx}
-                        />
-                      }
+                      slotProps={{ textField: { fullWidth: true, size: 'small', sx: compactTextFieldSx } }}
                       ampm={false}
                       format="yyyy-MM-dd HH:mm"
                     />
@@ -638,14 +630,7 @@ const QuickView = () => {
                       label="End Date"
                       value={customEndDate}
                       onChange={handleEndDateChange}
-                      renderInput={(params) => 
-                        <TextField 
-                          {...params} 
-                          fullWidth 
-                          size="small"
-                          sx={compactTextFieldSx}
-                        />
-                      }
+                      slotProps={{ textField: { fullWidth: true, size: 'small', sx: compactTextFieldSx } }}
                       ampm={false}
                       format="yyyy-MM-dd HH:mm"
                     />

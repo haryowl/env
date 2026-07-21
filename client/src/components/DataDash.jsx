@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Box, Typography, Tabs, Tab, Card, CardContent, Grid, Select, MenuItem, InputLabel, FormControl, Button, CircularProgress, TextField, Checkbox, ListItemText, Divider, Chip, Tooltip, useTheme, Stack, Collapse, IconButton, useMediaQuery
+  Box, Typography, Tabs, Tab, Card, CardContent, Grid, Select, MenuItem, InputLabel, FormControl, Button, CircularProgress, Checkbox, ListItemText, Divider, Chip, Tooltip, useTheme, Stack, Collapse, IconButton, useMediaQuery
 } from '@mui/material';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
@@ -387,6 +387,9 @@ export default function DataDash() {
     '& .MuiInputLabel-root': {
       fontSize: '0.78rem',
     },
+    '& .MuiInputLabel-root:not(.MuiInputLabel-shrink)': {
+      transform: 'translate(12px, 7px) scale(1)',
+    },
     '& .MuiInputBase-root': {
       height: 32,
       minHeight: 32,
@@ -659,14 +662,7 @@ export default function DataDash() {
                 label="Start Date & Time"
                 value={dateRange[0]}
                 onChange={date => setDateRange([date, dateRange[1]])}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    fullWidth
-                    size="small"
-                    sx={dataDashDateTimeFieldSx}
-                  />
-                )}
+                slotProps={{ textField: { fullWidth: true, size: 'small', sx: dataDashDateTimeFieldSx } }}
               />
             </Box>
             <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
@@ -674,14 +670,7 @@ export default function DataDash() {
                 label="End Date & Time"
                 value={dateRange[1]}
                 onChange={date => setDateRange([dateRange[0], date])}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    fullWidth
-                    size="small"
-                    sx={dataDashDateTimeFieldSx}
-                  />
-                )}
+                slotProps={{ textField: { fullWidth: true, size: 'small', sx: dataDashDateTimeFieldSx } }}
               />
             </Box>
           </LocalizationProvider>
