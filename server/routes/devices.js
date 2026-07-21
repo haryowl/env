@@ -306,7 +306,9 @@ router.get('/', authenticateToken, async (req, res) => {
 
     const { 
       page = 1, 
-      limit = 20, 
+      // Default high enough to return the full fleet; most clients treat this
+      // endpoint as "all devices" and filter/search client-side.
+      limit = 500, 
       status, 
       protocol, 
       device_type, 
