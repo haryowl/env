@@ -13,6 +13,13 @@ async function ensureSchema() {
   }
 }
 
+/** Coerce an optional numeric range bound to a finite number or null. */
+function toRangeBound(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 // GET /api/field-definitions - Get all field definitions
 router.get('/', async (req, res) => {
   try {
@@ -95,6 +102,8 @@ router.post('/', authorizeRole(['super_admin', 'admin']), async (req, res) => {
       category, 
       is_standard,
       status_keywords,
+      display_min,
+      display_max,
     } = req.body;
 
     // Validate required fields
@@ -122,8 +131,8 @@ router.post('/', authorizeRole(['super_admin', 'admin']), async (req, res) => {
     const result = await query(`
       INSERT INTO field_definitions (
         field_name, display_name, data_type, unit, description, 
-        category, is_standard, status_keywords, created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        category, is_standard, status_keywords, display_min, display_max, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *
     `, [
       field_name,
@@ -134,6 +143,8 @@ router.post('/', authorizeRole(['super_admin', 'admin']), async (req, res) => {
       category || null,
       is_standard !== false,
       status_keywords || null,
+      toRangeBound(display_min),
+      toRangeBound(display_max),
       req.user.user_id
     ]);
 
@@ -166,6 +177,8 @@ router.put('/:id', authorizeRole(['super_admin', 'admin']), async (req, res) => 
       category, 
       is_standard,
       status_keywords,
+      display_min,
+      display_max,
     } = req.body;
 
     // Validate required fields
@@ -193,8 +206,9 @@ router.put('/:id', authorizeRole(['super_admin', 'admin']), async (req, res) => 
     const result = await query(`
       UPDATE field_definitions 
       SET display_name = $1, data_type = $2, unit = $3, description = $4, 
-          category = $5, is_standard = $6, status_keywords = $7, updated_at = NOW()
-      WHERE field_id = $8
+          category = $5, is_standard = $6, status_keywords = $7,
+          display_min = $8, display_max = $9, updated_at = NOW()
+      WHERE field_id = $10
       RETURNING *
     `, [
       display_name,
@@ -204,6 +218,8 @@ router.put('/:id', authorizeRole(['super_admin', 'admin']), async (req, res) => 
       category || null,
       is_standard !== false,
       status_keywords || null,
+      toRangeBound(display_min),
+      toRangeBound(display_max),
       id
     ]);
 

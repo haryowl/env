@@ -54,6 +54,8 @@ const FieldCreator = () => {
     category: '',
     is_standard: true,
     status_keywords: '',
+    display_min: '',
+    display_max: '',
   });
 
   const dataTypes = ['string', 'number', 'boolean', 'timestamp', 'json'];
@@ -108,6 +110,8 @@ const FieldCreator = () => {
         category: field.category || '',
         is_standard: field.is_standard !== false,
         status_keywords: field.status_keywords || '',
+        display_min: field.display_min === null || field.display_min === undefined ? '' : String(field.display_min),
+        display_max: field.display_max === null || field.display_max === undefined ? '' : String(field.display_max),
       });
     } else {
       setEditingField(null);
@@ -120,6 +124,8 @@ const FieldCreator = () => {
         category: '',
         is_standard: true,
         status_keywords: '',
+        display_min: '',
+        display_max: '',
       });
     }
     setDialogOpen(true);
@@ -137,6 +143,8 @@ const FieldCreator = () => {
       category: '',
       is_standard: true,
       status_keywords: '',
+      display_min: '',
+      display_max: '',
     });
   };
 
@@ -437,6 +445,32 @@ const FieldCreator = () => {
                 label="Standard Field"
               />
             </Grid>
+            {formData.data_type === 'number' && (
+              <>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label="Display Min"
+                    value={formData.display_min}
+                    onChange={handleInputChange('display_min')}
+                    placeholder="e.g., 0"
+                    helperText="Low end of the dashboard gauge scale (optional)"
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label="Display Max"
+                    value={formData.display_max}
+                    onChange={handleInputChange('display_max')}
+                    placeholder="e.g., 14"
+                    helperText="High end of the dashboard gauge scale (optional)"
+                  />
+                </Grid>
+              </>
+            )}
             <Grid size={{ xs: 12 }}>
               <TextField
                 fullWidth

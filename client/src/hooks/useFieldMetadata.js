@@ -15,6 +15,12 @@ let metadataPromise = null;
 /** Stable fallback so consumers do not get a new {} reference every render while loading. */
 const EMPTY_METADATA = Object.freeze({});
 
+const toFiniteOrNull = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) ? n : null;
+};
+
 const normalizeFields = (fields = []) => {
   const map = {};
   fields.forEach((field) => {
@@ -29,6 +35,8 @@ const normalizeFields = (fields = []) => {
       description: field.description || '',
       category: field.category || '',
       statusKeywords: field.status_keywords || '',
+      displayMin: toFiniteOrNull(field.display_min),
+      displayMax: toFiniteOrNull(field.display_max),
     };
   });
   return map;
@@ -126,6 +134,20 @@ export const useFieldMetadata = () => {
     [getMetadata]
   );
 
+  /** Configured display range [min, max] for a field, or null when not set / invalid. */
+  const getDisplayRange = useCallback(
+    (fieldName) => {
+      const meta = getMetadata(fieldName);
+      if (!meta) return null;
+      const { displayMin, displayMax } = meta;
+      if (displayMin === null || displayMax === null || displayMax <= displayMin) {
+        return null;
+      }
+      return { min: displayMin, max: displayMax };
+    },
+    [getMetadata]
+  );
+
   const formatDisplayName = useCallback(
     (fieldName, { withUnit = false } = {}) => {
       if (!fieldName) return '';
@@ -146,6 +168,7 @@ export const useFieldMetadata = () => {
     refresh,
     getMetadata,
     getUnit,
+    getDisplayRange,
     formatDisplayName,
   };
 };

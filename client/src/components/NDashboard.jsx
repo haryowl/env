@@ -92,6 +92,41 @@ function snapshotFromHistoryRow(row, params) {
   };
 }
 
+/** Normalize a parameter name to match how alerts store their `parameter` field. */
+function normalizeParamKey(p) {
+  return (p || '').toString().toLowerCase().replace(/\s+/g, '_');
+}
+
+const BAR_GREEN = '#10B981';
+const BAR_RED = '#EF4444';
+
+/**
+ * Resolve how the Latest Readings bar for a parameter should render.
+ * Length scale: field display range -> alert threshold band -> window max.
+ * Color: green/red from alert thresholds when configured, else neutral param color.
+ */
+function resolveBar({ value, displayRange, threshold, windowMax, neutralColor }) {
+  let pct = 0;
+  if (displayRange) {
+    pct = ((value - displayRange.min) / (displayRange.max - displayRange.min)) * 100;
+  } else if (threshold && threshold.min != null && threshold.max != null && threshold.max > threshold.min) {
+    pct = ((value - threshold.min) / (threshold.max - threshold.min)) * 100;
+  } else if (windowMax && windowMax !== 0) {
+    pct = (value / windowMax) * 100;
+  }
+  pct = Math.max(0, Math.min(100, Number.isFinite(pct) ? pct : 0));
+
+  let color = neutralColor;
+  let breached = false;
+  if (threshold && (threshold.min != null || threshold.max != null)) {
+    breached =
+      (threshold.min != null && value < threshold.min) ||
+      (threshold.max != null && value > threshold.max);
+    color = breached ? BAR_RED : BAR_GREEN;
+  }
+  return { pct, color, breached, hasThreshold: !!(threshold && (threshold.min != null || threshold.max != null)) };
+}
+
 function timeAgo(dateStr) {
   if (!dateStr) return '';
   const ms = Date.now() - new Date(dateStr).getTime();
@@ -113,7 +148,7 @@ const statusDotColor = (status) => {
 export default function NDashboard({ socket }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
-  const { formatDisplayName, getUnit, metadata: fieldMetadata } = useFieldMetadata();
+  const { formatDisplayName, getUnit, getDisplayRange, metadata: fieldMetadata } = useFieldMetadata();
 
   const [devices, setDevices] = useState([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState(null);
@@ -121,6 +156,7 @@ export default function NDashboard({ socket }) {
   const [mappedParams, setMappedParams] = useState([]);
   const [history, setHistory] = useState([]);
   const [alerts, setAlerts] = useState([]);
+  const [alertThresholds, setAlertThresholds] = useState({});
   const [chartRange, setChartRange] = useState('48h');
   const [chartDisplayMode, setChartDisplayMode] = useState(() => {
     try {
@@ -286,6 +322,39 @@ export default function NDashboard({ socket }) {
     };
     loadAlerts();
   }, [authHeaders]);
+
+  // Per-device alert thresholds drive Latest Readings colors (green in-range / red breach)
+  useEffect(() => {
+    if (!selectedDeviceId) {
+      setAlertThresholds({});
+      return;
+    }
+    let cancelled = false;
+    const loadThresholds = async () => {
+      try {
+        const res = await axios.get(`${API_BASE_URL}/alerts`, { headers: authHeaders() });
+        if (cancelled) return;
+        const byParam = {};
+        (res.data.alerts || [])
+          .filter((a) => a.device_id === selectedDeviceId)
+          .forEach((a) => {
+            const key = normalizeParamKey(a.parameter);
+            if (!key) return;
+            const min = a.min != null ? Number(a.min) : null;
+            const max = a.max != null ? Number(a.max) : null;
+            const existing = byParam[key] || { min: null, max: null };
+            if (min != null && (existing.min == null || min < existing.min)) existing.min = min;
+            if (max != null && (existing.max == null || max > existing.max)) existing.max = max;
+            byParam[key] = existing;
+          });
+        setAlertThresholds(byParam);
+      } catch {
+        if (!cancelled) setAlertThresholds({});
+      }
+    };
+    loadThresholds();
+    return () => { cancelled = true; };
+  }, [selectedDeviceId, authHeaders]);
 
   // ---- Live socket updates ------------------------------------------------
   useDeviceSocketSubscription(socket, selectedDeviceId);
@@ -745,18 +814,30 @@ export default function NDashboard({ socket }) {
                 {availableParams.slice(0, 6).map((p, idx) => {
                   const st = paramStats[p] || {};
                   const val = st.latest;
-                  const color = getChartParamColor(p);
-                  // Progress relative to the max observed in the loaded window
-                  const pct = st.max && st.max !== 0 && val !== null
-                    ? Math.max(0, Math.min(100, (val / st.max) * 100))
-                    : 0;
+                  const bar = val === null
+                    ? { pct: 0, color: getChartParamColor(p), breached: false, hasThreshold: false }
+                    : resolveBar({
+                        value: val,
+                        displayRange: getDisplayRange(p),
+                        threshold: alertThresholds[normalizeParamKey(p)],
+                        windowMax: st.max,
+                        neutralColor: getChartParamColor(p),
+                      });
                   return (
                     <Box key={p} sx={{ py: 0.75, ...(idx > 0 && { borderTop: '1px solid', borderColor: 'divider' }) }}>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', mb: 0.5 }}>
-                        <Typography noWrap sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>
-                          {formatDisplayName(p, { withUnit: false })}
-                        </Typography>
-                        <Typography sx={{ fontSize: '0.74rem', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
+                          <Typography noWrap sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>
+                            {formatDisplayName(p, { withUnit: false })}
+                          </Typography>
+                          {bar.hasThreshold && (
+                            <Box
+                              title={bar.breached ? 'Outside alert range' : 'Within alert range'}
+                              sx={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, bgcolor: bar.color }}
+                            />
+                          )}
+                        </Box>
+                        <Typography sx={{ fontSize: '0.74rem', fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: bar.breached ? BAR_RED : 'text.primary' }}>
                           {fmtVal(val)}
                           <Typography component="span" sx={{ fontSize: '0.6rem', fontWeight: 600, color: 'text.secondary', ml: 0.3 }}>
                             {getUnit(p) || ''}
@@ -765,12 +846,12 @@ export default function NDashboard({ socket }) {
                       </Box>
                       <LinearProgress
                         variant="determinate"
-                        value={pct}
+                        value={bar.pct}
                         sx={{
                           height: 5,
                           borderRadius: 3,
-                          bgcolor: alpha(color, 0.12),
-                          '& .MuiLinearProgress-bar': { bgcolor: color, borderRadius: 3 },
+                          bgcolor: alpha(bar.color, 0.12),
+                          '& .MuiLinearProgress-bar': { bgcolor: bar.color, borderRadius: 3 },
                         }}
                       />
                     </Box>
