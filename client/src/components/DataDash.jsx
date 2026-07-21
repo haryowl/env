@@ -384,6 +384,9 @@ export default function DataDash() {
 
   /** Match Devices/Parameters Select row height (32px) — DateTimePicker adornment often stretches default TextField */
   const dataDashDateTimeFieldSx = {
+    '& .MuiInputLabel-root': {
+      fontSize: '0.78rem',
+    },
     '& .MuiInputBase-root': {
       height: 32,
       minHeight: 32,
@@ -484,12 +487,12 @@ export default function DataDash() {
           }}
         >
           <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
-            <Typography variant="subtitle2" sx={{ mb: 0.35, fontWeight: 600, fontSize: DATA_DASH_MENU_ITEM_FS, color: theme.palette.text.secondary, lineHeight: 1.2 }}>
-              Devices
-            </Typography>
-              <FormControl fullWidth variant="outlined" size="small" sx={{ width: '100%', maxWidth: '100%', minWidth: 0, '& .MuiInputBase-root': { minHeight: 32 } }}>
+              <FormControl fullWidth variant="outlined" size="small" sx={{ width: '100%', maxWidth: '100%', minWidth: 0, '& .MuiInputBase-root': { minHeight: 32 }, '& .MuiInputLabel-root': { fontSize: '0.78rem' } }}>
+                <InputLabel id="dd-devices-label">Devices</InputLabel>
             <Select
               multiple
+              labelId="dd-devices-label"
+              label="Devices"
               value={selectedDevices}
               onChange={e => setSelectedDevices(e.target.value)}
               renderValue={selected => selected.map(id => devices.find(d => d.device_id === id)?.name).join(', ')}
@@ -555,12 +558,12 @@ export default function DataDash() {
             </Box>
 
           <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
-            <Typography variant="subtitle2" sx={{ mb: 0.35, fontWeight: 600, fontSize: DATA_DASH_MENU_ITEM_FS, color: theme.palette.text.secondary, lineHeight: 1.2 }}>
-              Parameters
-            </Typography>
-              <FormControl fullWidth variant="outlined" size="small" sx={{ width: '100%', maxWidth: '100%', minWidth: 0, '& .MuiInputBase-root': { minHeight: 32 } }}>
+              <FormControl fullWidth variant="outlined" size="small" sx={{ width: '100%', maxWidth: '100%', minWidth: 0, '& .MuiInputBase-root': { minHeight: 32 }, '& .MuiInputLabel-root': { fontSize: '0.78rem' } }}>
+                <InputLabel id="dd-parameters-label">Parameters</InputLabel>
             <Select
               multiple
+              labelId="dd-parameters-label"
+              label="Parameters"
               value={selectedParameters}
               onChange={e => setSelectedParameters(e.target.value)}
               renderValue={selected => (
@@ -652,10 +655,8 @@ export default function DataDash() {
 
           <LocalizationProvider dateAdapter={AdapterDateFns}>
             <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
-              <Typography variant="subtitle2" sx={{ mb: 0.35, fontWeight: 600, fontSize: DATA_DASH_MENU_ITEM_FS, color: theme.palette.text.secondary, lineHeight: 1.2 }}>
-                Start Date & Time
-              </Typography>
               <DateTimePicker
+                label="Start Date & Time"
                 value={dateRange[0]}
                 onChange={date => setDateRange([date, dateRange[1]])}
                 renderInput={(params) => (
@@ -663,18 +664,14 @@ export default function DataDash() {
                     {...params}
                     fullWidth
                     size="small"
-                    label={null}
-                    InputLabelProps={{ shrink: false }}
                     sx={dataDashDateTimeFieldSx}
                   />
                 )}
               />
             </Box>
             <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
-              <Typography variant="subtitle2" sx={{ mb: 0.35, fontWeight: 600, fontSize: DATA_DASH_MENU_ITEM_FS, color: theme.palette.text.secondary, lineHeight: 1.2 }}>
-                End Date & Time
-              </Typography>
               <DateTimePicker
+                label="End Date & Time"
                 value={dateRange[1]}
                 onChange={date => setDateRange([dateRange[0], date])}
                 renderInput={(params) => (
@@ -682,8 +679,6 @@ export default function DataDash() {
                     {...params}
                     fullWidth
                     size="small"
-                    label={null}
-                    InputLabelProps={{ shrink: false }}
                     sx={dataDashDateTimeFieldSx}
                   />
                 )}
