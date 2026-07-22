@@ -55,6 +55,7 @@ import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
 import { getDeviceDisplayName } from '../utils/deviceLabel';
 import { filterDataViewParams } from '../utils/fieldCategory';
+import { alertAppliesToDevice } from '../utils/alertDevices';
 import {
   buildRealtimeChartSeries,
   isHourlyChartDisplayMode,
@@ -614,7 +615,7 @@ export default function UDashboard({ socket }) {
   const applyAlertThresholdsForDevice = useCallback((list, deviceId) => {
     const byParam = {};
     list
-      .filter((a) => a.device_id === deviceId)
+      .filter((a) => alertAppliesToDevice(a, deviceId))
       .forEach((a) => {
         const norm = normalizeParamForAlert(a.parameter);
         if (!norm) return;

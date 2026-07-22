@@ -32,6 +32,7 @@ import { getChartCardSx } from '../utils/chartStyles';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
 import { notifyAuthFailure } from '../utils/authSession';
 import { filterDataViewParams } from '../utils/fieldCategory';
+import { getAlertDeviceIds } from '../utils/alertDevices';
 
 // Custom styled popup component that respects theme
 const ThemedPopup = ({ children, theme }) => {
@@ -294,12 +295,14 @@ const buildDeviceThresholds = (alerts) => {
   if (!Array.isArray(alerts)) return map;
   alerts.forEach((a) => {
     if (a.type !== 'threshold' || (a.min == null && a.max == null)) return;
-    const id = a.device_id;
-    if (!map[id]) map[id] = [];
-    map[id].push({
-      parameter: a.parameter,
-      min: a.min != null ? Number(a.min) : null,
-      max: a.max != null ? Number(a.max) : null
+    const ids = getAlertDeviceIds(a);
+    ids.forEach((id) => {
+      if (!map[id]) map[id] = [];
+      map[id].push({
+        parameter: a.parameter,
+        min: a.min != null ? Number(a.min) : null,
+        max: a.max != null ? Number(a.max) : null
+      });
     });
   });
   return map;

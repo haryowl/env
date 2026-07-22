@@ -2,6 +2,7 @@ const express = require('express');
 const { query, getRow, getRows } = require('../config/database');
 const { authenticateToken, authorizeMenuAccess } = require('../middleware/auth');
 const { ensureAlertsSchema } = require('../utils/ensureAlertsSchema');
+const { normalizeDeviceIdsInput } = require('../utils/alertDevices');
 const router = express.Router();
 const { processDeviceData } = require('../services/deviceMapper');
 
@@ -19,34 +20,83 @@ router.use(async (req, res, next) => {
   }
 });
 
+async function validateDevicesExistAndAccessible(deviceIds, req) {
+  if (!deviceIds.length) {
+    return { error: 'Missing required fields', details: 'At least one device is required', status: 400 };
+  }
+  const placeholders = deviceIds.map((_, i) => `$${i + 1}`).join(', ');
+  const found = await getRows(
+    `SELECT device_id FROM devices WHERE device_id IN (${placeholders})`,
+    deviceIds
+  );
+  const foundIds = new Set((found || []).map((d) => String(d.device_id)));
+  const missing = deviceIds.filter((id) => !foundIds.has(id));
+  if (missing.length) {
+    return {
+      error: 'Invalid device_id',
+      details: `Device(s) not found: ${missing.join(', ')}`,
+      status: 400,
+    };
+  }
+  const isAdmin = req.user.role === 'super_admin' || req.user.role === 'admin';
+  if (!isAdmin) {
+    const allowedIds = req.allowedDeviceIds;
+    if (allowedIds !== null) {
+      const allowed = new Set((Array.isArray(allowedIds) ? allowedIds : []).map(String));
+      const denied = deviceIds.filter((id) => !allowed.has(id));
+      if (denied.length) {
+        return {
+          error: 'No access to this device',
+          code: 'DEVICE_ACCESS_DENIED',
+          details: `You can only create alerts for devices assigned to your role. Denied: ${denied.join(', ')}`,
+          status: 403,
+        };
+      }
+    }
+  }
+  return null;
+}
+
+function normalizeAlertRow(row) {
+  if (!row) return row;
+  const device_ids =
+    Array.isArray(row.device_ids) && row.device_ids.length > 0
+      ? row.device_ids.map(String)
+      : row.device_id
+        ? [String(row.device_id)]
+        : [];
+  return { ...row, device_ids, device_id: row.device_id || device_ids[0] || null };
+}
+
 // GET /api/alerts - List all alerts
 router.get('/', authenticateToken, authorizeMenuAccess('/alerts', 'read'), async (req, res) => {
   try {
-    // Check if user is admin/super_admin - if so, show all alerts (including NULL created_by)
     const isAdmin = req.user.role === 'super_admin' || req.user.role === 'admin';
-    
+
     let sql = 'SELECT * FROM alerts';
     let params = [];
-    let paramCount = 1;
-    
+
     if (!isAdmin) {
-      // Non-admin: show alerts they created, alerts with NULL created_by, OR alerts for devices they have access to (e.g. admin-created for their assigned device)
       const allowedDeviceIds = req.allowedDeviceIds;
       const hasDeviceAccess = Array.isArray(allowedDeviceIds) && allowedDeviceIds.length > 0;
       if (hasDeviceAccess) {
-        const inPlaceholders = allowedDeviceIds.map((_, i) => `$${i + 2}`).join(', ');
-        sql += ` WHERE (created_by = $1 OR created_by IS NULL OR device_id IN (${inPlaceholders}))`;
-        params = [req.user.user_id, ...allowedDeviceIds];
+        sql += ` WHERE (
+          created_by = $1
+          OR created_by IS NULL
+          OR device_id = ANY($2::text[])
+          OR COALESCE(device_ids, ARRAY[]::text[]) && $2::text[]
+        )`;
+        params = [req.user.user_id, allowedDeviceIds.map(String)];
       } else {
         sql += ' WHERE (created_by = $1 OR created_by IS NULL)';
         params = [req.user.user_id];
       }
     }
-    
+
     sql += ' ORDER BY created_at DESC';
-    
+
     const result = await getRows(sql, params);
-    res.json({ alerts: result });
+    res.json({ alerts: (result || []).map(normalizeAlertRow) });
   } catch (error) {
     console.error('Failed to fetch alerts:', error);
     res.status(500).json({ error: 'Failed to fetch alerts' });
@@ -56,42 +106,42 @@ router.get('/', authenticateToken, authorizeMenuAccess('/alerts', 'read'), async
 // POST /api/alerts - Create alert
 router.post('/', authenticateToken, authorizeMenuAccess('/alerts', 'create'), async (req, res) => {
   try {
-    const { name, device_id, parameter, min, max, type, threshold_time, actions, template } = req.body;
-    
-    // Validate required fields
-    if (!name || !device_id || !parameter || !type) {
-      return res.status(400).json({ 
-        error: 'Missing required fields', 
-        details: 'Name, device_id, parameter, and type are required' 
+    const { name, parameter, min, max, type, threshold_time, actions, template } = req.body;
+    const { deviceIds, primaryDeviceId } = normalizeDeviceIdsInput(req.body);
+
+    if (!name || !primaryDeviceId || !parameter || !type) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        details: 'Name, device(s), parameter, and type are required',
       });
     }
-    
-    // Validate device_id exists
-    const deviceExists = await getRow('SELECT device_id FROM devices WHERE device_id = $1', [device_id]);
-    if (!deviceExists) {
-      return res.status(400).json({ 
-        error: 'Invalid device_id', 
-        details: `Device ${device_id} does not exist` 
-      });
+
+    const accessError = await validateDevicesExistAndAccessible(deviceIds, req);
+    if (accessError) {
+      return res.status(accessError.status).json(accessError);
     }
-    // Non-admin: ensure user has access to this device
-    const isAdminCreate = req.user.role === 'super_admin' || req.user.role === 'admin';
-    if (!isAdminCreate) {
-      const allowedIds = req.allowedDeviceIds;
-      if (allowedIds !== null && (Array.isArray(allowedIds) ? !allowedIds.includes(device_id) : true)) {
-        return res.status(403).json({ 
-          error: 'No access to this device', 
-          code: 'DEVICE_ACCESS_DENIED',
-          details: 'You can only create alerts for devices assigned to your role'
-        });
-      }
-    }
-    const result = await query(`
-      INSERT INTO alerts (name, device_id, parameter, min, max, type, threshold_time, actions, template, created_by, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
+
+    const result = await query(
+      `
+      INSERT INTO alerts (name, device_id, device_ids, parameter, min, max, type, threshold_time, actions, template, created_by, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
       RETURNING *
-    `, [name, device_id, parameter, min, max, type, threshold_time, actions ? JSON.stringify(actions) : '{}', template, req.user.user_id]);
-    res.status(201).json({ alert: result.rows[0] });
+    `,
+      [
+        name,
+        primaryDeviceId,
+        deviceIds,
+        parameter,
+        min,
+        max,
+        type,
+        threshold_time,
+        actions ? JSON.stringify(actions) : '{}',
+        template,
+        req.user.user_id,
+      ]
+    );
+    res.status(201).json({ alert: normalizeAlertRow(result.rows[0]) });
   } catch (error) {
     console.error('Failed to create alert:', error);
     res.status(500).json({
@@ -106,58 +156,64 @@ router.post('/', authenticateToken, authorizeMenuAccess('/alerts', 'create'), as
 router.put('/:id', authenticateToken, authorizeMenuAccess('/alerts', 'update'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, device_id, parameter, min, max, type, threshold_time, actions, template } = req.body;
-    
-    // Validate required fields
-    if (!name || !device_id || !parameter || !type) {
-      return res.status(400).json({ 
-        error: 'Missing required fields', 
-        details: 'Name, device_id, parameter, and type are required' 
+    const { name, parameter, min, max, type, threshold_time, actions, template } = req.body;
+    const { deviceIds, primaryDeviceId } = normalizeDeviceIdsInput(req.body);
+
+    if (!name || !primaryDeviceId || !parameter || !type) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        details: 'Name, device(s), parameter, and type are required',
       });
     }
-    
-    // Validate device_id exists
-    const deviceExists = await getRow('SELECT device_id FROM devices WHERE device_id = $1', [device_id]);
-    if (!deviceExists) {
-      return res.status(400).json({ 
-        error: 'Invalid device_id', 
-        details: `Device ${device_id} does not exist` 
-      });
+
+    const accessError = await validateDevicesExistAndAccessible(deviceIds, req);
+    if (accessError) {
+      return res.status(accessError.status).json(accessError);
     }
-    
-    // Check if user is admin/super_admin - if so, can update any alert
+
     const isAdmin = req.user.role === 'super_admin' || req.user.role === 'admin';
-    
+
     let sqlQuery = `
       UPDATE alerts SET
         name = $1,
         device_id = $2,
-        parameter = $3,
-        min = $4,
-        max = $5,
-        type = $6,
-        threshold_time = $7,
-        actions = $8,
-        template = $9,
+        device_ids = $3,
+        parameter = $4,
+        min = $5,
+        max = $6,
+        type = $7,
+        threshold_time = $8,
+        actions = $9,
+        template = $10,
         updated_at = NOW()
-      WHERE alert_id = $10
+      WHERE alert_id = $11
     `;
-    let params = [name, device_id, parameter, min, max, type, threshold_time, actions ? JSON.stringify(actions) : '{}', template, id];
-    
+    let params = [
+      name,
+      primaryDeviceId,
+      deviceIds,
+      parameter,
+      min,
+      max,
+      type,
+      threshold_time,
+      actions ? JSON.stringify(actions) : '{}',
+      template,
+      id,
+    ];
+
     if (!isAdmin) {
-      // Non-admin users can only update alerts they created OR alerts with NULL created_by (existing records)
-      sqlQuery += ' AND (created_by = $11 OR created_by IS NULL)';
+      sqlQuery += ' AND (created_by = $12 OR created_by IS NULL)';
       params.push(req.user.user_id);
     }
-    
-    
+
     sqlQuery += ' RETURNING *';
-    
+
     const result = await query(sqlQuery, params);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Alert not found or access denied' });
     }
-    res.json({ alert: result.rows[0] });
+    res.json({ alert: normalizeAlertRow(result.rows[0]) });
   } catch (error) {
     console.error('Failed to update alert:', error);
     console.error('Alert ID:', req.params.id);
@@ -171,26 +227,24 @@ router.put('/:id', authenticateToken, authorizeMenuAccess('/alerts', 'update'), 
 router.delete('/:id', authenticateToken, authorizeMenuAccess('/alerts', 'delete'), async (req, res) => {
   try {
     const { id } = req.params;
-    
-    // Check if user is admin/super_admin - if so, can delete any alert
+
     const isAdmin = req.user.role === 'super_admin' || req.user.role === 'admin';
-    
+
     let deleteQuery = 'DELETE FROM alerts WHERE alert_id = $1';
     let params = [id];
-    
+
     if (!isAdmin) {
-      // Non-admin users can only delete alerts they created OR alerts with NULL created_by (existing records)
       deleteQuery += ' AND (created_by = $2 OR created_by IS NULL)';
       params.push(req.user.user_id);
     }
-    
+
     deleteQuery += ' RETURNING *';
-    
+
     const result = await query(deleteQuery, params);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Alert not found or access denied' });
     }
-    res.json({ message: 'Alert deleted', alert: result.rows[0] });
+    res.json({ message: 'Alert deleted', alert: normalizeAlertRow(result.rows[0]) });
   } catch (error) {
     console.error('Failed to delete alert:', error);
     res.status(500).json({ error: 'Failed to delete alert' });
@@ -204,12 +258,10 @@ router.get('/mapped-data', authenticateToken, authorizeMenuAccess('/alerts', 're
     if (!device_id) {
       return res.status(400).json({ error: 'device_id is required' });
     }
-    // Get device info (for timezone, etc.)
     const device = await getRow('SELECT * FROM devices WHERE device_id = $1', [device_id]);
     if (!device) {
       return res.status(404).json({ error: 'Device not found' });
     }
-    // Get latest sensor readings for this device (all sensor_types)
     const rows = await getRows(
       `SELECT DISTINCT ON (sensor_type) sensor_type, value, unit, timestamp, metadata
        FROM sensor_readings
@@ -220,17 +272,13 @@ router.get('/mapped-data', authenticateToken, authorizeMenuAccess('/alerts', 're
     if (!rows.length) {
       return res.status(404).json({ error: 'No sensor data found for device' });
     }
-    // Build latest raw payload
     let latestPayload = {};
     for (const row of rows) {
-      // If metadata is present and is an object, merge it
       if (row.metadata && typeof row.metadata === 'object') {
         latestPayload = { ...latestPayload, ...row.metadata };
       }
-      // Also include the main value under sensor_type
       latestPayload[row.sensor_type] = Number(row.value);
     }
-    // Map to target fields
     const mapped = await processDeviceData(device, latestPayload);
     res.json({ device_id, mapped });
   } catch (error) {
@@ -239,4 +287,4 @@ router.get('/mapped-data', authenticateToken, authorizeMenuAccess('/alerts', 're
   }
 });
 
-module.exports = router; 
+module.exports = router;

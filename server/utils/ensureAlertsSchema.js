@@ -14,6 +14,21 @@ async function ensureAlertsSchema() {
     ON alerts(created_by) WHERE created_by IS NOT NULL
   `);
 
+  // Multi-device alert rules: keep device_id as primary/legacy FK, device_ids as the full set
+  await query(`
+    ALTER TABLE alerts
+    ADD COLUMN IF NOT EXISTS device_ids TEXT[]
+  `);
+  await query(`
+    UPDATE alerts
+    SET device_ids = ARRAY[device_id]
+    WHERE device_ids IS NULL AND device_id IS NOT NULL
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS idx_alerts_device_ids
+    ON alerts USING GIN (device_ids)
+  `);
+
   await query(`
     CREATE TABLE IF NOT EXISTS alert_email_recipients (
       id SERIAL PRIMARY KEY,

@@ -27,6 +27,7 @@ import { getParameterColor as getChartParamColor } from '../utils/chartStyles';
 import { useDeviceSocketSubscription } from '../hooks/useDeviceSocketSubscription';
 import { useSocketEvent } from '../hooks/useSocketEvent';
 import { filterDataViewParams } from '../utils/fieldCategory';
+import { alertAppliesToDevice } from '../utils/alertDevices';
 import DashboardMap from './DashboardMap';
 import RealtimeChartDisplaySelect from './RealtimeChartDisplaySelect';
 import {
@@ -336,7 +337,7 @@ export default function NDashboard({ socket }) {
         if (cancelled) return;
         const byParam = {};
         (res.data.alerts || [])
-          .filter((a) => a.device_id === selectedDeviceId)
+          .filter((a) => alertAppliesToDevice(a, selectedDeviceId))
           .forEach((a) => {
             const key = normalizeParamKey(a.parameter);
             if (!key) return;

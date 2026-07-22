@@ -978,7 +978,12 @@ class MQTTService {
   async evaluateAlertsWithRealTimeData(deviceId, processedData) {
     try {
       const alertsResult = await query(
-        `SELECT * FROM alerts WHERE device_id = $1 AND type = 'threshold'`,
+        `SELECT * FROM alerts
+         WHERE type = 'threshold'
+           AND (
+             device_id = $1
+             OR COALESCE(device_ids, ARRAY[]::text[]) @> ARRAY[$1]::text[]
+           )`,
         [deviceId]
       );
       const alerts = alertsResult.rows || [];

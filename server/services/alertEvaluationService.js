@@ -1,6 +1,7 @@
 const { query, getRows, getRow } = require('../config/database');
 const { processDeviceData } = require('./deviceMapper');
 const { NotificationService } = require('./notificationService');
+const { getAlertDeviceIds } = require('../utils/alertDevices');
 
 // Helper: Get device mapper template (via device_mapper_assignments)
 async function getDeviceMapperTemplate(device_id) {
@@ -26,20 +27,26 @@ function applyTemplateMapping(rawPayload, mappings) {
   return mapped;
 }
 
+const ALERT_MATCHES_DEVICE_SQL = `(
+  device_id = $1
+  OR COALESCE(device_ids, ARRAY[]::text[]) @> ARRAY[$1]::text[]
+)`;
+
 // Evaluate threshold alerts on new data ingest
 async function evaluateThresholdAlertsOnData(device_id, parameter, value, timestamp) {
   console.log('Evaluating threshold alerts for', device_id, parameter, value, timestamp);
-  // Get all active threshold alerts for this device/parameter
   const alerts = await getRows(
-    `SELECT * FROM alerts WHERE device_id = $1 AND parameter = $2 AND type = 'threshold'`,
+    `SELECT * FROM alerts
+     WHERE ${ALERT_MATCHES_DEVICE_SQL}
+       AND parameter = $2
+       AND type = 'threshold'`,
     [device_id, parameter]
   );
-  
+
   for (const alert of alerts) {
     const outOfRange = (alert.min !== null && value < alert.min) || (alert.max !== null && value > alert.max);
 
     // Crossing-only: create a log (and emit popup/notifications) only when we enter out-of-range.
-    // While the value stays out-of-range, do not create new logs.
     const active = await getRow(
       `SELECT log_id
        FROM alert_logs
@@ -63,145 +70,141 @@ async function evaluateThresholdAlertsOnData(device_id, parameter, value, timest
     }
 
     if (active?.log_id) {
-      // Still out-of-range; suppress repeat alerts.
       continue;
     }
 
-    if (outOfRange) {
-      const device = await getRow('SELECT name FROM devices WHERE device_id = $1', [device_id]);
-      const deviceName = device ? device.name : device_id;
-      const actions = typeof alert.actions === 'string' ? (() => { try { return JSON.parse(alert.actions); } catch { return {}; } })() : (alert.actions || {});
-      
-      console.log('Inserting into alert_logs:', { alert_id: alert.alert_id, device_id, parameter, value });
-      await query(
-        `INSERT INTO alert_logs (alert_id, device_id, parameter, value, detected_at, status, details) VALUES ($1, $2, $3, $4, NOW(), 'active', $5)`,
-        [alert.alert_id, device_id, parameter, value, JSON.stringify({ triggered: 'threshold', min: alert.min, max: alert.max, at: timestamp })]
-      );
-      
-      try {
-        if (actions && (actions.email || actions.http || actions.mqtt)) {
-          console.log('Sending notification for alert:', {
-            alert_id: alert.alert_id,
-            template: alert.template,
-            current_value: value,
-            parameter: parameter,
-            device: deviceName
-          });
-          
-          await NotificationService.sendNotification(
-            { ...alert, actions },
-            deviceName,
-            parameter,
-            value,
-            alert.min,
-            alert.max,
-            timestamp,
-            null
-          );
-        }
-      } catch (error) {
-        console.error('Failed to send notification for alert', alert.alert_id, error);
-      }
-      
-      // Emit WebSocket event
-      if (global.io) {
-        global.io.emit('new_alert_log', {
+    const device = await getRow('SELECT name FROM devices WHERE device_id = $1', [device_id]);
+    const deviceName = device ? device.name : device_id;
+    const actions = typeof alert.actions === 'string' ? (() => { try { return JSON.parse(alert.actions); } catch { return {}; } })() : (alert.actions || {});
+
+    console.log('Inserting into alert_logs:', { alert_id: alert.alert_id, device_id, parameter, value });
+    await query(
+      `INSERT INTO alert_logs (alert_id, device_id, parameter, value, detected_at, status, details) VALUES ($1, $2, $3, $4, NOW(), 'active', $5)`,
+      [alert.alert_id, device_id, parameter, value, JSON.stringify({ triggered: 'threshold', min: alert.min, max: alert.max, at: timestamp })]
+    );
+
+    try {
+      if (actions && (actions.email || actions.http || actions.mqtt)) {
+        console.log('Sending notification for alert:', {
           alert_id: alert.alert_id,
-          device_id,
+          template: alert.template,
+          current_value: value,
+          parameter: parameter,
+          device: deviceName
+        });
+
+        // Override device_id with the triggering device for MQTT topic / payload
+        await NotificationService.sendNotification(
+          { ...alert, actions, device_id },
+          deviceName,
           parameter,
           value,
-          detected_at: new Date().toISOString(),
-          type: 'threshold',
-          details: { min: alert.min, max: alert.max }
-        });
+          alert.min,
+          alert.max,
+          timestamp,
+          null
+        );
       }
+    } catch (error) {
+      console.error('Failed to send notification for alert', alert.alert_id, error);
     }
+
+    if (global.io) {
+      global.io.emit('new_alert_log', {
+        alert_id: alert.alert_id,
+        device_id,
+        parameter,
+        value,
+        detected_at: new Date().toISOString(),
+        type: 'threshold',
+        details: { min: alert.min, max: alert.max }
+      });
+    }
+  }
+}
+
+async function evaluateInactivityForDevice(alert, device_id) {
+  const active = await getRow(
+    `SELECT log_id
+     FROM alert_logs
+     WHERE alert_id = $1 AND device_id = $2 AND parameter = $3 AND status = 'active'
+     ORDER BY detected_at DESC
+     LIMIT 1`,
+    [alert.alert_id, device_id, alert.parameter]
+  );
+
+  const lastData = await getRows(
+    `SELECT timestamp FROM sensor_readings WHERE device_id = $1 ORDER BY timestamp DESC LIMIT 1`,
+    [device_id]
+  );
+  if (!lastData.length) return;
+
+  const lastTimestamp = new Date(lastData[0].timestamp);
+  const now = new Date();
+  const minutesSince = (now - lastTimestamp) / 60000;
+  if (!alert.threshold_time || !(minutesSince > alert.threshold_time)) return;
+  if (active?.log_id) return;
+
+  const device = await getRow('SELECT name FROM devices WHERE device_id = $1', [device_id]);
+  const deviceName = device ? device.name : device_id;
+
+  await query(
+    `INSERT INTO alert_logs (alert_id, device_id, parameter, value, detected_at, status, details) VALUES ($1, $2, $3, $4, NOW(), 'active', $5)`,
+    [alert.alert_id, device_id, alert.parameter, null, JSON.stringify({ triggered: 'inactivity', lastUpdate: lastTimestamp, threshold: alert.threshold_time })]
+  );
+
+  try {
+    const actions = typeof alert.actions === 'string' ? (() => { try { return JSON.parse(alert.actions); } catch { return {}; } })() : (alert.actions || {});
+    if (actions && (actions.email || actions.http || actions.mqtt)) {
+      await NotificationService.sendNotification(
+        { ...alert, actions, device_id },
+        deviceName,
+        alert.parameter,
+        null,
+        null,
+        null,
+        lastTimestamp,
+        alert.threshold_time
+      );
+    }
+  } catch (error) {
+    console.error('Failed to send notification for inactivity alert', alert.alert_id, error);
+  }
+
+  if (global.io) {
+    global.io.emit('new_alert_log', {
+      alert_id: alert.alert_id,
+      device_id,
+      parameter: alert.parameter,
+      value: null,
+      detected_at: new Date().toISOString(),
+      type: 'inactivity',
+      details: { lastUpdate: lastTimestamp, threshold: alert.threshold_time }
+    });
   }
 }
 
 // Periodically check inactivity alerts
 async function evaluateInactivityAlertsPeriodically() {
-  // Get all active inactivity alerts
   const alerts = await getRows(`SELECT * FROM alerts WHERE type = 'inactivity'`);
   for (const alert of alerts) {
-    // Crossing-only: if already active, do not emit again.
-    const active = await getRow(
-      `SELECT log_id
-       FROM alert_logs
-       WHERE alert_id = $1 AND device_id = $2 AND parameter = $3 AND status = 'active'
-       ORDER BY detected_at DESC
-       LIMIT 1`,
-      [alert.alert_id, alert.device_id, alert.parameter]
-    );
-
-    // Get last data timestamp for this device
-    const lastData = await getRows(
-      `SELECT timestamp FROM sensor_readings WHERE device_id = $1 ORDER BY timestamp DESC LIMIT 1`,
-      [alert.device_id]
-    );
-    if (!lastData.length) continue;
-    const lastTimestamp = new Date(lastData[0].timestamp);
-    const now = new Date();
-    const minutesSince = (now - lastTimestamp) / 60000;
-    if (alert.threshold_time && minutesSince > alert.threshold_time) {
-      if (active?.log_id) {
-        continue;
-      }
-      // Get device name for notification
-      const device = await getRow('SELECT name FROM devices WHERE device_id = $1', [alert.device_id]);
-      const deviceName = device ? device.name : alert.device_id;
-      
-      // Log alert event
-      await query(
-        `INSERT INTO alert_logs (alert_id, device_id, parameter, value, detected_at, status, details) VALUES ($1, $2, $3, $4, NOW(), 'active', $5)`,
-        [alert.alert_id, alert.device_id, alert.parameter, null, JSON.stringify({ triggered: 'inactivity', lastUpdate: lastTimestamp, threshold: alert.threshold_time })]
-      );
-      
-      // Send notifications if configured
-      try {
-        const actions = typeof alert.actions === 'string' ? (() => { try { return JSON.parse(alert.actions); } catch { return {}; } })() : (alert.actions || {});
-        if (actions && (actions.email || actions.http || actions.mqtt)) {
-          await NotificationService.sendNotification(
-            { ...alert, actions },
-            deviceName,
-            alert.parameter,
-            null,
-            null,
-            null,
-            lastTimestamp,
-            alert.threshold_time
-          );
-        }
-      } catch (error) {
-        console.error('Failed to send notification for inactivity alert', alert.alert_id, error);
-      }
-      
-      // Emit WebSocket event
-      if (global.io) {
-        global.io.emit('new_alert_log', {
-          alert_id: alert.alert_id,
-          device_id: alert.device_id,
-          parameter: alert.parameter,
-          value: null,
-          detected_at: new Date().toISOString(),
-          type: 'inactivity',
-          details: { lastUpdate: lastTimestamp, threshold: alert.threshold_time }
-        });
-      }
+    const deviceIds = getAlertDeviceIds(alert);
+    for (const device_id of deviceIds) {
+      await evaluateInactivityForDevice(alert, device_id);
     }
   }
 }
 
 async function pollLatestDataAndEvaluateAlerts() {
   const alerts = await getRows(`SELECT * FROM alerts WHERE type = 'threshold'`);
-  // Group alerts by device for efficiency
   const alertsByDevice = {};
   for (const alert of alerts) {
-    if (!alertsByDevice[alert.device_id]) alertsByDevice[alert.device_id] = [];
-    alertsByDevice[alert.device_id].push(alert);
+    for (const device_id of getAlertDeviceIds(alert)) {
+      if (!alertsByDevice[device_id]) alertsByDevice[device_id] = [];
+      alertsByDevice[device_id].push(alert);
+    }
   }
   for (const device_id of Object.keys(alertsByDevice)) {
-    // Get the latest value for each sensor_type for this device, including metadata
     const rows = await getRows(
       `SELECT DISTINCT ON (sensor_type) sensor_type, value, unit, timestamp, metadata
        FROM sensor_readings
@@ -210,7 +213,6 @@ async function pollLatestDataAndEvaluateAlerts() {
       [device_id]
     );
     if (rows.length) {
-      // Build the latest payload (merge metadata and sensor_type values)
       let latestPayload = {};
       let latestTimestamp = null;
       for (const row of rows) {
@@ -222,7 +224,6 @@ async function pollLatestDataAndEvaluateAlerts() {
           latestTimestamp = row.timestamp;
         }
       }
-      // --- Use mapper template if available ---
       let mapped;
       const template = await getDeviceMapperTemplate(device_id);
       if (template && template.mappings) {
@@ -235,7 +236,6 @@ async function pollLatestDataAndEvaluateAlerts() {
         }
         mapped = applyTemplateMapping(latestPayload, mappings);
       } else {
-        // Fallback to processDeviceData (field_mappings)
         const device = await getRow('SELECT * FROM devices WHERE device_id = $1', [device_id]);
         if (!device) continue;
         mapped = await processDeviceData(device, latestPayload);
@@ -254,4 +254,4 @@ module.exports = {
   evaluateThresholdAlertsOnData,
   evaluateInactivityAlertsPeriodically,
   pollLatestDataAndEvaluateAlerts
-}; 
+};

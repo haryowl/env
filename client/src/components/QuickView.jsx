@@ -50,6 +50,7 @@ import SectionHeader from './SectionHeader';
 import { compactSelectSx, compactMenuItemSx, compactTextFieldSx } from '../utils/compactUi';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import { filterDataViewParams } from '../utils/fieldCategory';
+import { alertAppliesToDevice } from '../utils/alertDevices';
 
 const QuickView = () => {
   const theme = useTheme();
@@ -249,7 +250,7 @@ const QuickView = () => {
         const data = await response.json();
         const list = data.alerts || [];
         const forDevice = list.filter(
-          (a) => a.device_id === selectedDevice && a.type === 'threshold' && (a.min != null || a.max != null)
+          (a) => alertAppliesToDevice(a, selectedDevice) && a.type === 'threshold' && (a.min != null || a.max != null)
         );
         setAlertConfigs(forDevice);
       } else {

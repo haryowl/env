@@ -30,6 +30,7 @@ import { getUserTimezone } from '../utils/timezoneUtils';
 import { getDeviceDisplayName } from '../utils/deviceLabel';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import { filterDataViewParams } from '../utils/fieldCategory';
+import { alertAppliesToDevice } from '../utils/alertDevices';
 import QuickViewChart from './QuickViewChart';
 import QuickViewAlertChart from './QuickViewAlertChart';
 import QuickViewTable from './QuickViewTable';
@@ -162,7 +163,7 @@ const MobileQuickView = () => {
         const list = data.alerts || [];
         setAlertConfigs(
           list.filter(
-            (a) => a.device_id === selectedDevice && a.type === 'threshold' && (a.min != null || a.max != null)
+            (a) => alertAppliesToDevice(a, selectedDevice) && a.type === 'threshold' && (a.min != null || a.max != null)
           )
         );
       } else {

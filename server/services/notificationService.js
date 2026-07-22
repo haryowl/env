@@ -3,11 +3,63 @@ const axios = require('axios');
 const { query, getRow, getRows } = require('../config/database');
 const mqttService = require('./mqttService');
 
+function humanizeFieldName(value = '') {
+  return String(value)
+    .replace(/[_\-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
 class NotificationService {
   constructor() {
     this.emailTransporter = null;
     this.defaultEmailConfig = null;
     this.defaultHttpConfig = null;
+    this._parameterDisplayCache = new Map();
+  }
+
+  async resolveParameterDisplayName(parameter) {
+    if (!parameter) return '';
+    const key = String(parameter);
+    if (this._parameterDisplayCache.has(key)) {
+      return this._parameterDisplayCache.get(key);
+    }
+    try {
+      const row = await getRow(
+        'SELECT display_name FROM field_definitions WHERE field_name = $1 LIMIT 1',
+        [key]
+      );
+      const label = (row?.display_name && String(row.display_name).trim()) || humanizeFieldName(key);
+      this._parameterDisplayCache.set(key, label);
+      return label;
+    } catch (e) {
+      const fallback = humanizeFieldName(key);
+      this._parameterDisplayCache.set(key, fallback);
+      return fallback;
+    }
+  }
+
+  buildTemplateVariables({
+    deviceName,
+    parameterKey,
+    parameterDisplay,
+    value,
+    min,
+    max,
+    lastUpdate,
+    thresholdTime,
+  }) {
+    return {
+      device: deviceName,
+      parameter: parameterDisplay || parameterKey || '',
+      parameter_key: parameterKey || '',
+      value,
+      min,
+      max,
+      lastUpdate,
+      thresholdTime,
+    };
   }
 
   buildMqttAlertTopic(mqttPublishCfg) {
@@ -16,7 +68,7 @@ class NotificationService {
     return `alert/${project_code}/${group_identifier}/${terminal_code}`;
   }
 
-  async sendMqttNotification(alert, deviceName, parameter, value, min, max, lastUpdate, thresholdTime) {
+  async sendMqttNotification(alert, deviceName, parameter, value, min, max, lastUpdate, thresholdTime, parameterDisplay) {
     const alertId = alert?.alert_id;
     const template = alert?.template || '';
     const deviceId = alert?.device_id;
@@ -50,15 +102,17 @@ class NotificationService {
       return;
     }
 
-    const processedTemplate = this.processTemplate(template, {
-      device: deviceName,
-      parameter,
+    const display = parameterDisplay || parameter;
+    const processedTemplate = this.processTemplate(template, this.buildTemplateVariables({
+      deviceName,
+      parameterKey: parameter,
+      parameterDisplay: display,
       value,
       min,
       max,
       lastUpdate,
-      thresholdTime
-    });
+      thresholdTime,
+    }));
 
     const topic = this.buildMqttAlertTopic(mqttPublish);
     const payload = {
@@ -67,6 +121,7 @@ class NotificationService {
       device_id: deviceId,
       device: deviceName,
       parameter,
+      parameter_display: display,
       value: value ?? null,
       min: min ?? null,
       max: max ?? null,
@@ -123,7 +178,7 @@ class NotificationService {
   }
 
   // Send email notification (uses Alert Settings: alert_email_config for SMTP + alert_email_recipients for who receives)
-  async sendEmail(alertId, template, deviceName, parameter, value, min, max, lastUpdate, thresholdTime) {
+  async sendEmail(alertId, template, deviceName, parameter, value, min, max, lastUpdate, thresholdTime, parameterDisplay) {
     try {
       // Use Alert Settings SMTP config for alert emails (recipients are also from Alert Settings)
       const alertConfig = await getRow('SELECT * FROM alert_email_config WHERE id = 1');
@@ -154,16 +209,18 @@ class NotificationService {
         return;
       }
 
-      // Process template
-      const processedTemplate = this.processTemplate(template, {
-        device: deviceName,
-        parameter,
+      // Process template — {parameter} uses display name; {parameter_key} keeps field name
+      const display = parameterDisplay || parameter;
+      const processedTemplate = this.processTemplate(template, this.buildTemplateVariables({
+        deviceName,
+        parameterKey: parameter,
+        parameterDisplay: display,
         value,
         min,
         max,
         lastUpdate,
-        thresholdTime
-      });
+        thresholdTime,
+      }));
 
       const fromStr = `"${(alertConfig.from_name || 'Alert').replace(/"/g, '')}" <${alertConfig.from_email}>`;
 
@@ -264,7 +321,7 @@ class NotificationService {
   }
 
   // Send HTTP notification
-  async sendHttpNotification(alertId, template, deviceName, parameter, value, min, max, lastUpdate, thresholdTime) {
+  async sendHttpNotification(alertId, template, deviceName, parameter, value, min, max, lastUpdate, thresholdTime, parameterDisplay) {
     try {
       // Get HTTP endpoints for this alert
       const configs = await getRows(`
@@ -278,22 +335,25 @@ class NotificationService {
         return;
       }
 
-      // Process template
-      const processedTemplate = this.processTemplate(template, {
-        device: deviceName,
-        parameter,
+      const display = parameterDisplay || parameter;
+      const processedTemplate = this.processTemplate(template, this.buildTemplateVariables({
+        deviceName,
+        parameterKey: parameter,
+        parameterDisplay: display,
         value,
         min,
         max,
         lastUpdate,
-        thresholdTime
-      });
+        thresholdTime,
+      }));
 
       const timestamp = new Date().toISOString();
       const ctx = {
         alert_id: alertId,
         device: deviceName,
         parameter,
+        parameter_display: display,
+        parameter_key: parameter,
         value: value ?? null,
         min: min ?? null,
         max: max ?? null,
@@ -308,6 +368,7 @@ class NotificationService {
         alert_id: alertId,
         device: deviceName,
         parameter,
+        parameter_display: display,
         value,
         min,
         max,
@@ -448,20 +509,18 @@ class NotificationService {
   async sendNotification(alert, deviceName, parameter, value, min, max, lastUpdate, thresholdTime) {
     try {
       const { alert_id, actions, template } = alert;
-      
-      // Send email notification if enabled
+      const parameterDisplay = await this.resolveParameterDisplayName(parameter);
+
       if (actions?.email) {
-        await this.sendEmail(alert_id, template, deviceName, parameter, value, min, max, lastUpdate, thresholdTime);
-      }
-      
-      // Send HTTP notification if enabled
-      if (actions?.http) {
-        await this.sendHttpNotification(alert_id, template, deviceName, parameter, value, min, max, lastUpdate, thresholdTime);
+        await this.sendEmail(alert_id, template, deviceName, parameter, value, min, max, lastUpdate, thresholdTime, parameterDisplay);
       }
 
-      // Send MQTT publish if enabled
+      if (actions?.http) {
+        await this.sendHttpNotification(alert_id, template, deviceName, parameter, value, min, max, lastUpdate, thresholdTime, parameterDisplay);
+      }
+
       if (actions?.mqtt) {
-        await this.sendMqttNotification(alert, deviceName, parameter, value, min, max, lastUpdate, thresholdTime);
+        await this.sendMqttNotification(alert, deviceName, parameter, value, min, max, lastUpdate, thresholdTime, parameterDisplay);
       }
     } catch (error) {
       console.error('Failed to send notification:', error);
