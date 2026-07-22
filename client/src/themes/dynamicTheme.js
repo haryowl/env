@@ -338,16 +338,17 @@ export const createDynamicTheme = (customColors = defaultColors, fontType = 'mon
           },
         },
       },
+      // Content/list text — do not use sidebar contrast (often white); Layout styles the drawer.
       MuiListItemText: {
         styleOverrides: {
           primary: {
             fontSize: '0.875rem',
             fontWeight: 500,
-            color: sidebarTextColor,
+            color: colors.text,
           },
           secondary: {
             fontSize: '0.75rem',
-            color: sidebarTextColor + '80',
+            color: colors.text + '80',
           },
         },
       },

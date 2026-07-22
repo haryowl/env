@@ -486,11 +486,39 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
               renderValue={(selected) =>
                 selected.map((id) => devices.find((d) => d.device_id === id)?.name || id).join(', ')
               }
+              MenuProps={{
+                PaperProps: {
+                  sx: {
+                    backgroundColor: `${theme.palette.background.paper} !important`,
+                    '& .MuiMenuItem-root': {
+                      color: `${theme.palette.text.primary} !important`,
+                      '& .MuiListItemText-primary': {
+                        color: `${theme.palette.text.primary} !important`,
+                      },
+                      '& .MuiCheckbox-root': {
+                        color: `${theme.palette.text.primary} !important`,
+                      },
+                    },
+                  },
+                },
+              }}
             >
               {devices.map((d) => (
-                <MenuItem key={d.device_id} value={d.device_id}>
-                  <Checkbox checked={form.device_ids.indexOf(d.device_id) > -1} />
-                  <ListItemText primary={d.name} />
+                <MenuItem
+                  key={d.device_id}
+                  value={d.device_id}
+                  sx={{ color: `${theme.palette.text.primary} !important` }}
+                >
+                  <Checkbox
+                    checked={form.device_ids.indexOf(d.device_id) > -1}
+                    sx={{ color: `${theme.palette.text.primary} !important` }}
+                  />
+                  <ListItemText
+                    primary={d.name}
+                    primaryTypographyProps={{
+                      sx: { color: `${theme.palette.text.primary} !important` },
+                    }}
+                  />
                 </MenuItem>
               ))}
             </Select>

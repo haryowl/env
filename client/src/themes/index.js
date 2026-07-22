@@ -706,16 +706,18 @@ export const kimaTheme = createTheme({
         },
       },
     },
+    // Use content text colors globally — sidebar items set their own color in Layout.
+    // Hardcoding white here made Select/Menu labels invisible on light paper (e.g. Create Alert).
     MuiListItemText: {
       styleOverrides: {
         primary: {
           fontSize: '0.875rem',
           fontWeight: 500,
-          color: '#FFFFFF',
+          color: '#1F2937',
         },
         secondary: {
           fontSize: '0.75rem',
-          color: 'rgba(255, 255, 255, 0.7)',
+          color: '#6B7280',
         },
       },
     },
