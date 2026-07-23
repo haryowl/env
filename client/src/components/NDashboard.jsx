@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Box, Card, CardContent, Typography, Chip, CircularProgress,
   Select, MenuItem, FormControl, LinearProgress, useTheme, Button, TextField, InputLabel,
@@ -266,19 +266,24 @@ export default function NDashboard({ socket }) {
     }
   }, [availableParams, paramFilter]);
 
-  const fetchHistory = useCallback(async () => {
+  const historyFetchAbortRef = useRef(null);
+
+  const fetchHistory = useCallback(async ({ silent = false } = {}) => {
     if (!selectedDeviceId || chartParams.length === 0) {
       setHistory([]);
       return;
     }
-    setLoadingHistory(true);
+    historyFetchAbortRef.current?.abort();
+    const controller = new AbortController();
+    historyFetchAbortRef.current = controller;
+    if (!silent) setLoadingHistory(true);
     try {
       const isCustom = chartRange === 'custom';
       const end = isCustom ? new Date(customEnd) : new Date();
       const start = isCustom ? new Date(customStart) : new Date(end.getTime() - rangeHours * 3600 * 1000);
       if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || start >= end) {
         setHistory([]);
-        setLoadingHistory(false);
+        if (!silent) setLoadingHistory(false);
         return;
       }
       const windowHours = (end.getTime() - start.getTime()) / 3600000;
@@ -292,7 +297,9 @@ export default function NDashboard({ socket }) {
           excludeCategories: 'Status',
         },
         headers: authHeaders(),
+        signal: controller.signal,
       });
+      if (controller.signal.aborted) return;
       const rows = (res.data.data || []).map((row) => {
         const out = { datetime: row.datetime, timestamp: row.timestamp };
         chartParams.forEach((p) => { out[p] = toNumber(row[p]); });
@@ -303,14 +310,55 @@ export default function NDashboard({ socket }) {
       if (Object.keys(snapshot.fields).length > 0) {
         setLatest(snapshot);
       }
-    } catch {
+    } catch (e) {
+      if (controller.signal.aborted || e?.code === 'ERR_CANCELED') return;
       setHistory([]);
       setLatest({ fields: {}, updatedAt: null });
+    } finally {
+      if (!controller.signal.aborted && !silent) setLoadingHistory(false);
     }
-    setLoadingHistory(false);
   }, [selectedDeviceId, chartParams.join(','), chartRange, rangeHours, customStart, customEnd, authHeaders]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { fetchHistory(); }, [fetchHistory]);
+  // Match Dashboard / U-Dashboard: keep preset ranges live via polling (skip custom fixed window).
+  useEffect(() => {
+    if (!selectedDeviceId || chartParams.length === 0) return undefined;
+    if (chartRange === 'custom') {
+      fetchHistory({ silent: false });
+      return () => {
+        historyFetchAbortRef.current?.abort();
+      };
+    }
+
+    fetchHistory({ silent: false });
+    let interval = null;
+    const startPolling = () => {
+      if (interval) return;
+      interval = setInterval(() => {
+        if (document.visibilityState === 'hidden') return;
+        fetchHistory({ silent: true });
+      }, 15000);
+    };
+    const stopPolling = () => {
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') stopPolling();
+      else {
+        fetchHistory({ silent: true });
+        startPolling();
+      }
+    };
+    if (document.visibilityState !== 'hidden') startPolling();
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      stopPolling();
+      document.removeEventListener('visibilitychange', onVisibility);
+      historyFetchAbortRef.current?.abort();
+    };
+  }, [fetchHistory, selectedDeviceId, chartParams.length, chartRange]);
 
   useEffect(() => {
     const loadAlerts = async () => {
@@ -357,22 +405,47 @@ export default function NDashboard({ socket }) {
     return () => { cancelled = true; };
   }, [selectedDeviceId, authHeaders]);
 
-  // ---- Live socket updates ------------------------------------------------
+  // ---- Live socket updates (cards + chart point; poll refreshes full window) ----
   useDeviceSocketSubscription(socket, selectedDeviceId);
-  useSocketEvent(socket, 'device_data', (payload) => {
-    if (!payload || payload.deviceId !== selectedDeviceId || !payload.data) return;
-    const patch = {};
-    availableParams.forEach((p) => {
-      if (payload.data[p] !== undefined && payload.data[p] !== null) {
-        patch[p] = payload.data[p];
-      }
-    });
-    if (Object.keys(patch).length === 0) return;
-    setLatest((prev) => ({
-      fields: { ...prev.fields, ...patch },
-      updatedAt: new Date().toISOString(),
-    }));
-  });
+  useSocketEvent(
+    socket,
+    'device_data',
+    (payload) => {
+      if (!payload || payload.deviceId !== selectedDeviceId || !payload.data) return;
+      const patch = {};
+      const row = {};
+      availableParams.forEach((p) => {
+        if (payload.data[p] !== undefined && payload.data[p] !== null) {
+          patch[p] = payload.data[p];
+          const n = toNumber(payload.data[p]);
+          if (n !== null) row[p] = n;
+        }
+      });
+      if (Object.keys(patch).length === 0) return;
+      const updatedAt = payload.timestamp
+        ? new Date(payload.timestamp).toISOString()
+        : new Date().toISOString();
+      setLatest((prev) => ({
+        fields: { ...prev.fields, ...patch },
+        updatedAt,
+      }));
+      // Instant chart update between polls (preset ranges only — custom is a fixed historical window)
+      if (chartRange === 'custom' || Object.keys(row).length === 0) return;
+      setHistory((prev) => {
+        const nextRow = { datetime: updatedAt, timestamp: updatedAt, ...row };
+        const last = newestHistoryRow(prev);
+        if (last) {
+          const lastTs = new Date(last.datetime ?? last.timestamp).getTime();
+          const nextTs = new Date(updatedAt).getTime();
+          if (Number.isFinite(lastTs) && Number.isFinite(nextTs) && nextTs <= lastTs) {
+            return prev;
+          }
+        }
+        return [...prev, nextRow];
+      });
+    },
+    Boolean(selectedDeviceId && availableParams.length > 0)
+  );
 
   // ---- Derived stats ------------------------------------------------------
   const paramStats = useMemo(() => {
