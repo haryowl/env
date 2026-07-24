@@ -57,6 +57,22 @@ const RANGE_OPTIONS = [
   { value: 'custom', label: 'Custom' },
 ];
 
+/** Fit Y-axis to data with light padding so single-parameter fluctuations are visible. */
+const padChartYDomain = ([dMin, dMax]) => {
+  if (!Number.isFinite(dMin) || !Number.isFinite(dMax)) {
+    return [0, 'auto'];
+  }
+  if (dMin === dMax) {
+    const pad = Math.max(Math.abs(dMin) * 0.05, 1e-9);
+    return [dMin - pad, dMax + pad];
+  }
+  const hi = dMax + 0.05 * Math.abs(dMax);
+  let lo = dMin - 0.05 * Math.abs(dMin);
+  if (dMin === 0) lo = 0;
+  if (lo >= hi) return [dMin, dMax];
+  return [lo, hi];
+};
+
 function toNumber(v) {
   if (v === null || v === undefined || v === '') return null;
   const n = typeof v === 'number' ? v : Number(v);
@@ -775,7 +791,18 @@ export default function NDashboard({ socket }) {
                       minTickGap={40}
                       tickFormatter={(ms) => (Number.isFinite(ms) ? formatInUserTimezone(new Date(ms).toISOString(), chartRange === '48h' || chartRange === 'custom' ? 'MM/DD HH:mm' : 'HH:mm') : '')}
                     />
-                    <YAxis tick={{ fontSize: 9, fill: theme.palette.text.secondary }} width={40} />
+                    <YAxis
+                      type="number"
+                      tick={{ fontSize: 9, fill: theme.palette.text.secondary }}
+                      width={44}
+                      domain={visibleChartParams.length === 1 ? padChartYDomain : [0, 'auto']}
+                      allowDataOverflow={visibleChartParams.length === 1}
+                      tickFormatter={(v) => {
+                        if (v === null || v === undefined || v === '') return '';
+                        const n = typeof v === 'number' ? v : Number(v);
+                        return Number.isFinite(n) ? n.toFixed(2) : String(v);
+                      }}
+                    />
                     <ReTooltip
                       contentStyle={{
                         backgroundColor: theme.palette.background.paper,
