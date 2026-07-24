@@ -289,6 +289,30 @@ const MapCenterUpdater = ({ centerCoords, mapRef }) => {
   return null;
 };
 
+/** When dashboard selects a device, pan/zoom the map to that marker. */
+const FocusPriorityDevice = ({ deviceId, devices }) => {
+  const map = useMap();
+  const lastFocusKeyRef = useRef(null);
+
+  useEffect(() => {
+    if (!deviceId || !map) return;
+    const device = (devices || []).find((d) => d.device_id === deviceId);
+    const lat = Number(device?.latitude);
+    const lng = Number(device?.longitude);
+    if (!device || !Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+    const focusKey = `${deviceId}:${lat.toFixed(5)},${lng.toFixed(5)}`;
+    if (lastFocusKeyRef.current === focusKey) return;
+    lastFocusKeyRef.current = focusKey;
+
+    // Zoom high enough that MarkerCluster typically unclusters (disableClusteringAtZoom=17)
+    const targetZoom = Math.max(map.getZoom(), 15);
+    map.flyTo([lat, lng], targetZoom, { duration: 0.75 });
+  }, [deviceId, devices, map]);
+
+  return null;
+};
+
 // Build deviceId -> list of { parameter, min, max } for threshold alerts
 const buildDeviceThresholds = (alerts) => {
   const map = {};
@@ -399,6 +423,7 @@ const DeviceMapMarker = React.memo(function DeviceMapMarker({
   formatValueForPopup,
   onMarkerClick,
   onPopupOpen,
+  priorityDeviceId = null,
 }) {
   const markerRef = useRef(null);
 
@@ -423,6 +448,24 @@ const DeviceMapMarker = React.memo(function DeviceMapMarker({
       popup.update();
     }
   }, [popupRefreshSignature]);
+
+  // Open popup when this device becomes the dashboard selection (after flyTo settles)
+  useEffect(() => {
+    const marker = markerRef.current;
+    if (!marker) return undefined;
+    if (priorityDeviceId !== device.device_id) {
+      if (marker.isPopupOpen?.()) marker.closePopup();
+      return undefined;
+    }
+    const openTimer = setTimeout(() => {
+      try {
+        marker.openPopup();
+      } catch {
+        /* cluster may still be settling */
+      }
+    }, 850);
+    return () => clearTimeout(openTimer);
+  }, [priorityDeviceId, device.device_id]);
 
   const handlePopupOpen = useCallback(() => {
     onPopupOpen(device.device_id);
@@ -1150,12 +1193,14 @@ const DashboardMap = ({
                   formatValueForPopup={formatValueForPopup}
                   onMarkerClick={handleMarkerClick}
                   onPopupOpen={handlePopupOpen}
+                  priorityDeviceId={priorityDeviceId}
                 />
               ))}
             </MarkerClusterGroup>
             
             <MapBoundsUpdater devices={devicesWithCoordinates} />
             <MapCenterUpdater centerCoords={centerCoords} mapRef={mapRef} />
+            <FocusPriorityDevice deviceId={priorityDeviceId} devices={devicesWithCoordinates} />
           </MapContainer>
       </Box>
     </>
