@@ -131,6 +131,28 @@ const escapeHtml = (str) => {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 };
 
+/** Short label for map pins — long names overflow iconSize and break Leaflet popup math on mobile. */
+const truncateMapLabel = (str, maxChars = 14) => {
+  const s = String(str || '').trim();
+  if (!s) return '';
+  if (s.length <= maxChars) return s;
+  return `${s.slice(0, Math.max(1, maxChars - 1))}…`;
+};
+
+// Shared pulse keyframes once (avoid injecting <style> per marker)
+if (typeof document !== 'undefined' && !document.getElementById('leaflet-device-marker-pulse')) {
+  const pulseStyle = document.createElement('style');
+  pulseStyle.id = 'leaflet-device-marker-pulse';
+  pulseStyle.textContent = `
+    @keyframes leafletDevicePulse {
+      0% { transform: scale(0.9); opacity: 0.8; }
+      70% { transform: scale(1.15); opacity: 0.2; }
+      100% { transform: scale(1.2); opacity: 0; }
+    }
+  `;
+  document.head.appendChild(pulseStyle);
+}
+
 // Future Map style: green pin with white dot center and white rectangular label beneath
 const createDeviceIcon = (status, hasAlerts = false, name = '') => {
   let color = '#10B981'; // green for online / in range
@@ -149,28 +171,36 @@ const createDeviceIcon = (status, hasAlerts = false, name = '') => {
     pulseColor = 'rgba(245, 158, 11, 0.25)';
   }
   
-  const hasName = name && String(name).trim() !== '';
+  const displayName = truncateMapLabel(name, 14);
+  const hasName = Boolean(displayName);
+  // iconSize MUST match the real DOM width. A 32px icon with a wider label caused
+  // layerPointToContainerPoint crashes when MarkerCluster / popup auto-pan ran.
+  const PIN_W = 32;
+  const LABEL_W = 96;
+  const iconW = hasName ? LABEL_W : PIN_W;
+  const iconH = hasName ? 50 : 32;
+  const iconAnchorY = 16;
+
   const labelHtml = hasName
     ? `<div style="
         margin-top: 4px;
-        padding: 3px 8px;
+        padding: 3px 6px;
         background: #fff;
         color: #1f2937;
-        font-size: 11px;
+        font-size: 10px;
         font-weight: 600;
         white-space: nowrap;
-        max-width: 120px;
+        width: ${LABEL_W - 4}px;
+        max-width: ${LABEL_W - 4}px;
         overflow: hidden;
         text-overflow: ellipsis;
         border-radius: 4px;
         box-shadow: 0 1px 3px rgba(0,0,0,0.2);
         border: 1px solid rgba(0,0,0,0.08);
         text-align: center;
-      ">${escapeHtml(String(name).trim())}</div>`
+        box-sizing: border-box;
+      " title="${escapeHtml(String(name).trim())}">${escapeHtml(displayName)}</div>`
     : '';
-  
-  const wrapperHeight = hasName ? 48 : 32;
-  const iconAnchorY = 16;
   
   return L.divIcon({
     className: className,
@@ -179,12 +209,16 @@ const createDeviceIcon = (status, hasAlerts = false, name = '') => {
         display: flex;
         flex-direction: column;
         align-items: center;
-        width: 32px;
+        width: ${iconW}px;
+        height: ${iconH}px;
+        overflow: hidden;
+        box-sizing: border-box;
       ">
         <div style="
           position: relative;
           width: 26px;
           height: 26px;
+          flex-shrink: 0;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -195,7 +229,7 @@ const createDeviceIcon = (status, hasAlerts = false, name = '') => {
             height: 28px;
             background-color: ${pulseColor};
             border-radius: 50%;
-            animation: pulse 2.5s infinite;
+            animation: leafletDevicePulse 2.5s infinite;
           "></div>
           <div style="
             width: 22px;
@@ -218,20 +252,41 @@ const createDeviceIcon = (status, hasAlerts = false, name = '') => {
         </div>
         ${labelHtml}
       </div>
-      <style>
-        @keyframes pulse {
-          0% { transform: scale(0.9); opacity: 0.8; }
-          70% { transform: scale(1.15); opacity: 0.2; }
-          100% { transform: scale(1.2); opacity: 0; }
-        }
-      </style>
     `,
-    iconSize: [32, wrapperHeight],
-    iconAnchor: [16, iconAnchorY]
+    iconSize: [iconW, iconH],
+    iconAnchor: [iconW / 2, iconAnchorY],
+    popupAnchor: [0, -iconAnchorY],
   });
 };
 
 const mapLayers = MAP_BASE_LAYERS;
+
+/**
+ * Soften Leaflet crashes when panes are null (mobile + MarkerCluster + oversized labels).
+ * Without this, ErrorBoundary takes over the whole page on layerPointToContainerPoint.
+ */
+if (typeof L !== 'undefined' && L.Map && !L.Map.prototype.__aksadataSafeProject) {
+  L.Map.prototype.__aksadataSafeProject = true;
+  const wrapPointFn = (proto, name) => {
+    const original = proto[name];
+    if (typeof original !== 'function') return;
+    proto[name] = function patchedPointFn(...args) {
+      if (!this || this._removed || !this._mapPane) {
+        return L.point(0, 0);
+      }
+      try {
+        return original.apply(this, args);
+      } catch (err) {
+        console.warn(`Leaflet ${name} skipped:`, err?.message || err);
+        return L.point(0, 0);
+      }
+    };
+  };
+  wrapPointFn(L.Map.prototype, 'layerPointToContainerPoint');
+  wrapPointFn(L.Map.prototype, 'containerPointToLayerPoint');
+  wrapPointFn(L.Map.prototype, 'latLngToLayerPoint');
+  wrapPointFn(L.Map.prototype, 'layerPointToLatLng');
+}
 
 /** Leaflet/iOS often crashes (layerPointToContainerPoint) if map panes/size are not ready. */
 function isLeafletMapReady(map) {
@@ -548,9 +603,13 @@ const DeviceMapMarker = React.memo(function DeviceMapMarker({
   useEffect(() => {
     const marker = markerRef.current;
     if (!marker?.isPopupOpen?.()) return;
-    const popup = marker.getPopup?.();
-    if (popup) {
-      popup.update();
+    try {
+      const leafletMap = marker._map;
+      if (!isLeafletMapReady(leafletMap)) return;
+      const popup = marker.getPopup?.();
+      if (popup) popup.update();
+    } catch {
+      /* ignore — popup.update can throw while panes are null */
     }
   }, [popupRefreshSignature]);
 
@@ -568,18 +627,33 @@ const DeviceMapMarker = React.memo(function DeviceMapMarker({
     }
 
     let cancelled = false;
-    const openTimer = window.setTimeout(() => {
+    let attempts = 0;
+    const tryOpen = () => {
       if (cancelled) return;
       try {
         const m = markerRef.current;
         if (!m) return;
         const leafletMap = m._map;
-        if (!isLeafletMapReady(leafletMap)) return;
+        if (!isLeafletMapReady(leafletMap)) {
+          try {
+            leafletMap?.invalidateSize?.({ animate: false });
+          } catch {
+            /* ignore */
+          }
+          if (attempts++ < 20) {
+            window.setTimeout(tryOpen, 150);
+          }
+          return;
+        }
 
         const finishOpen = () => {
           if (cancelled) return;
           try {
-            m.openPopup();
+            const m2 = markerRef.current;
+            const map2 = m2?._map;
+            if (!m2 || !isLeafletMapReady(map2)) return;
+            if (m2.isPopupOpen?.()) return;
+            m2.openPopup();
           } catch {
             /* cluster/map race on mobile */
           }
@@ -594,7 +668,8 @@ const DeviceMapMarker = React.memo(function DeviceMapMarker({
       } catch {
         /* ignore */
       }
-    }, 450);
+    };
+    const openTimer = window.setTimeout(tryOpen, 500);
 
     return () => {
       cancelled = true;
@@ -620,12 +695,17 @@ const DeviceMapMarker = React.memo(function DeviceMapMarker({
         popupopen: handlePopupOpen,
       }}
     >
-      <Popup>
+      <Popup
+        autoPan={false}
+        keepInView={false}
+        maxWidth={compactPopup ? 220 : 280}
+        minWidth={compactPopup ? 160 : 200}
+      >
         <ThemedPopup theme={theme}>
           <Box
             sx={{
-              minWidth: 200,
-              maxWidth: 280,
+              minWidth: compactPopup ? 160 : 200,
+              maxWidth: compactPopup ? 220 : 280,
               color: theme.palette.text.primary,
               backgroundColor: 'transparent',
             }}
@@ -633,10 +713,14 @@ const DeviceMapMarker = React.memo(function DeviceMapMarker({
             <Typography
               variant="h6"
               fontWeight="bold"
+              title={device.name}
               sx={{
                 color: theme.palette.text.primary,
                 mb: 0.5,
                 fontSize: compactPopup ? '0.92rem' : '1.1rem',
+                wordBreak: 'break-word',
+                overflowWrap: 'anywhere',
+                lineHeight: 1.25,
               }}
             >
               {device.name}
@@ -1305,6 +1389,7 @@ const DashboardMap = ({
               chunkedLoading
               showCoverageOnHover={false}
               spiderfyOnMaxZoom
+              animate={false}
               disableClusteringAtZoom={17}
               maxClusterRadius={55}
             >

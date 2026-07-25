@@ -603,14 +603,25 @@ export default function NDashboard({ socket }) {
             labelId="nd-chart-display"
             sx={{ '& .MuiSelect-select': { fontSize: '0.75rem' } }}
           />
-          <FormControl size="small" sx={{ minWidth: 150 }}>
+          <FormControl size="small" sx={{ minWidth: 120, maxWidth: { xs: 160, sm: 220 } }}>
             <Select
               value={selectedDeviceId || ''}
               onChange={(e) => setSelectedDeviceId(e.target.value)}
+              renderValue={(value) => {
+                const d = devices.find((x) => x.device_id === value);
+                const label = d?.name || value || '-';
+                return (
+                  <Typography noWrap sx={{ fontSize: '0.75rem', maxWidth: '100%' }} title={label}>
+                    {label}
+                  </Typography>
+                );
+              }}
               sx={{ fontSize: '0.75rem', minHeight: 32, borderRadius: 1.5, '& .MuiSelect-select': { py: 0.6 } }}
             >
               {devices.map((d) => (
-                <MenuItem key={d.device_id} value={d.device_id} sx={{ fontSize: '0.78rem' }}>{d.name}</MenuItem>
+                <MenuItem key={d.device_id} value={d.device_id} sx={{ fontSize: '0.78rem', maxWidth: 320 }}>
+                  <Typography noWrap title={d.name}>{d.name}</Typography>
+                </MenuItem>
               ))}
             </Select>
           </FormControl>
@@ -759,7 +770,7 @@ export default function NDashboard({ socket }) {
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 1 }}>
                 <Box>
                   <Typography sx={sectionTitleSx}>Environment Quality Time Series</Typography>
-                  <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary' }}>
+                  <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary' }} noWrap title={selectedDevice?.name || ''}>
                     {rangeLabel} · {selectedDevice?.name || '-'}
                   </Typography>
                 </Box>
@@ -935,7 +946,15 @@ export default function NDashboard({ socket }) {
                   size="small"
                   icon={<SensorsIcon sx={{ fontSize: '11px !important' }} />}
                   label={selectedDevice?.name || '-'}
-                  sx={{ height: 20, fontSize: '0.62rem', fontWeight: 700, maxWidth: 140, bgcolor: alpha(theme.palette.primary.main, 0.08), '& .MuiChip-label': { px: 0.6 } }}
+                  title={selectedDevice?.name || ''}
+                  sx={{
+                    height: 20,
+                    fontSize: '0.62rem',
+                    fontWeight: 700,
+                    maxWidth: 140,
+                    bgcolor: alpha(theme.palette.primary.main, 0.08),
+                    '& .MuiChip-label': { px: 0.6, overflow: 'hidden', textOverflow: 'ellipsis' },
+                  }}
                 />
               </Box>
               <Box sx={{ display: 'flex', flexDirection: 'column' }}>
