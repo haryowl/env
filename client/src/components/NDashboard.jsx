@@ -184,7 +184,8 @@ export default function NDashboard({ socket }) {
   });
   const [customStart, setCustomStart] = useState(() => new Date(Date.now() - 2 * 3600 * 1000));
   const [customEnd, setCustomEnd] = useState(() => new Date());
-  const [paramFilter, setParamFilter] = useState('all');
+  /** null = show all params; string[] = multi-select combine mode */
+  const [selectedChartParams, setSelectedChartParams] = useState(null);
   const [loadingDevices, setLoadingDevices] = useState(true);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
@@ -277,10 +278,33 @@ export default function NDashboard({ socket }) {
   const kpiParams = availableParams;
 
   useEffect(() => {
-    if (paramFilter !== 'all' && !availableParams.includes(paramFilter)) {
-      setParamFilter('all');
+    if (!selectedChartParams) return;
+    const next = selectedChartParams.filter((p) => availableParams.includes(p));
+    if (next.length === 0) {
+      setSelectedChartParams(null);
+    } else if (next.length !== selectedChartParams.length) {
+      setSelectedChartParams(next);
     }
-  }, [availableParams, paramFilter]);
+  }, [availableParams, selectedChartParams]);
+
+  const toggleChartParam = useCallback((key) => {
+    if (key === 'all') {
+      setSelectedChartParams(null);
+      return;
+    }
+    setSelectedChartParams((prev) => {
+      // From All: start combine mode with this parameter only
+      if (prev == null) return [key];
+      if (prev.includes(key)) {
+        const next = prev.filter((p) => p !== key);
+        return next.length === 0 ? null : next;
+      }
+      const next = [...prev, key];
+      // Selecting every parameter collapses back to All
+      if (chartParams.length > 0 && next.length >= chartParams.length) return null;
+      return next;
+    });
+  }, [chartParams.length]);
 
   const historyFetchAbortRef = useRef(null);
 
@@ -489,7 +513,10 @@ export default function NDashboard({ socket }) {
     return n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: digits });
   }, []);
 
-  const visibleChartParams = paramFilter === 'all' ? chartParams : chartParams.filter((p) => p === paramFilter);
+  const showAllChartParams = selectedChartParams == null;
+  const visibleChartParams = showAllChartParams
+    ? chartParams
+    : chartParams.filter((p) => selectedChartParams.includes(p));
   const chartData = useMemo(
     () => buildRealtimeChartSeries(history, chartParams, chartDisplayMode)
       .map((row) => {
@@ -736,14 +763,14 @@ export default function NDashboard({ socket }) {
                     {rangeLabel} · {selectedDevice?.name || '-'}
                   </Typography>
                 </Box>
-                <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', alignItems: 'center' }}>
                   {['all', ...chartParams].map((p) => {
-                    const active = paramFilter === p;
+                    const active = p === 'all' ? showAllChartParams : !showAllChartParams && selectedChartParams?.includes(p);
                     return (
                       <Button
                         key={p}
                         size="small"
-                        onClick={() => setParamFilter(p)}
+                        onClick={() => toggleChartParam(p)}
                         sx={{
                           minWidth: 0,
                           px: 1.1,
