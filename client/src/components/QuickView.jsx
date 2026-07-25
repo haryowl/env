@@ -52,9 +52,15 @@ import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import { filterDataViewParams } from '../utils/fieldCategory';
 import { alertAppliesToDevice } from '../utils/alertDevices';
 
+const isGpsParam = (p) => {
+  const k = String(p || '').toLowerCase();
+  return k === 'latitude' || k === 'longitude' || k === 'lat' || k === 'lon' || k === 'lng';
+};
+
 const QuickView = () => {
   const theme = useTheme();
-  const { metadata: fieldMetadata } = useFieldMetadata();
+  const { metadata: fieldMetadata, formatDisplayName } = useFieldMetadata();
+  const [exporting, setExporting] = useState(false);
 
   // State management
   const [devices, setDevices] = useState([]);
@@ -401,72 +407,82 @@ const QuickView = () => {
     return result;
   };
 
-  const handleExportPDF = async () => {
-    const deviceName = devices.find(d => d.device_id === selectedDevice)?.name || selectedDevice;
+  const buildExportPayload = async () => {
+    const deviceName = devices.find((d) => d.device_id === selectedDevice)?.name || selectedDevice;
+    const periodLabel = periodOptions.find((p) => p.value === selectedPeriod)?.label || selectedPeriod;
+    const startISO = getStartDate(selectedPeriod);
+    const endISO = getEndDate(selectedPeriod);
+    const token = localStorage.getItem('iot_token');
+    const exportParams = parameters
+      .filter((p) => !isGpsParam(p))
+      .map((fieldKey) => ({
+        fieldKey,
+        label: formatDisplayName(fieldKey, { withUnit: true }) || fieldKey,
+      }));
+
+    let rows = tableData || [];
+    let alerts = alertData || [];
+
     try {
-      // Always fetch with high limit for export (up to ~1 month at 2–5 min interval)
-      const token = localStorage.getItem('iot_token');
-      const endDate = getEndDate(selectedPeriod);
-      const startDate = getStartDate(selectedPeriod);
-      let fullTableData = tableData;
-      const fullTableResponse = await fetch(`${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=100000&export=true&excludeCategories=Status`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (fullTableResponse.ok) {
-        const fullData = await fullTableResponse.json();
-        fullTableData = fullData.data || [];
+      const [dataRes, alertRes] = await Promise.all([
+        fetch(
+          `${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startISO}&endDate=${endISO}&limit=100000&export=true&excludeCategories=Status`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        ),
+        fetch(
+          `${API_BASE_URL}/alert-logs?deviceId=${selectedDevice}&startDate=${startISO}&endDate=${endISO}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        ),
+      ]);
+      if (dataRes.ok) {
+        const fullData = await dataRes.json();
+        rows = fullData.data || [];
       }
-      await exportToPDF({
-        deviceName,
-        period: periodOptions.find(p => p.value === selectedPeriod)?.label,
-        chartData,
-        alertData,
-        tableData: fullTableData,
-        parameters,
-        chartRefs
-      });
+      if (alertRes.ok) {
+        const alertPayload = await alertRes.json();
+        alerts = alertPayload.logs || [];
+      }
+    } catch (e) {
+      console.error('Export fetch failed, using on-screen data:', e);
+    }
+
+    return {
+      deviceName,
+      periodLabel,
+      startISO,
+      endISO,
+      timezone: getUserTimezone(),
+      generatedAt: new Date().toISOString(),
+      parameters: exportParams,
+      rows,
+      alerts,
+      chartRefs,
+    };
+  };
+
+  const handleExportPDF = async () => {
+    if (!selectedDevice || parameters.length === 0 || exporting) return;
+    setExporting(true);
+    try {
+      const payload = await buildExportPayload();
+      await exportToPDF(payload);
     } catch (error) {
       console.error('Error exporting PDF:', error);
-      // You could show a user-friendly error message here
+    } finally {
+      setExporting(false);
     }
   };
 
   const handleExportExcel = async () => {
-    const deviceName = devices.find(d => d.device_id === selectedDevice)?.name || selectedDevice;
+    if (!selectedDevice || parameters.length === 0 || exporting) return;
+    setExporting(true);
     try {
-      // Always fetch with high limit for export (up to ~1 month at 2–5 min interval)
-      const token = localStorage.getItem('iot_token');
-      const endDate = getEndDate(selectedPeriod);
-      const startDate = getStartDate(selectedPeriod);
-      let fullTableData = tableData;
-      const fullTableResponse = await fetch(`${API_BASE_URL}/data-dash?deviceIds=${selectedDevice}&parameters=${parameters.join(',')}&startDate=${startDate}&endDate=${endDate}&limit=100000&export=true&excludeCategories=Status`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (fullTableResponse.ok) {
-        const fullData = await fullTableResponse.json();
-        fullTableData = fullData.data || [];
-      }
-      exportToExcel({
-        deviceName,
-        period: periodOptions.find(p => p.value === selectedPeriod)?.label,
-        chartData,
-        alertData,
-        tableData: fullTableData,
-        parameters,
-        chartRefs
-      });
+      const payload = await buildExportPayload();
+      exportToExcel(payload);
     } catch (error) {
       console.error('Error exporting Excel:', error);
-      // Fallback to current tableData if fetch fails
-      exportToExcel({
-        deviceName,
-        period: periodOptions.find(p => p.value === selectedPeriod)?.label,
-        chartData,
-        alertData,
-        tableData,
-        parameters,
-        chartRefs
-      });
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -524,23 +540,29 @@ const QuickView = () => {
                       <RefreshIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
-                  <Tooltip title="Export to PDF">
-                    <IconButton
-                      size="small"
-                      onClick={handleExportPDF}
-                      sx={{ color: 'error.main', '&:hover': { bgcolor: 'action.hover' } }}
-                    >
-                      <PdfIcon fontSize="small" />
-                    </IconButton>
+                  <Tooltip title={exporting ? 'Preparing export…' : 'Export to PDF'}>
+                    <span>
+                      <IconButton
+                        size="small"
+                        onClick={handleExportPDF}
+                        disabled={loading || exporting || !selectedDevice || parameters.length === 0}
+                        sx={{ color: 'error.main', '&:hover': { bgcolor: 'action.hover' } }}
+                      >
+                        <PdfIcon fontSize="small" />
+                      </IconButton>
+                    </span>
                   </Tooltip>
-                  <Tooltip title="Export to Excel">
-                    <IconButton
-                      size="small"
-                      onClick={handleExportExcel}
-                      sx={{ color: 'success.main', '&:hover': { bgcolor: 'action.hover' } }}
-                    >
-                      <ExcelIcon fontSize="small" />
-                    </IconButton>
+                  <Tooltip title={exporting ? 'Preparing export…' : 'Export to Excel'}>
+                    <span>
+                      <IconButton
+                        size="small"
+                        onClick={handleExportExcel}
+                        disabled={loading || exporting || !selectedDevice || parameters.length === 0}
+                        sx={{ color: 'success.main', '&:hover': { bgcolor: 'action.hover' } }}
+                      >
+                        <ExcelIcon fontSize="small" />
+                      </IconButton>
+                    </span>
                   </Tooltip>
                 </Stack>
                 <Box
@@ -794,11 +816,8 @@ const QuickView = () => {
                 }}
               >
                 {parameters
-                  .filter((p) => {
-                    const k = String(p || '').toLowerCase();
-                    return k !== 'latitude' && k !== 'longitude' && k !== 'lat' && k !== 'lon' && k !== 'lng';
-                  })
-                  .map((parameter, index) => {
+                  .filter((p) => !isGpsParam(p))
+                  .map((parameter) => {
                   return (
                     <Box key={parameter} sx={{ display: 'flex', minWidth: 0, width: '100%' }}>
                       <QuickViewChart
