@@ -741,7 +741,7 @@ export default function NDashboard({ socket }) {
                 ))}
               </Box>
             </Box>
-            <Box sx={{ height: { xs: 210, md: 240 }, display: 'flex', flexDirection: 'column' }}>
+            <Box sx={{ height: { xs: 210, md: 240 }, minHeight: 210, display: 'flex', flexDirection: 'column' }}>
               <DashboardMap
                 socket={socket}
                 fillHeight

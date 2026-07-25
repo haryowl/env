@@ -233,6 +233,30 @@ const createDeviceIcon = (status, hasAlerts = false, name = '') => {
 
 const mapLayers = MAP_BASE_LAYERS;
 
+/** Leaflet/iOS often crashes (layerPointToContainerPoint) if map panes/size are not ready. */
+function isLeafletMapReady(map) {
+  if (!map || map._removed) return false;
+  try {
+    if (!map._mapPane || !map._container) return false;
+    const size = map.getSize?.();
+    if (!size || size.x < 2 || size.y < 2) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function safeMapOp(map, fn) {
+  if (!isLeafletMapReady(map)) return false;
+  try {
+    fn(map);
+    return true;
+  } catch (err) {
+    console.warn('Leaflet map operation skipped:', err?.message || err);
+    return false;
+  }
+}
+
 // Map bounds updater: fit all markers only when positions / device set actually changes — not on every
 // parent re-render (e.g. opening popup / loading latest data used to recreate `devices` array each time).
 const MapBoundsUpdater = ({ devices }) => {
@@ -242,7 +266,7 @@ const MapBoundsUpdater = ({ devices }) => {
   useEffect(() => {
     if (devices.length === 0) {
       lastBoundsSigRef.current = '';
-      return;
+      return undefined;
     }
     const bounds = L.latLngBounds();
     let hasPoints = false;
@@ -254,17 +278,41 @@ const MapBoundsUpdater = ({ devices }) => {
       }
     });
 
-    if (!hasPoints) return;
+    if (!hasPoints) return undefined;
 
     const sig = devices
       .map((d) => `${d.device_id}:${Number(d.latitude).toFixed(5)},${Number(d.longitude).toFixed(5)}`)
       .sort()
       .join('|');
 
-    if (sig === lastBoundsSigRef.current) return;
+    if (sig === lastBoundsSigRef.current) return undefined;
     lastBoundsSigRef.current = sig;
 
-    map.fitBounds(bounds, { padding: [20, 20] });
+    let cancelled = false;
+    let attempts = 0;
+    const run = () => {
+      if (cancelled) return;
+      if (!isLeafletMapReady(map)) {
+        try {
+          map.invalidateSize?.({ animate: false });
+        } catch {
+          /* ignore */
+        }
+        if (attempts++ < 25) {
+          window.setTimeout(run, 120);
+        }
+        return;
+      }
+      safeMapOp(map, (m) => {
+        m.invalidateSize({ animate: false });
+        m.fitBounds(bounds, { padding: [20, 20], animate: false });
+      });
+    };
+    const timer = window.setTimeout(run, 80);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [devices, map]);
 
   return null;
@@ -273,7 +321,7 @@ const MapBoundsUpdater = ({ devices }) => {
 // Map center updater component
 const MapCenterUpdater = ({ centerCoords, mapRef }) => {
   const map = useMap();
-  
+
   useEffect(() => {
     if (mapRef) {
       mapRef.current = map;
@@ -281,10 +329,43 @@ const MapCenterUpdater = ({ centerCoords, mapRef }) => {
   }, [map, mapRef]);
 
   useEffect(() => {
-    if (centerCoords && map) {
-      map.setView([centerCoords.lat, centerCoords.lng], map.getZoom());
-    }
+    if (!centerCoords || !map) return;
+    safeMapOp(map, (m) => {
+      m.setView([centerCoords.lat, centerCoords.lng], m.getZoom(), { animate: false });
+    });
   }, [centerCoords, map]);
+
+  return null;
+};
+
+/** Keep tile/layer math valid when the map card starts at 0 height (common on mobile after login). */
+const MapInvalidateSize = () => {
+  const map = useMap();
+
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = () => {
+      if (cancelled || !map) return;
+      try {
+        map.invalidateSize({ animate: false });
+      } catch {
+        /* ignore */
+      }
+    };
+    const t1 = window.setTimeout(refresh, 50);
+    const t2 = window.setTimeout(refresh, 300);
+    const t3 = window.setTimeout(refresh, 800);
+    window.addEventListener('resize', refresh);
+    window.addEventListener('orientationchange', refresh);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      window.clearTimeout(t3);
+      window.removeEventListener('resize', refresh);
+      window.removeEventListener('orientationchange', refresh);
+    };
+  }, [map]);
 
   return null;
 };
@@ -295,19 +376,43 @@ const FocusPriorityDevice = ({ deviceId, devices }) => {
   const lastFocusKeyRef = useRef(null);
 
   useEffect(() => {
-    if (!deviceId || !map) return;
+    if (!deviceId || !map) return undefined;
     const device = (devices || []).find((d) => d.device_id === deviceId);
     const lat = Number(device?.latitude);
     const lng = Number(device?.longitude);
-    if (!device || !Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    if (!device || !Number.isFinite(lat) || !Number.isFinite(lng)) return undefined;
 
     const focusKey = `${deviceId}:${lat.toFixed(5)},${lng.toFixed(5)}`;
-    if (lastFocusKeyRef.current === focusKey) return;
-    lastFocusKeyRef.current = focusKey;
+    if (lastFocusKeyRef.current === focusKey) return undefined;
 
-    // Zoom high enough that MarkerCluster typically unclusters (disableClusteringAtZoom=17)
-    const targetZoom = Math.max(map.getZoom(), 15);
-    map.flyTo([lat, lng], targetZoom, { duration: 0.75 });
+    let cancelled = false;
+    let attempts = 0;
+    const run = () => {
+      if (cancelled) return;
+      if (!isLeafletMapReady(map)) {
+        try {
+          map.invalidateSize?.({ animate: false });
+        } catch {
+          /* ignore */
+        }
+        if (attempts++ < 25) {
+          window.setTimeout(run, 120);
+        }
+        return;
+      }
+      lastFocusKeyRef.current = focusKey;
+      // Prefer setView over flyTo — MarkerCluster + animated flyTo often throws on mobile Safari
+      safeMapOp(map, (m) => {
+        m.invalidateSize({ animate: false });
+        const targetZoom = Math.min(Math.max(m.getZoom(), 14), 16);
+        m.setView([lat, lng], targetZoom, { animate: false });
+      });
+    };
+    const timer = window.setTimeout(run, 200);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [deviceId, devices, map]);
 
   return null;
@@ -449,22 +554,52 @@ const DeviceMapMarker = React.memo(function DeviceMapMarker({
     }
   }, [popupRefreshSignature]);
 
-  // Open popup when this device becomes the dashboard selection (after flyTo settles)
+  // Open popup when this device becomes the dashboard selection (after map settles)
   useEffect(() => {
     const marker = markerRef.current;
     if (!marker) return undefined;
     if (priorityDeviceId !== device.device_id) {
-      if (marker.isPopupOpen?.()) marker.closePopup();
+      try {
+        if (marker.isPopupOpen?.()) marker.closePopup();
+      } catch {
+        /* ignore */
+      }
       return undefined;
     }
-    const openTimer = setTimeout(() => {
+
+    let cancelled = false;
+    const openTimer = window.setTimeout(() => {
+      if (cancelled) return;
       try {
-        marker.openPopup();
+        const m = markerRef.current;
+        if (!m) return;
+        const leafletMap = m._map;
+        if (!isLeafletMapReady(leafletMap)) return;
+
+        const finishOpen = () => {
+          if (cancelled) return;
+          try {
+            m.openPopup();
+          } catch {
+            /* cluster/map race on mobile */
+          }
+        };
+
+        // Clustered markers: zoomToShowLayer avoids layerPointToContainerPoint crash
+        if (m.__parent && typeof m.__parent.zoomToShowLayer === 'function') {
+          m.__parent.zoomToShowLayer(m, finishOpen);
+        } else {
+          finishOpen();
+        }
       } catch {
-        /* cluster may still be settling */
+        /* ignore */
       }
-    }, 850);
-    return () => clearTimeout(openTimer);
+    }, 450);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(openTimer);
+    };
   }, [priorityDeviceId, device.device_id]);
 
   const handlePopupOpen = useCallback(() => {
@@ -1200,6 +1335,7 @@ const DashboardMap = ({
             
             <MapBoundsUpdater devices={devicesWithCoordinates} />
             <MapCenterUpdater centerCoords={centerCoords} mapRef={mapRef} />
+            <MapInvalidateSize />
             <FocusPriorityDevice deviceId={priorityDeviceId} devices={devicesWithCoordinates} />
           </MapContainer>
       </Box>
