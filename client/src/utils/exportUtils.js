@@ -3,11 +3,7 @@ import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { formatInUserTimezone, getUserTimezone } from './timezoneUtils';
 
-const A4_W = 210;
-const A4_H = 297;
 const MARGIN = 14;
-const CONTENT_BOTTOM = A4_H - MARGIN;
-const CONTENT_WIDTH = A4_W - MARGIN * 2;
 
 const toFinite = (v) => {
   if (v === null || v === undefined || v === '') return null;
@@ -68,17 +64,6 @@ function mapAlertRows(alerts, labelByKey) {
       status: alert.severity != null ? String(alert.severity) : alert.status != null ? String(alert.status) : '-',
     };
   });
-}
-
-function startNewPage(doc) {
-  doc.addPage();
-  return MARGIN;
-}
-
-/** If block of `needed` mm won't fit, start a new page. Never splits a block across pages. */
-function ensureBlockSpace(doc, y, needed) {
-  if (y + needed <= CONTENT_BOTTOM) return y;
-  return startNewPage(doc);
 }
 
 async function captureChartPng(chartRef) {
@@ -150,9 +135,50 @@ function runAutoTable(doc, options) {
   }
 }
 
+/** Helvetica cannot render most Unicode — strip/replace so jsPDF does not garble lines. */
+function pdfSafe(value) {
+  return String(value ?? '')
+    .replace(/→/g, 'to')
+    .replace(/[–—]/g, '-')
+    .replace(/³/g, '3')
+    .replace(/²/g, '2')
+    .replace(/°/g, ' deg')
+    .replace(/μ|µ/g, 'u')
+    .replace(/[^\x20-\x7E]/g, '')
+    .trim();
+}
+
+function setPdfFont(doc, style = 'normal') {
+  doc.setFont('helvetica', style);
+}
+
+function pageSize(doc) {
+  return {
+    w: doc.internal.pageSize.getWidth(),
+    h: doc.internal.pageSize.getHeight(),
+  };
+}
+
+function fitImageInBox(srcW, srcH, boxW, boxH) {
+  if (!srcW || !srcH || !boxW || !boxH) return { w: boxW, h: boxH };
+  const scale = Math.min(boxW / srcW, boxH / srcH);
+  return { w: srcW * scale, h: srcH * scale };
+}
+
+function drawFooter(doc, payload) {
+  const { w, h } = pageSize(doc);
+  setPdfFont(doc, 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(120);
+  const left = pdfSafe(`${payload.deviceName || ''} | ${payload.periodLabel || ''}`);
+  const right = `Page ${doc.internal.getNumberOfPages()}`;
+  doc.text(left, MARGIN, h - 8);
+  doc.text(right, w - MARGIN, h - 8, { align: 'right' });
+  doc.setTextColor(0);
+}
+
 /**
- * Quick View PDF — cover/summary + one chart per page + alerts table.
- * Charts never share a page with other charts to avoid overlap/clipping.
+ * Quick View PDF — polished cover + charts that fill the page (2 per page) + alerts when present.
  */
 export const exportToPDF = async (payload) => {
   const {
@@ -168,119 +194,162 @@ export const exportToPDF = async (payload) => {
     chartRefs = {},
   } = payload || {};
 
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
   const labelByKey = new Map(parameters.map((p) => [p.fieldKey, p.label]));
   let y = MARGIN;
+  const contentW = () => pageSize(doc).w - MARGIN * 2;
+  const contentBottom = () => pageSize(doc).h - MARGIN - 6;
 
   // ---- Cover / summary ----------------------------------------------------
+  setPdfFont(doc, 'bold');
   doc.setFontSize(18);
-  doc.setFont(undefined, 'bold');
   doc.text('Quick View Report', MARGIN, y);
-  y += 10;
+  y += 8;
 
-  doc.setFont(undefined, 'normal');
+  setPdfFont(doc, 'normal');
   doc.setFontSize(10);
+  const rangeText = `Range: ${pdfSafe(formatInUserTimezone(startISO))} to ${pdfSafe(formatInUserTimezone(endISO))}`;
   const metaLines = [
-    `Device: ${deviceName || '-'}`,
-    `Period: ${periodLabel || '-'}`,
-    `Range: ${formatInUserTimezone(startISO)}  →  ${formatInUserTimezone(endISO)}`,
-    `Timezone: ${timezone || getUserTimezone()}`,
-    `Generated: ${formatInUserTimezone(generatedAt || new Date().toISOString())}`,
+    `Device: ${pdfSafe(deviceName || '-')}`,
+    `Period: ${pdfSafe(periodLabel || '-')}`,
+    rangeText,
+    `Timezone: ${pdfSafe(timezone || getUserTimezone())}`,
+    `Generated: ${pdfSafe(formatInUserTimezone(generatedAt || new Date().toISOString()))}`,
     `Data points: ${rows.length}`,
+    `Alerts in range: ${alerts.length}`,
   ];
   metaLines.forEach((line) => {
     doc.text(line, MARGIN, y);
-    y += 6;
+    y += 5.5;
   });
 
-  y += 4;
-  doc.setFontSize(13);
-  doc.setFont(undefined, 'bold');
+  y += 3;
+  setPdfFont(doc, 'bold');
+  doc.setFontSize(12);
   doc.text('Summary Statistics', MARGIN, y);
-  y += 8;
-  doc.setFont(undefined, 'normal');
-  doc.setFontSize(9);
-
-  if (!parameters.length) {
-    doc.text('No parameters available for this device.', MARGIN, y);
-    y += 6;
-  } else {
-    parameters.forEach((param) => {
-      const stats = computeParamStats(rows, param.fieldKey);
-      const line = stats
-        ? `${param.label}: Min=${stats.min.toFixed(3)}, Max=${stats.max.toFixed(3)}, Avg=${stats.avg.toFixed(3)} (n=${stats.count})`
-        : `${param.label}: no numeric values`;
-      y = ensureBlockSpace(doc, y, 6);
-      const wrapped = doc.splitTextToSize(line, CONTENT_WIDTH);
-      doc.text(wrapped, MARGIN, y);
-      y += wrapped.length * 5;
-    });
-  }
-
   y += 4;
-  y = ensureBlockSpace(doc, y, 12);
-  doc.setFontSize(13);
-  doc.setFont(undefined, 'bold');
-  doc.text('Alert Summary', MARGIN, y);
-  y += 7;
-  doc.setFont(undefined, 'normal');
-  doc.setFontSize(10);
-  doc.text(`Total alerts in range: ${alerts.length}`, MARGIN, y);
-  y += 6;
+  setPdfFont(doc, 'normal');
+
+  const statsBody = parameters.map((param) => {
+    const stats = computeParamStats(rows, param.fieldKey);
+    if (!stats) return [pdfSafe(param.label), '-', '-', '-', '0'];
+    return [
+      pdfSafe(param.label),
+      stats.min.toFixed(3),
+      stats.max.toFixed(3),
+      stats.avg.toFixed(3),
+      String(stats.count),
+    ];
+  });
+
+  runAutoTable(doc, {
+    startY: y,
+    margin: { left: MARGIN, right: MARGIN, top: MARGIN, bottom: 16 },
+    head: [['Parameter', 'Min', 'Max', 'Average', 'Count']],
+    body: statsBody.length ? statsBody : [['No parameters', '-', '-', '-', '-']],
+    styles: { font: 'helvetica', fontSize: 9, cellPadding: 2 },
+    headStyles: { fillColor: [33, 100, 140], textColor: 255, fontStyle: 'bold' },
+    columnStyles: {
+      0: { cellWidth: 70 },
+      1: { halign: 'right' },
+      2: { halign: 'right' },
+      3: { halign: 'right' },
+      4: { halign: 'right' },
+    },
+  });
+
+  y = (doc.lastAutoTable?.finalY || y) + 8;
+  setPdfFont(doc, 'normal');
   doc.setFontSize(9);
   doc.setTextColor(100);
-  doc.text('Full raw readings are in the Excel Data sheet. This PDF is the visual report.', MARGIN, y);
+  doc.text(
+    pdfSafe('Full raw readings are in the Excel Data sheet. This PDF is the visual report.'),
+    MARGIN,
+    y
+  );
   doc.setTextColor(0);
+  drawFooter(doc, { deviceName, periodLabel });
 
-  // ---- Charts: one per page (no overlap risk) -----------------------------
+  // ---- Charts: 2 per portrait page, sized to fill usable space ------------
   const chartParams = parameters.filter((p) => chartRefs?.[p.fieldKey]);
+  const capturedCharts = [];
   for (const param of chartParams) {
-    y = startNewPage(doc);
-
-    doc.setFontSize(12);
-    doc.setFont(undefined, 'bold');
-    doc.text(param.label, MARGIN, y);
-    y += 8;
-    doc.setFont(undefined, 'normal');
-
     const captured = await captureChartPng(chartRefs[param.fieldKey]);
-    if (!captured?.png) {
-      doc.setFontSize(10);
-      doc.text('Chart image unavailable for this parameter.', MARGIN, y);
-      continue;
-    }
-
-    const maxImgHeight = CONTENT_BOTTOM - y;
-    let imgW = CONTENT_WIDTH;
-    let imgH = (captured.height * imgW) / captured.width;
-    if (imgH > maxImgHeight) {
-      imgH = maxImgHeight;
-      imgW = (captured.width * imgH) / captured.height;
-    }
-    // Keep title + image on this page only
-    doc.addImage(captured.png, 'PNG', MARGIN, y, imgW, imgH);
+    capturedCharts.push({ param, captured });
   }
 
-  // ---- Alerts table -------------------------------------------------------
-  y = startNewPage(doc);
-  doc.setFontSize(13);
-  doc.setFont(undefined, 'bold');
-  doc.text('Alerts', MARGIN, y);
-  y += 6;
-  doc.setFont(undefined, 'normal');
+  const CHARTS_PER_PAGE = 2;
+  for (let i = 0; i < capturedCharts.length; i += CHARTS_PER_PAGE) {
+    doc.addPage('a4', 'portrait');
+    const { h: pageH } = pageSize(doc);
+    const footerReserve = 12;
+    const pageTop = MARGIN;
+    const usableH = pageH - pageTop - footerReserve;
+    const slot = capturedCharts.slice(i, i + CHARTS_PER_PAGE);
+    const gap = 8;
+    const slotH = (usableH - gap * (slot.length - 1)) / slot.length;
+    let slotTop = pageTop;
 
+    for (const { param, captured } of slot) {
+      setPdfFont(doc, 'bold');
+      doc.setFontSize(11);
+      doc.text(pdfSafe(param.label), MARGIN, slotTop + 4);
+
+      const titleH = 7;
+      const boxW = contentW();
+      const boxH = Math.max(40, slotH - titleH - 2);
+      const boxX = MARGIN;
+      const boxY = slotTop + titleH;
+
+      // Light frame so the chart area is clear even with leftover whitespace
+      doc.setDrawColor(210);
+      doc.setFillColor(252, 252, 252);
+      doc.roundedRect(boxX, boxY, boxW, boxH, 1.5, 1.5, 'FD');
+
+      if (!captured?.png) {
+        setPdfFont(doc, 'normal');
+        doc.setFontSize(10);
+        doc.setTextColor(120);
+        doc.text('Chart image unavailable.', boxX + 4, boxY + 12);
+        doc.setTextColor(0);
+      } else {
+        const fitted = fitImageInBox(captured.width, captured.height, boxW - 4, boxH - 4);
+        const imgX = boxX + (boxW - fitted.w) / 2;
+        const imgY = boxY + (boxH - fitted.h) / 2;
+        doc.addImage(captured.png, 'PNG', imgX, imgY, fitted.w, fitted.h);
+      }
+
+      slotTop += slotH + gap;
+    }
+
+    drawFooter(doc, { deviceName, periodLabel });
+  }
+
+  // ---- Alerts table (only when there are alerts) --------------------------
   const alertRows = mapAlertRows(alerts, labelByKey);
-  if (!alertRows.length) {
-    doc.setFontSize(10);
-    doc.text('No alerts in this period.', MARGIN, y + 4);
-  } else {
+  if (alertRows.length > 0) {
+    doc.addPage('a4', 'portrait');
+    y = MARGIN;
+    setPdfFont(doc, 'bold');
+    doc.setFontSize(13);
+    doc.text('Alerts', MARGIN, y);
+    y += 6;
+    setPdfFont(doc, 'normal');
+
     runAutoTable(doc, {
       startY: y,
-      margin: { left: MARGIN, right: MARGIN, top: MARGIN, bottom: MARGIN },
+      margin: { left: MARGIN, right: MARGIN, top: MARGIN, bottom: 16 },
       head: [['Timestamp', 'Parameter', 'Value', 'Threshold', 'Type', 'Status']],
-      body: alertRows.map((r) => [r.timestamp, r.parameter, r.value, r.threshold, r.type, r.status]),
-      styles: { fontSize: 8, cellPadding: 1.5, overflow: 'linebreak' },
-      headStyles: { fillColor: [33, 100, 140], textColor: 255 },
+      body: alertRows.map((r) => [
+        pdfSafe(r.timestamp),
+        pdfSafe(r.parameter),
+        pdfSafe(r.value),
+        pdfSafe(r.threshold),
+        pdfSafe(r.type),
+        pdfSafe(r.status),
+      ]),
+      styles: { font: 'helvetica', fontSize: 8, cellPadding: 1.5, overflow: 'linebreak' },
+      headStyles: { fillColor: [33, 100, 140], textColor: 255, fontStyle: 'bold' },
       columnStyles: {
         0: { cellWidth: 32 },
         1: { cellWidth: 40 },
@@ -290,6 +359,7 @@ export const exportToPDF = async (payload) => {
         5: { cellWidth: 22 },
       },
     });
+    drawFooter(doc, { deviceName, periodLabel });
   }
 
   const fileName = `quick-view-${safeFilePart(deviceName)}-${safeFilePart(periodLabel)}.pdf`;
