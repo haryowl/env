@@ -66,6 +66,106 @@ function mapAlertRows(alerts, labelByKey) {
   });
 }
 
+/** Parse #rgb / #rrggbb / rgb() / rgba() → [r,g,b] or null. */
+function parseRgbColor(value) {
+  if (!value || value === 'none' || value === 'transparent') return null;
+  const s = String(value).trim().toLowerCase();
+  if (s.startsWith('#')) {
+    const hex = s.slice(1);
+    if (hex.length === 3) {
+      return [0, 1, 2].map((i) => parseInt(hex[i] + hex[i], 16));
+    }
+    if (hex.length === 6 || hex.length === 8) {
+      return [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16));
+    }
+    return null;
+  }
+  const m = s.match(/rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/);
+  if (m) return [Number(m[1]), Number(m[2]), Number(m[3])];
+  return null;
+}
+
+function colorLuminance(rgb) {
+  if (!rgb) return 0;
+  return (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255;
+}
+
+function isLightColor(value) {
+  const rgb = parseRgbColor(value);
+  if (!rgb) return false;
+  return colorLuminance(rgb) > 0.62;
+}
+
+/**
+ * Clone chart SVG and force print-friendly colors.
+ * Dark-theme Recharts ticks/axes use light fills that vanish on the white PDF canvas.
+ */
+function cloneSvgForPdf(svg) {
+  const clone = svg.cloneNode(true);
+  if (!clone.getAttribute('xmlns')) {
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  }
+
+  const forceAttr = (el, attr, color) => {
+    el.setAttribute(attr, color);
+    const style = el.getAttribute('style');
+    if (style && new RegExp(`${attr}\\s*:`, 'i').test(style)) {
+      el.setAttribute(
+        'style',
+        style.replace(new RegExp(`${attr}\\s*:[^;]+`, 'gi'), `${attr}:${color}`)
+      );
+    }
+  };
+
+  clone.querySelectorAll('text').forEach((el) => {
+    const fill = el.getAttribute('fill');
+    // Always readable on white; also replace light fills from dark theme
+    if (!fill || fill === 'currentColor' || fill === 'none' || isLightColor(fill)) {
+      forceAttr(el, 'fill', '#334155');
+    }
+  });
+
+  clone.querySelectorAll('.recharts-cartesian-axis-tick text, .recharts-label, .recharts-text').forEach((el) => {
+    forceAttr(el, 'fill', '#334155');
+  });
+
+  clone.querySelectorAll(
+    '.recharts-cartesian-axis-line, .recharts-cartesian-axis-tick-line, .recharts-cartesian-axis line'
+  ).forEach((el) => {
+    const stroke = el.getAttribute('stroke');
+    if (!stroke || stroke === 'currentColor' || isLightColor(stroke)) {
+      forceAttr(el, 'stroke', '#64748b');
+    }
+  });
+
+  clone.querySelectorAll('.recharts-cartesian-grid line, .recharts-cartesian-grid path').forEach((el) => {
+    const stroke = el.getAttribute('stroke');
+    if (!stroke || stroke === 'currentColor' || isLightColor(stroke)) {
+      forceAttr(el, 'stroke', '#cbd5e1');
+    }
+  });
+
+  // Bake computed fills for any text still light via CSS class (live SVG → clone)
+  try {
+    const srcTexts = svg.querySelectorAll('text');
+    const cloneTexts = clone.querySelectorAll('text');
+    srcTexts.forEach((src, i) => {
+      const dest = cloneTexts[i];
+      if (!dest || typeof window === 'undefined' || !window.getComputedStyle) return;
+      const computed = window.getComputedStyle(src).fill;
+      if (!computed || computed === 'none' || isLightColor(computed)) {
+        forceAttr(dest, 'fill', '#334155');
+      } else if (!dest.getAttribute('fill') || dest.getAttribute('fill') === 'currentColor') {
+        forceAttr(dest, 'fill', computed);
+      }
+    });
+  } catch {
+    /* ignore */
+  }
+
+  return clone;
+}
+
 async function captureChartPng(chartRef) {
   const el = chartRef?.current;
   if (!el) return null;
@@ -97,7 +197,8 @@ async function captureChartPng(chartRef) {
   w = Math.max(1, Math.round(w));
   h = Math.max(1, Math.round(h));
 
-  let svgData = new XMLSerializer().serializeToString(svg);
+  const pdfSvg = cloneSvgForPdf(svg);
+  let svgData = new XMLSerializer().serializeToString(pdfSvg);
   const svgTag = svgData.substring(0, svgData.indexOf('>'));
   if (!/width\s*=/.test(svgTag)) {
     svgData = svgData.replace(/<svg/, `<svg width="${w}" height="${h}"`);
@@ -178,7 +279,7 @@ function drawFooter(doc, payload) {
 }
 
 /**
- * Quick View PDF — polished cover + charts that fill the page (2 per page) + alerts when present.
+ * Quick View PDF — cover + 2-column chart grid + alerts when present.
  */
 export const exportToPDF = async (payload) => {
   const {
@@ -270,7 +371,7 @@ export const exportToPDF = async (payload) => {
   doc.setTextColor(0);
   drawFooter(doc, { deviceName, periodLabel });
 
-  // ---- Charts: 2 per portrait page, sized to fill usable space ------------
+  // ---- Charts: 2 side-by-side per row; pack as many rows as fit on each page ----
   const chartParams = parameters.filter((p) => chartRefs?.[p.fieldKey]);
   const capturedCharts = [];
   for (const param of chartParams) {
@@ -278,51 +379,78 @@ export const exportToPDF = async (payload) => {
     capturedCharts.push({ param, captured });
   }
 
-  const CHARTS_PER_PAGE = 2;
-  for (let i = 0; i < capturedCharts.length; i += CHARTS_PER_PAGE) {
+  const COL_GAP = 6;
+  const ROW_GAP = 8;
+  const TITLE_H = 6;
+  let chartPageOpen = false;
+  let rowY = MARGIN;
+
+  const openChartPage = () => {
     doc.addPage('a4', 'portrait');
+    drawFooter(doc, { deviceName, periodLabel });
+    rowY = MARGIN;
+    chartPageOpen = true;
+  };
+
+  for (let i = 0; i < capturedCharts.length; i += 2) {
+    const pair = capturedCharts.slice(i, i + 2);
+    const cols = pair.length;
+    const fullW = contentW();
+    const colW = cols === 1 ? fullW : (fullW - COL_GAP) / 2;
     const { h: pageH } = pageSize(doc);
-    const footerReserve = 12;
-    const pageTop = MARGIN;
-    const usableH = pageH - pageTop - footerReserve;
-    const slot = capturedCharts.slice(i, i + CHARTS_PER_PAGE);
-    const gap = 8;
-    const slotH = (usableH - gap * (slot.length - 1)) / slot.length;
-    let slotTop = pageTop;
+    const usableBottom = pageH - 12;
 
-    for (const { param, captured } of slot) {
-      setPdfFont(doc, 'bold');
-      doc.setFontSize(11);
-      doc.text(pdfSafe(param.label), MARGIN, slotTop + 4);
-
-      const titleH = 7;
-      const boxW = contentW();
-      const boxH = Math.max(40, slotH - titleH - 2);
-      const boxX = MARGIN;
-      const boxY = slotTop + titleH;
-
-      // Light frame so the chart area is clear even with leftover whitespace
-      doc.setDrawColor(210);
-      doc.setFillColor(252, 252, 252);
-      doc.roundedRect(boxX, boxY, boxW, boxH, 1.5, 1.5, 'FD');
-
-      if (!captured?.png) {
-        setPdfFont(doc, 'normal');
-        doc.setFontSize(10);
-        doc.setTextColor(120);
-        doc.text('Chart image unavailable.', boxX + 4, boxY + 12);
-        doc.setTextColor(0);
-      } else {
-        const fitted = fitImageInBox(captured.width, captured.height, boxW - 4, boxH - 4);
-        const imgX = boxX + (boxW - fitted.w) / 2;
-        const imgY = boxY + (boxH - fitted.h) / 2;
-        doc.addImage(captured.png, 'PNG', imgX, imgY, fitted.w, fitted.h);
+    const prepared = pair.map(({ param, captured }) => {
+      let fitted = null;
+      let frameH = 48;
+      if (captured?.png) {
+        const maxImgH = Math.max(50, usableBottom - MARGIN - TITLE_H - 4);
+        fitted = fitImageInBox(captured.width, captured.height, colW - 4, maxImgH);
+        frameH = Math.max(40, fitted.h + 4);
       }
+      return { param, captured, fitted, frameH };
+    });
 
-      slotTop += slotH + gap;
+    const rowFrameH = Math.max(...prepared.map((p) => p.frameH));
+    const rowH = TITLE_H + rowFrameH;
+
+    if (!chartPageOpen || rowY + rowH > usableBottom) {
+      openChartPage();
     }
 
-    drawFooter(doc, { deviceName, periodLabel });
+    prepared.forEach((item, col) => {
+      const boxX = MARGIN + col * (colW + COL_GAP);
+      const boxY = rowY + TITLE_H;
+      let fitted = item.fitted;
+      if (item.captured?.png) {
+        fitted = fitImageInBox(item.captured.width, item.captured.height, colW - 4, rowFrameH - 4);
+      }
+
+      setPdfFont(doc, 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(30);
+      doc.text(pdfSafe(item.param.label), boxX, rowY + 4, { maxWidth: colW - 2 });
+
+      doc.setDrawColor(210);
+      doc.setFillColor(252, 252, 252);
+      doc.roundedRect(boxX, boxY, colW, rowFrameH, 1.5, 1.5, 'FD');
+
+      if (!item.captured?.png || !fitted) {
+        setPdfFont(doc, 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(120);
+        doc.text('Chart image unavailable.', boxX + 3, boxY + 10);
+        doc.setTextColor(0);
+        return;
+      }
+
+      const imgX = boxX + (colW - fitted.w) / 2;
+      const imgY = boxY + (rowFrameH - fitted.h) / 2;
+      doc.addImage(item.captured.png, 'PNG', imgX, imgY, fitted.w, fitted.h);
+      doc.setTextColor(0);
+    });
+
+    rowY += rowH + ROW_GAP;
   }
 
   // ---- Alerts table (only when there are alerts) --------------------------
