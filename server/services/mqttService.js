@@ -657,7 +657,18 @@ class MQTTService {
     }
   }
 
-  async storeDeviceData(device, data, rawPayload = null) {
+  async storeDeviceData(device, data, rawPayload = null, options = {}) {
+    const stats = {
+      sensorInserted: 0,
+      sensorSkippedDuplicate: 0,
+      gpsInserted: 0,
+      error: null,
+    };
+    const extraMetadata =
+      options.extraMetadata && typeof options.extraMetadata === 'object'
+        ? options.extraMetadata
+        : {};
+
     try {
       const tz = device.timezone || device.effective_timezone || 'UTC';
       // `data` is processed/mapped payload — use mapper target field `datetime` only.
@@ -721,9 +732,10 @@ class MQTTService {
             timestamp,
             gpsAccuracy,
             gpsSatellites,
-            JSON.stringify(data.metadata || {}),
+            JSON.stringify({ ...(data.metadata || {}), ...extraMetadata }),
           ]
         );
+        stats.gpsInserted += 1;
       }
 
       // Store sensor data - handle both standard and custom fields
@@ -760,6 +772,7 @@ class MQTTService {
         
         const readingMetadata = {
           ...data.metadata,
+          ...extraMetadata,
           datetime: canonicalDatetime,
           _terminalTime: data._terminalTime,
           _groupName: data._groupName,
@@ -779,6 +792,7 @@ class MQTTService {
           const isDuplicate = await this.checkForDuplicate(device.device_id, field, numericValue, timestamp);
           
           if (isDuplicate) {
+            stats.sensorSkippedDuplicate += 1;
             continue;
           }
 
@@ -793,6 +807,7 @@ class MQTTService {
             timestamp,
             JSON.stringify(readingMetadata),
           ]);
+          stats.sensorInserted += 1;
         } else if (typeof value === 'string' && value.trim() !== '') {
           const stringValue = value.trim();
           const isDuplicate = await this.checkForDuplicateString(
@@ -803,6 +818,7 @@ class MQTTService {
           );
 
           if (isDuplicate) {
+            stats.sensorSkippedDuplicate += 1;
             continue;
           }
 
@@ -816,11 +832,15 @@ class MQTTService {
             timestamp,
             JSON.stringify({ ...readingMetadata, string_value: stringValue }),
           ]);
+          stats.sensorInserted += 1;
         }
       }
 
+      return stats;
     } catch (error) {
       console.error('Failed to store device data:', error);
+      stats.error = error?.message || String(error);
+      return stats;
     }
   }
 

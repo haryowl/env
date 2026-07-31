@@ -38,6 +38,7 @@ const getMenuName = (menuPath) => {
     '/settings': 'Settings',
     '/system-info': 'System Information',
     '/data-cleanup': 'Data cleanup',
+    '/data-import': 'Data import',
     '/deployment-settings': 'Deployment & domain'
   };
   return menuMap[menuPath] || menuPath;
@@ -145,6 +146,7 @@ router.get('/templates', authorizeRole(['super_admin', 'admin']), async (req, re
           '/settings': { access: true, read: true, create: true, update: true, delete: true },
           '/system-info': { access: true, read: true, create: true, update: true, delete: true },
           '/data-cleanup': { access: true, read: true, create: true, update: true, delete: true },
+          '/data-import': { access: true, read: true, create: true, update: true, delete: true },
           '/deployment-settings': { access: true, read: true, create: true, update: true, delete: true }
         },
         device_permissions: {
@@ -191,7 +193,8 @@ router.get('/templates', authorizeRole(['super_admin', 'admin']), async (req, re
           '/maintenance': { access: true, read: true, create: true, update: true, delete: true },
           '/settings': { access: true, read: false, create: false, update: true, delete: false },
           '/system-info': { access: true, read: true, create: false, update: false, delete: false },
-          '/data-cleanup': { access: true, read: true, create: true, update: true, delete: true }
+          '/data-cleanup': { access: true, read: true, create: true, update: true, delete: true },
+          '/data-import': { access: true, read: true, create: true, update: true, delete: true }
         },
         device_permissions: {
           read: true,
@@ -358,6 +361,7 @@ router.get('/templates', authorizeRole(['super_admin', 'admin']), async (req, re
           '/settings': { access: true, read: true, create: false, update: false, delete: false },
           '/system-info': { access: false, read: false, create: false, update: false, delete: false },
           '/data-cleanup': { access: false, read: false, create: false, update: false, delete: false },
+          '/data-import': { access: false, read: false, create: false, update: false, delete: false },
           '/deployment-settings': { access: false, read: false, create: false, update: false, delete: false }
         },
         device_permissions: {
@@ -428,6 +432,7 @@ router.post('/from-template', authorizeRole(['super_admin']), async (req, res) =
           '/settings': { access: true, read: true, create: true, update: true, delete: true },
           '/system-info': { access: true, read: true, create: true, update: true, delete: true },
           '/data-cleanup': { access: true, read: true, create: true, update: true, delete: true },
+          '/data-import': { access: true, read: true, create: true, update: true, delete: true },
           '/deployment-settings': { access: true, read: true, create: true, update: true, delete: true }
         },
         device_permissions: {
@@ -474,7 +479,8 @@ router.post('/from-template', authorizeRole(['super_admin']), async (req, res) =
           '/maintenance': { access: true, read: true, create: true, update: true, delete: true },
           '/settings': { access: true, read: false, create: false, update: true, delete: false },
           '/system-info': { access: true, read: true, create: false, update: false, delete: false },
-          '/data-cleanup': { access: true, read: true, create: true, update: true, delete: true }
+          '/data-cleanup': { access: true, read: true, create: true, update: true, delete: true },
+          '/data-import': { access: true, read: true, create: true, update: true, delete: true }
         },
         device_permissions: {
           read: true,
@@ -641,6 +647,7 @@ router.post('/from-template', authorizeRole(['super_admin']), async (req, res) =
           '/settings': { access: true, read: true, create: false, update: false, delete: false },
           '/system-info': { access: false, read: false, create: false, update: false, delete: false },
           '/data-cleanup': { access: false, read: false, create: false, update: false, delete: false },
+          '/data-import': { access: false, read: false, create: false, update: false, delete: false },
           '/deployment-settings': { access: false, read: false, create: false, update: false, delete: false }
         },
         device_permissions: {
@@ -1624,6 +1631,12 @@ router.get('/menus/available', authorizeRole(['super_admin', 'admin']), async (r
         path: '/data-cleanup',
         name: 'Data cleanup',
         description: 'Retention policies and deletion of old sensor, GPS, and alert history',
+        category: 'System'
+      },
+      {
+        path: '/data-import',
+        name: 'Data import',
+        description: 'Admin CSV/XLSX import of historical sensor readings for a device',
         category: 'System'
       },
       {

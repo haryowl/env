@@ -49,6 +49,7 @@ const Maintenance = lazy(() => import('./components/Maintenance'));
 const TechnicianDashboard = lazy(() => import('./components/TechnicianDashboard'));
 const SystemInfo = lazy(() => import('./components/SystemInfo'));
 const DataCleanup = lazy(() => import('./components/DataCleanup'));
+const DataImport = lazy(() => import('./components/DataImport'));
 const DeploymentSettings = lazy(() => import('./components/DeploymentSettings'));
 
 function RouteFallback() {
@@ -429,6 +430,7 @@ function App() {
                 <Route path="/technician" element={<ProtectedRoute><TechnicianDashboard /></ProtectedRoute>} />
                 <Route path="/system-info" element={<ProtectedRoute><SystemInfo /></ProtectedRoute>} />
                 <Route path="/data-cleanup" element={<ProtectedRoute><DataCleanup /></ProtectedRoute>} />
+                <Route path="/data-import" element={<ProtectedRoute><DataImport /></ProtectedRoute>} />
                 <Route path="/deployment-settings" element={<ProtectedRoute><DeploymentSettings /></ProtectedRoute>} />
                 <Route path="/settings" element={<ProtectedRoute><Settings user={user} onFontChange={handleFontChange} /></ProtectedRoute>} />
               </Routes>

@@ -74,6 +74,7 @@ const mqttConfigRoutes = require('./routes/mqttConfig');
 const featuresRoutes = require('./routes/features');
 const liveTrackingRoutes = require('./routes/liveTracking');
 const dataCleanupRoutes = require('./routes/dataCleanup');
+const dataImportRoutes = require('./routes/dataImport');
 const deploymentSettingsRoutes = require('./routes/deploymentSettings');
 const dataCleanupService = require('./services/dataCleanupService');
 const { ensureCoreSchema } = require('./utils/ensureCoreSchema');
@@ -262,6 +263,8 @@ app.use('/api/system-info', authenticateToken, filterDataByRole, systemInfoRoute
 console.log('✓ /api/system-info route registered');
 app.use('/api/data-cleanup', authenticateToken, filterDataByRole, dataCleanupRoutes);
 console.log('✓ /api/data-cleanup route registered');
+app.use('/api/data-import', authenticateToken, filterDataByRole, dataImportRoutes);
+console.log('✓ /api/data-import route registered');
 app.use('/api/deployment-settings', authenticateToken, filterDataByRole, deploymentSettingsRoutes);
 console.log('✓ /api/deployment-settings route registered');
 console.log('All API routes registered successfully');

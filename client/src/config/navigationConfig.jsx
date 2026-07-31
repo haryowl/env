@@ -34,6 +34,7 @@ import {
   Send as SendIcon,
   MyLocation as MyLocationIcon,
   DeleteSweep as DeleteSweepIcon,
+  UploadFile as UploadFileIcon,
   Public as PublicIcon,
   InfoOutlined as StatusIcon,
   SettingsInputAntenna as MqttConfigIcon,
@@ -110,6 +111,7 @@ export const MENU_SECTIONS = [
       { text: 'Deployment & domain', icon: <PublicIcon />, path: '/deployment-settings', menuPath: '/deployment-settings' },
       { text: 'System Information', icon: <MemoryIcon />, path: '/system-info', menuPath: '/system-info' },
       { text: 'Data cleanup', icon: <DeleteSweepIcon />, path: '/data-cleanup', menuPath: '/data-cleanup' },
+      { text: 'Data import', icon: <UploadFileIcon />, path: '/data-import', menuPath: '/data-import' },
       { text: 'Settings', icon: <SettingsIcon />, path: '/settings', menuPath: '/settings' },
       { text: 'Font Customizer', icon: <FormatSizeIcon />, path: '/font-customizer', menuPath: '/font-customizer' },
     ],
@@ -164,6 +166,7 @@ export const ROUTE_MENU_PATH_MAP = {
   '/deployment-settings': '/deployment-settings',
   '/system-info': '/system-info',
   '/data-cleanup': '/data-cleanup',
+  '/data-import': '/data-import',
   '/settings': '/settings',
 };
 
