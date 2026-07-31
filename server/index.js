@@ -159,17 +159,36 @@ app.get('/health', async (req, res) => {
   try {
     // Check database connection
     await query('SELECT 1');
-    
-    // Check MQTT connection
+
+    // Check MQTT connection / ingest pressure
     const mqttStatus = mqttService.getConnectionStatus();
-    
-    res.json({
-      status: 'healthy',
+    const mqttConfigured = Boolean(process.env.MQTT_BROKER_URL && process.env.MQTT_BROKER_URL.trim());
+    const mqttOk = !mqttConfigured || mqttStatus.isConnected;
+    const queuePressure =
+      mqttStatus.maxIngestQueue > 0 &&
+      mqttStatus.ingestQueueDepth >= Math.floor(mqttStatus.maxIngestQueue * 0.8);
+    const dropping = (mqttStatus.droppedIngestMessages || 0) > 0;
+
+    let status = 'healthy';
+    if (!mqttOk || queuePressure || dropping) {
+      status = 'degraded';
+    }
+
+    res.status(mqttOk ? 200 : 503).json({
+      status,
       timestamp: new Date().toISOString(),
       services: {
         database: 'connected',
-        mqtt: mqttStatus.isConnected ? 'connected' : 'disconnected',
-        mqttReconnectAttempts: mqttStatus.reconnectAttempts
+        mqtt: mqttConfigured
+          ? (mqttStatus.isConnected ? 'connected' : 'disconnected')
+          : 'not_configured',
+        mqttReconnectAttempts: mqttStatus.reconnectAttempts,
+        mqttIngestQueueDepth: mqttStatus.ingestQueueDepth,
+        mqttIngestActive: mqttStatus.ingestActive,
+        mqttDroppedMessages: mqttStatus.droppedIngestMessages,
+        mqttLastMessageAt: mqttStatus.lastMessageAt,
+        mqttLastIngestOkAt: mqttStatus.lastIngestOkAt,
+        mqttConnectedAt: mqttStatus.connectedAt,
       },
       uptime: process.uptime()
     });

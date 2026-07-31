@@ -23,8 +23,17 @@ class MQTTService {
     this.globalSubscribePatterns = new Set();
     this.deviceConnections = new Map();
     this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 10;
-    this.reconnectInterval = 5000; // 5 seconds
+    // Never give up reconnecting — a hard cap left the process "up" but ingest dead for hours.
+    this.reconnectIntervalMs = Math.max(
+      1000,
+      parseInt(process.env.MQTT_RECONNECT_MS, 10) || 5000
+    );
+    this.reconnectMaxDelayMs = Math.max(
+      this.reconnectIntervalMs,
+      parseInt(process.env.MQTT_RECONNECT_MAX_MS, 10) || 60000
+    );
+    this._reconnectTimer = null;
+    this._watchdogTimer = null;
     this.isShuttingDown = false;
     this.ingestQueue = [];
     this.ingestActive = 0;
@@ -34,14 +43,21 @@ class MQTTService {
     );
     this.maxIngestQueue = Math.max(
       100,
-      parseInt(process.env.MQTT_INGEST_QUEUE_MAX, 10) || 2000
+      parseInt(process.env.MQTT_INGEST_QUEUE_MAX, 10) || 5000
     );
     this.droppedIngestMessages = 0;
+    this.lastMessageAt = null;
+    this.lastIngestOkAt = null;
+    this.connectedAt = null;
     this.payloadFieldsCache = new Map();
     this.lastStatusUpdateAt = new Map();
     this.statusUpdateThrottleMs = Math.max(
       5000,
       parseInt(process.env.MQTT_STATUS_THROTTLE_MS, 10) || 30000
+    );
+    this.subscribeQos = Math.min(
+      2,
+      Math.max(0, parseInt(process.env.MQTT_SUBSCRIBE_QOS, 10) || 1)
     );
     this.handleMessage = this.handleMessage.bind(this);
   }
@@ -51,16 +67,20 @@ class MQTTService {
   }
 
   enqueueIngest(topic, message) {
+    this.lastMessageAt = new Date().toISOString();
     if (this.ingestQueue.length >= this.maxIngestQueue) {
       this.droppedIngestMessages += 1;
       if (this.droppedIngestMessages === 1 || this.droppedIngestMessages % 100 === 0) {
         console.warn(
-          `MQTT ingest queue full (${this.maxIngestQueue}); dropped ${this.droppedIngestMessages} message(s)`
+          `MQTT ingest queue full (${this.maxIngestQueue}); dropped ${this.droppedIngestMessages} message(s) — data permanently lost`
         );
       }
       return;
     }
-    this.ingestQueue.push({ topic, message });
+    // Copy buffer — mqtt.js may reuse the message buffer for the next packet
+    const payload =
+      Buffer.isBuffer(message) ? Buffer.from(message) : Buffer.from(String(message ?? ''), 'utf8');
+    this.ingestQueue.push({ topic, message: payload });
     this.drainIngestQueue();
   }
 
@@ -119,11 +139,25 @@ class MQTTService {
     try {
       console.log('Connecting to MQTT broker...');
       console.log('MQTT_BROKER_URL:', process.env.MQTT_BROKER_URL);
-      
+
+      // Tear down previous client so reconnect does not leak sockets/handlers
+      if (this.client) {
+        try {
+          this.client.removeAllListeners();
+          this.client.end(true);
+        } catch (e) {
+          console.warn('MQTT: error ending previous client:', e?.message || e);
+        }
+        this.client = null;
+      }
+
+      const stableClientId = (process.env.MQTT_CLIENT_ID || '').trim();
+      const usePersistentSession = Boolean(stableClientId);
       const options = {
-        clientId: process.env.MQTT_CLIENT_ID || `monitoring_server_${Date.now()}`,
-        clean: true,
-        reconnectPeriod: 0, // We'll handle reconnection manually
+        // Stable ID + clean:false lets the broker queue QoS1 messages while we are briefly offline
+        clientId: stableClientId || `monitoring_server_${Date.now()}`,
+        clean: !usePersistentSession,
+        reconnectPeriod: 0, // We'll handle reconnection manually (infinite backoff)
         connectTimeout: 30000,
         username: process.env.MQTT_USERNAME || undefined,
         password: process.env.MQTT_PASSWORD || undefined,
@@ -136,6 +170,13 @@ class MQTTService {
         console.log('Connected to MQTT broker');
         this.isConnected = true;
         this.reconnectAttempts = 0;
+        this.connectedAt = new Date().toISOString();
+        if (this._reconnectTimer) {
+          clearTimeout(this._reconnectTimer);
+          this._reconnectTimer = null;
+        }
+        // Fresh subscribe set after reconnect (clean session clears broker-side subs)
+        this.subscribedTopics.clear();
         this.subscribeToAllDevices();
       });
 
@@ -160,9 +201,30 @@ class MQTTService {
         this.isConnected = false;
       });
 
+      this.startReconnectWatchdog();
+
     } catch (error) {
       console.error('Failed to connect to MQTT broker:', error);
       this.scheduleReconnect();
+    }
+  }
+
+  /** Keep trying forever if something left us disconnected without a pending timer. */
+  startReconnectWatchdog() {
+    if (this._watchdogTimer || this.isShuttingDown) return;
+    this._watchdogTimer = setInterval(() => {
+      if (this.isShuttingDown) return;
+      if (this.isConnected) return;
+      if (process.env.NODE_ENV === 'development' && (!process.env.MQTT_BROKER_URL || process.env.MQTT_BROKER_URL.trim() === '')) {
+        return;
+      }
+      if (!this._reconnectTimer) {
+        console.warn('MQTT watchdog: disconnected with no pending reconnect — scheduling now');
+        this.scheduleReconnect();
+      }
+    }, 30000);
+    if (typeof this._watchdogTimer.unref === 'function') {
+      this._watchdogTimer.unref();
     }
   }
 
@@ -172,19 +234,26 @@ class MQTTService {
       return;
     }
 
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts++;
-      console.log(`Scheduling MQTT reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${this.reconnectInterval}ms`);
-      
-      setTimeout(() => {
-        if (!this.isShuttingDown) {
-          this.connect();
-        }
-      }, this.reconnectInterval);
-    } else {
-      console.error('Max MQTT reconnection attempts reached');
-      console.log('MQTT service will remain offline. Restart the server to retry connection.');
-    }
+    if (this.isConnected) return;
+    if (this._reconnectTimer) return; // already scheduled
+
+    this.reconnectAttempts += 1;
+    const exp = Math.min(this.reconnectAttempts - 1, 5);
+    const delay = Math.min(
+      this.reconnectMaxDelayMs,
+      this.reconnectIntervalMs * Math.pow(2, exp)
+    );
+
+    console.log(
+      `Scheduling MQTT reconnection attempt ${this.reconnectAttempts} in ${delay}ms (never gives up)`
+    );
+
+    this._reconnectTimer = setTimeout(() => {
+      this._reconnectTimer = null;
+      if (!this.isShuttingDown && !this.isConnected) {
+        this.connect();
+      }
+    }, delay);
   }
 
   async subscribeToAllDevices() {
@@ -260,11 +329,11 @@ class MQTTService {
 
   subscribeToTopic(topic) {
     if (this.client && this.isConnected) {
-      this.client.subscribe(topic, (err) => {
+      this.client.subscribe(topic, { qos: this.subscribeQos }, (err) => {
         if (err) {
           console.error(`Failed to subscribe to ${topic}:`, err);
         } else {
-          console.log(`Subscribed to topic: ${topic}`);
+          console.log(`Subscribed to topic: ${topic} (qos=${this.subscribeQos})`);
         }
       });
     }
@@ -403,12 +472,16 @@ class MQTTService {
         return;
       }
 
+      this.lastIngestOkAt = new Date().toISOString();
       await this.updateDeviceStatus(deviceId, 'online');
-      await this.evaluateAlertsWithRealTimeData(deviceId, processedData);
+      // Emit first so UI stays live even if alert/notification HTTP hangs
       this.emitRealTimeData(deviceId, processedData, {
         rawTopic: topic,
         rawString,
         rawPayload: data,
+      });
+      this.evaluateAlertsWithRealTimeData(deviceId, processedData).catch((err) => {
+        console.error('MQTT: background alert evaluation failed:', err?.message || err);
       });
 
     } catch (error) {
@@ -565,8 +638,11 @@ class MQTTService {
       throw new Error('Payload validation failed');
     }
     await this.updateDeviceStatus(deviceId, 'online');
-    await this.evaluateAlertsWithRealTimeData(deviceId, processedData);
     this.emitRealTimeData(deviceId, processedData);
+    this.evaluateAlertsWithRealTimeData(deviceId, processedData).catch((err) => {
+      console.error('HTTP ingest: background alert evaluation failed:', err?.message || err);
+    });
+    this.lastIngestOkAt = new Date().toISOString();
     return processedData;
   }
 
@@ -941,9 +1017,18 @@ class MQTTService {
   async disconnect() {
     try {
       this.isShuttingDown = true; // Set shutdown flag
-      
+      if (this._reconnectTimer) {
+        clearTimeout(this._reconnectTimer);
+        this._reconnectTimer = null;
+      }
+      if (this._watchdogTimer) {
+        clearInterval(this._watchdogTimer);
+        this._watchdogTimer = null;
+      }
+
       if (this.client) {
-        this.client.end();
+        this.client.removeAllListeners();
+        this.client.end(true);
         this.client = null;
       }
       this.isConnected = false;
@@ -957,7 +1042,15 @@ class MQTTService {
     return {
       isConnected: this.isConnected,
       reconnectAttempts: this.reconnectAttempts,
-      subscribedTopics: Array.from(this.subscribedTopics)
+      subscribedTopics: Array.from(this.subscribedTopics),
+      ingestQueueDepth: this.ingestQueue.length,
+      ingestActive: this.ingestActive,
+      maxIngestQueue: this.maxIngestQueue,
+      maxIngestConcurrency: this.maxIngestConcurrency,
+      droppedIngestMessages: this.droppedIngestMessages,
+      lastMessageAt: this.lastMessageAt,
+      lastIngestOkAt: this.lastIngestOkAt,
+      connectedAt: this.connectedAt,
     };
   }
 
