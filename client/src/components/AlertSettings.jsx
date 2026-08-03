@@ -12,13 +12,19 @@ import { API_BASE_URL } from '../config/api';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
 
 export default function AlertSettings({ user }) {
-  const [tab, setTab] = useState(0);
+  const [tab, setTab] = useState('email');
   const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState({ open: false, message: '', severity: 'success' });
   
   // Check if user is admin or super_admin
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
-  
+
+  // Keep tab valid if role changes / MQTT is hidden for non-admins
+  useEffect(() => {
+    if (!isAdmin && tab === 'mqtt') {
+      setTab('email');
+    }
+  }, [isAdmin, tab]);  
   // Email Configuration
   const [emailConfig, setEmailConfig] = useState({
     smtp_host: '',
@@ -594,13 +600,13 @@ export default function AlertSettings({ user }) {
       <Typography variant="h4" sx={{ mb: 2, fontWeight: 700, letterSpacing: 1 }}>Alert Settings</Typography>
       
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>
-        <Tab label="Email Configuration" />
-        <Tab label="HTTP Configuration" />
-        <Tab label="MQTT" />
-        <Tab label="Notification Logs" />
+        <Tab label="Email Configuration" value="email" />
+        <Tab label="HTTP Configuration" value="http" />
+        {isAdmin && <Tab label="MQTT" value="mqtt" />}
+        <Tab label="Notification Logs" value="logs" />
       </Tabs>
 
-      {tab === 0 && (
+      {tab === 'email' && (
         <Grid container spacing={3}>
           {/* Email Configuration */}
           <Grid item xs={12} md={6}>
@@ -796,7 +802,7 @@ export default function AlertSettings({ user }) {
         </Grid>
       )}
 
-      {tab === 1 && (
+      {tab === 'http' && (
         <>
         <Grid container spacing={3}>
           {/* HTTP Configuration */}
@@ -999,7 +1005,7 @@ export default function AlertSettings({ user }) {
         </>
       )}
 
-      {tab === 2 && (
+      {tab === 'mqtt' && isAdmin && (
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom>MQTT alert publishing</Typography>
@@ -1043,7 +1049,7 @@ export default function AlertSettings({ user }) {
         </Card>
       )}
 
-      {tab === 3 && (
+      {tab === 'logs' && (
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom>Notification Logs</Typography>
