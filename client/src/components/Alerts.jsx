@@ -43,6 +43,7 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
     http: false,
     email: false,
     mqtt: false,
+    whatsapp: false,
     template: '',
   };
 
@@ -70,6 +71,7 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
         http: editingAlert.actions?.http || false,
         email: editingAlert.actions?.email || false,
         mqtt: editingAlert.actions?.mqtt || false,
+        whatsapp: editingAlert.actions?.whatsapp || false,
         template: editingAlert.template || '',
       });
     } else {
@@ -166,7 +168,7 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
       type: alertType || 'threshold',
       threshold_time:
         form.threshold_time === '' || isNaN(Number(form.threshold_time)) ? null : Number(form.threshold_time),
-      actions: { popup: form.popup, http: form.http, email: form.email, mqtt: form.mqtt },
+      actions: { popup: form.popup, http: form.http, email: form.email, mqtt: form.mqtt, whatsapp: form.whatsapp },
       template: form.template,
     };
 
@@ -337,6 +339,12 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
       headerName: 'MQTT',
       flex: 0.5,
       renderCell: (params) => (params.row.actions?.mqtt ? '✔️' : ''),
+    },
+    {
+      field: 'whatsapp',
+      headerName: 'WA',
+      flex: 0.5,
+      renderCell: (params) => (params.row.actions?.whatsapp ? '✔️' : ''),
     },
     {
       field: 'inactivity',
@@ -601,6 +609,10 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
               <Checkbox checked={form.mqtt} onChange={(e) => handleFormChange('mqtt', e.target.checked)} />
               MQTT
             </FormControl>
+            <FormControl>
+              <Checkbox checked={form.whatsapp} onChange={(e) => handleFormChange('whatsapp', e.target.checked)} />
+              WhatsApp
+            </FormControl>
           </Box>
 
           {(form.http || form.email) && (
@@ -614,6 +626,20 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
               </Typography>
               <Button variant="outlined" size="small" onClick={() => window.open('/alert-settings', '_blank')}>
                 Open Alert Settings
+              </Button>
+            </Box>
+          )}
+          {form.whatsapp && (
+            <Box sx={{ mb: 2, p: 2, border: '1px solid #e0e0e0', borderRadius: 1 }}>
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                WhatsApp setup
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
+                Admin configures the Wablas provider under Alert Settings → WhatsApp. Each user adds their own phone
+                numbers for Device → Alert there.
+              </Typography>
+              <Button variant="outlined" size="small" onClick={() => window.open('/alert-settings', '_blank')}>
+                Open WhatsApp Settings
               </Button>
             </Box>
           )}
@@ -663,7 +689,7 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
             />
             <Typography variant="caption" color="text.secondary">
               {'{parameter}'} inserts the display name. Use {'{parameter_key}'} for the raw field name. Template is used
-              for email, HTTP, and MQTT notifications.
+              for email, HTTP, MQTT, and WhatsApp notifications.
             </Typography>
             <Box sx={{ mt: 1, p: 1, bgcolor: '#f5f5f5', borderRadius: 1 }}>
               <Typography variant="subtitle2">Preview:</Typography>

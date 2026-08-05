@@ -84,7 +84,7 @@ async function evaluateThresholdAlertsOnData(device_id, parameter, value, timest
     );
 
     try {
-      if (actions && (actions.email || actions.http || actions.mqtt)) {
+      if (actions && (actions.email || actions.http || actions.mqtt || actions.whatsapp)) {
         console.log('Sending notification for alert:', {
           alert_id: alert.alert_id,
           template: alert.template,
@@ -155,7 +155,7 @@ async function evaluateInactivityForDevice(alert, device_id) {
 
   try {
     const actions = typeof alert.actions === 'string' ? (() => { try { return JSON.parse(alert.actions); } catch { return {}; } })() : (alert.actions || {});
-    if (actions && (actions.email || actions.http || actions.mqtt)) {
+    if (actions && (actions.email || actions.http || actions.mqtt || actions.whatsapp)) {
       await NotificationService.sendNotification(
         { ...alert, actions, device_id },
         deviceName,

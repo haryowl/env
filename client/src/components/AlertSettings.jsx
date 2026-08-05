@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Card, CardContent, Button, Grid, TextField,
   FormControl, InputLabel, Select, MenuItem, Switch, FormControlLabel,
-  Tabs, Tab, Divider, Alert, Snackbar, Chip, IconButton, Dialog, DialogTitle, DialogContent, DialogActions
+  Tabs, Tab, Divider, Alert, Snackbar, Chip, IconButton, Dialog, DialogTitle, DialogContent, DialogActions,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
@@ -10,6 +11,13 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { DataGrid, GridActionsCellItem } from '@mui/x-data-grid';
 import { API_BASE_URL } from '../config/api';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
+import { getDeviceDisplayName } from '../utils/deviceLabel';
+
+const DEFAULT_WA_BODY = JSON.stringify(
+  { data: [{ phone: '{{phone}}', message: '{{message}}' }] },
+  null,
+  2
+);
 
 export default function AlertSettings({ user }) {
   const [tab, setTab] = useState('email');
@@ -64,6 +72,23 @@ export default function AlertSettings({ user }) {
   const [notificationLogs, setNotificationLogs] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [mqttStatus, setMqttStatus] = useState({ connected: false, brokerUrl: '' });
+
+  // WhatsApp
+  const [waProvider, setWaProvider] = useState({
+    enabled: false,
+    url: 'https://jogja.wablas.com/api/v2/send-message',
+    method: 'POST',
+    headersJson: '{}',
+    body_template: DEFAULT_WA_BODY,
+  });
+  const [waSaving, setWaSaving] = useState(false);
+  const [waDevices, setWaDevices] = useState([]);
+  const [waDeviceId, setWaDeviceId] = useState('');
+  const [waAlertsForDevice, setWaAlertsForDevice] = useState([]);
+  const [waAlertId, setWaAlertId] = useState('');
+  const [waPhone, setWaPhone] = useState('');
+  const [waSubscriptions, setWaSubscriptions] = useState([]);
+  const [waBusy, setWaBusy] = useState(false);
 
   // Load configurations
   const loadConfigurations = async () => {
@@ -133,6 +158,60 @@ export default function AlertSettings({ user }) {
       } catch {
         setMqttStatus({ connected: false, brokerUrl: '' });
       }
+
+      // WhatsApp subscriptions (all users) + provider (admin)
+      try {
+        const [subRes, devRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/alert-settings/whatsapp-subscriptions`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${API_BASE_URL}/devices/dropdown`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+        if (subRes.ok) {
+          const subData = await subRes.json();
+          setWaSubscriptions(subData.subscriptions || []);
+        }
+        if (devRes.ok) {
+          const devData = await devRes.json();
+          setWaDevices(Array.isArray(devData) ? devData : devData.devices || []);
+        }
+      } catch {
+        /* ignore */
+      }
+
+      if (isAdmin) {
+        try {
+          const waRes = await fetch(`${API_BASE_URL}/alert-settings/whatsapp-provider`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (waRes.ok) {
+            const waData = await waRes.json();
+            const c = waData.config || {};
+            let headersJson = '{}';
+            if (c.headers && typeof c.headers === 'object') {
+              headersJson = JSON.stringify(c.headers, null, 2);
+            }
+            let bodyTemplate = DEFAULT_WA_BODY;
+            if (c.body_template != null) {
+              bodyTemplate =
+                typeof c.body_template === 'string'
+                  ? c.body_template
+                  : JSON.stringify(c.body_template, null, 2);
+            }
+            setWaProvider({
+              enabled: Boolean(c.enabled),
+              url: c.url || 'https://jogja.wablas.com/api/v2/send-message',
+              method: c.method || 'POST',
+              headersJson,
+              body_template: bodyTemplate,
+            });
+          }
+        } catch {
+          /* ignore */
+        }
+      }
     } catch (error) {
       setNotification({ open: true, message: 'Failed to load configurations', severity: 'error' });
     }
@@ -142,6 +221,131 @@ export default function AlertSettings({ user }) {
   useEffect(() => {
     loadConfigurations();
   }, []);
+
+  useEffect(() => {
+    const loadWaAlerts = async () => {
+      setWaAlertId('');
+      setWaAlertsForDevice([]);
+      if (!waDeviceId) return;
+      try {
+        const token = localStorage.getItem('iot_token');
+        const res = await fetch(
+          `${API_BASE_URL}/alert-settings/whatsapp-alerts?deviceId=${encodeURIComponent(waDeviceId)}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setWaAlertsForDevice(data.alerts || []);
+        }
+      } catch {
+        setWaAlertsForDevice([]);
+      }
+    };
+    loadWaAlerts();
+  }, [waDeviceId]);
+
+  const saveWhatsAppProvider = async () => {
+    if (!isAdmin) return;
+    setWaSaving(true);
+    try {
+      const token = localStorage.getItem('iot_token');
+      let headers = {};
+      try {
+        const raw = (waProvider.headersJson || '').trim();
+        headers = raw ? JSON.parse(raw) : {};
+      } catch {
+        setNotification({ open: true, message: 'HTTP headers must be valid JSON', severity: 'warning' });
+        setWaSaving(false);
+        return;
+      }
+      let body_template;
+      try {
+        body_template = JSON.parse(waProvider.body_template || DEFAULT_WA_BODY);
+      } catch {
+        setNotification({ open: true, message: 'Body template must be valid JSON', severity: 'warning' });
+        setWaSaving(false);
+        return;
+      }
+      const res = await fetch(`${API_BASE_URL}/alert-settings/whatsapp-provider`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          enabled: waProvider.enabled,
+          url: waProvider.url,
+          method: waProvider.method,
+          headers,
+          body_template,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to save WhatsApp provider');
+      setNotification({ open: true, message: 'WhatsApp provider saved', severity: 'success' });
+    } catch (e) {
+      setNotification({ open: true, message: e.message || 'Failed to save WhatsApp provider', severity: 'error' });
+    } finally {
+      setWaSaving(false);
+    }
+  };
+
+  const addWhatsAppSubscription = async () => {
+    if (!waDeviceId || !waAlertId || !waPhone.trim()) {
+      setNotification({ open: true, message: 'Select device, alert, and enter a phone number', severity: 'warning' });
+      return;
+    }
+    setWaBusy(true);
+    try {
+      const token = localStorage.getItem('iot_token');
+      const res = await fetch(`${API_BASE_URL}/alert-settings/whatsapp-subscriptions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          device_id: waDeviceId,
+          alert_id: Number(waAlertId),
+          phone: waPhone.trim(),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to add phone');
+      setWaPhone('');
+      const subRes = await fetch(`${API_BASE_URL}/alert-settings/whatsapp-subscriptions`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (subRes.ok) {
+        const subData = await subRes.json();
+        setWaSubscriptions(subData.subscriptions || []);
+      }
+      setNotification({ open: true, message: 'Phone subscribed', severity: 'success' });
+    } catch (e) {
+      setNotification({ open: true, message: e.message || 'Failed to add phone', severity: 'error' });
+    } finally {
+      setWaBusy(false);
+    }
+  };
+
+  const deleteWhatsAppSubscription = async (id) => {
+    setWaBusy(true);
+    try {
+      const token = localStorage.getItem('iot_token');
+      const res = await fetch(`${API_BASE_URL}/alert-settings/whatsapp-subscriptions/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to delete');
+      setWaSubscriptions((prev) => prev.filter((r) => r.id !== id));
+      setNotification({ open: true, message: 'Subscription removed', severity: 'success' });
+    } catch (e) {
+      setNotification({ open: true, message: e.message || 'Failed to delete', severity: 'error' });
+    } finally {
+      setWaBusy(false);
+    }
+  };
 
   // Save email configuration
   const saveEmailConfig = async () => {
@@ -602,6 +806,7 @@ export default function AlertSettings({ user }) {
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>
         <Tab label="Email Configuration" value="email" />
         <Tab label="HTTP Configuration" value="http" />
+        <Tab label="WhatsApp" value="whatsapp" />
         {isAdmin && <Tab label="MQTT" value="mqtt" />}
         <Tab label="Notification Logs" value="logs" />
       </Tabs>
@@ -1003,6 +1208,185 @@ export default function AlertSettings({ user }) {
           </DialogActions>
         </Dialog>
         </>
+      )}
+
+      {tab === 'whatsapp' && (
+        <Grid container spacing={3}>
+          {isAdmin && (
+            <Grid item xs={12}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>WhatsApp provider (admin)</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Base Wablas configuration. End users only manage Device → Alert → phone numbers below.
+                    Use placeholders {'{{phone}}'}, {'{{message}}'}, {'{{value}}'}, {'{{device}}'} in the body template.
+                  </Typography>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={waProvider.enabled}
+                        onChange={(e) => setWaProvider({ ...waProvider, enabled: e.target.checked })}
+                      />
+                    }
+                    label="Enable WhatsApp notifications"
+                    sx={{ mb: 2, display: 'block' }}
+                  />
+                  <TextField
+                    label="URL"
+                    fullWidth
+                    value={waProvider.url}
+                    onChange={(e) => setWaProvider({ ...waProvider, url: e.target.value })}
+                    sx={{ mb: 2 }}
+                  />
+                  <FormControl fullWidth size="small" sx={{ mb: 2, maxWidth: 200 }}>
+                    <InputLabel id="wa-method">Method</InputLabel>
+                    <Select
+                      labelId="wa-method"
+                      label="Method"
+                      value={waProvider.method}
+                      onChange={(e) => setWaProvider({ ...waProvider, method: e.target.value })}
+                    >
+                      <MenuItem value="POST">POST</MenuItem>
+                      <MenuItem value="PUT">PUT</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <TextField
+                    label="HTTP headers (JSON)"
+                    fullWidth
+                    multiline
+                    minRows={3}
+                    value={waProvider.headersJson}
+                    onChange={(e) => setWaProvider({ ...waProvider, headersJson: e.target.value })}
+                    placeholder='{"Authorization":"your-wablas-token"}'
+                    sx={{ mb: 2 }}
+                  />
+                  <TextField
+                    label="Custom JSON body template"
+                    fullWidth
+                    multiline
+                    minRows={6}
+                    value={waProvider.body_template}
+                    onChange={(e) => setWaProvider({ ...waProvider, body_template: e.target.value })}
+                    sx={{ mb: 2, fontFamily: 'monospace' }}
+                  />
+                  <Button variant="contained" onClick={saveWhatsAppProvider} disabled={waSaving}>
+                    {waSaving ? 'Saving…' : 'Save provider'}
+                  </Button>
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
+
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>My WhatsApp subscriptions</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Choose a device, then an alert for that device, and add one or more phone numbers.
+                  Numbers are private to your account. Enable <strong>WhatsApp</strong> on the alert under Alerts.
+                </Typography>
+                <Grid container spacing={2} alignItems="flex-end" sx={{ mb: 2 }}>
+                  <Grid item xs={12} md={3}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel id="wa-device">Device</InputLabel>
+                      <Select
+                        labelId="wa-device"
+                        label="Device"
+                        value={waDeviceId}
+                        onChange={(e) => setWaDeviceId(e.target.value)}
+                      >
+                        {waDevices.map((d) => (
+                          <MenuItem key={d.device_id} value={d.device_id}>
+                            {getDeviceDisplayName(d)}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} md={3}>
+                    <FormControl fullWidth size="small" disabled={!waDeviceId}>
+                      <InputLabel id="wa-alert">Alert</InputLabel>
+                      <Select
+                        labelId="wa-alert"
+                        label="Alert"
+                        value={waAlertId}
+                        onChange={(e) => setWaAlertId(e.target.value)}
+                      >
+                        {waAlertsForDevice.map((a) => (
+                          <MenuItem key={a.alert_id} value={String(a.alert_id)}>
+                            {a.name || a.parameter || a.alert_id}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} md={3}>
+                    <TextField
+                      label="Phone number"
+                      fullWidth
+                      size="small"
+                      value={waPhone}
+                      onChange={(e) => setWaPhone(e.target.value)}
+                      placeholder="0812… or 62812…"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={3}>
+                    <Button
+                      variant="contained"
+                      fullWidth
+                      onClick={addWhatsAppSubscription}
+                      disabled={waBusy || !waDeviceId || !waAlertId || !waPhone.trim()}
+                    >
+                      Add phone
+                    </Button>
+                  </Grid>
+                </Grid>
+
+                <TableContainer component={Paper} variant="outlined">
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Device</TableCell>
+                        <TableCell>Alert</TableCell>
+                        <TableCell>Phone</TableCell>
+                        <TableCell align="right">Actions</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {waSubscriptions.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={4}>
+                            <Typography variant="body2" color="text.secondary">
+                              No subscriptions yet.
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      {waSubscriptions.map((row) => (
+                        <TableRow key={row.id}>
+                          <TableCell>{row.device_name || row.device_id}</TableCell>
+                          <TableCell>{row.alert_name || row.alert_id}</TableCell>
+                          <TableCell>{row.phone}</TableCell>
+                          <TableCell align="right">
+                            <IconButton
+                              size="small"
+                              color="error"
+                              disabled={waBusy}
+                              onClick={() => deleteWhatsAppSubscription(row.id)}
+                              aria-label="Delete"
+                            >
+                              <DeleteOutlineIcon fontSize="small" />
+                            </IconButton>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
       )}
 
       {tab === 'mqtt' && isAdmin && (

@@ -2,6 +2,7 @@ const nodemailer = require('nodemailer');
 const axios = require('axios');
 const { query, getRow, getRows } = require('../config/database');
 const mqttService = require('./mqttService');
+const whatsappAlertService = require('./whatsappAlertService');
 
 function humanizeFieldName(value = '') {
   return String(value)
@@ -435,6 +436,92 @@ class NotificationService {
     }
   }
 
+  // Send WhatsApp (Wablas) notifications — one POST per subscribed phone
+  async sendWhatsAppNotification(alert, deviceName, parameter, value, min, max, lastUpdate, thresholdTime, parameterDisplay) {
+    try {
+      const alertId = alert?.alert_id;
+      const deviceId = alert?.device_id;
+      const template = alert?.template || '';
+
+      const provider = await whatsappAlertService.getProviderConfig();
+      if (!provider.enabled || !provider.url) {
+        console.log('WhatsApp provider disabled or URL missing; skip send');
+        return;
+      }
+
+      const phones = await whatsappAlertService.listPhonesForAlertFire(alertId, deviceId);
+      if (!phones.length) {
+        console.log(`No WhatsApp subscriptions for alert ${alertId} / device ${deviceId || '*'}`);
+        return;
+      }
+
+      const display = parameterDisplay || parameter;
+      const processedTemplate = this.processTemplate(template, this.buildTemplateVariables({
+        deviceName,
+        parameterKey: parameter,
+        parameterDisplay: display,
+        value,
+        min,
+        max,
+        lastUpdate,
+        thresholdTime,
+      }));
+
+      const timestamp = new Date().toISOString();
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(provider.headers && typeof provider.headers === 'object' ? provider.headers : {}),
+      };
+      const method = String(provider.method || 'POST').toLowerCase();
+
+      for (const phone of phones) {
+        const ctx = {
+          alert_id: alertId,
+          device: deviceName,
+          device_id: deviceId || '',
+          parameter,
+          parameter_display: display,
+          parameter_key: parameter,
+          value: value ?? null,
+          min: min ?? null,
+          max: max ?? null,
+          message: processedTemplate,
+          timestamp,
+          type: 'iot_alert',
+          lastUpdate: lastUpdate ?? '',
+          thresholdTime: thresholdTime ?? '',
+          phone,
+        };
+        const defaultPayload = {
+          data: [{ phone, message: processedTemplate }],
+        };
+        const fakeConfig = { id: 'whatsapp', body_template: provider.body_template };
+        const payload = this.resolveHttpPayload(fakeConfig, ctx, defaultPayload);
+
+        try {
+          await axios({
+            method,
+            url: provider.url,
+            headers,
+            timeout: 30000,
+            data: payload,
+          });
+          await this.logNotification(alertId, 'whatsapp', phone, 'sent', processedTemplate);
+          console.log(`WhatsApp notification sent to ${phone}`);
+        } catch (error) {
+          const errMsg = error?.response?.data
+            ? JSON.stringify(error.response.data).slice(0, 500)
+            : (error?.message || String(error));
+          console.error(`WhatsApp notification failed for ${phone}:`, errMsg);
+          await this.logNotification(alertId, 'whatsapp', phone, 'failed', processedTemplate, errMsg);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to send WhatsApp notification:', error);
+      throw error;
+    }
+  }
+
   // Process template with variables
   processTemplate(template, variables) {
     console.log('processTemplate called with:', { template, variables });
@@ -521,6 +608,10 @@ class NotificationService {
 
       if (actions?.mqtt) {
         await this.sendMqttNotification(alert, deviceName, parameter, value, min, max, lastUpdate, thresholdTime, parameterDisplay);
+      }
+
+      if (actions?.whatsapp) {
+        await this.sendWhatsAppNotification(alert, deviceName, parameter, value, min, max, lastUpdate, thresholdTime, parameterDisplay);
       }
     } catch (error) {
       console.error('Failed to send notification:', error);

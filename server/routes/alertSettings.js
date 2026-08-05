@@ -514,7 +514,8 @@ router.post('/test-http', auth.authenticateToken, async (req, res) => {
 router.get('/notification-logs', auth.authenticateToken, async (req, res) => {
   try {
     // Check if user is admin/super_admin - if so, show all logs
-    const isAdmin = req.user.role_name === 'super_admin' || req.user.role_name === 'admin';
+    const isAdmin = req.user.role_name === 'super_admin' || req.user.role_name === 'admin' ||
+      req.user.role === 'super_admin' || req.user.role === 'admin';
     
     let query = `
       SELECT nl.*, a.name as alert_name 
@@ -536,6 +537,101 @@ router.get('/notification-logs', auth.authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error fetching notification logs:', error);
     res.status(500).json({ error: 'Failed to fetch notification logs' });
+  }
+});
+
+// ---- WhatsApp provider (admin) + per-user subscriptions ----
+const { ensureAlertsSchema } = require('../utils/ensureAlertsSchema');
+const whatsappAlertService = require('../services/whatsappAlertService');
+
+const isReqAdmin = (req) =>
+  req.user?.role === 'super_admin' ||
+  req.user?.role === 'admin' ||
+  req.user?.role_name === 'super_admin' ||
+  req.user?.role_name === 'admin';
+
+router.get('/whatsapp-provider', auth.authenticateToken, auth.authorizeRole(['super_admin', 'admin']), async (req, res) => {
+  try {
+    await ensureAlertsSchema();
+    const config = await whatsappAlertService.getProviderConfig();
+    res.json({ config });
+  } catch (error) {
+    console.error('Error fetching WhatsApp provider:', error);
+    res.status(500).json({ error: 'Failed to fetch WhatsApp provider configuration' });
+  }
+});
+
+router.put('/whatsapp-provider', auth.authenticateToken, auth.authorizeRole(['super_admin', 'admin']), async (req, res) => {
+  try {
+    await ensureAlertsSchema();
+    const config = await whatsappAlertService.upsertProviderConfig(req.body || {}, req.user.user_id);
+    res.json({ message: 'WhatsApp provider saved', config });
+  } catch (error) {
+    console.error('Error saving WhatsApp provider:', error);
+    const status = error.status || (error instanceof SyntaxError ? 400 : 500);
+    res.status(status).json({ error: error.message || 'Failed to save WhatsApp provider configuration' });
+  }
+});
+
+router.get('/whatsapp-subscriptions', auth.authenticateToken, async (req, res) => {
+  try {
+    await ensureAlertsSchema();
+    const rows = await whatsappAlertService.listSubscriptionsForUser(req.user.user_id);
+    res.json({ subscriptions: rows });
+  } catch (error) {
+    console.error('Error listing WhatsApp subscriptions:', error);
+    res.status(500).json({ error: 'Failed to list WhatsApp subscriptions' });
+  }
+});
+
+router.post('/whatsapp-subscriptions', auth.authenticateToken, async (req, res) => {
+  try {
+    await ensureAlertsSchema();
+    const { device_id, alert_id, phone } = req.body || {};
+    if (!device_id || alert_id == null || !phone) {
+      return res.status(400).json({ error: 'device_id, alert_id, and phone are required' });
+    }
+    const row = await whatsappAlertService.addSubscription({
+      userId: req.user.user_id,
+      deviceId: device_id,
+      alertId: Number(alert_id),
+      phone,
+      req,
+    });
+    res.status(201).json({ subscription: row });
+  } catch (error) {
+    console.error('Error adding WhatsApp subscription:', error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to add subscription' });
+  }
+});
+
+router.delete('/whatsapp-subscriptions/:id', auth.authenticateToken, async (req, res) => {
+  try {
+    await ensureAlertsSchema();
+    await whatsappAlertService.deleteSubscription(
+      Number(req.params.id),
+      req.user.user_id,
+      isReqAdmin(req)
+    );
+    res.json({ message: 'Subscription deleted' });
+  } catch (error) {
+    console.error('Error deleting WhatsApp subscription:', error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to delete subscription' });
+  }
+});
+
+router.get('/whatsapp-alerts', auth.authenticateToken, async (req, res) => {
+  try {
+    await ensureAlertsSchema();
+    const deviceId = req.query.deviceId || req.query.device_id;
+    if (!deviceId) {
+      return res.status(400).json({ error: 'deviceId is required' });
+    }
+    const alerts = await whatsappAlertService.listAlertsForDevice(deviceId, req);
+    res.json({ alerts });
+  } catch (error) {
+    console.error('Error listing WhatsApp alerts for device:', error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to list alerts' });
   }
 });
 

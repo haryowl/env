@@ -92,6 +92,58 @@ async function ensureAlertsSchema() {
   await query(`CREATE INDEX IF NOT EXISTS idx_alert_http_endpoints_url ON alert_http_endpoints(url)`);
   await query(`CREATE INDEX IF NOT EXISTS idx_alert_notification_logs_alert_id ON alert_notification_logs(alert_id)`);
 
+  // WhatsApp (Wablas) provider — admin-managed singleton
+  await query(`
+    CREATE TABLE IF NOT EXISTS whatsapp_provider_config (
+      id INTEGER PRIMARY KEY DEFAULT 1,
+      enabled BOOLEAN DEFAULT false,
+      url VARCHAR(500) NOT NULL DEFAULT '',
+      method VARCHAR(10) DEFAULT 'POST',
+      headers JSONB DEFAULT '{}'::jsonb,
+      body_template JSONB,
+      updated_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await query(`
+    INSERT INTO whatsapp_provider_config (id, enabled, url, method, headers, body_template)
+    VALUES (
+      1,
+      false,
+      'https://jogja.wablas.com/api/v2/send-message',
+      'POST',
+      '{}'::jsonb,
+      '{"data":[{"phone":"{{phone}}","message":"{{message}}"}]}'::jsonb
+    )
+    ON CONFLICT (id) DO NOTHING
+  `);
+
+  // Per-user WhatsApp phone subscriptions
+  await query(`
+    CREATE TABLE IF NOT EXISTS whatsapp_subscriptions (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+      device_id TEXT NOT NULL,
+      alert_id INTEGER NOT NULL REFERENCES alerts(alert_id) ON DELETE CASCADE,
+      phone VARCHAR(32) NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (user_id, alert_id, phone)
+    )
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS idx_whatsapp_subscriptions_alert_id
+    ON whatsapp_subscriptions(alert_id)
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS idx_whatsapp_subscriptions_user_id
+    ON whatsapp_subscriptions(user_id)
+  `);
+  await query(`
+    CREATE INDEX IF NOT EXISTS idx_whatsapp_subscriptions_device_id
+    ON whatsapp_subscriptions(device_id)
+  `);
+
   ensured = true;
 }
 
