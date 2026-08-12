@@ -15,6 +15,10 @@ router.get('/', async (_req, res) => {
   res.json({
     features: {
       mqttPublisher: envFlagEnabled('ENABLE_MQTT_PUBLISHER', true),
+      sparing: envFlagEnabled('ENABLE_SPARING', false),
+      tmat: envFlagEnabled('ENABLE_TMAT', false),
+      klhkReporting:
+        envFlagEnabled('ENABLE_SPARING', false) || envFlagEnabled('ENABLE_TMAT', false),
     },
   });
 });

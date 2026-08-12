@@ -5,6 +5,7 @@ const { ensureDevicesSchema } = require('./ensureDevicesSchema');
 const { ensureFieldMappingsSchema } = require('./ensureFieldMappingsSchema');
 const { ensurePasswordResetSchema } = require('./ensurePasswordResetSchema');
 const { ensureDatabaseIndexes } = require('./ensureDatabaseIndexes');
+const { ensureKlhkReportingSchema } = require('./ensureKlhkReportingSchema');
 
 let ensured = false;
 
@@ -22,6 +23,7 @@ async function ensureCoreSchema() {
   await ensureFieldMappingsSchema();
   await ensurePasswordResetSchema();
   await ensureDatabaseIndexes();
+  await ensureKlhkReportingSchema();
 
   ensured = true;
 }

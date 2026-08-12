@@ -38,6 +38,7 @@ import {
   Public as PublicIcon,
   InfoOutlined as StatusIcon,
   SettingsInputAntenna as MqttConfigIcon,
+  CloudUpload as KlhkReportingIcon,
 } from '@mui/icons-material';
 
 export const MENU_SECTIONS = [
@@ -72,6 +73,7 @@ export const MENU_SECTIONS = [
       { text: 'Device Mapper', icon: <MapIcon />, path: '/mapper', menuPath: '/mapper' },
       { text: 'Listeners', icon: <RadioIcon />, path: '/listeners', menuPath: '/listeners' },
       { text: 'MQTT Configuration', icon: <MqttConfigIcon />, path: '/mqtt-config', menuPath: '/mqtt-config' },
+      { text: 'KLHK Reporting', icon: <KlhkReportingIcon />, path: '/klhk-reporting', menuPath: '/klhk-reporting' },
     ],
   },
   {
@@ -145,6 +147,7 @@ export const ROUTE_MENU_PATH_MAP = {
   '/mapper': '/mapper',
   '/listeners': '/listeners',
   '/mqtt-config': '/mqtt-config',
+  '/klhk-reporting': '/klhk-reporting',
   '/data': '/data',
   '/data-dash': '/data-dash',
   '/data-dash-2': '/data-dash-2',

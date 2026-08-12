@@ -51,6 +51,7 @@ const SystemInfo = lazy(() => import('./components/SystemInfo'));
 const DataCleanup = lazy(() => import('./components/DataCleanup'));
 const DataImport = lazy(() => import('./components/DataImport'));
 const DeploymentSettings = lazy(() => import('./components/DeploymentSettings'));
+const KlhkReporting = lazy(() => import('./components/KlhkReporting'));
 
 function RouteFallback() {
   return (
@@ -423,6 +424,9 @@ function App() {
                 <Route path="/scheduled-exports" element={<ProtectedRoute><ScheduledExports /></ProtectedRoute>} />
                 {featureFlags?.mqttPublisher ? (
                   <Route path="/mqtt-publisher" element={<ProtectedRoute><MqttPublisher /></ProtectedRoute>} />
+                ) : null}
+                {featureFlags?.klhkReporting ? (
+                  <Route path="/klhk-reporting" element={<ProtectedRoute><KlhkReporting /></ProtectedRoute>} />
                 ) : null}
                 <Route path="/company-site" element={<ProtectedRoute><CompanySite /></ProtectedRoute>} />
                 <Route path="/sensor-management" element={<ProtectedRoute><SensorManagement /></ProtectedRoute>} />

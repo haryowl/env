@@ -3,6 +3,9 @@ import { API_BASE_URL } from '../config/api';
 
 const defaultFlags = {
   mqttPublisher: true,
+  sparing: false,
+  tmat: false,
+  klhkReporting: false,
 };
 
 export function useFeatureFlags() {
@@ -22,7 +25,11 @@ export function useFeatureFlags() {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data?.features) {
-        setFlags({ ...defaultFlags, ...data.features });
+        const features = { ...defaultFlags, ...data.features };
+        features.klhkReporting = Boolean(
+          features.klhkReporting ?? features.sparing ?? features.tmat
+        );
+        setFlags(features);
       }
     } catch {
       // Keep defaults; do not block UI.

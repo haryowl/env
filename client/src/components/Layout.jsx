@@ -187,6 +187,7 @@ const Layout = ({ children, user, userContext, onLogout }) => {
       .filter(item => canAccessMenu(item.menuPath))
       .filter(item => {
         if (item.menuPath === '/mqtt-publisher') return Boolean(flags?.mqttPublisher);
+        if (item.menuPath === '/klhk-reporting') return Boolean(flags?.klhkReporting);
         return true;
       })
   })).filter(section => section.items.length > 0);

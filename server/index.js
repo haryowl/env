@@ -76,8 +76,10 @@ const liveTrackingRoutes = require('./routes/liveTracking');
 const dataCleanupRoutes = require('./routes/dataCleanup');
 const dataImportRoutes = require('./routes/dataImport');
 const deploymentSettingsRoutes = require('./routes/deploymentSettings');
+const klhkReportingRoutes = require('./routes/klhkReporting');
 const dataCleanupService = require('./services/dataCleanupService');
 const { ensureCoreSchema } = require('./utils/ensureCoreSchema');
+const klhkScheduler = require('./services/klhkReporting/klhkScheduler');
 
 const app = express();
 const server = http.createServer(app);
@@ -267,6 +269,8 @@ app.use('/api/data-import', authenticateToken, filterDataByRole, dataImportRoute
 console.log('✓ /api/data-import route registered');
 app.use('/api/deployment-settings', authenticateToken, filterDataByRole, deploymentSettingsRoutes);
 console.log('✓ /api/deployment-settings route registered');
+app.use('/api/klhk-reporting', klhkReportingRoutes);
+console.log('✓ /api/klhk-reporting route registered');
 console.log('All API routes registered successfully');
 
 // Serve the main application - React SPA if built, else simple public page
@@ -322,6 +326,8 @@ const gracefulShutdown = async (signal) => {
   
   // Shutdown scheduled export service
     await simpleScheduledExportService.shutdown();
+
+  klhkScheduler.shutdownAllSchedulers();
   
   // Small delay to ensure operations complete
   await new Promise(resolve => setTimeout(resolve, 1000));
@@ -351,6 +357,8 @@ const initializeServices = async () => {
 
     await ensureCoreSchema();
     console.log('Database schema verified (core tables/columns)');
+
+    await klhkScheduler.restoreRunningSchedulers();
 
     // Connect to MQTT broker
     await mqttService.connect();
