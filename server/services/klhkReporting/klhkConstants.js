@@ -17,6 +17,11 @@ const DEFAULT_SPARING_API_BASE = 'https://sparing.kemenlh.go.id/api';
 const DEFAULT_TMAT_API_URL =
   'https://gambutindonesia.kemenlh.go.id/backoffice-SPAgambut/api/v1/realtime_push';
 
+/** Max hourly batches in one period operation. */
+const MAX_PERIOD_HOURLY_SLOTS = 168;
+/** Max 2-minute slots in one period operation (24h). */
+const MAX_PERIOD_2MIN_SLOTS = 720;
+
 module.exports = {
   SPARING_PARAMS,
   TMAT_PARAMS,
@@ -24,4 +29,6 @@ module.exports = {
   SEND_MODES,
   DEFAULT_SPARING_API_BASE,
   DEFAULT_TMAT_API_URL,
+  MAX_PERIOD_HOURLY_SLOTS,
+  MAX_PERIOD_2MIN_SLOTS,
 };

@@ -75,6 +75,12 @@ export default function KlhkReporting() {
   const [success, setSuccess] = useState('');
   const [apiKeyDraft, setApiKeyDraft] = useState('');
   const [backfillHour, setBackfillHour] = useState('');
+  const [periodFrom, setPeriodFrom] = useState('');
+  const [periodTo, setPeriodTo] = useState('');
+  const [periodMode, setPeriodMode] = useState('hourly');
+  const [skipAlreadySent, setSkipAlreadySent] = useState(true);
+  const [periodPreview, setPeriodPreview] = useState(null);
+  const [periodSummary, setPeriodSummary] = useState(null);
   const [confirmStartOpen, setConfirmStartOpen] = useState(false);
 
   const canUpdate = canAccessMenu('/klhk-reporting') && isAdmin;
@@ -277,6 +283,86 @@ export default function KlhkReporting() {
     );
   };
 
+  const parseDatetimeLocal = (value) => {
+    if (!value?.trim()) return null;
+    const ms = new Date(value).getTime();
+    return Number.isFinite(ms) ? ms : null;
+  };
+
+  const buildPeriodPayload = () => {
+    const period_from = parseDatetimeLocal(periodFrom);
+    const period_to = parseDatetimeLocal(periodTo);
+    if (period_from == null || period_to == null) {
+      throw new Error('Select valid From and To dates');
+    }
+    return {
+      period_from,
+      period_to,
+      mode: periodMode,
+      skip_already_sent: skipAlreadySent,
+    };
+  };
+
+  const previewPeriod = async () => {
+    setBusy(true);
+    setError('');
+    setSuccess('');
+    setPeriodPreview(null);
+    setPeriodSummary(null);
+    try {
+      const body = buildPeriodPayload();
+      const res = await fetch(
+        `${API_BASE_URL}/klhk-reporting/devices/${encodeURIComponent(deviceId)}/sparing/period/preview`,
+        { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Preview failed');
+      setPeriodPreview(data.preview);
+      setSuccess('Period preview ready');
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const sendPeriodAction = async (action) => {
+    setBusy(true);
+    setError('');
+    setSuccess('');
+    setPeriodSummary(null);
+    try {
+      const body = { ...buildPeriodPayload(), action };
+      const res = await fetch(
+        `${API_BASE_URL}/klhk-reporting/devices/${encodeURIComponent(deviceId)}/sparing/period/send`,
+        { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Period send failed');
+      setPeriodSummary(data.summary);
+      setSuccess(action === 'queue' ? 'Period added to queue' : 'Period send completed');
+      if (tab === 2) await loadLogs(deviceId);
+      if (tab === 3) await loadQueue(deviceId);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const processQueuePeriod = async () => {
+    try {
+      const { period_from, period_to } = buildPeriodPayload();
+      await postAction('process-queue', 'Queue processed for period', {
+        period_from,
+        period_to,
+        limit: 200,
+      });
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
   const backfillFromInput = () => {
     if (!backfillHour.trim()) {
       setError('Enter backfill hour as ISO datetime or unix ms');
@@ -293,6 +379,11 @@ export default function KlhkReporting() {
     const HOUR_MS = 60 * 60 * 1000;
     const hourStart = Math.floor(ms / HOUR_MS) * HOUR_MS;
     postAction('backfill', 'Backfill send completed', { hour_start: hourStart });
+  };
+
+  const formatSlotTime = (ms) => {
+    if (!Number.isFinite(ms)) return '—';
+    return new Date(ms).toLocaleString();
   };
 
   if (!canAccessMenu('/klhk-reporting')) {
@@ -500,6 +591,148 @@ export default function KlhkReporting() {
                           Fetch SPARING secret
                         </Button>
                       ) : null}
+
+                      <Typography variant="subtitle2" sx={{ pt: 1 }}>
+                        Send period (on-demand)
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Preview or send SPARING data for a date range. Works while backup is Idle (Option B).
+                        Max 168 hourly slots or ~24h of 2-minute slots per request.
+                      </Typography>
+                      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                        <TextField
+                          label="From"
+                          type="datetime-local"
+                          size="small"
+                          value={periodFrom}
+                          disabled={!canUpdate}
+                          onChange={(e) => {
+                            setPeriodFrom(e.target.value);
+                            setPeriodPreview(null);
+                            setPeriodSummary(null);
+                          }}
+                          InputLabelProps={{ shrink: true }}
+                          sx={{ flex: 1 }}
+                        />
+                        <TextField
+                          label="To"
+                          type="datetime-local"
+                          size="small"
+                          value={periodTo}
+                          disabled={!canUpdate}
+                          onChange={(e) => {
+                            setPeriodTo(e.target.value);
+                            setPeriodPreview(null);
+                            setPeriodSummary(null);
+                          }}
+                          InputLabelProps={{ shrink: true }}
+                          sx={{ flex: 1 }}
+                        />
+                      </Stack>
+                      <FormControl size="small" sx={{ maxWidth: 240 }}>
+                        <InputLabel>Period mode</InputLabel>
+                        <Select
+                          label="Period mode"
+                          value={periodMode}
+                          disabled={!canUpdate}
+                          onChange={(e) => {
+                            setPeriodMode(e.target.value);
+                            setPeriodPreview(null);
+                            setPeriodSummary(null);
+                          }}
+                        >
+                          <MenuItem value="hourly">Hourly</MenuItem>
+                          <MenuItem value="2min">2-minute</MenuItem>
+                          <MenuItem value="both">Both</MenuItem>
+                        </Select>
+                      </FormControl>
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={skipAlreadySent}
+                            disabled={!canUpdate}
+                            onChange={(e) => {
+                              setSkipAlreadySent(e.target.checked);
+                              setPeriodPreview(null);
+                              setPeriodSummary(null);
+                            }}
+                          />
+                        }
+                        label="Skip already sent slots"
+                      />
+                      {canUpdate ? (
+                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                          <Button variant="outlined" disabled={busy} onClick={previewPeriod}>
+                            Preview
+                          </Button>
+                          <Button
+                            variant="contained"
+                            startIcon={<SendIcon />}
+                            disabled={busy}
+                            onClick={() => sendPeriodAction('send')}
+                          >
+                            Send period
+                          </Button>
+                          <Button variant="outlined" disabled={busy} onClick={() => sendPeriodAction('queue')}>
+                            Add to queue
+                          </Button>
+                          <Button variant="outlined" disabled={busy} onClick={processQueuePeriod}>
+                            Process queue (period)
+                          </Button>
+                        </Stack>
+                      ) : null}
+                      {periodPreview ? (
+                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                          <Chip label={`Total slots: ${periodPreview.total_slots}`} size="small" />
+                          <Chip label={`To send: ${periodPreview.to_send}`} color="primary" size="small" />
+                          <Chip label={`Already sent: ${periodPreview.already_sent}`} size="small" />
+                          <Chip label={`No data: ${periodPreview.no_data}`} size="small" />
+                        </Stack>
+                      ) : null}
+                      {periodSummary ? (
+                        <Box>
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 1 }}>
+                            <Chip label={`Sent: ${periodSummary.sent}`} color="success" size="small" />
+                            <Chip label={`Queued: ${periodSummary.queued}`} size="small" />
+                            <Chip label={`Skipped (sent): ${periodSummary.skipped_already_sent}`} size="small" />
+                            <Chip label={`Skipped (no data): ${periodSummary.skipped_no_data}`} size="small" />
+                            {periodSummary.failed > 0 ? (
+                              <Chip label={`Failed: ${periodSummary.failed}`} color="error" size="small" />
+                            ) : null}
+                          </Stack>
+                          {periodSummary.results?.length > 0 && periodSummary.results.length <= 20 ? (
+                            <Table size="small">
+                              <TableHead>
+                                <TableRow>
+                                  <TableCell>Type</TableCell>
+                                  <TableCell>Time</TableCell>
+                                  <TableCell>Status</TableCell>
+                                </TableRow>
+                              </TableHead>
+                              <TableBody>
+                                {periodSummary.results.map((row, idx) => (
+                                  <TableRow key={`${row.send_type}-${row.timestamp}-${idx}`}>
+                                    <TableCell>{row.send_type}</TableCell>
+                                    <TableCell>{formatSlotTime(row.timestamp)}</TableCell>
+                                    <TableCell>
+                                      {row.reason ? `${row.status} (${row.reason})` : row.status}
+                                      {row.error ? `: ${row.error}` : ''}
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          ) : periodSummary.results?.length > 20 ? (
+                            <Typography variant="body2" color="text.secondary">
+                              {periodSummary.results.length} slot results — see Send logs tab for details.
+                            </Typography>
+                          ) : null}
+                        </Box>
+                      ) : null}
+
+                      <Typography variant="subtitle2" sx={{ pt: 1 }}>
+                        Quick: single hour backfill
+                      </Typography>
                       <Stack direction="row" spacing={1} alignItems="center">
                         <TextField
                           label="Backfill hour (ISO or unix ms)"

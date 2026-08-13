@@ -359,6 +359,57 @@ router.post(
   }
 );
 
+const sparingPeriodSchema = Joi.object({
+  period_from: Joi.number().integer().required(),
+  period_to: Joi.number().integer().required(),
+  mode: Joi.string().valid('hourly', '2min', 'both').default('hourly'),
+  skip_already_sent: Joi.boolean().default(true),
+});
+
+const sparingPeriodSendSchema = sparingPeriodSchema.keys({
+  action: Joi.string().valid('send', 'queue').default('send'),
+});
+
+router.post(
+  '/devices/:deviceId/sparing/period/preview',
+  authorizeRole(['super_admin', 'admin']),
+  authorizeMenuAccess('/klhk-reporting', 'read'),
+  async (req, res) => {
+    try {
+      const { deviceId } = req.params;
+      if (!requireDeviceAccess(req, res, deviceId)) return;
+      await assertDeviceExists(deviceId);
+      const { error, value } = sparingPeriodSchema.validate(req.body);
+      if (error) return res.status(400).json({ error: error.message, code: 'VALIDATION_ERROR' });
+      const preview = await sparingSend.previewSendPeriod(deviceId, value);
+      res.json({ ok: true, preview });
+    } catch (e) {
+      console.error('klhk period preview error:', e);
+      res.status(400).json({ error: e.message || 'Preview failed', code: 'KLHK_PERIOD_PREVIEW_ERROR' });
+    }
+  }
+);
+
+router.post(
+  '/devices/:deviceId/sparing/period/send',
+  authorizeRole(['super_admin', 'admin']),
+  authorizeMenuAccess('/klhk-reporting', 'update'),
+  async (req, res) => {
+    try {
+      const { deviceId } = req.params;
+      if (!requireDeviceAccess(req, res, deviceId)) return;
+      await assertDeviceExists(deviceId);
+      const { error, value } = sparingPeriodSendSchema.validate(req.body);
+      if (error) return res.status(400).json({ error: error.message, code: 'VALIDATION_ERROR' });
+      const summary = await sparingSend.sendPeriod(deviceId, value, req.user?.user_id);
+      res.json({ ok: true, summary });
+    } catch (e) {
+      console.error('klhk period send error:', e);
+      res.status(400).json({ error: e.message || 'Period send failed', code: 'KLHK_PERIOD_SEND_ERROR' });
+    }
+  }
+);
+
 router.post(
   '/devices/:deviceId/process-queue',
   authorizeRole(['super_admin', 'admin']),
@@ -369,9 +420,14 @@ router.post(
       if (!requireDeviceAccess(req, res, deviceId)) return;
       await assertDeviceExists(deviceId);
       const config = await klhkConfig.getConfig(deviceId);
+      const periodOpts = {
+        period_from: req.body?.period_from,
+        period_to: req.body?.period_to,
+        limit: req.body?.limit,
+      };
       let result;
       if (config?.reporting_type === 'sparing') {
-        result = await sparingSend.processQueue(deviceId);
+        result = await sparingSend.processQueue(deviceId, periodOpts);
       } else if (config?.reporting_type === 'tmat') {
         result = await tmatSend.processQueue(deviceId);
       } else {

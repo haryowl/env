@@ -4,7 +4,14 @@ const { query, getRow, getRows } = require('../../config/database');
 const klhkConfig = require('./klhkConfigService');
 const { collectHourlyData, collect2MinData } = require('./klhkDataCollector');
 const { httpRequest, probeHttpOriginReachable } = require('./klhkHttp');
-const { DEFAULT_SPARING_API_BASE } = require('./klhkConstants');
+const {
+  DEFAULT_SPARING_API_BASE,
+  MAX_PERIOD_HOURLY_SLOTS,
+  MAX_PERIOD_2MIN_SLOTS,
+} = require('./klhkConstants');
+
+const HOUR_MS = 60 * 60 * 1000;
+const SLOT_MS = 2 * 60 * 1000;
 
 const lastHostReachableByDevice = new Map();
 
@@ -406,7 +413,162 @@ async function fetchApiSecret(deviceId) {
   return apiSecret;
 }
 
-async function processQueue(deviceId) {
+function alignHourStart(ms) {
+  return Math.floor(ms / HOUR_MS) * HOUR_MS;
+}
+
+function align2MinSlot(ms) {
+  return ms - (ms % SLOT_MS);
+}
+
+function buildPeriodSlots(periodFromMs, periodToMs, mode) {
+  if (!Number.isFinite(periodFromMs) || !Number.isFinite(periodToMs)) {
+    throw new Error('period_from and period_to must be valid unix timestamps (ms)');
+  }
+  if (periodToMs < periodFromMs) {
+    throw new Error('period_to must be on or after period_from');
+  }
+
+  const slots = [];
+  const sendMode = mode || 'hourly';
+
+  if (sendMode === 'hourly' || sendMode === 'both') {
+    const start = alignHourStart(periodFromMs);
+    const end = alignHourStart(periodToMs);
+    for (let ts = start; ts <= end; ts += HOUR_MS) {
+      slots.push({ send_type: 'hourly', timestamp: ts });
+    }
+    if (slots.length > MAX_PERIOD_HOURLY_SLOTS) {
+      throw new Error(`Hourly range exceeds maximum of ${MAX_PERIOD_HOURLY_SLOTS} hours`);
+    }
+  }
+
+  if (sendMode === '2min' || sendMode === 'both') {
+    const start = align2MinSlot(periodFromMs);
+    const end = align2MinSlot(periodToMs);
+    const twoMinSlots = [];
+    for (let ts = start; ts <= end; ts += SLOT_MS) {
+      twoMinSlots.push({ send_type: '2min', timestamp: ts });
+    }
+    if (twoMinSlots.length > MAX_PERIOD_2MIN_SLOTS) {
+      throw new Error(`2-minute range exceeds maximum of ${MAX_PERIOD_2MIN_SLOTS} slots (~24 hours)`);
+    }
+    if (sendMode === '2min') return twoMinSlots;
+    return [...slots, ...twoMinSlots];
+  }
+
+  return slots;
+}
+
+async function slotHasData(deviceId, slot, loggerId) {
+  if (slot.send_type === 'hourly') {
+    return Boolean(await collectHourlyData(deviceId, loggerId, slot.timestamp, { quiet: true }));
+  }
+  return Boolean(await collect2MinData(deviceId, loggerId, slot.timestamp, { quiet: true }));
+}
+
+async function previewSendPeriod(deviceId, { period_from, period_to, mode, skip_already_sent = true }) {
+  await requireSparingReady(deviceId, false);
+  const slots = buildPeriodSlots(period_from, period_to, mode);
+  const config = await klhkConfig.getConfig(deviceId);
+  let already_sent = 0;
+  let no_data = 0;
+  let to_send = 0;
+
+  for (const slot of slots) {
+    if (skip_already_sent && (await hasAlreadySent(deviceId, slot.send_type, slot.timestamp))) {
+      already_sent += 1;
+      continue;
+    }
+    const hasData = await slotHasData(deviceId, slot, config.logger_id);
+    if (!hasData) no_data += 1;
+    else to_send += 1;
+  }
+
+  return {
+    period_from,
+    period_to,
+    mode: mode || 'hourly',
+    total_slots: slots.length,
+    already_sent,
+    no_data,
+    to_send,
+  };
+}
+
+async function sendPeriod(deviceId, options, triggeredBy = null) {
+  const {
+    period_from,
+    period_to,
+    mode,
+    skip_already_sent = true,
+    action = 'send',
+  } = options;
+
+  const { config } = await requireSparingReady(deviceId, false);
+  const slots = buildPeriodSlots(period_from, period_to, mode);
+
+  const summary = {
+    total_slots: slots.length,
+    sent: 0,
+    queued: 0,
+    skipped_already_sent: 0,
+    skipped_no_data: 0,
+    failed: 0,
+    results: [],
+  };
+
+  for (const slot of slots) {
+    if (skip_already_sent && (await hasAlreadySent(deviceId, slot.send_type, slot.timestamp))) {
+      summary.skipped_already_sent += 1;
+      summary.results.push({
+        ...slot,
+        status: 'skipped',
+        reason: 'already_sent',
+      });
+      continue;
+    }
+
+    const hasData = await slotHasData(deviceId, slot, config.logger_id);
+    if (!hasData) {
+      summary.skipped_no_data += 1;
+      summary.results.push({ ...slot, status: 'skipped', reason: 'no_data' });
+      continue;
+    }
+
+    if (action === 'queue') {
+      await addToQueue(deviceId, slot.send_type, slot.timestamp, 'Manual period enqueue', {
+        quietCollect: true,
+      });
+      summary.queued += 1;
+      summary.results.push({ ...slot, status: 'queued' });
+      continue;
+    }
+
+    try {
+      const result =
+        slot.send_type === 'hourly'
+          ? await sendHourlyBatch(deviceId, slot.timestamp, triggeredBy)
+          : await send2MinBatch(deviceId, slot.timestamp, triggeredBy);
+
+      if (result?.skipped) {
+        if (result.reason === 'already_sent') summary.skipped_already_sent += 1;
+        else summary.skipped_no_data += 1;
+        summary.results.push({ ...slot, status: 'skipped', reason: result.reason });
+      } else {
+        summary.sent += 1;
+        summary.results.push({ ...slot, status: 'sent' });
+      }
+    } catch (error) {
+      summary.failed += 1;
+      summary.results.push({ ...slot, status: 'failed', error: error.message });
+    }
+  }
+
+  return summary;
+}
+
+async function processQueue(deviceId, opts = {}) {
   const config = await klhkConfig.getConfig(deviceId);
   if (!config || config.reporting_type !== 'sparing') return { processed: 0 };
 
@@ -426,19 +588,32 @@ async function processQueue(deviceId) {
     );
   }
 
-  const items = await getRows(
-    `SELECT * FROM klhk_send_queue
-     WHERE device_id = $1 AND protocol = 'sparing' AND status = 'pending'
-     ORDER BY created_at ASC LIMIT 10`,
-    [deviceId]
-  );
+  const params = [deviceId];
+  let sql = `SELECT * FROM klhk_send_queue
+     WHERE device_id = $1 AND protocol = 'sparing' AND status = 'pending'`;
+  if (opts.period_from != null && Number.isFinite(Number(opts.period_from))) {
+    params.push(Number(opts.period_from));
+    sql += ` AND hour_timestamp >= $${params.length}`;
+  }
+  if (opts.period_to != null && Number.isFinite(Number(opts.period_to))) {
+    params.push(Number(opts.period_to));
+    sql += ` AND hour_timestamp <= $${params.length}`;
+  }
+  const limit = Math.min(Math.max(Number(opts.limit) || 50, 1), 200);
+  sql += ` ORDER BY hour_timestamp ASC, created_at ASC LIMIT ${limit}`;
+
+  const items = await getRows(sql, params);
 
   let processed = 0;
+  let succeeded = 0;
+  let failed = 0;
   for (const item of items) {
-    await sendOneQueueItem(deviceId, item, config);
+    const outcome = await sendOneQueueItem(deviceId, item, config);
     processed += 1;
+    if (outcome.success) succeeded += 1;
+    else failed += 1;
   }
-  return { processed };
+  return { processed, succeeded, failed };
 }
 
 async function backfillHour(deviceId, hourStartMs, triggeredBy = null) {
@@ -451,6 +626,9 @@ module.exports = {
   send2MinBatch,
   processQueue,
   backfillHour,
+  previewSendPeriod,
+  sendPeriod,
+  buildPeriodSlots,
   getApiUrls,
   isSparingHostReachable,
 };
