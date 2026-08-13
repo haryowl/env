@@ -1,5 +1,10 @@
 import moment from 'moment-timezone';
 import { getUserTimezone, formatInUserTimezone } from './timezoneUtils';
+import {
+  VALUE_KINDS,
+  getEffectiveValueKind,
+  getRateToHourlyFactor,
+} from './valueKind';
 
 export const REALTIME_CHART_DISPLAY_MODES = {
   INSTANT: 'instant',
@@ -25,7 +30,7 @@ export function hourlyChartDisplayLabel(mode) {
     return 'Average per calendar hour (user timezone)';
   }
   if (mode === REALTIME_CHART_DISPLAY_MODES.TOTAL_HOUR) {
-    return 'Sum of readings per calendar hour (best for rainfall, counters)';
+    return 'Hourly total per calendar hour: flow rates use avg × 60 (L/min → L/h); rainfall/counters use sum; levels use average';
   }
   return '';
 }
@@ -43,14 +48,37 @@ function rowInstant(row) {
   return m.isValid() ? m : null;
 }
 
+function aggregateHourlyValue(param, bucket, mode, fieldMetadata) {
+  const n = bucket.counts[param] || 0;
+  if (n === 0) return null;
+
+  const sum = bucket.sums[param];
+  const avg = sum / n;
+
+  if (mode === REALTIME_CHART_DISPLAY_MODES.AVG_HOUR) {
+    return avg;
+  }
+
+  const kind = getEffectiveValueKind(param, fieldMetadata);
+  if (kind === VALUE_KINDS.RATE) {
+    const unit = fieldMetadata?.[param]?.unit || '';
+    return avg * getRateToHourlyFactor(unit);
+  }
+  if (kind === VALUE_KINDS.CUMULATIVE) {
+    return sum;
+  }
+  return avg;
+}
+
 /**
  * Build chart series from raw /data-dash rows.
  * `datetime` is the mapped device time (primary); `timestamp` mirrors it for chart APIs.
  * @param {object[]} rows
  * @param {string[]} params - numeric series keys (no datetime/timestamp)
  * @param {'instant'|'avg_hour'|'total_hour'} mode
+ * @param {Record<string, object>} [fieldMetadata] - from useFieldMetadata().metadata
  */
-export function buildRealtimeChartSeries(rows, params, mode) {
+export function buildRealtimeChartSeries(rows, params, mode, fieldMetadata = {}) {
   if (!rows?.length) return [];
 
   const sorted = [...rows].sort((a, b) => {
@@ -71,7 +99,6 @@ export function buildRealtimeChartSeries(rows, params, mode) {
   }
 
   const tz = getUserTimezone();
-  const useSum = mode === REALTIME_CHART_DISPLAY_MODES.TOTAL_HOUR;
   const buckets = new Map();
 
   for (const row of sorted) {
@@ -106,8 +133,11 @@ export function buildRealtimeChartSeries(rows, params, mode) {
       for (const p of params) {
         const n = bucket.counts[p] || 0;
         if (n === 0) continue;
-        point[p] = useSum ? bucket.sums[p] : bucket.sums[p] / n;
+        point[p] = aggregateHourlyValue(p, bucket, mode, fieldMetadata);
         point[`_n_${p}`] = n;
+        if (mode === REALTIME_CHART_DISPLAY_MODES.TOTAL_HOUR) {
+          point[`_valueKind_${p}`] = getEffectiveValueKind(p, fieldMetadata);
+        }
       }
       return point;
     });

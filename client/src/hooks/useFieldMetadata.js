@@ -1,4 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
+import {
+  getEffectiveValueKind,
+  getChartDisplayUnit as resolveChartDisplayUnit,
+} from '../utils/valueKind';
 import axios from 'axios';
 import { API_BASE_URL } from '../config/api';
 
@@ -37,6 +41,7 @@ const normalizeFields = (fields = []) => {
       statusKeywords: field.status_keywords || '',
       displayMin: toFiniteOrNull(field.display_min),
       displayMax: toFiniteOrNull(field.display_max),
+      valueKind: field.value_kind || null,
     };
   });
   return map;
@@ -57,6 +62,11 @@ const fetchFieldDefinitions = async () => {
   }
 
   return normalizeFields(response.data.fields);
+};
+
+export const invalidateFieldMetadataCache = () => {
+  metadataCache = null;
+  metadataPromise = null;
 };
 
 export const getCachedFieldMetadata = () => metadataCache;
@@ -148,17 +158,33 @@ export const useFieldMetadata = () => {
     [getMetadata]
   );
 
+  const getValueKind = useCallback(
+    (fieldName) => getEffectiveValueKind(fieldName, metadata ?? EMPTY_METADATA),
+    [metadata]
+  );
+
+  const getChartDisplayUnit = useCallback(
+    (fieldName, displayMode) =>
+      resolveChartDisplayUnit(fieldName, displayMode, metadata ?? EMPTY_METADATA),
+    [metadata]
+  );
+
   const formatDisplayName = useCallback(
-    (fieldName, { withUnit = false } = {}) => {
+    (fieldName, { withUnit = false, chartDisplayMode = null } = {}) => {
       if (!fieldName) return '';
       const meta = getMetadata(fieldName);
       const label = meta?.displayName || humanize(fieldName);
-      if (withUnit && meta?.unit) {
-        return `${label} (${meta.unit})`;
+      if (withUnit) {
+        const unit = chartDisplayMode
+          ? resolveChartDisplayUnit(fieldName, chartDisplayMode, metadata ?? EMPTY_METADATA)
+          : meta?.unit;
+        if (unit) {
+          return `${label} (${unit})`;
+        }
       }
       return label;
     },
-    [getMetadata]
+    [getMetadata, metadata]
   );
 
   return {
@@ -168,6 +194,8 @@ export const useFieldMetadata = () => {
     refresh,
     getMetadata,
     getUnit,
+    getValueKind,
+    getChartDisplayUnit,
     getDisplayRange,
     formatDisplayName,
   };

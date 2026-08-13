@@ -518,14 +518,14 @@ export default function NDashboard({ socket }) {
     ? chartParams
     : chartParams.filter((p) => selectedChartParams.includes(p));
   const chartData = useMemo(
-    () => buildRealtimeChartSeries(history, chartParams, chartDisplayMode)
+    () => buildRealtimeChartSeries(history, chartParams, chartDisplayMode, fieldMetadata)
       .map((row) => {
         const raw = row.originalTimestamp ?? row.datetime ?? row.timestamp;
         const t = raw != null && raw !== '' ? new Date(raw).getTime() : NaN;
         return { ...row, t: Number.isFinite(t) ? t : 0 };
       })
       .filter((row) => row.t > 0),
-    [history, chartParams, chartDisplayMode]
+    [history, chartParams, chartDisplayMode, fieldMetadata]
   );
   const rangeLabel = RANGE_OPTIONS.find((o) => o.value === chartRange)?.label || 'Default';
 
@@ -849,11 +849,11 @@ export default function NDashboard({ socket }) {
                         fontSize: 12,
                       }}
                       labelFormatter={(ms) => (Number.isFinite(ms) ? formatInUserTimezone(new Date(ms).toISOString()) : '')}
-                      formatter={(value, name) => [fmtVal(value, 3), formatDisplayName(name, { withUnit: true })]}
+                      formatter={(value, name) => [fmtVal(value, 3), formatDisplayName(name, { withUnit: true, chartDisplayMode })]}
                     />
                     <Legend
                       wrapperStyle={{ fontSize: 11, paddingTop: 4 }}
-                      formatter={(value) => formatDisplayName(value, { withUnit: true })}
+                      formatter={(value) => formatDisplayName(value, { withUnit: true, chartDisplayMode })}
                     />
                     {visibleChartParams.map((p) => (
                       <Area

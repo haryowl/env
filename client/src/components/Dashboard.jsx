@@ -136,7 +136,7 @@ const Dashboard = ({ socket }) => {
   });
   const [realtimeCustomStart, setRealtimeCustomStart] = useState(() => subHours(new Date(), 2));
   const [realtimeCustomEnd, setRealtimeCustomEnd] = useState(() => new Date());
-  const { formatDisplayName, getUnit, metadata: fieldMetadata } = useFieldMetadata();
+  const { formatDisplayName, getUnit, getChartDisplayUnit, metadata: fieldMetadata } = useFieldMetadata();
   const isGpsDisplayField = useCallback((p) => {
     const k = String(p || '').toLowerCase();
     return k === 'latitude' || k === 'longitude' || k === 'lat' || k === 'lon' || k === 'lng';
@@ -227,8 +227,9 @@ const Dashboard = ({ socket }) => {
       realtimeData,
       chartSeriesParams,
       realtimeChartDisplayMode,
+      fieldMetadata,
     );
-  }, [realtimeData, chartSeriesParams, realtimeChartDisplayMode]);
+  }, [realtimeData, chartSeriesParams, realtimeChartDisplayMode, fieldMetadata]);
 
   // Merge alert timestamps into chart data: one red dot per alert at the closest chart point, only if that point's value is actually out of range (above max or below min)
   const chartDataWithAlerts = useMemo(() => {
@@ -307,7 +308,7 @@ const Dashboard = ({ socket }) => {
 
     const fmtValue = (param, value, precision = 3) => {
       if (value === null || value === undefined || value === '') return '-';
-      const unit = getUnit(param);
+      const unit = getChartDisplayUnit(param, realtimeChartDisplayMode);
       const withUnit = unit ? ` ${unit}` : '';
       if (typeof value === 'number') {
         const formatted = Number.isFinite(value) ? value.toFixed(precision) : String(value);
@@ -343,13 +344,13 @@ const Dashboard = ({ socket }) => {
         return {
           key: p.dataKey,
           color: p.color || hashColor(p.dataKey),
-          label: formatDisplayName(p.dataKey, { withUnit: true }),
+          label: formatDisplayName(p.dataKey, { withUnit: true, chartDisplayMode: realtimeChartDisplayMode }),
           valueText: fmtValue(p.dataKey, raw, 3),
           sortVal,
         };
       })
       .sort((a, b) => b.sortVal - a.sortVal);
-  }, [visibleParams, formatDisplayName, getUnit]);
+  }, [visibleParams, formatDisplayName, getChartDisplayUnit, realtimeChartDisplayMode]);
 
   const RealtimeTooltip = useCallback(({ active, payload, label }) => {
     if (!active) return null;
@@ -434,7 +435,7 @@ const Dashboard = ({ socket }) => {
           key={param} 
           type="monotone" 
           dataKey={param} 
-          name={formatDisplayName(param, { withUnit: true })}
+          name={formatDisplayName(param, { withUnit: true, chartDisplayMode: realtimeChartDisplayMode })}
           stroke={color}
           strokeWidth={focused ? 3 : 1.5}
           strokeOpacity={focused ? 1 : 0.28}
@@ -444,7 +445,7 @@ const Dashboard = ({ socket }) => {
           connectNulls={false}
         />
       );
-    }), [visibleParams, formatDisplayName, activeRealtimeParam]);
+    }), [visibleParams, formatDisplayName, activeRealtimeParam, realtimeChartDisplayMode]);
 
   const memoizedGradientDefs = useMemo(
     () =>

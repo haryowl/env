@@ -2,6 +2,7 @@ const express = require('express');
 const { authorizeRole } = require('../middleware/auth');
 const { getRow, getRows, query } = require('../config/database');
 const { ensureFieldDefinitionsSchema } = require('../utils/ensureFieldDefinitionsSchema');
+const { normalizeValueKind } = require('../utils/valueKind');
 
 const router = express.Router();
 
@@ -104,6 +105,7 @@ router.post('/', authorizeRole(['super_admin', 'admin']), async (req, res) => {
       status_keywords,
       display_min,
       display_max,
+      value_kind,
     } = req.body;
 
     // Validate required fields
@@ -131,8 +133,8 @@ router.post('/', authorizeRole(['super_admin', 'admin']), async (req, res) => {
     const result = await query(`
       INSERT INTO field_definitions (
         field_name, display_name, data_type, unit, description, 
-        category, is_standard, status_keywords, display_min, display_max, created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        category, is_standard, status_keywords, display_min, display_max, value_kind, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING *
     `, [
       field_name,
@@ -145,6 +147,7 @@ router.post('/', authorizeRole(['super_admin', 'admin']), async (req, res) => {
       status_keywords || null,
       toRangeBound(display_min),
       toRangeBound(display_max),
+      normalizeValueKind(value_kind),
       req.user.user_id
     ]);
 
@@ -179,6 +182,7 @@ router.put('/:id', authorizeRole(['super_admin', 'admin']), async (req, res) => 
       status_keywords,
       display_min,
       display_max,
+      value_kind,
     } = req.body;
 
     // Validate required fields
@@ -207,8 +211,8 @@ router.put('/:id', authorizeRole(['super_admin', 'admin']), async (req, res) => 
       UPDATE field_definitions 
       SET display_name = $1, data_type = $2, unit = $3, description = $4, 
           category = $5, is_standard = $6, status_keywords = $7,
-          display_min = $8, display_max = $9, updated_at = NOW()
-      WHERE field_id = $10
+          display_min = $8, display_max = $9, value_kind = $10, updated_at = NOW()
+      WHERE field_id = $11
       RETURNING *
     `, [
       display_name,
@@ -220,6 +224,7 @@ router.put('/:id', authorizeRole(['super_admin', 'admin']), async (req, res) => 
       status_keywords || null,
       toRangeBound(display_min),
       toRangeBound(display_max),
+      normalizeValueKind(value_kind),
       id
     ]);
 

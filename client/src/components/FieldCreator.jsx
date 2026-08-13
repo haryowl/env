@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -37,6 +37,12 @@ import {
 } from '@mui/icons-material';
 
 import { API_BASE_URL } from '../config/api';
+import {
+  VALUE_KIND_OPTIONS,
+  inferValueKind,
+  valueKindLabel,
+} from '../utils/valueKind';
+import { invalidateFieldMetadataCache } from '../hooks/useFieldMetadata';
 
 const FieldCreator = () => {
   const [fields, setFields] = useState([]);
@@ -56,6 +62,7 @@ const FieldCreator = () => {
     status_keywords: '',
     display_min: '',
     display_max: '',
+    value_kind: 'auto',
   });
 
   const dataTypes = ['string', 'number', 'boolean', 'timestamp', 'json'];
@@ -112,6 +119,7 @@ const FieldCreator = () => {
         status_keywords: field.status_keywords || '',
         display_min: field.display_min === null || field.display_min === undefined ? '' : String(field.display_min),
         display_max: field.display_max === null || field.display_max === undefined ? '' : String(field.display_max),
+        value_kind: field.value_kind || 'auto',
       });
     } else {
       setEditingField(null);
@@ -126,6 +134,7 @@ const FieldCreator = () => {
         status_keywords: '',
         display_min: '',
         display_max: '',
+        value_kind: 'auto',
       });
     }
     setDialogOpen(true);
@@ -145,8 +154,22 @@ const FieldCreator = () => {
       status_keywords: '',
       display_min: '',
       display_max: '',
+      value_kind: 'auto',
     });
   };
+
+  const suggestedValueKind = useMemo(
+    () =>
+      inferValueKind({
+        unit: formData.unit,
+        category: formData.category,
+        fieldName: formData.field_name,
+      }),
+    [formData.unit, formData.category, formData.field_name]
+  );
+
+  const selectedValueKindOption = VALUE_KIND_OPTIONS.find((o) => o.value === formData.value_kind)
+    || VALUE_KIND_OPTIONS[0];
 
   const handleInputChange = (field) => (event) => {
     setFormData(prev => ({
@@ -178,16 +201,22 @@ const FieldCreator = () => {
       
       const method = editingField ? 'PUT' : 'POST';
 
+      const payload = {
+        ...formData,
+        value_kind: formData.value_kind === 'auto' ? null : formData.value_kind,
+      };
+
       const response = await fetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       if (response.ok) {
+        invalidateFieldMetadataCache();
         handleCloseDialog();
         loadFields();
         setError('');
@@ -293,6 +322,7 @@ const FieldCreator = () => {
               <TableCell>Display Name</TableCell>
               <TableCell>Data Type</TableCell>
               <TableCell>Unit</TableCell>
+              <TableCell>Value kind</TableCell>
               <TableCell>Category</TableCell>
               <TableCell>Standard</TableCell>
               <TableCell>Actions</TableCell>
@@ -301,7 +331,7 @@ const FieldCreator = () => {
           <TableBody>
             {filteredFields.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} align="center">
+                <TableCell colSpan={8} align="center">
                   {searchTerm ? 'No fields match your search' : 'No field definitions found'}
                 </TableCell>
               </TableRow>
@@ -325,6 +355,17 @@ const FieldCreator = () => {
                     />
                   </TableCell>
                   <TableCell>{field.unit || '-'}</TableCell>
+                  <TableCell>
+                    <Chip
+                      label={
+                        field.value_kind
+                          ? valueKindLabel(field.value_kind)
+                          : `Auto → ${valueKindLabel(inferValueKind({ unit: field.unit, category: field.category, fieldName: field.field_name }))}`
+                      }
+                      size="small"
+                      variant="outlined"
+                    />
+                  </TableCell>
                   <TableCell>
                     <Chip 
                       label={field.category} 
@@ -414,10 +455,34 @@ const FieldCreator = () => {
                 label="Unit"
                 value={formData.unit}
                 onChange={handleInputChange('unit')}
-                placeholder="e.g., °C, mg/L, %"
+                placeholder="e.g., °C, mg/L, L/min"
                 helperText="Measurement unit (optional)"
               />
             </Grid>
+            {formData.data_type === 'number' && (
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <FormControl fullWidth>
+                  <InputLabel>Value kind</InputLabel>
+                  <Select
+                    value={formData.value_kind}
+                    onChange={handleInputChange('value_kind')}
+                    label="Value kind"
+                  >
+                    {VALUE_KIND_OPTIONS.map((opt) => (
+                      <MenuItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 0.75, display: 'block' }}>
+                    {selectedValueKindOption.helper}
+                    {formData.value_kind === 'auto'
+                      ? ` Inferred: ${valueKindLabel(suggestedValueKind)}.`
+                      : ''}
+                  </Typography>
+                </FormControl>
+              </Grid>
+            )}
             <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth>
                 <InputLabel>Category</InputLabel>

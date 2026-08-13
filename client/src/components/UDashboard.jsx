@@ -114,7 +114,7 @@ const parameterPanelContentSx = {
 export default function UDashboard({ socket }) {
   const theme = useMuiTheme();
   const { userPermissions } = usePermissions();
-  const { formatDisplayName, getUnit, metadata: fieldMetadata } = useFieldMetadata();
+  const { formatDisplayName, getUnit, getChartDisplayUnit, metadata: fieldMetadata } = useFieldMetadata();
 
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -196,8 +196,9 @@ export default function UDashboard({ socket }) {
       realtimeData,
       chartSeriesParams,
       realtimeChartDisplayMode,
+      fieldMetadata,
     );
-  }, [realtimeData, chartSeriesParams, realtimeChartDisplayMode]);
+  }, [realtimeData, chartSeriesParams, realtimeChartDisplayMode, fieldMetadata]);
 
   const chartDataWithAlerts = useMemo(() => {
     if (isHourlyChartDisplayMode(realtimeChartDisplayMode)) return memoizedChartData;
@@ -271,7 +272,7 @@ export default function UDashboard({ socket }) {
 
       const fmtValue = (param, value, precision = 3) => {
         if (value === null || value === undefined || value === '') return '-';
-        const unit = getUnit(param);
+        const unit = getChartDisplayUnit(param, realtimeChartDisplayMode);
         const withUnit = unit ? ` ${unit}` : '';
         if (typeof value === 'number') {
           const formatted = Number.isFinite(value) ? value.toFixed(precision) : String(value);
@@ -304,14 +305,14 @@ export default function UDashboard({ socket }) {
           return {
             key: p.dataKey,
             color: p.color || hashColor(p.dataKey),
-            label: formatDisplayName(p.dataKey, { withUnit: true }),
+            label: formatDisplayName(p.dataKey, { withUnit: true, chartDisplayMode: realtimeChartDisplayMode }),
             valueText: fmtValue(p.dataKey, raw, 3),
             sortVal,
           };
         })
         .sort((a, b) => b.sortVal - a.sortVal);
     },
-    [visibleParams, formatDisplayName, getUnit]
+    [visibleParams, formatDisplayName, getChartDisplayUnit, realtimeChartDisplayMode]
   );
 
   const RealtimeTooltip = useCallback(
@@ -381,7 +382,7 @@ export default function UDashboard({ socket }) {
             key={param}
             type="monotone"
             dataKey={param}
-            name={formatDisplayName(param, { withUnit: true })}
+            name={formatDisplayName(param, { withUnit: true, chartDisplayMode: realtimeChartDisplayMode })}
             stroke={color}
             strokeWidth={focused ? 2.5 : 1.2}
             strokeOpacity={focused ? 1 : 0.28}
@@ -392,7 +393,7 @@ export default function UDashboard({ socket }) {
           />
         );
       }),
-    [visibleParams, formatDisplayName, activeRealtimeParam]
+    [visibleParams, formatDisplayName, activeRealtimeParam, realtimeChartDisplayMode]
   );
 
   const memoizedGradientDefs = useMemo(
@@ -1017,7 +1018,7 @@ export default function UDashboard({ socket }) {
                       >
                         <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: color, mr: 0.35 }} />
                         <Typography sx={{ fontSize: '0.62rem', fontWeight: 650, lineHeight: 1.1 }}>
-                          {formatDisplayName(param, { withUnit: true })}
+                          {formatDisplayName(param, { withUnit: true, chartDisplayMode: realtimeChartDisplayMode })}
                         </Typography>
                       </ToggleButton>
                     );
