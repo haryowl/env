@@ -2,7 +2,11 @@ const crypto = require('crypto');
 const { URL } = require('url');
 const { query, getRow, getRows } = require('../../config/database');
 const klhkConfig = require('./klhkConfigService');
-const { collectHourlyData, collect2MinData } = require('./klhkDataCollector');
+const {
+  collectHourlyData,
+  collect2MinData,
+  getEnabledSparingMappings,
+} = require('./klhkDataCollector');
 const { httpRequest, probeHttpOriginReachable } = require('./klhkHttp');
 const {
   DEFAULT_SPARING_API_BASE,
@@ -304,17 +308,29 @@ async function sendOneQueueItem(deviceId, item, config, options = {}) {
   }
 }
 
+/** Config problems that stop a send before any HTTP call is attempted. */
+function notReadyError(message) {
+  const err = new Error(message);
+  err.code = 'KLHK_NOT_READY';
+  return err;
+}
+
 async function requireSparingReady(deviceId, requireRunning = false) {
   const config = await klhkConfig.getConfig(deviceId);
   if (!config || config.reporting_type !== 'sparing') {
-    throw new Error('Device is not configured for SPARING');
+    throw notReadyError('Device is not configured for SPARING');
   }
   if (requireRunning && !config.backup_running) {
-    throw new Error('Backup reporting is not running for this device');
+    throw notReadyError('Backup reporting is not running for this device');
   }
   const apiSecret = await klhkConfig.getApiSecret(deviceId);
-  if (!apiSecret) throw new Error('API Secret not configured — fetch secret first');
-  if (!config.logger_id?.trim()) throw new Error('Logger ID not configured');
+  if (!apiSecret) throw notReadyError('API Secret not configured — fetch secret first');
+  if (!config.logger_id?.trim()) throw notReadyError('Logger ID not configured');
+
+  const enabledMappings = await getEnabledSparingMappings(deviceId);
+  if (!enabledMappings.length) {
+    throw notReadyError('No enabled SPARING parameter mappings — configure Mappings first');
+  }
   return { config, apiSecret };
 }
 
@@ -621,6 +637,8 @@ async function backfillHour(deviceId, hourStartMs, triggeredBy = null) {
 }
 
 module.exports = {
+  writeLog,
+  requireSparingReady,
   fetchApiSecret,
   sendHourlyBatch,
   send2MinBatch,

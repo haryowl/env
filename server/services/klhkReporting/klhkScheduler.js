@@ -13,7 +13,28 @@ const SCHEDULER_ENABLED = (() => {
 /** @type {Map<string, { hourly?: import('node-cron').ScheduledTask, twoMin?: import('node-cron').ScheduledTask, retry?: NodeJS.Timeout }>} */
 const deviceJobs = new Map();
 
+/**
+ * Records scheduler runs that never reached the API, so an idle-looking device
+ * shows a reason in Send logs instead of nothing at all.
+ */
+async function logSchedulerOutcome(deviceId, sendType, hourTimestamp, status, message) {
+  try {
+    await sparingSend.writeLog(deviceId, {
+      send_type: sendType,
+      hour_timestamp: hourTimestamp,
+      records_count: 0,
+      status,
+      response: message,
+      duration_ms: 0,
+    });
+  } catch (err) {
+    console.error(`[KLHK] Failed to write scheduler log for ${deviceId}:`, err?.message || err);
+  }
+}
+
 async function runHourlyForDevice(deviceId) {
+  const HOUR_MS = 60 * 60 * 1000;
+  const previousHour = Math.floor((Date.now() - HOUR_MS) / HOUR_MS) * HOUR_MS;
   try {
     const config = await klhkConfig.getConfig(deviceId);
     if (!config?.backup_running || config.reporting_type !== 'sparing') return;
@@ -21,16 +42,31 @@ async function runHourlyForDevice(deviceId) {
 
     await sparingSend.processQueue(deviceId);
 
-    const now = Date.now();
-    const HOUR_MS = 60 * 60 * 1000;
-    const previousHour = Math.floor((now - HOUR_MS) / HOUR_MS) * HOUR_MS;
-    await sparingSend.sendHourlyBatch(deviceId, previousHour);
+    const result = await sparingSend.sendHourlyBatch(deviceId, previousHour);
+    if (result?.skipped) {
+      await logSchedulerOutcome(
+        deviceId,
+        'hourly',
+        previousHour,
+        'skipped',
+        `Scheduled hourly send skipped: ${result.reason}`
+      );
+    }
   } catch (err) {
     console.error(`[KLHK] Hourly scheduler error for ${deviceId}:`, err?.message || err);
+    // Send failures already log themselves; only preflight config problems are silent.
+    if (err?.code === 'KLHK_NOT_READY') {
+      await logSchedulerOutcome(deviceId, 'hourly', previousHour, 'failed', `Not ready: ${err.message}`);
+    }
   }
 }
 
 async function run2MinForDevice(deviceId) {
+  const SLOT_MS = 2 * 60 * 1000;
+  const now = Date.now();
+  // At 08:02 the 08:00–08:02 slot has just completed. Querying the new
+  // 08:02–08:04 slot would normally return no data.
+  const slotTimestamp = now - (now % SLOT_MS) - SLOT_MS;
   try {
     const config = await klhkConfig.getConfig(deviceId);
     if (!config?.backup_running || config.reporting_type !== 'sparing') return;
@@ -38,14 +74,13 @@ async function run2MinForDevice(deviceId) {
 
     await sparingSend.processQueue(deviceId);
 
-    const now = Date.now();
-    const SLOT_MS = 2 * 60 * 1000;
-    // At 08:02 the 08:00–08:02 slot has just completed. Querying the new
-    // 08:02–08:04 slot would normally return no data.
-    const slotTimestamp = now - (now % SLOT_MS) - SLOT_MS;
     await sparingSend.send2MinBatch(deviceId, slotTimestamp);
   } catch (err) {
     console.error(`[KLHK] 2-min scheduler error for ${deviceId}:`, err?.message || err);
+    // Skips are not logged here: a 2-minute cadence would flood the log table.
+    if (err?.code === 'KLHK_NOT_READY') {
+      await logSchedulerOutcome(deviceId, '2min', slotTimestamp, 'failed', `Not ready: ${err.message}`);
+    }
   }
 }
 

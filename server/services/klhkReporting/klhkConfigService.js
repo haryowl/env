@@ -147,14 +147,81 @@ async function getTmatMappings(deviceId) {
   );
 }
 
+/**
+ * Sensor fields that this device can actually produce. Mapper target fields
+ * are included even before the first reading arrives; stored sensor types are
+ * authoritative and cover fields not present in the current mapper template.
+ */
+async function getAvailableSensorFields(deviceId) {
+  await ensureKlhkReportingSchema();
+  const [storedRows, assignment] = await Promise.all([
+    getRows(
+      `SELECT sensor_type, MAX(timestamp) AS last_seen
+       FROM sensor_readings
+       WHERE device_id = $1
+       GROUP BY sensor_type
+       ORDER BY sensor_type`,
+      [deviceId]
+    ),
+    getRow(
+      `SELECT mt.mappings
+       FROM device_mapper_assignments dma
+       JOIN mapper_templates mt ON mt.template_id = dma.template_id
+       WHERE dma.device_id = $1`,
+      [deviceId]
+    ),
+  ]);
+
+  const fields = new Map();
+  for (const row of storedRows) {
+    const name = String(row.sensor_type || '').trim();
+    if (name) {
+      fields.set(name.toLowerCase(), {
+        field_name: name,
+        source: 'stored',
+        last_seen: row.last_seen,
+      });
+    }
+  }
+
+  const mapperMappings = Array.isArray(assignment?.mappings) ? assignment.mappings : [];
+  for (const mapping of mapperMappings) {
+    const name = String(
+      mapping?.target_field ?? mapping?.targetField ?? ''
+    ).trim();
+    if (!name || ['datetime', 'timestamp'].includes(name.toLowerCase())) continue;
+    const key = name.toLowerCase();
+    if (!fields.has(key)) {
+      fields.set(key, {
+        field_name: name,
+        source: 'mapper',
+        last_seen: null,
+      });
+    }
+  }
+
+  return [...fields.values()].sort((a, b) =>
+    a.field_name.localeCompare(b.field_name, undefined, { sensitivity: 'base' })
+  );
+}
+
 async function replaceSparingMappings(deviceId, mappings) {
   await ensureKlhkReportingSchema();
+  const availableFields = await getAvailableSensorFields(deviceId);
+  const availableNames = new Set(
+    availableFields.map((field) => field.field_name.toLowerCase())
+  );
   for (const m of mappings) {
     if (!SPARING_PARAMS.includes(m.sparing_param)) {
       throw new Error(`Invalid sparing_param: ${m.sparing_param}`);
     }
     if (!m.sensor_field || !String(m.sensor_field).trim()) {
       throw new Error(`sensor_field required for ${m.sparing_param}`);
+    }
+    if (!availableNames.has(String(m.sensor_field).trim().toLowerCase())) {
+      throw new Error(
+        `Sensor field "${m.sensor_field}" is not available on device ${deviceId}`
+      );
     }
   }
   await query('DELETE FROM klhk_sparing_mappings WHERE device_id = $1', [deviceId]);
@@ -170,12 +237,21 @@ async function replaceSparingMappings(deviceId, mappings) {
 
 async function replaceTmatMappings(deviceId, mappings) {
   await ensureKlhkReportingSchema();
+  const availableFields = await getAvailableSensorFields(deviceId);
+  const availableNames = new Set(
+    availableFields.map((field) => field.field_name.toLowerCase())
+  );
   for (const m of mappings) {
     if (!TMAT_PARAMS.includes(m.tmat_param)) {
       throw new Error(`Invalid tmat_param: ${m.tmat_param}`);
     }
     if (!m.sensor_field || !String(m.sensor_field).trim()) {
       throw new Error(`sensor_field required for ${m.tmat_param}`);
+    }
+    if (!availableNames.has(String(m.sensor_field).trim().toLowerCase())) {
+      throw new Error(
+        `Sensor field "${m.sensor_field}" is not available on device ${deviceId}`
+      );
     }
   }
   await query('DELETE FROM klhk_tmat_mappings WHERE device_id = $1', [deviceId]);
@@ -289,6 +365,7 @@ module.exports = {
   updateConfig,
   getSparingMappings,
   getTmatMappings,
+  getAvailableSensorFields,
   replaceSparingMappings,
   replaceTmatMappings,
   listDeviceSummaries,

@@ -99,6 +99,16 @@ async function ensureKlhkReportingSchema() {
     )
   `);
 
+  // Scheduler runs that never reach the API are logged as 'skipped' so the UI
+  // can explain why nothing was transmitted.
+  await query(`
+    ALTER TABLE klhk_send_logs DROP CONSTRAINT IF EXISTS klhk_send_logs_status_check
+  `);
+  await query(`
+    ALTER TABLE klhk_send_logs ADD CONSTRAINT klhk_send_logs_status_check
+    CHECK (status IN ('success', 'failed', 'skipped'))
+  `);
+
   await query(`
     CREATE INDEX IF NOT EXISTS idx_klhk_send_queue_device_status
     ON klhk_send_queue (device_id, status, created_at)

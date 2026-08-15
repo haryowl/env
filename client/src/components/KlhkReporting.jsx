@@ -72,6 +72,7 @@ export default function KlhkReporting() {
   const [config, setConfig] = useState(null);
   const [sparingMappings, setSparingMappings] = useState([]);
   const [tmatMappings, setTmatMappings] = useState([]);
+  const [availableSensorFields, setAvailableSensorFields] = useState([]);
   const [logs, setLogs] = useState([]);
   const [queue, setQueue] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -86,6 +87,7 @@ export default function KlhkReporting() {
   const [skipAlreadySent, setSkipAlreadySent] = useState(true);
   const [periodPreview, setPeriodPreview] = useState(null);
   const [periodSummary, setPeriodSummary] = useState(null);
+  const [diagnostics, setDiagnostics] = useState(null);
   const [confirmStartOpen, setConfirmStartOpen] = useState(false);
 
   const canUpdate = canAccessMenu('/klhk-reporting') && isAdmin;
@@ -113,6 +115,7 @@ export default function KlhkReporting() {
     setConfig(data.config);
     setSparingMappings(data.sparing_mappings || []);
     setTmatMappings(data.tmat_mappings || []);
+    setAvailableSensorFields(data.available_sensor_fields || []);
     setApiKeyDraft('');
   }, []);
 
@@ -131,6 +134,26 @@ export default function KlhkReporting() {
     const data = await res.json().catch(() => ({}));
     if (res.ok) setQueue(data.queue || []);
   }, []);
+
+  const runDiagnostics = async () => {
+    setBusy(true);
+    setError('');
+    setSuccess('');
+    setDiagnostics(null);
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/klhk-reporting/devices/${encodeURIComponent(deviceId)}/diagnostics`,
+        { headers: authHeaders() }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Diagnostics failed');
+      setDiagnostics(data.diagnostics);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   useEffect(() => {
     if (!canAccessMenu('/klhk-reporting')) return;
@@ -281,7 +304,14 @@ export default function KlhkReporting() {
     setSparingMappings(
       params.map((p) => {
         const existing = sparingMappings.find((m) => m.sparing_param === p);
-        return existing || { sparing_param: p, sensor_field: p, enabled: true };
+        const matchingDeviceField = availableSensorFields.find(
+          (field) => field.field_name.toLowerCase() === p.toLowerCase()
+        );
+        return existing || {
+          sparing_param: p,
+          sensor_field: matchingDeviceField?.field_name || '',
+          enabled: Boolean(matchingDeviceField),
+        };
       })
     );
   };
@@ -291,9 +321,35 @@ export default function KlhkReporting() {
     setTmatMappings(
       params.map((p) => {
         const existing = tmatMappings.find((m) => m.tmat_param === p);
-        return existing || { tmat_param: p, sensor_field: p, enabled: false };
+        const matchingDeviceField = availableSensorFields.find(
+          (field) => field.field_name.toLowerCase() === p.toLowerCase()
+        );
+        return existing || {
+          tmat_param: p,
+          sensor_field: matchingDeviceField?.field_name || '',
+          enabled: false,
+        };
       })
     );
+  };
+
+  const sensorFieldOptions = (currentValue) => {
+    const names = availableSensorFields.map((field) => field.field_name);
+    if (
+      currentValue &&
+      !names.some((name) => name.toLowerCase() === String(currentValue).toLowerCase())
+    ) {
+      names.push(currentValue);
+    }
+    return names;
+  };
+
+  const sensorFieldOptionLabel = (name) => {
+    const field = availableSensorFields.find(
+      (item) => item.field_name.toLowerCase() === String(name).toLowerCase()
+    );
+    if (!field) return `${name} (saved; not found on device)`;
+    return field.source === 'stored' ? `${name} (stored data)` : `${name} (device mapper)`;
   };
 
   const parseDatetimeLocal = (value) => {
@@ -501,11 +557,62 @@ export default function KlhkReporting() {
                     </Button>
                   </>
                 ) : null}
+                {savedReportingType === 'sparing' ? (
+                  <Button variant="outlined" disabled={busy} onClick={runDiagnostics}>
+                    Diagnose
+                  </Button>
+                ) : null}
               </>
             ) : null}
           </Stack>
         </CardContent>
       </Card>
+
+      {diagnostics ? (
+        <Card sx={{ mb: 2 }}>
+          <CardContent>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+              <Typography variant="subtitle1">SPARING diagnostics</Typography>
+              <Button size="small" onClick={() => setDiagnostics(null)}>
+                Hide
+              </Button>
+            </Stack>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Check</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Detail</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {(diagnostics.checks || []).map((c) => (
+                  <TableRow key={c.label}>
+                    <TableCell>{c.label}</TableCell>
+                    <TableCell>
+                      <Chip
+                        label={c.ok ? 'OK' : 'Problem'}
+                        color={c.ok ? 'success' : 'error'}
+                        size="small"
+                      />
+                    </TableCell>
+                    <TableCell>{c.detail}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            {diagnostics.available_sensor_types?.length ? (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+                Sensor types with readings in last 24h: {diagnostics.available_sensor_types.join(', ')}
+              </Typography>
+            ) : (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+                No sensor readings stored for this device in the last 24 hours.
+              </Typography>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
 
       {!deviceId ? (
         <Alert severity="info">Select a device to configure KLHK backup reporting.</Alert>
@@ -889,6 +996,12 @@ export default function KlhkReporting() {
                         </Button>
                       ) : null}
                     </Stack>
+                    {availableSensorFields.length === 0 ? (
+                      <Alert severity="warning" sx={{ mb: 2 }}>
+                        No sensor fields were found for this device. Check its Device Mapper assignment and confirm
+                        that the device has stored sensor readings.
+                      </Alert>
+                    ) : null}
                     <Table size="small">
                       <TableHead>
                         <TableRow>
@@ -902,16 +1015,25 @@ export default function KlhkReporting() {
                           <TableRow key={m.sparing_param || idx}>
                             <TableCell>{m.sparing_param}</TableCell>
                             <TableCell>
-                              <TextField
-                                size="small"
-                                value={m.sensor_field || ''}
-                                disabled={!canUpdate}
-                                onChange={(e) => {
-                                  const next = [...sparingMappings];
-                                  next[idx] = { ...m, sensor_field: e.target.value };
-                                  setSparingMappings(next);
-                                }}
-                              />
+                              <FormControl size="small" fullWidth>
+                                <InputLabel>Device sensor field</InputLabel>
+                                <Select
+                                  label="Device sensor field"
+                                  value={m.sensor_field || ''}
+                                  disabled={!canUpdate || availableSensorFields.length === 0}
+                                  onChange={(e) => {
+                                    const next = [...sparingMappings];
+                                    next[idx] = { ...m, sensor_field: e.target.value };
+                                    setSparingMappings(next);
+                                  }}
+                                >
+                                  {sensorFieldOptions(m.sensor_field).map((name) => (
+                                    <MenuItem key={name} value={name}>
+                                      {sensorFieldOptionLabel(name)}
+                                    </MenuItem>
+                                  ))}
+                                </Select>
+                              </FormControl>
                             </TableCell>
                             <TableCell>
                               <Switch
@@ -942,6 +1064,12 @@ export default function KlhkReporting() {
                         </Button>
                       ) : null}
                     </Stack>
+                    {availableSensorFields.length === 0 ? (
+                      <Alert severity="warning" sx={{ mb: 2 }}>
+                        No sensor fields were found for this device. Check its Device Mapper assignment and confirm
+                        that the device has stored sensor readings.
+                      </Alert>
+                    ) : null}
                     <Table size="small">
                       <TableHead>
                         <TableRow>
@@ -960,16 +1088,25 @@ export default function KlhkReporting() {
                               </Typography>
                             </TableCell>
                             <TableCell>
-                              <TextField
-                                size="small"
-                                value={m.sensor_field || ''}
-                                disabled={!canUpdate}
-                                onChange={(e) => {
-                                  const next = [...tmatMappings];
-                                  next[idx] = { ...m, sensor_field: e.target.value };
-                                  setTmatMappings(next);
-                                }}
-                              />
+                              <FormControl size="small" fullWidth>
+                                <InputLabel>Device sensor field</InputLabel>
+                                <Select
+                                  label="Device sensor field"
+                                  value={m.sensor_field || ''}
+                                  disabled={!canUpdate || availableSensorFields.length === 0}
+                                  onChange={(e) => {
+                                    const next = [...tmatMappings];
+                                    next[idx] = { ...m, sensor_field: e.target.value };
+                                    setTmatMappings(next);
+                                  }}
+                                >
+                                  {sensorFieldOptions(m.sensor_field).map((name) => (
+                                    <MenuItem key={name} value={name}>
+                                      {sensorFieldOptionLabel(name)}
+                                    </MenuItem>
+                                  ))}
+                                </Select>
+                              </FormControl>
                             </TableCell>
                             <TableCell>
                               <Switch

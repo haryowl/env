@@ -7,6 +7,7 @@ const klhkConfig = require('../services/klhkReporting/klhkConfigService');
 const klhkScheduler = require('../services/klhkReporting/klhkScheduler');
 const sparingSend = require('../services/klhkReporting/sparingSendService');
 const tmatSend = require('../services/klhkReporting/tmatSendService');
+const klhkDiagnostics = require('../services/klhkReporting/klhkDiagnostics');
 const { SPARING_PARAMS, TMAT_PARAMS } = require('../services/klhkReporting/klhkConstants');
 
 const router = express.Router();
@@ -129,11 +130,13 @@ router.get('/devices/:deviceId', authorizeMenuAccess('/klhk-reporting', 'read'),
     const config = await klhkConfig.getOrCreateConfig(deviceId);
     const sparing_mappings = await klhkConfig.getSparingMappings(deviceId);
     const tmat_mappings = await klhkConfig.getTmatMappings(deviceId);
+    const available_sensor_fields = await klhkConfig.getAvailableSensorFields(deviceId);
     const queue_depth = await klhkConfig.getQueueDepth(deviceId);
     res.json({
       config,
       sparing_mappings,
       tmat_mappings,
+      available_sensor_fields,
       queue_depth,
       scheduler_running: klhkScheduler.isDeviceSchedulerRunning(deviceId),
     });
@@ -143,6 +146,26 @@ router.get('/devices/:deviceId', authorizeMenuAccess('/klhk-reporting', 'read'),
     res.status(500).json({ error: 'Failed to load KLHK config', code: 'KLHK_GET_ERROR' });
   }
 });
+
+router.get(
+  '/devices/:deviceId/diagnostics',
+  authorizeMenuAccess('/klhk-reporting', 'read'),
+  async (req, res) => {
+    try {
+      const { deviceId } = req.params;
+      if (!requireDeviceAccess(req, res, deviceId)) return;
+      await assertDeviceExists(deviceId);
+      const diagnostics = await klhkDiagnostics.buildSparingDiagnostics(
+        deviceId,
+        klhkScheduler.isDeviceSchedulerRunning(deviceId)
+      );
+      res.json({ ok: true, diagnostics });
+    } catch (e) {
+      console.error('klhk diagnostics error:', e);
+      res.status(500).json({ error: e.message || 'Diagnostics failed', code: 'KLHK_DIAGNOSTICS_ERROR' });
+    }
+  }
+);
 
 router.put('/devices/:deviceId/config', authorizeMenuAccess('/klhk-reporting', 'update'), async (req, res) => {
   try {
