@@ -48,27 +48,30 @@ function rowMatchesMapping(row, lookup) {
 function interpolateMissingData(records, hourTimestampMs, mappings) {
   const TARGET_COUNT = 30;
   const startTimeSeconds = Math.floor(hourTimestampMs / 1000);
+  const fallbackByParam = {};
+  for (const mapping of mappings) {
+    const param = mapping.sparing_param;
+    const values = records
+      .map((r) => parseNumericValue(r[param]))
+      .filter((value) => value !== null);
+    fallbackByParam[param] =
+      values.length > 0
+        ? Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(2))
+        : 0;
+  }
   const result = [];
 
   for (let i = 0; i < TARGET_COUNT; i++) {
     const expectedTime = startTimeSeconds + i * BIN_SECONDS;
     const existing = records.find((r) => r.datetime === expectedTime);
-    if (existing) {
-      result.push(existing);
-      continue;
-    }
-    const interpolated = { datetime: expectedTime };
+    const completed = { datetime: expectedTime, ...(existing || {}) };
     for (const mapping of mappings) {
       const param = mapping.sparing_param;
-      const values = records.filter((r) => r[param] !== undefined).map((r) => r[param]);
-      if (values.length > 0) {
-        const avg = values.reduce((sum, val) => sum + Number(val), 0) / values.length;
-        interpolated[param] = Number(avg.toFixed(2));
-      } else {
-        interpolated[param] = 0;
+      if (parseNumericValue(completed[param]) === null) {
+        completed[param] = fallbackByParam[param];
       }
     }
-    result.push(interpolated);
+    result.push(completed);
   }
   return result;
 }
@@ -106,16 +109,16 @@ async function collectHourlyData(deviceId, loggerId, hourTimestampMs, opts = {})
     }
   }
 
-  let dataArray = Array.from(dataByTimestamp.values()).sort((a, b) => a.datetime - b.datetime);
+  const collectedData = Array.from(dataByTimestamp.values()).sort((a, b) => a.datetime - b.datetime);
 
-  if (dataArray.length < 30) {
+  if (collectedData.length < 30) {
     if (!opts.quiet) {
-      console.log(`[KLHK SPARING ${deviceId}] Interpolating ${dataArray.length} records to 30`);
+      console.log(`[KLHK SPARING ${deviceId}] Interpolating ${collectedData.length} records to 30`);
     }
-    dataArray = interpolateMissingData(dataArray, hourTimestampMs, mappings);
   }
 
-  dataArray = dataArray.slice(0, 30);
+  // Also fills missing parameters inside an otherwise existing 2-minute slot.
+  const dataArray = interpolateMissingData(collectedData, hourTimestampMs, mappings);
   return { uid: loggerId, data: dataArray };
 }
 
@@ -152,7 +155,9 @@ async function collect2MinData(deviceId, loggerId, slotTimestampMs, opts = {}) {
     }
   }
 
-  return { uid: loggerId, data: [record] };
+  // The SPARING 2-minute endpoint expects one flat reading, unlike the
+  // hourly endpoint which expects { uid, data: [...] }.
+  return { uid: loggerId, ...record };
 }
 
 module.exports = {

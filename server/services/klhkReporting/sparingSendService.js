@@ -190,7 +190,7 @@ async function addToQueue(deviceId, sendType, hourTimestamp, errorMessage, opts 
   if (!payloadData) return;
 
   const jwtToken = encryptJWT(payloadData, apiSecret);
-  const recordsCount = payloadData.data?.length ?? 0;
+  const recordsCount = sendType === '2min' ? 1 : (payloadData.data?.length ?? 0);
 
   const existing = await getRow(
     `SELECT id, status FROM klhk_send_queue

@@ -40,7 +40,9 @@ async function run2MinForDevice(deviceId) {
 
     const now = Date.now();
     const SLOT_MS = 2 * 60 * 1000;
-    const slotTimestamp = now - (now % SLOT_MS);
+    // At 08:02 the 08:00–08:02 slot has just completed. Querying the new
+    // 08:02–08:04 slot would normally return no data.
+    const slotTimestamp = now - (now % SLOT_MS) - SLOT_MS;
     await sparingSend.send2MinBatch(deviceId, slotTimestamp);
   } catch (err) {
     console.error(`[KLHK] 2-min scheduler error for ${deviceId}:`, err?.message || err);

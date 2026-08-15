@@ -196,6 +196,9 @@ export default function KlhkReporting() {
         api_url: config.api_url,
         push_interval_seconds: config.push_interval_seconds,
         api_base: config.api_base,
+        api_secret_url: config.api_secret_url,
+        api_send_hourly_url: config.api_send_hourly_url,
+        api_send_2min_url: config.api_send_2min_url,
       };
       if (apiKeyDraft.trim()) body.api_key = apiKeyDraft.trim();
 
@@ -584,7 +587,38 @@ export default function KlhkReporting() {
                         disabled={!canUpdate}
                         onChange={(e) => setConfig({ ...config, api_base: e.target.value })}
                         placeholder={DEFAULT_SPARING_API_BASE}
-                        helperText={`Leave blank to use default: ${DEFAULT_SPARING_API_BASE} (secret: …/secret-sensor, hourly: …/send-hourly, 2min: …/send)`}
+                        helperText={`Leave blank to use default: ${DEFAULT_SPARING_API_BASE}`}
+                      />
+                      <Alert severity="info">
+                        Default paths are assumptions, not verified against your LT-IDP box. If LT-IDP uses different
+                        URLs, paste the exact full URLs below to override the base.
+                      </Alert>
+                      <TextField
+                        label="Secret URL (override)"
+                        size="small"
+                        value={config.api_secret_url || ''}
+                        disabled={!canUpdate}
+                        onChange={(e) => setConfig({ ...config, api_secret_url: e.target.value })}
+                        placeholder={`${DEFAULT_SPARING_API_BASE}/secret-sensor`}
+                        helperText="GET endpoint that returns the API secret used to sign the JWT"
+                      />
+                      <TextField
+                        label="Hourly send URL (override)"
+                        size="small"
+                        value={config.api_send_hourly_url || ''}
+                        disabled={!canUpdate}
+                        onChange={(e) => setConfig({ ...config, api_send_hourly_url: e.target.value })}
+                        placeholder={`${DEFAULT_SPARING_API_BASE}/send-hourly`}
+                        helperText="POST endpoint for hourly batches"
+                      />
+                      <TextField
+                        label="2-minute send URL (override)"
+                        size="small"
+                        value={config.api_send_2min_url || ''}
+                        disabled={!canUpdate}
+                        onChange={(e) => setConfig({ ...config, api_send_2min_url: e.target.value })}
+                        placeholder={`${DEFAULT_SPARING_API_BASE}/send`}
+                        helperText="POST endpoint for 2-minute slots"
                       />
                       <FormControl size="small">
                         <InputLabel>Send mode</InputLabel>

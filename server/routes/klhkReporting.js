@@ -5,6 +5,7 @@ const { authenticateToken, authorizeMenuAccess, authorizeRole } = require('../mi
 const { filterDataByRole, filterDeviceData } = require('../middleware/dataFilter');
 const klhkConfig = require('../services/klhkReporting/klhkConfigService');
 const klhkScheduler = require('../services/klhkReporting/klhkScheduler');
+const sparingSend = require('../services/klhkReporting/sparingSendService');
 const tmatSend = require('../services/klhkReporting/tmatSendService');
 const { SPARING_PARAMS, TMAT_PARAMS } = require('../services/klhkReporting/klhkConstants');
 
