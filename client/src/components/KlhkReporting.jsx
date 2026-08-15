@@ -279,10 +279,42 @@ export default function KlhkReporting() {
             ? 'mappings/tmat'
             : null;
       if (!path) throw new Error('Set reporting type first');
-      const mappings =
-        reportingType === 'sparing'
-          ? sparingMappings.filter((m) => m.sensor_field?.trim())
-          : tmatMappings.filter((m) => m.sensor_field?.trim());
+
+      const availableNames = new Set(
+        availableSensorFields.map((field) => field.field_name.toLowerCase())
+      );
+      const source =
+        reportingType === 'sparing' ? sparingMappings : tmatMappings;
+      const mappings = source
+        .map((m) => {
+          const sensorField = String(m.sensor_field || '').trim();
+          const enabled = m.enabled !== false;
+          const known = availableNames.has(sensorField.toLowerCase());
+          // Drop disabled rows that still point at a non-existent old free-text field.
+          if (!enabled && sensorField && !known) {
+            return null;
+          }
+          if (reportingType === 'sparing') {
+            return {
+              sparing_param: m.sparing_param,
+              sensor_field: sensorField,
+              enabled,
+            };
+          }
+          return {
+            tmat_param: m.tmat_param,
+            sensor_field: sensorField,
+            enabled,
+          };
+        })
+        .filter(Boolean)
+        .filter((m) => m.sensor_field || m.enabled === false);
+
+      const enabledMissing = mappings.filter((m) => m.enabled && !m.sensor_field);
+      if (enabledMissing.length) {
+        throw new Error('Select a device sensor field for every enabled mapping');
+      }
+
       const res = await fetch(
         `${API_BASE_URL}/klhk-reporting/devices/${encodeURIComponent(deviceId)}/${path}`,
         { method: 'PUT', headers: authHeaders(), body: JSON.stringify({ mappings }) }
@@ -1021,12 +1053,16 @@ export default function KlhkReporting() {
                                   label="Device sensor field"
                                   value={m.sensor_field || ''}
                                   disabled={!canUpdate || availableSensorFields.length === 0}
+                                  displayEmpty
                                   onChange={(e) => {
                                     const next = [...sparingMappings];
                                     next[idx] = { ...m, sensor_field: e.target.value };
                                     setSparingMappings(next);
                                   }}
                                 >
+                                  <MenuItem value="">
+                                    <em>Select device field…</em>
+                                  </MenuItem>
                                   {sensorFieldOptions(m.sensor_field).map((name) => (
                                     <MenuItem key={name} value={name}>
                                       {sensorFieldOptionLabel(name)}
@@ -1094,12 +1130,16 @@ export default function KlhkReporting() {
                                   label="Device sensor field"
                                   value={m.sensor_field || ''}
                                   disabled={!canUpdate || availableSensorFields.length === 0}
+                                  displayEmpty
                                   onChange={(e) => {
                                     const next = [...tmatMappings];
                                     next[idx] = { ...m, sensor_field: e.target.value };
                                     setTmatMappings(next);
                                   }}
                                 >
+                                  <MenuItem value="">
+                                    <em>Select device field…</em>
+                                  </MenuItem>
                                   {sensorFieldOptions(m.sensor_field).map((name) => (
                                     <MenuItem key={name} value={name}>
                                       {sensorFieldOptionLabel(name)}

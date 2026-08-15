@@ -215,10 +215,12 @@ async function replaceSparingMappings(deviceId, mappings) {
     if (!SPARING_PARAMS.includes(m.sparing_param)) {
       throw new Error(`Invalid sparing_param: ${m.sparing_param}`);
     }
-    if (!m.sensor_field || !String(m.sensor_field).trim()) {
-      throw new Error(`sensor_field required for ${m.sparing_param}`);
+    const field = String(m.sensor_field || '').trim();
+    const enabled = m.enabled !== false;
+    if (enabled && !field) {
+      throw new Error(`sensor_field required for enabled param ${m.sparing_param}`);
     }
-    if (!availableNames.has(String(m.sensor_field).trim().toLowerCase())) {
+    if (enabled && !availableNames.has(field.toLowerCase())) {
       throw new Error(
         `Sensor field "${m.sensor_field}" is not available on device ${deviceId}`
       );
@@ -226,10 +228,12 @@ async function replaceSparingMappings(deviceId, mappings) {
   }
   await query('DELETE FROM klhk_sparing_mappings WHERE device_id = $1', [deviceId]);
   for (const m of mappings) {
+    const field = String(m.sensor_field || '').trim();
+    if (!field) continue;
     await query(
       `INSERT INTO klhk_sparing_mappings (device_id, sparing_param, sensor_field, enabled)
        VALUES ($1, $2, $3, $4)`,
-      [deviceId, m.sparing_param, String(m.sensor_field).trim(), m.enabled !== false]
+      [deviceId, m.sparing_param, field, m.enabled !== false]
     );
   }
   return getSparingMappings(deviceId);
@@ -245,10 +249,12 @@ async function replaceTmatMappings(deviceId, mappings) {
     if (!TMAT_PARAMS.includes(m.tmat_param)) {
       throw new Error(`Invalid tmat_param: ${m.tmat_param}`);
     }
-    if (!m.sensor_field || !String(m.sensor_field).trim()) {
-      throw new Error(`sensor_field required for ${m.tmat_param}`);
+    const field = String(m.sensor_field || '').trim();
+    const enabled = m.enabled !== false;
+    if (enabled && !field) {
+      throw new Error(`sensor_field required for enabled param ${m.tmat_param}`);
     }
-    if (!availableNames.has(String(m.sensor_field).trim().toLowerCase())) {
+    if (enabled && !availableNames.has(field.toLowerCase())) {
       throw new Error(
         `Sensor field "${m.sensor_field}" is not available on device ${deviceId}`
       );
@@ -256,10 +262,12 @@ async function replaceTmatMappings(deviceId, mappings) {
   }
   await query('DELETE FROM klhk_tmat_mappings WHERE device_id = $1', [deviceId]);
   for (const m of mappings) {
+    const field = String(m.sensor_field || '').trim();
+    if (!field) continue;
     await query(
       `INSERT INTO klhk_tmat_mappings (device_id, tmat_param, sensor_field, enabled)
        VALUES ($1, $2, $3, $4)`,
-      [deviceId, m.tmat_param, String(m.sensor_field).trim(), m.enabled !== false]
+      [deviceId, m.tmat_param, field, m.enabled !== false]
     );
   }
   return getTmatMappings(deviceId);

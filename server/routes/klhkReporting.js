@@ -88,15 +88,15 @@ const configSchema = Joi.object({
 
 const sparingMappingSchema = Joi.object({
   sparing_param: Joi.string().valid(...SPARING_PARAMS).required(),
-  sensor_field: Joi.string().trim().min(1).max(255).required(),
+  sensor_field: Joi.string().trim().max(255).allow('').default(''),
   enabled: Joi.boolean().default(true),
-});
+}).unknown(true);
 
 const tmatMappingSchema = Joi.object({
   tmat_param: Joi.string().valid(...TMAT_PARAMS).required(),
-  sensor_field: Joi.string().trim().min(1).max(255).required(),
+  sensor_field: Joi.string().trim().max(255).allow('').default(''),
   enabled: Joi.boolean().default(true),
-});
+}).unknown(true);
 
 router.use(authenticateToken, filterDataByRole, filterDeviceData, requireKlhkFeature);
 
@@ -198,10 +198,14 @@ router.put('/devices/:deviceId/mappings/sparing', authorizeMenuAccess('/klhk-rep
       return res.status(400).json({ error: 'mappings array required', code: 'VALIDATION_ERROR' });
     }
     for (const m of mappings) {
-      const { error } = sparingMappingSchema.validate(m);
+      const { error } = sparingMappingSchema.validate(m, { stripUnknown: true });
       if (error) return res.status(400).json({ error: error.message, code: 'VALIDATION_ERROR' });
     }
-    const result = await klhkConfig.replaceSparingMappings(deviceId, mappings);
+    const cleaned = mappings.map((m) => {
+      const { value } = sparingMappingSchema.validate(m, { stripUnknown: true });
+      return value;
+    });
+    const result = await klhkConfig.replaceSparingMappings(deviceId, cleaned);
     res.json({ mappings: result });
   } catch (e) {
     console.error('klhk sparing mappings error:', e);
@@ -219,10 +223,14 @@ router.put('/devices/:deviceId/mappings/tmat', authorizeMenuAccess('/klhk-report
       return res.status(400).json({ error: 'mappings array required', code: 'VALIDATION_ERROR' });
     }
     for (const m of mappings) {
-      const { error } = tmatMappingSchema.validate(m);
+      const { error } = tmatMappingSchema.validate(m, { stripUnknown: true });
       if (error) return res.status(400).json({ error: error.message, code: 'VALIDATION_ERROR' });
     }
-    const result = await klhkConfig.replaceTmatMappings(deviceId, mappings);
+    const cleaned = mappings.map((m) => {
+      const { value } = tmatMappingSchema.validate(m, { stripUnknown: true });
+      return value;
+    });
+    const result = await klhkConfig.replaceTmatMappings(deviceId, cleaned);
     res.json({ mappings: result });
   } catch (e) {
     console.error('klhk tmat mappings error:', e);
