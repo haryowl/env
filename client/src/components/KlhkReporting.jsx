@@ -38,6 +38,11 @@ import { API_BASE_URL } from '../config/api';
 import { usePermissions } from '../hooks/usePermissions.jsx';
 import { getDeviceDisplayName } from '../utils/deviceLabel';
 
+/** Must match server/services/klhkReporting/klhkConstants.js */
+const DEFAULT_SPARING_API_BASE = 'https://sparing.kemenlh.go.id/api';
+const DEFAULT_TMAT_API_URL =
+  'https://gambutindonesia.kemenlh.go.id/backoffice-SPAgambut/api/v1/realtime_push';
+
 const authHeaders = () => {
   const token = localStorage.getItem('iot_token');
   return {
@@ -168,6 +173,11 @@ export default function KlhkReporting() {
 
   const reportingType = config?.reporting_type || 'off';
   const isRunning = Boolean(config?.backup_running);
+  const selectedDeviceMeta = devices.find((d) => d.device_id === deviceId);
+  /** Last saved reporting type from device list (not unsaved form edits). */
+  const savedReportingType = selectedDeviceMeta?.reporting_type || 'off';
+  const configDirtyUnsaved =
+    Boolean(config) && reportingType !== 'off' && savedReportingType !== reportingType;
 
   const saveConfig = async () => {
     if (!deviceId || !config) return;
@@ -434,8 +444,15 @@ export default function KlhkReporting() {
             {config ? (
               <>
                 <Chip label={isRunning ? 'Running' : 'Idle'} color={isRunning ? 'success' : 'default'} />
-                <Chip label={reportingType.toUpperCase()} variant="outlined" />
-                {canUpdate && reportingType !== 'off' ? (
+                <Chip
+                  label={(savedReportingType || 'off').toUpperCase()}
+                  variant="outlined"
+                  color={savedReportingType === 'off' ? 'default' : 'primary'}
+                />
+                {configDirtyUnsaved ? (
+                  <Chip label={`Unsaved: ${reportingType.toUpperCase()}`} color="warning" size="small" />
+                ) : null}
+                {canUpdate && savedReportingType !== 'off' ? (
                   <>
                     {isRunning ? (
                       <Button
@@ -452,7 +469,7 @@ export default function KlhkReporting() {
                         color="success"
                         variant="contained"
                         startIcon={<PlayArrowIcon />}
-                        disabled={busy}
+                        disabled={busy || configDirtyUnsaved}
                         onClick={() => setConfirmStartOpen(true)}
                       >
                         Start backup reporting
@@ -461,12 +478,12 @@ export default function KlhkReporting() {
                     <Button
                       variant="outlined"
                       startIcon={<SendIcon />}
-                      disabled={busy}
+                      disabled={busy || configDirtyUnsaved}
                       onClick={() =>
                         postAction(
                           'send-now',
                           'Send completed',
-                          reportingType === 'tmat' ? {} : { mode: 'hourly' }
+                          savedReportingType === 'tmat' ? {} : { mode: 'hourly' }
                         )
                       }
                     >
@@ -474,7 +491,7 @@ export default function KlhkReporting() {
                     </Button>
                     <Button
                       variant="outlined"
-                      disabled={busy}
+                      disabled={busy || configDirtyUnsaved}
                       onClick={() => postAction('process-queue', 'Queue processed')}
                     >
                       Process queue
@@ -547,12 +564,27 @@ export default function KlhkReporting() {
 
                   {reportingType === 'sparing' ? (
                     <>
+                      {configDirtyUnsaved ? (
+                        <Alert severity="warning">
+                          Reporting type is changed but not saved. Click <strong>Save configuration</strong> before
+                          Fetch secret / Start / Send.
+                        </Alert>
+                      ) : null}
                       <TextField
                         label="Logger ID (KLHK)"
                         size="small"
                         value={config.logger_id || ''}
                         disabled={!canUpdate}
                         onChange={(e) => setConfig({ ...config, logger_id: e.target.value })}
+                      />
+                      <TextField
+                        label="SPARING API base URL"
+                        size="small"
+                        value={config.api_base || ''}
+                        disabled={!canUpdate}
+                        onChange={(e) => setConfig({ ...config, api_base: e.target.value })}
+                        placeholder={DEFAULT_SPARING_API_BASE}
+                        helperText={`Leave blank to use default: ${DEFAULT_SPARING_API_BASE} (secret: …/secret-sensor, hourly: …/send-hourly, 2min: …/send)`}
                       />
                       <FormControl size="small">
                         <InputLabel>Send mode</InputLabel>
@@ -585,7 +617,7 @@ export default function KlhkReporting() {
                       {canUpdate ? (
                         <Button
                           variant="outlined"
-                          disabled={busy}
+                          disabled={busy || savedReportingType !== 'sparing'}
                           onClick={() => postAction('fetch-secret', 'API secret fetched')}
                         >
                           Fetch SPARING secret
@@ -751,6 +783,12 @@ export default function KlhkReporting() {
 
                   {reportingType === 'tmat' ? (
                     <>
+                      {configDirtyUnsaved ? (
+                        <Alert severity="warning">
+                          Reporting type is changed but not saved. Click <strong>Save configuration</strong> before
+                          Start / Send.
+                        </Alert>
+                      ) : null}
                       <TextField
                         label="device_id_unik"
                         size="small"
@@ -759,11 +797,13 @@ export default function KlhkReporting() {
                         onChange={(e) => setConfig({ ...config, device_id_unik: e.target.value })}
                       />
                       <TextField
-                        label="API URL"
+                        label="TMAT API URL"
                         size="small"
                         value={config.api_url || ''}
                         disabled={!canUpdate}
                         onChange={(e) => setConfig({ ...config, api_url: e.target.value })}
+                        placeholder={DEFAULT_TMAT_API_URL}
+                        helperText={`Leave blank to use default: ${DEFAULT_TMAT_API_URL}`}
                       />
                       <TextField
                         label="Push interval (seconds)"
