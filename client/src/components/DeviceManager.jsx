@@ -74,12 +74,15 @@ const DeviceManager = () => {
     time_format: 'ISO8601',
     valid_from: null,
     valid_to: null,
+    group_id: '',
   });
+  const [deviceGroups, setDeviceGroups] = useState([]);
 
   useEffect(() => {
     loadDevices();
     loadMapperTemplates();
     loadDeviceAssignments();
+    loadDeviceGroups();
   }, []);
 
   const loadDevices = async () => {
@@ -147,6 +150,21 @@ const DeviceManager = () => {
     }
   };
 
+  const loadDeviceGroups = async () => {
+    try {
+      const token = localStorage.getItem('iot_token');
+      const response = await fetch(`${API_BASE_URL}/device-groups`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setDeviceGroups(data.groups || []);
+      }
+    } catch (err) {
+      console.error('Failed to load device groups:', err);
+    }
+  };
+
   const handleOpenDialog = (device = null) => {
     const parseDate = (d) => {
       if (!d) return null;
@@ -168,6 +186,7 @@ const DeviceManager = () => {
         time_format: deviceAssignments[device.device_id]?.time_format || 'ISO8601',
         valid_from: parseDate(device.valid_from),
         valid_to: parseDate(device.valid_to),
+        group_id: device.group_id || '',
       });
     } else {
       setEditingDevice(null);
@@ -183,6 +202,7 @@ const DeviceManager = () => {
         time_format: 'ISO8601',
         valid_from: null,
         valid_to: null,
+        group_id: '',
       });
     }
     setDialogOpen(true);
@@ -203,6 +223,7 @@ const DeviceManager = () => {
       time_format: 'ISO8601',
       valid_from: null,
       valid_to: null,
+      group_id: '',
     });
   };
 
@@ -228,6 +249,10 @@ const DeviceManager = () => {
 
       const formatDateForApi = (d) => (d && isValid(d) ? format(d, 'yyyy-MM-dd') : null);
 
+      const groupIdValue = formData.group_id === '' || formData.group_id == null
+        ? null
+        : Number(formData.group_id);
+
       // For updates, only send allowed fields
       const requestData = editingDevice ? {
         name: formData.name,
@@ -236,13 +261,15 @@ const DeviceManager = () => {
         timezone: formData.timezone,
         valid_from: formatDateForApi(formData.valid_from),
         valid_to: formatDateForApi(formData.valid_to),
+        group_id: groupIdValue,
       } : {
         ...formData,
         valid_from: formatDateForApi(formData.valid_from),
         valid_to: formatDateForApi(formData.valid_to),
+        group_id: groupIdValue,
       };
 
-      // Filter out empty strings (but allow null for valid_from/valid_to)
+      // Filter out empty strings (but allow null for valid_from/valid_to/group_id)
       const filteredRequestData = {};
       Object.keys(requestData).forEach(key => {
         const v = requestData[key];
@@ -378,10 +405,12 @@ const DeviceManager = () => {
     }
   };
 
+  const q = searchTerm.toLowerCase();
   const filteredDevices = devices.filter(device =>
-    device.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    device.device_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    device.protocol.toLowerCase().includes(searchTerm.toLowerCase())
+    device.name.toLowerCase().includes(q) ||
+    device.device_id.toLowerCase().includes(q) ||
+    device.protocol.toLowerCase().includes(q) ||
+    (device.group_name || '').toLowerCase().includes(q)
   );
 
   // Keep pagination stable when filters change
@@ -466,6 +495,7 @@ const DeviceManager = () => {
                 <TableCell sx={{ minWidth: 80, ...compactTableHeadCellSx }}>Type</TableCell>
                 <TableCell sx={{ minWidth: 80, ...compactTableHeadCellSx }}>Status</TableCell>
                 <TableCell sx={{ minWidth: 100, ...compactTableHeadCellSx }}>Location</TableCell>
+                <TableCell sx={{ minWidth: 110, ...compactTableHeadCellSx }}>Group</TableCell>
                 <TableCell sx={{ minWidth: 120, ...compactTableHeadCellSx }}>Mapper Template</TableCell>
                 <TableCell sx={{ minWidth: 100, ...compactTableHeadCellSx }}>Actions</TableCell>
               </TableRow>
@@ -518,6 +548,7 @@ const DeviceManager = () => {
                     />
                   </TableCell>
                   <TableCell sx={compactTableCellSx}>{device.location || '-'}</TableCell>
+                  <TableCell sx={compactTableCellSx}>{device.group_name || 'Ungrouped'}</TableCell>
                   <TableCell sx={compactTableCellSx}>
                     {deviceAssignments[device.device_id] ? (
                       <Chip
@@ -650,6 +681,23 @@ const DeviceManager = () => {
                 value={formData.location}
                 onChange={handleInputChange('location')}
               />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <FormControl fullWidth>
+                <InputLabel>Device group</InputLabel>
+                <Select
+                  value={formData.group_id === '' || formData.group_id == null ? '' : String(formData.group_id)}
+                  onChange={handleInputChange('group_id')}
+                  label="Device group"
+                >
+                  <MenuItem value="">Ungrouped</MenuItem>
+                  {deviceGroups.map((group) => (
+                    <MenuItem key={group.group_id} value={String(group.group_id)}>
+                      {group.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth>

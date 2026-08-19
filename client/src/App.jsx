@@ -20,6 +20,7 @@ const MobileDashboard = lazy(() => import('./components/MobileDashboard'));
 const QuickView = lazy(() => import('./components/QuickView'));
 const MobileQuickView = lazy(() => import('./components/MobileQuickView'));
 const DeviceManager = lazy(() => import('./components/DeviceManager'));
+const DeviceGroups = lazy(() => import('./components/DeviceGroups'));
 const UserManager = lazy(() => import('./components/UserManager.jsx'));
 const TenantManager = lazy(() => import('./components/TenantManager.jsx'));
 const RoleManager = lazy(() => import('./components/RoleManager.jsx'));
@@ -401,6 +402,7 @@ function App() {
                 <Route path="/quick-view" element={<ProtectedRoute><QuickView /></ProtectedRoute>} />
                 <Route path="/m/quick-view" element={<ProtectedRoute><MobileQuickView /></ProtectedRoute>} />
                 <Route path="/devices" element={<ProtectedRoute><DeviceManager /></ProtectedRoute>} />
+                <Route path="/device-groups" element={<ProtectedRoute><DeviceGroups /></ProtectedRoute>} />
                 <Route path="/users" element={<ProtectedRoute><UserManager /></ProtectedRoute>} />
                 <Route path="/tenants" element={<ProtectedRoute><TenantManager /></ProtectedRoute>} />
                 <Route path="/roles" element={<ProtectedRoute><RoleManager /></ProtectedRoute>} />

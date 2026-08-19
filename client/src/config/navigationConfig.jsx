@@ -69,6 +69,7 @@ export const MENU_SECTIONS = [
     icon: <DevicesIcon />,
     items: [
       { text: 'Devices', icon: <DevicesIcon />, path: '/devices', menuPath: '/devices' },
+      { text: 'Device Groups', icon: <BusinessIcon />, path: '/device-groups', menuPath: '/devices' },
       { text: 'Live tracking', icon: <MyLocationIcon />, path: '/live-tracking', menuPath: '/live-tracking' },
       { text: 'Device Mapper', icon: <MapIcon />, path: '/mapper', menuPath: '/mapper' },
       { text: 'Listeners', icon: <RadioIcon />, path: '/listeners', menuPath: '/listeners' },
@@ -139,6 +140,7 @@ export const ROUTE_MENU_PATH_MAP = {
   '/quick-view': '/quick-view',
   '/m/quick-view': '/quick-view',
   '/devices': '/devices',
+  '/device-groups': '/devices',
   '/live-tracking': '/live-tracking',
   '/users': '/users',
   '/tenants': '/tenants',

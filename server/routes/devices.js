@@ -229,7 +229,7 @@ const createDeviceSchema = Joi.object({
   description: Joi.string().optional(),
   location: Joi.string().optional(),
   timezone: Joi.string().default('UTC'), // Default to UTC if not provided
-  group_id: Joi.number().integer().optional(),
+  group_id: Joi.number().integer().allow(null).optional(),
   config: Joi.object().optional(),
   field_mappings: Joi.object().optional(),
   valid_from: Joi.date().allow(null).optional(),
@@ -241,7 +241,7 @@ const updateDeviceSchema = Joi.object({
   description: Joi.string().optional(),
   location: Joi.string().optional(),
   timezone: Joi.string().default('UTC'),
-  group_id: Joi.number().integer().optional(),
+  group_id: Joi.number().integer().allow(null).optional(),
   config: Joi.object().optional(),
   field_mappings: Joi.object().optional(),
   status: Joi.string().valid('online', 'offline', 'error', 'maintenance').optional(),
@@ -390,6 +390,7 @@ router.get('/', authenticateToken, async (req, res) => {
         eff.last_data_at AS freshest_data_at,
         ${sqlUiStatusCase(staleParam)} AS ui_status,
         dg.name as group_name,
+        dg.description as group_description,
         COALESCE(udp.permissions, '{}'::jsonb) as user_permissions
       FROM devices d
       ${sqlLateralLastDataAt()}
@@ -536,6 +537,7 @@ router.get('/:deviceId', authorizeDeviceAccess('read'), async (req, res) => {
       SELECT 
         d.*,
         dg.name as group_name,
+        dg.description as group_description,
         udp.permissions
       FROM devices d
       LEFT JOIN device_groups dg ON d.group_id = dg.group_id

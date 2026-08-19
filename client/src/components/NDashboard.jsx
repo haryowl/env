@@ -57,6 +57,9 @@ const RANGE_OPTIONS = [
   { value: 'custom', label: 'Custom' },
 ];
 
+const GROUP_FILTER_ALL = 'all';
+const GROUP_FILTER_UNGROUPED = 'ungrouped';
+
 /** Fit Y-axis to data with light padding so single-parameter fluctuations are visible. */
 const padChartYDomain = ([dMin, dMax]) => {
   if (!Number.isFinite(dMin) || !Number.isFinite(dMax)) {
@@ -168,7 +171,15 @@ export default function NDashboard({ socket }) {
   const { formatDisplayName, getUnit, getDisplayRange, metadata: fieldMetadata } = useFieldMetadata();
 
   const [devices, setDevices] = useState([]);
+  const [catalogGroups, setCatalogGroups] = useState([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState(null);
+  const [groupFilter, setGroupFilter] = useState(() => {
+    try {
+      return localStorage.getItem('n_dashboard_group_filter') || GROUP_FILTER_ALL;
+    } catch {
+      return GROUP_FILTER_ALL;
+    }
+  });
   const [latest, setLatest] = useState({ fields: {}, updatedAt: null });
   const [mappedParams, setMappedParams] = useState([]);
   const [history, setHistory] = useState([]);
@@ -192,6 +203,73 @@ export default function NDashboard({ socket }) {
   const selectedDevice = devices.find((d) => d.device_id === selectedDeviceId) || null;
   const rangeHours = ({ '2h': 2, '3h': 3, '6h': 6, '48h': 48 })[chartRange] ?? 48;
 
+  const knownGroups = useMemo(() => {
+    const map = new Map();
+    catalogGroups.forEach((g) => {
+      if (g?.group_id && g?.name) {
+        map.set(String(g.group_id), {
+          id: String(g.group_id),
+          name: g.name,
+          description: g.description || '',
+        });
+      }
+    });
+    devices.forEach((d) => {
+      if (d.group_id && d.group_name && !map.has(String(d.group_id))) {
+        map.set(String(d.group_id), {
+          id: String(d.group_id),
+          name: d.group_name,
+          description: d.group_description || '',
+        });
+      }
+    });
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [catalogGroups, devices]);
+
+  const filteredDevices = useMemo(() => {
+    if (groupFilter === GROUP_FILTER_ALL) return devices;
+    if (groupFilter === GROUP_FILTER_UNGROUPED) return devices.filter((d) => !d.group_id);
+    return devices.filter((d) => String(d.group_id) === String(groupFilter));
+  }, [devices, groupFilter]);
+
+  const siteOverviewSections = useMemo(() => {
+    const byKey = new Map();
+    filteredDevices.forEach((d) => {
+      const key = d.group_id ? String(d.group_id) : GROUP_FILTER_UNGROUPED;
+      if (!byKey.has(key)) {
+        byKey.set(key, {
+          key,
+          name: d.group_id ? (d.group_name || 'Group') : 'Ungrouped',
+          devices: [],
+        });
+      }
+      byKey.get(key).devices.push(d);
+    });
+    const named = [...byKey.values()]
+      .filter((section) => section.key !== GROUP_FILTER_UNGROUPED)
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const ungrouped = byKey.get(GROUP_FILTER_UNGROUPED);
+    return ungrouped ? [...named, ungrouped] : named;
+  }, [filteredDevices]);
+
+  const overviewSubtitle = useMemo(() => {
+    const fromDevice = selectedDevice?.group_description?.trim();
+    if (fromDevice) return fromDevice;
+    if (groupFilter !== GROUP_FILTER_ALL && groupFilter !== GROUP_FILTER_UNGROUPED) {
+      const group = knownGroups.find((g) => g.id === String(groupFilter));
+      if (group?.description?.trim()) return group.description.trim();
+    }
+    return 'Monitoring overview';
+  }, [selectedDevice, groupFilter, knownGroups]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('n_dashboard_group_filter', groupFilter);
+    } catch {
+      // Ignore storage restrictions.
+    }
+  }, [groupFilter]);
+
   useEffect(() => {
     try {
       localStorage.setItem('realtime_chart_display_mode', chartDisplayMode);
@@ -199,6 +277,13 @@ export default function NDashboard({ socket }) {
       // Ignore storage restrictions.
     }
   }, [chartDisplayMode]);
+
+  useEffect(() => {
+    if (!filteredDevices.length) return;
+    if (!filteredDevices.some((d) => d.device_id === selectedDeviceId)) {
+      setSelectedDeviceId(filteredDevices[0].device_id);
+    }
+  }, [filteredDevices, selectedDeviceId]);
 
   // ---- Data loading -------------------------------------------------------
   const authHeaders = useCallback(() => ({
@@ -209,10 +294,12 @@ export default function NDashboard({ socket }) {
     const load = async () => {
       setLoadingDevices(true);
       try {
-        const [allRes, coordRes] = await Promise.all([
+        const [allRes, coordRes, groupsRes] = await Promise.all([
           axios.get(`${API_BASE_URL}/devices`, { headers: authHeaders() }),
           axios.get(`${API_BASE_URL}/devices/with-coordinates`, { headers: authHeaders() }).catch(() => ({ data: { devices: [] } })),
+          axios.get(`${API_BASE_URL}/device-groups`, { headers: authHeaders() }).catch(() => ({ data: { groups: [] } })),
         ]);
+        setCatalogGroups(groupsRes.data.groups || []);
         const coordMap = new Map((coordRes.data.devices || []).map((d) => [d.device_id, d]));
         const list = (allRes.data.devices || [])
           .filter((d) => d?.status !== 'deleted' && d?.is_deleted !== true)
@@ -577,7 +664,7 @@ export default function NDashboard({ socket }) {
             N-Dashboard
           </Typography>
           <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary' }}>
-            Water quality monitoring overview
+            {overviewSubtitle}
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
@@ -603,12 +690,36 @@ export default function NDashboard({ socket }) {
             labelId="nd-chart-display"
             sx={{ '& .MuiSelect-select': { fontSize: '0.75rem' } }}
           />
+          <FormControl size="small" sx={{ minWidth: 140, maxWidth: { xs: 180, sm: 220 } }}>
+            <InputLabel id="nd-group">Group</InputLabel>
+            <Select
+              labelId="nd-group"
+              label="Group"
+              value={
+                groupFilter === GROUP_FILTER_ALL
+                || groupFilter === GROUP_FILTER_UNGROUPED
+                || knownGroups.some((g) => g.id === String(groupFilter))
+                  ? groupFilter
+                  : GROUP_FILTER_ALL
+              }
+              onChange={(e) => setGroupFilter(e.target.value)}
+              sx={{ fontSize: '0.75rem', minHeight: 32, borderRadius: 1.5, '& .MuiSelect-select': { py: 0.6 } }}
+            >
+              <MenuItem value={GROUP_FILTER_ALL} sx={{ fontSize: '0.78rem' }}>All groups</MenuItem>
+              <MenuItem value={GROUP_FILTER_UNGROUPED} sx={{ fontSize: '0.78rem' }}>Ungrouped</MenuItem>
+              {knownGroups.map((group) => (
+                <MenuItem key={group.id} value={group.id} sx={{ fontSize: '0.78rem' }}>
+                  {group.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
           <FormControl size="small" sx={{ minWidth: 120, maxWidth: { xs: 160, sm: 220 } }}>
             <Select
-              value={selectedDeviceId || ''}
+              value={selectedDeviceId && filteredDevices.some((d) => d.device_id === selectedDeviceId) ? selectedDeviceId : ''}
               onChange={(e) => setSelectedDeviceId(e.target.value)}
               renderValue={(value) => {
-                const d = devices.find((x) => x.device_id === value);
+                const d = filteredDevices.find((x) => x.device_id === value) || devices.find((x) => x.device_id === value);
                 const label = d?.name || value || '-';
                 return (
                   <Typography noWrap sx={{ fontSize: '0.75rem', maxWidth: '100%' }} title={label}>
@@ -618,9 +729,9 @@ export default function NDashboard({ socket }) {
               }}
               sx={{ fontSize: '0.75rem', minHeight: 32, borderRadius: 1.5, '& .MuiSelect-select': { py: 0.6 } }}
             >
-              {devices.map((d) => (
-                <MenuItem key={d.device_id} value={d.device_id} sx={{ fontSize: '0.78rem', maxWidth: 320 }}>
-                  <Typography noWrap title={d.name}>{d.name}</Typography>
+              {filteredDevices.map((d) => (
+                <MenuItem key={d.device_id} value={d.device_id} sx={{ fontSize: '0.78rem' }}>
+                  {d.name}
                 </MenuItem>
               ))}
             </Select>
@@ -897,38 +1008,56 @@ export default function NDashboard({ socket }) {
                 />
               </Box>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.6, maxHeight: 240, overflowY: 'auto' }}>
-                {devices.map((d) => {
-                  const selected = d.device_id === selectedDeviceId;
-                  return (
-                    <Box
-                      key={d.device_id}
-                      onClick={() => setSelectedDeviceId(d.device_id)}
+                {siteOverviewSections.map((section) => (
+                  <Box key={section.key}>
+                    <Typography
                       sx={{
-                        ...railItemSx,
-                        ...(selected && {
-                          borderColor: alpha(theme.palette.primary.main, 0.5),
-                          bgcolor: alpha(theme.palette.primary.main, 0.06),
-                        }),
+                        fontSize: '0.62rem',
+                        fontWeight: 700,
+                        letterSpacing: 0.4,
+                        color: 'text.secondary',
+                        textTransform: 'uppercase',
+                        px: 0.25,
+                        pt: 0.4,
+                        pb: 0.35,
                       }}
                     >
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
-                        <Box sx={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, bgcolor: statusDotColor(d.ui_status || d.status) }} />
-                        <Typography noWrap sx={{ fontSize: '0.72rem', fontWeight: 600 }}>{d.name}</Typography>
-                      </Box>
-                      {d.latitude != null && d.longitude != null && (
-                        <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
-                          <Typography sx={{ fontSize: '0.6rem', color: 'text.secondary', fontFamily: 'monospace' }}>
-                            {Number(d.latitude).toFixed(4)}°
-                          </Typography>
-                          <Typography sx={{ fontSize: '0.6rem', color: 'text.secondary', fontFamily: 'monospace' }}>
-                            {Number(d.longitude).toFixed(4)}°
-                          </Typography>
+                      {section.name}
+                    </Typography>
+                    {section.devices.map((d) => {
+                      const selected = d.device_id === selectedDeviceId;
+                      return (
+                        <Box
+                          key={d.device_id}
+                          onClick={() => setSelectedDeviceId(d.device_id)}
+                          sx={{
+                            ...railItemSx,
+                            ...(selected && {
+                              borderColor: alpha(theme.palette.primary.main, 0.5),
+                              bgcolor: alpha(theme.palette.primary.main, 0.06),
+                            }),
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
+                            <Box sx={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, bgcolor: statusDotColor(d.ui_status || d.status) }} />
+                            <Typography noWrap sx={{ fontSize: '0.72rem', fontWeight: 600 }}>{d.name}</Typography>
+                          </Box>
+                          {d.latitude != null && d.longitude != null && (
+                            <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
+                              <Typography sx={{ fontSize: '0.6rem', color: 'text.secondary', fontFamily: 'monospace' }}>
+                                {Number(d.latitude).toFixed(4)}°
+                              </Typography>
+                              <Typography sx={{ fontSize: '0.6rem', color: 'text.secondary', fontFamily: 'monospace' }}>
+                                {Number(d.longitude).toFixed(4)}°
+                              </Typography>
+                            </Box>
+                          )}
                         </Box>
-                      )}
-                    </Box>
-                  );
-                })}
-                {devices.length === 0 && (
+                      );
+                    })}
+                  </Box>
+                ))}
+                {filteredDevices.length === 0 && (
                   <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', textAlign: 'center', py: 1 }}>
                     No devices found
                   </Typography>
