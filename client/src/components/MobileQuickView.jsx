@@ -31,6 +31,9 @@ import { getDeviceDisplayName } from '../utils/deviceLabel';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import { filterDataViewParams } from '../utils/fieldCategory';
 import { alertAppliesToDevice } from '../utils/alertDevices';
+import DeviceGroupFilterSelect from './DeviceGroupFilterSelect';
+import { useDeviceGroupFilter } from '../hooks/useDeviceGroupFilter';
+import { pickDeviceInFilter } from '../utils/deviceGroupFilter';
 import QuickViewChart from './QuickViewChart';
 import QuickViewAlertChart from './QuickViewAlertChart';
 import QuickViewTable from './QuickViewTable';
@@ -58,6 +61,10 @@ const MobileQuickView = () => {
   const { formatDisplayName, metadata: fieldMetadata } = useFieldMetadata();
   const [devices, setDevices] = useState([]);
   const [selectedDevice, setSelectedDevice] = useState('');
+  const { setGroupFilter, knownGroups, filteredDevices, selectValue } = useDeviceGroupFilter(
+    devices,
+    'quick_view_group_filter'
+  );
   const [selectedPeriod, setSelectedPeriod] = useState('1h');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -215,6 +222,11 @@ const MobileQuickView = () => {
   }, []);
 
   useEffect(() => {
+    const nextId = pickDeviceInFilter(filteredDevices, selectedDevice, { preferOnline: true });
+    if (nextId !== selectedDevice) setSelectedDevice(nextId);
+  }, [filteredDevices, selectedDevice]);
+
+  useEffect(() => {
     if (selectedDevice) {
       loadDeviceMapper();
       loadAlertConfigs();
@@ -275,6 +287,18 @@ const MobileQuickView = () => {
       </Typography>
 
       <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ mb: 0.5, letterSpacing: 0.6 }}>
+        GROUP
+      </Typography>
+      <DeviceGroupFilterSelect
+        labelId="m-qv-group"
+        value={selectValue}
+        onChange={setGroupFilter}
+        knownGroups={knownGroups}
+        fullWidth
+        sx={{ mb: 1.5 }}
+      />
+
+      <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ mb: 0.5, letterSpacing: 0.6 }}>
         DEVICE
       </Typography>
       <FormControl fullWidth size="small" sx={{ mb: 1.5 }}>
@@ -282,11 +306,11 @@ const MobileQuickView = () => {
         <Select
           labelId="m-qv-device"
           label="Select device"
-          value={selectedDevice}
+          value={selectedDevice && filteredDevices.some((d) => d.device_id === selectedDevice) ? selectedDevice : ''}
           onChange={(e) => setSelectedDevice(e.target.value)}
           sx={{ borderRadius: 2 }}
         >
-          {devices.map((d) => (
+          {filteredDevices.map((d) => (
             <MenuItem key={d.device_id} value={d.device_id}>
               {getDeviceDisplayName(d)}
             </MenuItem>

@@ -47,8 +47,11 @@ import { getDeviceDisplayName } from '../utils/deviceLabel';
 import moment from 'moment-timezone';
 import { getChartCardSx } from '../utils/chartStyles';
 import SectionHeader from './SectionHeader';
+import DeviceGroupFilterSelect from './DeviceGroupFilterSelect';
 import { compactSelectSx, compactMenuItemSx, compactTextFieldSx } from '../utils/compactUi';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
+import { useDeviceGroupFilter } from '../hooks/useDeviceGroupFilter';
+import { pickDeviceInFilter } from '../utils/deviceGroupFilter';
 import { filterDataViewParams } from '../utils/fieldCategory';
 import { alertAppliesToDevice } from '../utils/alertDevices';
 
@@ -65,6 +68,10 @@ const QuickView = () => {
   // State management
   const [devices, setDevices] = useState([]);
   const [selectedDevice, setSelectedDevice] = useState('');
+  const { setGroupFilter, knownGroups, filteredDevices, selectValue } = useDeviceGroupFilter(
+    devices,
+    'quick_view_group_filter'
+  );
   const [selectedPeriod, setSelectedPeriod] = useState('1h');
   const [viewMode, setViewMode] = useState('realtime');
   const [loading, setLoading] = useState(false);
@@ -151,6 +158,11 @@ const QuickView = () => {
   useEffect(() => {
     loadDevices();
   }, []);
+
+  useEffect(() => {
+    const nextId = pickDeviceInFilter(filteredDevices, selectedDevice, { preferOnline: true });
+    if (nextId !== selectedDevice) setSelectedDevice(nextId);
+  }, [filteredDevices, selectedDevice]);
 
   // Load device mapper and parameters when device changes
   useEffect(() => {
@@ -593,17 +605,26 @@ const QuickView = () => {
           
           <Grid container spacing={1.25} sx={{ p: 1.25 }}>
             <Grid item xs={12} md={3}>
+              <DeviceGroupFilterSelect
+                labelId="qv-group-label"
+                value={selectValue}
+                onChange={setGroupFilter}
+                knownGroups={knownGroups}
+                fullWidth
+              />
+            </Grid>
+            <Grid item xs={12} md={3}>
               <FormControl fullWidth size="small">
                 <InputLabel sx={{ fontSize: '0.78rem', '&.Mui-focused': { color: '#007BA7' } }}>
                   Device
                 </InputLabel>
                 <Select
-                  value={selectedDevice}
+                  value={selectedDevice && filteredDevices.some((d) => d.device_id === selectedDevice) ? selectedDevice : ''}
                   onChange={(e) => setSelectedDevice(e.target.value)}
                   label="Device"
                   sx={compactSelectSx}
                 >
-                  {devices.map((device) => (
+                  {filteredDevices.map((device) => (
                     <MenuItem key={device.device_id} value={device.device_id} sx={compactMenuItemSx}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <DeviceHubIcon sx={{ fontSize: 16, color: '#007BA7' }} />

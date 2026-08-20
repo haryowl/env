@@ -53,6 +53,8 @@ import {
   usesDefaultStatusKeywords,
 } from '../utils/statusKeywords';
 import PageHeader from './PageHeader';
+import DeviceGroupFilterSelect from './DeviceGroupFilterSelect';
+import { useDeviceGroupFilter } from '../hooks/useDeviceGroupFilter';
 import { compactSelectSx, compactMenuItemSx, compactSectionTitleSx } from '../utils/compactUi';
 import { getChartCardSx, CHART_COLORS, getTooltipContentStyle } from '../utils/chartStyles';
 import { exportTableToCSV, exportTableToXLSX } from '../utils/exportUtils';
@@ -134,6 +136,10 @@ export default function StatusDashboard({ socket }) {
 
   const [devices, setDevices] = useState([]);
   const [deviceId, setDeviceId] = useState('');
+  const { setGroupFilter, knownGroups, filteredDevices, selectValue } = useDeviceGroupFilter(
+    devices,
+    'status_dashboard_group_filter'
+  );
   useDeviceSocketSubscription(socket, deviceId);
   const [statusParams, setStatusParams] = useState([]);
   const [latest, setLatest] = useState({});
@@ -532,6 +538,12 @@ export default function StatusDashboard({ socket }) {
     }
   };
 
+  useEffect(() => {
+    if (deviceId && !filteredDevices.some((d) => d.device_id === deviceId)) {
+      setDeviceId(filteredDevices[0]?.device_id || '');
+    }
+  }, [filteredDevices, deviceId]);
+
   const selectedDevice = devices.find((d) => d.device_id === deviceId);
   const periodLabel = getPeriodLabel(historyPeriodHours);
 
@@ -573,6 +585,19 @@ export default function StatusDashboard({ socket }) {
               minWidth: 0,
             }}
           >
+            <DeviceGroupFilterSelect
+              labelId="status-group-label"
+              value={selectValue}
+              onChange={setGroupFilter}
+              knownGroups={knownGroups}
+              fullWidth
+              sx={{
+                minWidth: 0,
+                width: { xs: '100%', sm: 200 },
+                maxWidth: '100%',
+                mt: 0.5,
+              }}
+            />
             <FormControl
               size="small"
               sx={{
@@ -586,11 +611,11 @@ export default function StatusDashboard({ socket }) {
               <Select
                 labelId="status-device-label"
                 label="Device"
-                value={deviceId}
+                value={deviceId && filteredDevices.some((d) => d.device_id === deviceId) ? deviceId : ''}
                 onChange={(e) => setDeviceId(e.target.value)}
                 sx={compactSelectSx}
               >
-                {devices.map((d) => {
+                {filteredDevices.map((d) => {
                   const valid = isDeviceAccessValid(d);
                   return (
                     <MenuItem key={d.device_id} value={d.device_id} sx={{ ...compactMenuItemSx, opacity: valid ? 1 : 0.55 }}>

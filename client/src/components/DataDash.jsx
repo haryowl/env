@@ -27,7 +27,10 @@ import { min as d3min, max as d3max } from 'd3-array';
 import moment from 'moment-timezone';
 import { alpha } from '@mui/material/styles';
 import SectionHeader from './SectionHeader';
+import DeviceGroupFilterSelect from './DeviceGroupFilterSelect';
 import { filterDataViewParams } from '../utils/fieldCategory';
+import { useDeviceGroupFilter } from '../hooks/useDeviceGroupFilter';
+import { GROUP_FILTER_ALL } from '../utils/deviceGroupFilter';
 
 /** Match Layout.jsx sidebar: section labels ~0.875rem/500, items ~0.8125rem */
 // Aligned with N-Dashboard compact typography (see utils/compactUi.js)
@@ -133,6 +136,10 @@ export default function DataDash() {
   const [devices, setDevices] = useState([]);
   const [parameters, setParameters] = useState([]);
   const [selectedDevices, setSelectedDevices] = useState([]);
+  const { groupFilter, setGroupFilter, knownGroups, filteredDevices, selectValue } = useDeviceGroupFilter(
+    devices,
+    'data_dash_group_filter'
+  );
   const [selectedParameters, setSelectedParameters] = useState([]);
   const [dateRange, setDateRange] = useState([null, null]);
   const [data, setData] = useState([]);
@@ -164,6 +171,16 @@ export default function DataDash() {
     };
     fetchDevices();
   }, []);
+
+  useEffect(() => {
+    const ids = new Set(filteredDevices.map((d) => d.device_id));
+    setSelectedDevices((prev) => {
+      const kept = prev.filter((id) => ids.has(id));
+      if (groupFilter === GROUP_FILTER_ALL) return kept;
+      if (kept.length === 0) return filteredDevices.map((d) => d.device_id);
+      return kept;
+    });
+  }, [groupFilter, filteredDevices]);
 
   // Populate available parameters when metadata is loaded and no specific device mapping is active
   useEffect(() => {
@@ -262,6 +279,7 @@ export default function DataDash() {
   };
 
   const handleResetFilters = () => {
+    setGroupFilter(GROUP_FILTER_ALL);
     setSelectedDevices([]);
     setSelectedParameters([]);
     setDateRange([null, null]);
@@ -481,7 +499,7 @@ export default function DataDash() {
         <Box
           sx={{
             display: 'grid',
-            gridTemplateColumns: { xs: '1fr', md: 'repeat(4, minmax(0, 1fr)) auto' },
+            gridTemplateColumns: { xs: '1fr', md: 'repeat(5, minmax(0, 1fr)) auto' },
             gap: { xs: 0.75, md: 0.75 },
             rowGap: 0.75,
             width: '100%',
@@ -489,6 +507,16 @@ export default function DataDash() {
             '& > *': { minWidth: 0 },
           }}
         >
+          <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
+            <DeviceGroupFilterSelect
+              labelId="dd-group-label"
+              value={selectValue}
+              onChange={setGroupFilter}
+              knownGroups={knownGroups}
+              fullWidth
+              sx={{ width: '100%', maxWidth: '100%', minWidth: 0, '& .MuiInputBase-root': { minHeight: 32 }, '& .MuiInputLabel-root': { fontSize: '0.78rem' } }}
+            />
+          </Box>
           <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
               <FormControl fullWidth variant="outlined" size="small" sx={{ width: '100%', maxWidth: '100%', minWidth: 0, '& .MuiInputBase-root': { minHeight: 32 }, '& .MuiInputLabel-root': { fontSize: '0.78rem' } }}>
                 <InputLabel id="dd-devices-label">Devices</InputLabel>
@@ -550,7 +578,7 @@ export default function DataDash() {
                     }
                   }}
             >
-              {devices.map(device => (
+              {filteredDevices.map(device => (
                     <MenuItem key={device.device_id} value={device.device_id} sx={{ color: theme.palette.text.primary + ' !important' }}>
                       <Checkbox checked={selectedDevices.indexOf(device.device_id) > -1} sx={{ color: theme.palette.text.primary + ' !important' }} />
                       <ListItemText primary={device.name} primaryTypographyProps={{ sx: { fontSize: DATA_DASH_MENU_ITEM_FS } }} sx={{ color: theme.palette.text.primary + ' !important' }} />
@@ -656,7 +684,7 @@ export default function DataDash() {
           </FormControl>
             </Box>
 
-          <LocalizationProvider dateAdapter={AdapterDateFns}>
+          <LocalizationProvider dateAdapter={AdapterDateFns} sx={{ display: 'contents' }}>
             <Box sx={{ position: 'relative', minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
               <DateTimePicker
                 label="Start Date & Time"
@@ -677,7 +705,7 @@ export default function DataDash() {
 
           <Box
             sx={{
-              gridColumn: { xs: '1 / -1', md: '5 / 6' },
+              gridColumn: { xs: '1 / -1', md: '6 / 7' },
               gridRow: { xs: 'auto', md: '1 / 2' },
               display: 'flex',
               alignItems: 'flex-end',

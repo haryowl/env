@@ -278,10 +278,12 @@ router.get('/dropdown', authenticateToken, async (req, res) => {
     queryParams.push(staleMins);
     const devices = await getRows(`
       SELECT d.device_id, d.name, d.device_type, d.protocol, d.valid_from, d.valid_to,
+        d.group_id, dg.name AS group_name, dg.description AS group_description,
         eff.last_data_at AS last_data_at,
         ${sqlUiStatusCase(staleIdx)} AS status
       FROM devices d
       ${sqlLateralLastDataAt()}
+      LEFT JOIN device_groups dg ON d.group_id = dg.group_id
       ${whereClause}
       ORDER BY d.name ASC
     `, queryParams);
