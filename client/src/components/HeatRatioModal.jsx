@@ -115,11 +115,44 @@ function HeatBar({ ratio }) {
         position: 'relative',
         height: 36,
         borderRadius: 2,
-        background: HEAT_GRADIENT,
-        boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.12)',
         overflow: 'hidden',
+        boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.12)',
+        bgcolor: 'rgba(15,23,42,0.55)',
       }}
     >
+      {/* Full scale, faded — unreached portion stays visible but transparent */}
+      <Box
+        sx={{
+          position: 'absolute',
+          inset: 0,
+          background: HEAT_GRADIENT,
+          opacity: 0.22,
+        }}
+      />
+      {/* Reached portion at full colour, clipped to the pin */}
+      {pinned != null && leftPct > 0 && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            bottom: 0,
+            width: `${leftPct}%`,
+            overflow: 'hidden',
+          }}
+        >
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              bottom: 0,
+              width: `${10000 / Math.max(leftPct, 0.01)}%`,
+              background: HEAT_GRADIENT,
+            }}
+          />
+        </Box>
+      )}
       {pinned != null && (
         <>
           <Typography
@@ -131,7 +164,7 @@ function HeatBar({ ratio }) {
               fontSize: '0.72rem',
               fontWeight: 800,
               color: '#fff',
-              textShadow: '0 1px 2px rgba(0,0,0,0.45)',
+              textShadow: '0 1px 2px rgba(0,0,0,0.55)',
               zIndex: 1,
               pointerEvents: 'none',
             }}
