@@ -30,6 +30,7 @@ import { filterDataViewParams } from '../utils/fieldCategory';
 import { alertAppliesToDevice } from '../utils/alertDevices';
 import DashboardMap from './DashboardMap';
 import RealtimeChartDisplaySelect from './RealtimeChartDisplaySelect';
+import HeatRatioModal from './HeatRatioModal';
 import {
   buildRealtimeChartSeries,
   REALTIME_CHART_DISPLAY_MODES,
@@ -199,6 +200,7 @@ export default function NDashboard({ socket }) {
   const [selectedChartParams, setSelectedChartParams] = useState(null);
   const [loadingDevices, setLoadingDevices] = useState(true);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [heatRatioOpen, setHeatRatioOpen] = useState(false);
 
   const selectedDevice = devices.find((d) => d.device_id === selectedDeviceId) || null;
   const rangeHours = ({ '2h': 2, '3h': 3, '6h': 6, '48h': 48 })[chartRange] ?? 48;
@@ -1066,11 +1068,36 @@ export default function NDashboard({ socket }) {
             </CardContent>
           </Card>
 
-          {/* Latest Readings */}
-          <Card sx={cardSx}>
+          {/* Latest Readings — click to open heat-ratio visualization */}
+          <Card
+            sx={{
+              ...cardSx,
+              cursor: 'pointer',
+              transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+              '&:hover': {
+                borderColor: alpha(theme.palette.primary.main, 0.45),
+                boxShadow: `0 0 0 1px ${alpha(theme.palette.primary.main, 0.12)}`,
+              },
+            }}
+            onClick={() => setHeatRatioOpen(true)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setHeatRatioOpen(true);
+              }
+            }}
+            aria-label="Open heat ratio visualization"
+          >
             <CardContent sx={{ p: 1.25, '&:last-child': { pb: 1.25 } }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                <Typography sx={sectionTitleSx}>Latest Readings</Typography>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={sectionTitleSx}>Latest Readings</Typography>
+                  <Typography sx={{ fontSize: '0.6rem', color: 'text.secondary', mt: 0.15 }}>
+                    Click for heat / rasio view
+                  </Typography>
+                </Box>
                 <Chip
                   size="small"
                   icon={<SensorsIcon sx={{ fontSize: '11px !important' }} />}
@@ -1199,6 +1226,18 @@ export default function NDashboard({ socket }) {
           </Card>
         </Box>
       </Box>
+
+      <HeatRatioModal
+        open={heatRatioOpen}
+        onClose={() => setHeatRatioOpen(false)}
+        deviceName={selectedDevice?.name}
+        params={availableParams}
+        latestFields={latest.fields}
+        alertThresholds={alertThresholds}
+        formatDisplayName={formatDisplayName}
+        getUnit={getUnit}
+        getDisplayRange={getDisplayRange}
+      />
     </Box>
   );
 }
