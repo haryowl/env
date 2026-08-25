@@ -33,6 +33,22 @@ import {
 
 const SCALE_MAX = 120;
 
+/**
+ * Decide which analysis programme to show from Device Group name/description.
+ * - "SPARING" (etc.) → Section A only
+ * - "TMAT" (etc.) → Section B only
+ * - unclear / ungrouped → both (fallback)
+ */
+export function resolveHeatProgram(groupName, groupDescription) {
+  const text = `${groupName || ''} ${groupDescription || ''}`.toLowerCase();
+  if (!text.trim()) return 'both';
+  const isTmat = /\btmat\b|tanah\s*gambut|ground\s*water|groundwater|infiltrasi|muka\s*air\s*tanah/.test(text);
+  const isSparing = /\bsparing\b|waste\s*water|wastewater|limbah|kualitas\s*air/.test(text);
+  if (isTmat && !isSparing) return 'tmat';
+  if (isSparing && !isTmat) return 'sparing';
+  return 'both';
+}
+
 /** CSS stops mapped onto a bar that represents 0-120%. */
 export const HEAT_GRADIENT =
   'linear-gradient(90deg,'
@@ -263,6 +279,8 @@ export default function HeatRatioModal({
   open,
   onClose,
   deviceName,
+  groupName,
+  groupDescription,
   params = [],
   latestFields = {},
   alertThresholds = {},
@@ -293,17 +311,41 @@ export default function HeatRatioModal({
   const labelOf = (p) => (formatDisplayName ? formatDisplayName(p, { withUnit: false }) : p);
   const unitOf = (p) => (getUnit ? getUnit(p) : '') || '';
 
-  const sparingRows = useMemo(() => rows.filter((r) => !isTmatKindParam(r.param)), [rows]);
-  const tmatRows = useMemo(() => rows.filter((r) => isTmatKindParam(r.param)), [rows]);
+  const program = useMemo(
+    () => resolveHeatProgram(groupName, groupDescription),
+    [groupName, groupDescription]
+  );
+  const showSparing = program === 'sparing' || program === 'both';
+  const showTmat = program === 'tmat' || program === 'both';
+
+  const sparingRows = useMemo(() => {
+    if (!showSparing) return [];
+    // SPARING-only group: show all mapped params as compliance rows
+    if (program === 'sparing') return rows;
+    return rows.filter((r) => !isTmatKindParam(r.param));
+  }, [rows, showSparing, program]);
+
+  const tmatRows = useMemo(() => {
+    if (!showTmat) return [];
+    // TMAT-only group: show all mapped params (TMAT fields + any other sensors on that device)
+    if (program === 'tmat') return rows;
+    return rows.filter((r) => isTmatKindParam(r.param));
+  }, [rows, showTmat, program]);
 
   const sparingCards = useMemo(
-    () => buildSparingCards(rows, getUnit),
-    [rows, getUnit]
+    () => (showSparing ? buildSparingCards(rows, getUnit) : []),
+    [rows, getUnit, showSparing]
   );
   const tmatCards = useMemo(
-    () => buildTmatCards(rows, history, getUnit),
-    [rows, history, getUnit]
+    () => (showTmat ? buildTmatCards(rows, history, getUnit) : []),
+    [rows, history, getUnit, showTmat]
   );
+
+  const programLabel =
+    program === 'sparing' ? 'SPARING'
+      : program === 'tmat' ? 'TMAT'
+        : 'SPARING + TMAT';
+  const groupLabel = (groupName || '').trim() || 'Ungrouped';
 
   const renderParamRows = (list, { ambangLabel = 'BAKU MUTU' } = {}) => (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
@@ -542,7 +584,7 @@ export default function HeatRatioModal({
             Visualisasi Rasio — Heat Gradation
           </Typography>
           <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }} noWrap>
-            {deviceName || 'Device'} · SPARING + TMAT · SCALE 0–{SCALE_MAX}% · LIVE HEAT
+            {deviceName || 'Device'} · Group: {groupLabel} · {programLabel} · SCALE 0–{SCALE_MAX}%
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0 }}>
@@ -623,79 +665,93 @@ export default function HeatRatioModal({
           </Box>
         </Box>
 
-        <Box
-          sx={{
-            p: { xs: 1.25, sm: 1.75 },
-            borderRadius: 2.5,
-            bgcolor: '#0F172A',
-            color: '#E2E8F0',
-            border: '1px solid',
-            borderColor: alpha('#fff', 0.08),
-            mb: 1.5,
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1, mb: 1.5 }}>
-            <Box sx={{ display: 'flex', gap: 1, minWidth: 0 }}>
-              <FavoriteIcon sx={{ color: '#F43F5E', fontSize: 20, mt: 0.2 }} />
-              <Box sx={{ minWidth: 0 }}>
-                <Typography sx={{ fontWeight: 800, fontSize: '0.82rem', color: '#F8FAFC' }}>
-                  SECTION A — SPARING · WATER QUALITY COMPLIANCE
-                </Typography>
-                <Typography sx={{ fontSize: '0.65rem', color: '#94A3B8' }}>
-                  Heat bars from alert Baku Mutu · pH = % deviasi dari ideal · Flow L/min → m³/s untuk Load
+        {showSparing && (
+          <>
+            <Box
+              sx={{
+                p: { xs: 1.25, sm: 1.75 },
+                borderRadius: 2.5,
+                bgcolor: '#0F172A',
+                color: '#E2E8F0',
+                border: '1px solid',
+                borderColor: alpha('#fff', 0.08),
+                mb: 1.5,
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1, mb: 1.5 }}>
+                <Box sx={{ display: 'flex', gap: 1, minWidth: 0 }}>
+                  <FavoriteIcon sx={{ color: '#F43F5E', fontSize: 20, mt: 0.2 }} />
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 800, fontSize: '0.82rem', color: '#F8FAFC' }}>
+                      SECTION A — SPARING · WATER QUALITY COMPLIANCE
+                    </Typography>
+                    <Typography sx={{ fontSize: '0.65rem', color: '#94A3B8' }}>
+                      Group {groupLabel} · Heat bars from alert Baku Mutu · pH = % deviasi dari ideal · Flow L/min -&gt; m3/s untuk Load
+                    </Typography>
+                  </Box>
+                </Box>
+                <Typography sx={{ fontSize: '0.62rem', fontWeight: 700, color: '#94A3B8', flexShrink: 0 }}>
+                  SCALE 0–{SCALE_MAX}% · LIVE
                 </Typography>
               </Box>
+              {sparingRows.length === 0 ? (
+                <Typography sx={{ fontSize: '0.78rem', color: '#94A3B8', textAlign: 'center', py: 2 }}>
+                  Tidak ada parameter SPARING pada perangkat ini.
+                </Typography>
+              ) : (
+                renderParamRows(sparingRows)
+              )}
             </Box>
-            <Typography sx={{ fontSize: '0.62rem', fontWeight: 700, color: '#94A3B8', flexShrink: 0 }}>
-              SCALE 0–{SCALE_MAX}% · LIVE
-            </Typography>
-          </Box>
-          {sparingRows.length === 0 ? (
-            <Typography sx={{ fontSize: '0.78rem', color: '#94A3B8', textAlign: 'center', py: 2 }}>
-              Tidak ada parameter SPARING pada perangkat ini.
-            </Typography>
-          ) : (
-            renderParamRows(sparingRows)
-          )}
-        </Box>
-        {renderCards(sparingCards, 'SPARING · Analysis cards (Table 1)')}
+            {renderCards(sparingCards, 'SPARING · Analysis cards (Table 1)')}
+          </>
+        )}
 
-        <Box
-          sx={{
-            p: { xs: 1.25, sm: 1.75 },
-            borderRadius: 2.5,
-            bgcolor: '#0F172A',
-            color: '#E2E8F0',
-            border: '1px solid',
-            borderColor: alpha('#fff', 0.08),
-            mb: 1.5,
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1, mb: 1.5 }}>
-            <Box sx={{ display: 'flex', gap: 1, minWidth: 0 }}>
-              <OpacityIcon sx={{ color: '#38BDF8', fontSize: 20, mt: 0.2 }} />
-              <Box sx={{ minWidth: 0 }}>
-                <Typography sx={{ fontWeight: 800, fontSize: '0.82rem', color: '#F8FAFC' }}>
-                  SECTION B — TMAT · GROUNDWATER & INFILTRATION
-                </Typography>
-                <Typography sx={{ fontSize: '0.65rem', color: '#94A3B8' }}>
-                  TMAT Level memakai rasio terbalik (dangkal = merah) · Δ dari history chart untuk infiltrasi / recharge
+        {showTmat && (
+          <>
+            <Box
+              sx={{
+                p: { xs: 1.25, sm: 1.75 },
+                borderRadius: 2.5,
+                bgcolor: '#0F172A',
+                color: '#E2E8F0',
+                border: '1px solid',
+                borderColor: alpha('#fff', 0.08),
+                mb: 1.5,
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1, mb: 1.5 }}>
+                <Box sx={{ display: 'flex', gap: 1, minWidth: 0 }}>
+                  <OpacityIcon sx={{ color: '#38BDF8', fontSize: 20, mt: 0.2 }} />
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 800, fontSize: '0.82rem', color: '#F8FAFC' }}>
+                      SECTION B — TMAT · GROUNDWATER & INFILTRATION
+                    </Typography>
+                    <Typography sx={{ fontSize: '0.65rem', color: '#94A3B8' }}>
+                      Group {groupLabel} · TMAT Level rasio terbalik (dangkal = merah) · Delta history untuk infiltrasi / recharge
+                    </Typography>
+                  </Box>
+                </Box>
+                <Typography sx={{ fontSize: '0.62rem', fontWeight: 700, color: '#94A3B8', flexShrink: 0 }}>
+                  SCALE 0–{SCALE_MAX}% · LIVE
                 </Typography>
               </Box>
+              {tmatRows.length === 0 ? (
+                <Typography sx={{ fontSize: '0.78rem', color: '#94A3B8', textAlign: 'center', py: 2 }}>
+                  Tidak ada parameter TMAT (TMAT / water level / soil moisture / soil temp / rainfall) pada perangkat ini.
+                </Typography>
+              ) : (
+                renderParamRows(tmatRows, { ambangLabel: 'AMBANG' })
+              )}
             </Box>
-            <Typography sx={{ fontSize: '0.62rem', fontWeight: 700, color: '#94A3B8', flexShrink: 0 }}>
-              SCALE 0–{SCALE_MAX}% · LIVE
-            </Typography>
-          </Box>
-          {tmatRows.length === 0 ? (
-            <Typography sx={{ fontSize: '0.78rem', color: '#94A3B8', textAlign: 'center', py: 2 }}>
-              Tidak ada parameter TMAT (TMAT / water level / soil moisture / soil temp / rainfall) pada perangkat ini.
-            </Typography>
-          ) : (
-            renderParamRows(tmatRows, { ambangLabel: 'AMBANG' })
-          )}
-        </Box>
-        {renderCards(tmatCards, 'TMAT · Analysis cards (Table 2)')}
+            {renderCards(tmatCards, 'TMAT · Analysis cards (Table 2)')}
+          </>
+        )}
+
+        {!showSparing && !showTmat && (
+          <Typography sx={{ fontSize: '0.8rem', color: 'text.secondary', textAlign: 'center', py: 3 }}>
+            Tidak ada section analisis untuk group perangkat ini.
+          </Typography>
+        )}
       </DialogContent>
     </Dialog>
   );

@@ -1231,6 +1231,8 @@ export default function NDashboard({ socket }) {
         open={heatRatioOpen}
         onClose={() => setHeatRatioOpen(false)}
         deviceName={selectedDevice?.name}
+        groupName={selectedDevice?.group_name}
+        groupDescription={selectedDevice?.group_description}
         params={availableParams}
         latestFields={latest.fields}
         alertThresholds={alertThresholds}
