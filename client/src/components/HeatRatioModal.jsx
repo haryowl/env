@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Button,
@@ -24,10 +24,16 @@ import {
   buildSparingCards,
   toNum,
 } from '../utils/sparingAnalysis';
+import {
+  buildTmatCards,
+  computeInvertedCeilingRatio,
+  isInvertedTmatParam,
+  isTmatKindParam,
+} from '../utils/tmatAnalysis';
 
 const SCALE_MAX = 120;
 
-/** CSS stops mapped onto a bar that represents 0–120%. */
+/** CSS stops mapped onto a bar that represents 0-120%. */
 export const HEAT_GRADIENT =
   'linear-gradient(90deg,'
   + ' #16A34A 0%,'
@@ -39,16 +45,16 @@ export const HEAT_GRADIENT =
   + ' #7F1D1D 100%)';
 
 const LEGEND_CHIPS = [
-  { label: '0–50% Hijau Aman', color: '#16A34A', text: '#fff' },
+  { label: '0-50% Hijau Aman', color: '#16A34A', text: '#fff' },
   { label: '45% Lime', color: '#84CC16', text: '#14532D' },
-  { label: '75–81% Kuning', color: '#EAB308', text: '#422006' },
-  { label: '85–91% Orange', color: '#F97316', text: '#fff' },
+  { label: '75-81% Kuning', color: '#EAB308', text: '#422006' },
+  { label: '85-91% Orange', color: '#F97316', text: '#fff' },
   { label: '100% Merah', color: '#EF4444', text: '#fff' },
   { label: '>100% Merah Tua', color: '#7F1D1D', text: '#fff' },
 ];
 
 /**
- * True range band (e.g. pH 6–9). Min of 0 with a max is a ceiling, not a band.
+ * True range band (e.g. pH 6-9). Min of 0 with a max is a ceiling, not a band.
  */
 export function isTrueBand(bakuMin, bakuMax) {
   const mn = toNum(bakuMin);
@@ -57,10 +63,10 @@ export function isTrueBand(bakuMin, bakuMax) {
 }
 
 /**
- * Ratio % on a 0–120 heat scale.
- * - Ceiling (max only / min=0+max): nilai / bakuMax × 100
- * - Band (min>0 + max): |nilai − mid| / half × 100  (0% at ideal center, 100% at edge)
- * - Floor only: below min → (min−nilai)/min×100
+ * Ratio % on a 0-120 heat scale.
+ * - Ceiling (max only / min=0+max): nilai / bakuMax x 100
+ * - Band (min>0 + max): |nilai - mid| / half x 100  (0% at ideal center, 100% at edge)
+ * - Floor only: below min -> (min-nilai)/minx100
  */
 export function computeHeatRatio(nilai, bakuMin, bakuMax) {
   const v = toNum(nilai);
@@ -91,7 +97,7 @@ export function computeHeatRatio(nilai, bakuMin, bakuMax) {
 
 export function heatStatus(ratio) {
   if (ratio == null || !Number.isFinite(ratio)) {
-    return { key: 'unknown', label: '—', color: '#64748B' };
+    return { key: 'unknown', label: '-', color: '#64748B' };
   }
   if (ratio >= 100) return { key: 'melebihi', label: 'MELEBIHI', color: '#DC2626' };
   if (ratio >= 85) return { key: 'waspada', label: 'WASPADA', color: '#EA580C' };
@@ -110,25 +116,36 @@ function paramIcon(paramKey) {
 }
 
 function fmt(n, digits = 2) {
-  if (n == null || !Number.isFinite(n)) return '—';
+  if (n == null || !Number.isFinite(n)) return '-';
   if (Math.abs(n) >= 100) return n.toFixed(0);
   if (Math.abs(n) >= 10) return n.toFixed(1);
   return n.toFixed(digits);
 }
 
-function rowSubtitle(row, ratio, unit) {
+function rowSubtitle(row, ratio, unit, inverted) {
   const mn = toNum(row.bakuMin);
   const mx = toNum(row.bakuMax);
   const v = toNum(row.nilai);
-  if (ratio == null) return `Nilai ${fmt(v)} / Baku —`;
+  if (ratio == null) return `Nilai ${fmt(v)} / Baku -`;
+  if (inverted) {
+    return `${ratio.toFixed(1)}% risiko dangkal | invert${unit ? ` | ${unit}` : ''}`;
+  }
   if (isTrueBand(mn, mx)) {
     const mid = (mn + mx) / 2;
-    return `${ratio.toFixed(1)}% deviasi dari ideal ${fmt(mid)}${unit ? ` · ${unit}` : ''}`;
+    return `${ratio.toFixed(1)}% deviasi dari ideal ${fmt(mid)}${unit ? ` | ${unit}` : ''}`;
   }
   if (mx != null) {
-    return `${ratio.toFixed(1)}% dari baku mutu${unit ? ` · ${unit}` : ''}`;
+    return `${ratio.toFixed(1)}% dari baku mutu${unit ? ` | ${unit}` : ''}`;
   }
   return `Nilai ${fmt(v)}`;
+}
+
+function ratioForRow(row) {
+  if (isInvertedTmatParam(row.param)) {
+    const ambang = row.bakuMax || row.bakuMin || '2';
+    return computeInvertedCeilingRatio(row.nilai, ambang);
+  }
+  return computeHeatRatio(row.nilai, row.bakuMin, row.bakuMax);
 }
 
 function HeatBar({ ratio }) {
@@ -240,7 +257,7 @@ function buildRows(params, latestFields, alertThresholds, getDisplayRange) {
 }
 
 /**
- * Heat-ratio visualization (SPARING Section A) for N-Dashboard Latest Readings.
+ * Heat-ratio visualization: SPARING Section A + TMAT Section B.
  */
 export default function HeatRatioModal({
   open,
@@ -249,6 +266,7 @@ export default function HeatRatioModal({
   params = [],
   latestFields = {},
   alertThresholds = {},
+  history = [],
   formatDisplayName,
   getUnit,
   getDisplayRange,
@@ -275,9 +293,224 @@ export default function HeatRatioModal({
   const labelOf = (p) => (formatDisplayName ? formatDisplayName(p, { withUnit: false }) : p);
   const unitOf = (p) => (getUnit ? getUnit(p) : '') || '';
 
+  const sparingRows = useMemo(() => rows.filter((r) => !isTmatKindParam(r.param)), [rows]);
+  const tmatRows = useMemo(() => rows.filter((r) => isTmatKindParam(r.param)), [rows]);
+
   const sparingCards = useMemo(
     () => buildSparingCards(rows, getUnit),
     [rows, getUnit]
+  );
+  const tmatCards = useMemo(
+    () => buildTmatCards(rows, history, getUnit),
+    [rows, history, getUnit]
+  );
+
+  const renderParamRows = (list, { ambangLabel = 'BAKU MUTU' } = {}) => (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+      {list.map((row) => {
+        const inverted = isInvertedTmatParam(row.param);
+        const ratio = ratioForRow(row);
+        const status = heatStatus(ratio);
+        const unit = unitOf(row.param);
+        const isRange = !inverted && isTrueBand(row.bakuMin, row.bakuMax);
+
+        return (
+          <Box
+            key={row.param}
+            sx={{
+              p: 1.25,
+              borderRadius: 2,
+              bgcolor: alpha('#fff', 0.03),
+              border: '1px solid',
+              borderColor: alpha('#fff', 0.06),
+            }}
+          >
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr', md: 'minmax(180px, 1.2fr) minmax(240px, 1.1fr)' },
+                gap: 1.25,
+                alignItems: 'center',
+                mb: 1,
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, minWidth: 0 }}>
+                <Box
+                  sx={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: '50%',
+                    display: 'grid',
+                    placeItems: 'center',
+                    flexShrink: 0,
+                    bgcolor: alpha(status.color, 0.18),
+                    color: status.color,
+                  }}
+                >
+                  {paramIcon(row.param)}
+                </Box>
+                <Box sx={{ minWidth: 0 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+                    <Typography sx={{ fontWeight: 800, fontSize: '0.88rem', color: '#F8FAFC' }}>
+                      {labelOf(row.param)}
+                    </Typography>
+                    <Chip
+                      size="small"
+                      label={status.label}
+                      sx={{
+                        height: 20,
+                        fontSize: '0.62rem',
+                        fontWeight: 800,
+                        bgcolor: alpha(status.color, 0.2),
+                        color: status.color,
+                        border: `1px solid ${alpha(status.color, 0.45)}`,
+                        '& .MuiChip-label': { px: 0.7 },
+                      }}
+                    />
+                  </Box>
+                  <Typography sx={{ fontSize: '0.68rem', color: '#94A3B8', mt: 0.25 }}>
+                    {rowSubtitle(row, ratio, unit, inverted)}
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: isRange ? '1fr 1fr 1fr auto' : '1fr 1fr auto',
+                  gap: 0.6,
+                  alignItems: 'end',
+                }}
+              >
+                <TextField
+                  size="small"
+                  label="NILAI"
+                  type="number"
+                  value={row.nilai}
+                  onChange={(e) => updateRow(row.param, { nilai: e.target.value })}
+                  inputProps={{ step: 'any' }}
+                  sx={fieldSx}
+                />
+                {isRange ? (
+                  <>
+                    <TextField
+                      size="small"
+                      label="BAKU MIN"
+                      type="number"
+                      value={row.bakuMin}
+                      onChange={(e) => updateRow(row.param, { bakuMin: e.target.value })}
+                      inputProps={{ step: 'any' }}
+                      sx={fieldSx}
+                    />
+                    <TextField
+                      size="small"
+                      label="BAKU MAX"
+                      type="number"
+                      value={row.bakuMax}
+                      onChange={(e) => updateRow(row.param, { bakuMax: e.target.value })}
+                      inputProps={{ step: 'any' }}
+                      sx={fieldSx}
+                    />
+                  </>
+                ) : (
+                  <TextField
+                    size="small"
+                    label={inverted ? 'AMBANG' : ambangLabel}
+                    type="number"
+                    value={row.bakuMax !== '' ? row.bakuMax : row.bakuMin}
+                    onChange={(e) => updateRow(row.param, {
+                      bakuMax: e.target.value,
+                      bakuMin: '',
+                    })}
+                    inputProps={{ step: 'any' }}
+                    sx={fieldSx}
+                  />
+                )}
+                <Box
+                  sx={{
+                    minWidth: 64,
+                    height: 36,
+                    px: 1,
+                    borderRadius: 999,
+                    bgcolor: '#fff',
+                    color: ratio != null && ratio >= 100 ? '#DC2626' : '#0F172A',
+                    display: 'grid',
+                    placeItems: 'center',
+                    fontWeight: 800,
+                    fontSize: '0.78rem',
+                  }}
+                >
+                  {ratio == null ? '-' : `${ratio.toFixed(1)}%`}
+                </Box>
+              </Box>
+            </Box>
+            <HeatBar ratio={ratio} />
+          </Box>
+        );
+      })}
+    </Box>
+  );
+
+  const renderCards = (cards, title) => (
+    <>
+      <Typography sx={{ fontWeight: 800, fontSize: '0.78rem', mb: 1, mt: 0.5, color: 'text.primary' }}>
+        {title}
+      </Typography>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+          gap: 1.25,
+          mb: 1.5,
+        }}
+      >
+        {cards.map((card) => (
+          <Box
+            key={card.id}
+            sx={{
+              p: 1.5,
+              borderRadius: 2,
+              bgcolor: '#0F172A',
+              border: '1px solid',
+              borderColor: alpha(card.color || '#94A3B8', 0.35),
+              boxShadow: `0 0 0 1px ${alpha(card.color || '#94A3B8', 0.12)}`,
+              minHeight: 120,
+            }}
+          >
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 0.75 }}>
+              <Typography sx={{ fontWeight: 800, fontSize: '0.78rem', color: '#F8FAFC' }}>
+                {card.title}
+              </Typography>
+              <Chip
+                size="small"
+                label={card.label}
+                sx={{
+                  height: 20,
+                  fontSize: '0.6rem',
+                  fontWeight: 800,
+                  bgcolor: alpha(card.color, 0.2),
+                  color: card.color,
+                  border: `1px solid ${alpha(card.color, 0.45)}`,
+                  '& .MuiChip-label': { px: 0.7 },
+                }}
+              />
+            </Box>
+            <Typography sx={{ fontSize: '1.05rem', fontWeight: 800, color: '#F8FAFC', mb: 0.35 }}>
+              {card.primary}
+            </Typography>
+            <Typography sx={{ fontSize: '0.65rem', color: '#94A3B8' }}>
+              {card.ready
+                ? card.detail
+                : `Data kurang: ${(card.missing || []).join(', ') || '-'}`}
+            </Typography>
+            <Typography sx={{ fontSize: '0.6rem', color: '#64748B', mt: 0.5, fontFamily: 'monospace' }}>
+              {card.formula}
+            </Typography>
+            <MiniHeatBar ratio={card.ratio} color={card.color} />
+          </Box>
+        ))}
+      </Box>
+    </>
   );
 
   return (
@@ -309,7 +542,7 @@ export default function HeatRatioModal({
             Visualisasi Rasio — Heat Gradation
           </Typography>
           <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }} noWrap>
-            {deviceName || 'Device'} · SECTION A SPARING · SCALE 0–{SCALE_MAX}% · LIVE HEAT
+            {deviceName || 'Device'} · SPARING + TMAT · SCALE 0–{SCALE_MAX}% · LIVE HEAT
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0 }}>
@@ -328,7 +561,6 @@ export default function HeatRatioModal({
       </DialogTitle>
 
       <DialogContent sx={{ px: { xs: 1.25, sm: 2 }, pb: 2, pt: 0.5 }}>
-        {/* Legend */}
         <Box
           sx={{
             mb: 1.5,
@@ -391,7 +623,6 @@ export default function HeatRatioModal({
           </Box>
         </Box>
 
-        {/* Section A — parameter rows */}
         <Box
           sx={{
             p: { xs: 1.25, sm: 1.75 },
@@ -411,7 +642,7 @@ export default function HeatRatioModal({
                   SECTION A — SPARING · WATER QUALITY COMPLIANCE
                 </Typography>
                 <Typography sx={{ fontSize: '0.65rem', color: '#94A3B8' }}>
-                  Heat bars from alert Baku Mutu · pH = % deviasi dari ideal (titik tengah) · Flow L/min → m³/s untuk Load
+                  Heat bars from alert Baku Mutu · pH = % deviasi dari ideal · Flow L/min → m³/s untuk Load
                 </Typography>
               </Box>
             </Box>
@@ -419,215 +650,52 @@ export default function HeatRatioModal({
               SCALE 0–{SCALE_MAX}% · LIVE
             </Typography>
           </Box>
-
-          {rows.length === 0 && (
-            <Typography sx={{ fontSize: '0.8rem', color: '#94A3B8', textAlign: 'center', py: 3 }}>
-              Tidak ada parameter untuk ditampilkan. Pastikan perangkat punya pembacaan / mapping.
+          {sparingRows.length === 0 ? (
+            <Typography sx={{ fontSize: '0.78rem', color: '#94A3B8', textAlign: 'center', py: 2 }}>
+              Tidak ada parameter SPARING pada perangkat ini.
             </Typography>
+          ) : (
+            renderParamRows(sparingRows)
           )}
-
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
-            {rows.map((row) => {
-              const ratio = computeHeatRatio(row.nilai, row.bakuMin, row.bakuMax);
-              const status = heatStatus(ratio);
-              const unit = unitOf(row.param);
-              const isRange = isTrueBand(row.bakuMin, row.bakuMax);
-
-              return (
-                <Box
-                  key={row.param}
-                  sx={{
-                    p: 1.25,
-                    borderRadius: 2,
-                    bgcolor: alpha('#fff', 0.03),
-                    border: '1px solid',
-                    borderColor: alpha('#fff', 0.06),
-                  }}
-                >
-                  <Box
-                    sx={{
-                      display: 'grid',
-                      gridTemplateColumns: { xs: '1fr', md: 'minmax(180px, 1.2fr) minmax(240px, 1.1fr)' },
-                      gap: 1.25,
-                      alignItems: 'center',
-                      mb: 1,
-                    }}
-                  >
-                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, minWidth: 0 }}>
-                      <Box
-                        sx={{
-                          width: 34,
-                          height: 34,
-                          borderRadius: '50%',
-                          display: 'grid',
-                          placeItems: 'center',
-                          flexShrink: 0,
-                          bgcolor: alpha(status.color, 0.18),
-                          color: status.color,
-                        }}
-                      >
-                        {paramIcon(row.param)}
-                      </Box>
-                      <Box sx={{ minWidth: 0 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
-                          <Typography sx={{ fontWeight: 800, fontSize: '0.88rem', color: '#F8FAFC' }}>
-                            {labelOf(row.param)}
-                          </Typography>
-                          <Chip
-                            size="small"
-                            label={status.label}
-                            sx={{
-                              height: 20,
-                              fontSize: '0.62rem',
-                              fontWeight: 800,
-                              bgcolor: alpha(status.color, 0.2),
-                              color: status.color,
-                              border: `1px solid ${alpha(status.color, 0.45)}`,
-                              '& .MuiChip-label': { px: 0.7 },
-                            }}
-                          />
-                        </Box>
-                        <Typography sx={{ fontSize: '0.68rem', color: '#94A3B8', mt: 0.25 }}>
-                          {rowSubtitle(row, ratio, unit)}
-                        </Typography>
-                      </Box>
-                    </Box>
-
-                    <Box
-                      sx={{
-                        display: 'grid',
-                        gridTemplateColumns: isRange ? '1fr 1fr 1fr auto' : '1fr 1fr auto',
-                        gap: 0.6,
-                        alignItems: 'end',
-                      }}
-                    >
-                      <TextField
-                        size="small"
-                        label="NILAI"
-                        type="number"
-                        value={row.nilai}
-                        onChange={(e) => updateRow(row.param, { nilai: e.target.value })}
-                        inputProps={{ step: 'any' }}
-                        sx={fieldSx}
-                      />
-                      {isRange ? (
-                        <>
-                          <TextField
-                            size="small"
-                            label="BAKU MIN"
-                            type="number"
-                            value={row.bakuMin}
-                            onChange={(e) => updateRow(row.param, { bakuMin: e.target.value })}
-                            inputProps={{ step: 'any' }}
-                            sx={fieldSx}
-                          />
-                          <TextField
-                            size="small"
-                            label="BAKU MAX"
-                            type="number"
-                            value={row.bakuMax}
-                            onChange={(e) => updateRow(row.param, { bakuMax: e.target.value })}
-                            inputProps={{ step: 'any' }}
-                            sx={fieldSx}
-                          />
-                        </>
-                      ) : (
-                        <TextField
-                          size="small"
-                          label="BAKU MUTU"
-                          type="number"
-                          value={row.bakuMax !== '' ? row.bakuMax : row.bakuMin}
-                          onChange={(e) => updateRow(row.param, {
-                            bakuMax: e.target.value,
-                            bakuMin: '',
-                          })}
-                          inputProps={{ step: 'any' }}
-                          sx={fieldSx}
-                        />
-                      )}
-                      <Box
-                        sx={{
-                          minWidth: 64,
-                          height: 36,
-                          px: 1,
-                          borderRadius: 999,
-                          bgcolor: '#fff',
-                          color: ratio != null && ratio >= 100 ? '#DC2626' : '#0F172A',
-                          display: 'grid',
-                          placeItems: 'center',
-                          fontWeight: 800,
-                          fontSize: '0.78rem',
-                        }}
-                      >
-                        {ratio == null ? '—' : `${ratio.toFixed(1)}%`}
-                      </Box>
-                    </Box>
-                  </Box>
-
-                  <HeatBar ratio={ratio} />
-                </Box>
-              );
-            })}
-          </Box>
         </Box>
+        {renderCards(sparingCards, 'SPARING · Analysis cards (Table 1)')}
 
-        {/* Derived SPARING cards (Table 1) */}
-        <Typography sx={{ fontWeight: 800, fontSize: '0.78rem', mb: 1, color: 'text.primary' }}>
-          SPARING · Analysis cards (Table 1)
-        </Typography>
         <Box
           sx={{
-            display: 'grid',
-            gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
-            gap: 1.25,
+            p: { xs: 1.25, sm: 1.75 },
+            borderRadius: 2.5,
+            bgcolor: '#0F172A',
+            color: '#E2E8F0',
+            border: '1px solid',
+            borderColor: alpha('#fff', 0.08),
+            mb: 1.5,
           }}
         >
-          {sparingCards.map((card) => (
-            <Box
-              key={card.id}
-              sx={{
-                p: 1.5,
-                borderRadius: 2,
-                bgcolor: '#0F172A',
-                border: '1px solid',
-                borderColor: alpha(card.color || '#94A3B8', 0.35),
-                boxShadow: `0 0 0 1px ${alpha(card.color || '#94A3B8', 0.12)}`,
-                minHeight: 120,
-              }}
-            >
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 0.75 }}>
-                <Typography sx={{ fontWeight: 800, fontSize: '0.78rem', color: '#F8FAFC' }}>
-                  {card.title}
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1, mb: 1.5 }}>
+            <Box sx={{ display: 'flex', gap: 1, minWidth: 0 }}>
+              <OpacityIcon sx={{ color: '#38BDF8', fontSize: 20, mt: 0.2 }} />
+              <Box sx={{ minWidth: 0 }}>
+                <Typography sx={{ fontWeight: 800, fontSize: '0.82rem', color: '#F8FAFC' }}>
+                  SECTION B — TMAT · GROUNDWATER & INFILTRATION
                 </Typography>
-                <Chip
-                  size="small"
-                  label={card.label}
-                  sx={{
-                    height: 20,
-                    fontSize: '0.6rem',
-                    fontWeight: 800,
-                    bgcolor: alpha(card.color, 0.2),
-                    color: card.color,
-                    border: `1px solid ${alpha(card.color, 0.45)}`,
-                    '& .MuiChip-label': { px: 0.7 },
-                  }}
-                />
+                <Typography sx={{ fontSize: '0.65rem', color: '#94A3B8' }}>
+                  TMAT Level memakai rasio terbalik (dangkal = merah) · Δ dari history chart untuk infiltrasi / recharge
+                </Typography>
               </Box>
-              <Typography sx={{ fontSize: '1.05rem', fontWeight: 800, color: '#F8FAFC', mb: 0.35 }}>
-                {card.primary}
-              </Typography>
-              <Typography sx={{ fontSize: '0.65rem', color: '#94A3B8' }}>
-                {card.ready
-                  ? card.detail
-                  : `Data kurang: ${(card.missing || []).join(', ') || '—'}`}
-              </Typography>
-              <Typography sx={{ fontSize: '0.6rem', color: '#64748B', mt: 0.5, fontFamily: 'monospace' }}>
-                {card.formula}
-              </Typography>
-              <MiniHeatBar ratio={card.ratio} color={card.color} />
             </Box>
-          ))}
+            <Typography sx={{ fontSize: '0.62rem', fontWeight: 700, color: '#94A3B8', flexShrink: 0 }}>
+              SCALE 0–{SCALE_MAX}% · LIVE
+            </Typography>
+          </Box>
+          {tmatRows.length === 0 ? (
+            <Typography sx={{ fontSize: '0.78rem', color: '#94A3B8', textAlign: 'center', py: 2 }}>
+              Tidak ada parameter TMAT (TMAT / water level / soil moisture / soil temp / rainfall) pada perangkat ini.
+            </Typography>
+          ) : (
+            renderParamRows(tmatRows, { ambangLabel: 'AMBANG' })
+          )}
         </Box>
+        {renderCards(tmatCards, 'TMAT · Analysis cards (Table 2)')}
       </DialogContent>
     </Dialog>
   );

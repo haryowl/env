@@ -1234,6 +1234,7 @@ export default function NDashboard({ socket }) {
         params={availableParams}
         latestFields={latest.fields}
         alertThresholds={alertThresholds}
+        history={history}
         formatDisplayName={formatDisplayName}
         getUnit={getUnit}
         getDisplayRange={getDisplayRange}
