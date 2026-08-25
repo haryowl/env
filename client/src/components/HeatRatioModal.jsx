@@ -20,6 +20,10 @@ import WaterDropIcon from '@mui/icons-material/WaterDrop';
 import OpacityIcon from '@mui/icons-material/Opacity';
 import SpeedIcon from '@mui/icons-material/Speed';
 import PlaceIcon from '@mui/icons-material/Place';
+import {
+  buildSparingCards,
+  toNum,
+} from '../utils/sparingAnalysis';
 
 const SCALE_MAX = 120;
 
@@ -43,12 +47,6 @@ const LEGEND_CHIPS = [
   { label: '>100% Merah Tua', color: '#7F1D1D', text: '#fff' },
 ];
 
-function toNum(v) {
-  if (v === null || v === undefined || v === '') return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-}
-
 /**
  * True range band (e.g. pH 6–9). Min of 0 with a max is a ceiling, not a band.
  */
@@ -59,11 +57,10 @@ export function isTrueBand(bakuMin, bakuMax) {
 }
 
 /**
- * Ratio % on a 0–120 heat scale (aligned with alert min/max).
- * - Upper limit only (or min=0 + max): nilai / bakuMax × 100
- * - True band (min>0 and max): (nilai − min) / (max − min) × 100
- *   → 0% at min, 100% at max, >100% above max, <0% below min
- * - Lower limit only: below min → (min−nilai)/min×100; at/above min → 0%
+ * Ratio % on a 0–120 heat scale.
+ * - Ceiling (max only / min=0+max): nilai / bakuMax × 100
+ * - Band (min>0 + max): |nilai − mid| / half × 100  (0% at ideal center, 100% at edge)
+ * - Floor only: below min → (min−nilai)/min×100
  */
 export function computeHeatRatio(nilai, bakuMin, bakuMax) {
   const v = toNum(nilai);
@@ -71,18 +68,18 @@ export function computeHeatRatio(nilai, bakuMin, bakuMax) {
   const mx = toNum(bakuMax);
   if (v == null) return null;
 
-  // True band (pH etc.): position within [min, max] span
   if (isTrueBand(mn, mx)) {
-    return ((v - mn) / (mx - mn)) * 100;
+    const mid = (mn + mx) / 2;
+    const half = (mx - mn) / 2;
+    if (half <= 0) return null;
+    return (Math.abs(v - mid) / half) * 100;
   }
 
-  // Max-only ceiling — includes alerts/ranges that store min=0 with a max
   if (mx != null && (mn == null || mn <= 0)) {
     if (mx === 0) return null;
     return (v / mx) * 100;
   }
 
-  // Min-only floor
   if (mn != null && mx == null) {
     if (v >= mn) return 0;
     if (mn === 0) return null;
@@ -92,25 +89,10 @@ export function computeHeatRatio(nilai, bakuMin, bakuMax) {
   return null;
 }
 
-/** Map ratio (and optional out-of-band nilai) to AMAN / WASPADA / MELEBIHI. */
-export function heatStatus(ratio, nilai, bakuMin, bakuMax) {
+export function heatStatus(ratio) {
   if (ratio == null || !Number.isFinite(ratio)) {
     return { key: 'unknown', label: '—', color: '#64748B' };
   }
-
-  // Below min on a true band: severity = how far below as % of band width
-  const v = toNum(nilai);
-  if (isTrueBand(bakuMin, bakuMax) && v != null && v < toNum(bakuMin)) {
-    const mn = toNum(bakuMin);
-    const mx = toNum(bakuMax);
-    const severity = ((mn - v) / (mx - mn)) * 100;
-    if (severity >= 100) return { key: 'melebihi', label: 'MELEBIHI', color: '#DC2626' };
-    if (severity >= 85) return { key: 'waspada', label: 'WASPADA', color: '#EA580C' };
-    if (severity >= 75) return { key: 'waspada', label: 'WASPADA', color: '#CA8A04' };
-    // Any reading below min is already out of Baku Mutu
-    return { key: 'waspada', label: 'WASPADA', color: '#CA8A04' };
-  }
-
   if (ratio >= 100) return { key: 'melebihi', label: 'MELEBIHI', color: '#DC2626' };
   if (ratio >= 85) return { key: 'waspada', label: 'WASPADA', color: '#EA580C' };
   if (ratio >= 75) return { key: 'waspada', label: 'WASPADA', color: '#CA8A04' };
@@ -134,6 +116,21 @@ function fmt(n, digits = 2) {
   return n.toFixed(digits);
 }
 
+function rowSubtitle(row, ratio, unit) {
+  const mn = toNum(row.bakuMin);
+  const mx = toNum(row.bakuMax);
+  const v = toNum(row.nilai);
+  if (ratio == null) return `Nilai ${fmt(v)} / Baku —`;
+  if (isTrueBand(mn, mx)) {
+    const mid = (mn + mx) / 2;
+    return `${ratio.toFixed(1)}% deviasi dari ideal ${fmt(mid)}${unit ? ` · ${unit}` : ''}`;
+  }
+  if (mx != null) {
+    return `${ratio.toFixed(1)}% dari baku mutu${unit ? ` · ${unit}` : ''}`;
+  }
+  return `Nilai ${fmt(v)}`;
+}
+
 function HeatBar({ ratio }) {
   const pinned = ratio == null || !Number.isFinite(ratio)
     ? null
@@ -151,27 +148,9 @@ function HeatBar({ ratio }) {
         bgcolor: 'rgba(15,23,42,0.55)',
       }}
     >
-      {/* Full scale, faded — unreached portion stays visible but transparent */}
-      <Box
-        sx={{
-          position: 'absolute',
-          inset: 0,
-          background: HEAT_GRADIENT,
-          opacity: 0.22,
-        }}
-      />
-      {/* Reached portion at full colour, clipped to the pin */}
+      <Box sx={{ position: 'absolute', inset: 0, background: HEAT_GRADIENT, opacity: 0.22 }} />
       {pinned != null && leftPct > 0 && (
-        <Box
-          sx={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            bottom: 0,
-            width: `${leftPct}%`,
-            overflow: 'hidden',
-          }}
-        >
+        <Box sx={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: `${leftPct}%`, overflow: 'hidden' }}>
           <Box
             sx={{
               position: 'absolute',
@@ -214,12 +193,24 @@ function HeatBar({ ratio }) {
               borderRadius: '50%',
               bgcolor: '#fff',
               border: '2px solid rgba(15,23,42,0.35)',
-              boxShadow: '0 1px 4px rgba(0,0,0,0.35)',
+              boxShadow: `0 0 10px ${alpha('#fff', 0.45)}`,
               zIndex: 2,
             }}
           />
         </>
       )}
+    </Box>
+  );
+}
+
+function MiniHeatBar({ ratio, color }) {
+  const pinned = ratio == null || !Number.isFinite(ratio)
+    ? 0
+    : Math.max(0, Math.min(SCALE_MAX, ratio));
+  const pct = (pinned / SCALE_MAX) * 100;
+  return (
+    <Box sx={{ mt: 1.25, height: 4, borderRadius: 999, bgcolor: alpha('#fff', 0.08), overflow: 'hidden' }}>
+      <Box sx={{ width: `${pct}%`, height: '100%', bgcolor: color || '#94A3B8', borderRadius: 999 }} />
     </Box>
   );
 }
@@ -236,7 +227,6 @@ function buildRows(params, latestFields, alertThresholds, getDisplayRange) {
       bakuMin = range.min;
       bakuMax = range.max;
     }
-    // Min 0 + max is a ceiling (COD/TSS), not a real band — drop min so UI/ratio match
     if (bakuMin != null && bakuMin <= 0 && bakuMax != null && bakuMax > 0) {
       bakuMin = null;
     }
@@ -250,8 +240,7 @@ function buildRows(params, latestFields, alertThresholds, getDisplayRange) {
 }
 
 /**
- * Heat-ratio visualization popup for N-Dashboard Latest Readings.
- * Live values + alert thresholds seed the rows; Nilai / Baku can be edited for what-if.
+ * Heat-ratio visualization (SPARING Section A) for N-Dashboard Latest Readings.
  */
 export default function HeatRatioModal({
   open,
@@ -286,6 +275,11 @@ export default function HeatRatioModal({
   const labelOf = (p) => (formatDisplayName ? formatDisplayName(p, { withUnit: false }) : p);
   const unitOf = (p) => (getUnit ? getUnit(p) : '') || '';
 
+  const sparingCards = useMemo(
+    () => buildSparingCards(rows, getUnit),
+    [rows, getUnit]
+  );
+
   return (
     <Dialog
       open={open}
@@ -315,7 +309,7 @@ export default function HeatRatioModal({
             Visualisasi Rasio — Heat Gradation
           </Typography>
           <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }} noWrap>
-            {deviceName || 'Device'} · SCALE 0–{SCALE_MAX}% · LIVE HEAT
+            {deviceName || 'Device'} · SECTION A SPARING · SCALE 0–{SCALE_MAX}% · LIVE HEAT
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0 }}>
@@ -351,14 +345,7 @@ export default function HeatRatioModal({
             </Typography>
             <Chip size="small" label="FULL WIDTH" sx={{ height: 20, fontSize: '0.62rem', fontWeight: 700 }} />
           </Box>
-          <Box
-            sx={{
-              height: 14,
-              borderRadius: 999,
-              background: HEAT_GRADIENT,
-              mb: 0.75,
-            }}
-          />
+          <Box sx={{ height: 14, borderRadius: 999, background: HEAT_GRADIENT, mb: 0.75 }} />
           <Box
             sx={{
               display: 'flex',
@@ -404,15 +391,16 @@ export default function HeatRatioModal({
           </Box>
         </Box>
 
-        {/* Rows panel */}
+        {/* Section A — parameter rows */}
         <Box
           sx={{
             p: { xs: 1.25, sm: 1.75 },
             borderRadius: 2.5,
-            bgcolor: theme.palette.mode === 'dark' ? '#111827' : '#0F172A',
+            bgcolor: '#0F172A',
             color: '#E2E8F0',
             border: '1px solid',
             borderColor: alpha('#fff', 0.08),
+            mb: 1.5,
           }}
         >
           <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1, mb: 1.5 }}>
@@ -420,15 +408,15 @@ export default function HeatRatioModal({
               <FavoriteIcon sx={{ color: '#F43F5E', fontSize: 20, mt: 0.2 }} />
               <Box sx={{ minWidth: 0 }}>
                 <Typography sx={{ fontWeight: 800, fontSize: '0.82rem', color: '#F8FAFC' }}>
-                  VISUALISASI RASIO — HEAT GRADATION · FULL WIDTH
+                  SECTION A — SPARING · WATER QUALITY COMPLIANCE
                 </Typography>
                 <Typography sx={{ fontSize: '0.65rem', color: '#94A3B8' }}>
-                  Bar 36px · gradasi hijau → merah tua · Nilai &amp; Baku Mutu dapat diedit (reset ke data live)
+                  Heat bars from alert Baku Mutu · pH = % deviasi dari ideal (titik tengah) · Flow L/min → m³/s untuk Load
                 </Typography>
               </Box>
             </Box>
             <Typography sx={{ fontSize: '0.62rem', fontWeight: 700, color: '#94A3B8', flexShrink: 0 }}>
-              SCALE 0–{SCALE_MAX}% · LIVE HEAT
+              SCALE 0–{SCALE_MAX}% · LIVE
             </Typography>
           </Box>
 
@@ -441,18 +429,8 @@ export default function HeatRatioModal({
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
             {rows.map((row) => {
               const ratio = computeHeatRatio(row.nilai, row.bakuMin, row.bakuMax);
-              const status = heatStatus(ratio, row.nilai, row.bakuMin, row.bakuMax);
+              const status = heatStatus(ratio);
               const unit = unitOf(row.param);
-              const mn = toNum(row.bakuMin);
-              const mx = toNum(row.bakuMax);
-              const bakuText =
-                mn != null && mx != null
-                  ? `${fmt(mn)}–${fmt(mx)}${unit ? ` ${unit}` : ''}`
-                  : mx != null
-                    ? `${fmt(mx)}${unit ? ` ${unit}` : ''}`
-                    : mn != null
-                      ? `≥ ${fmt(mn)}${unit ? ` ${unit}` : ''}`
-                      : '—';
               const isRange = isTrueBand(row.bakuMin, row.bakuMax);
 
               return (
@@ -469,12 +447,10 @@ export default function HeatRatioModal({
                   <Box
                     sx={{
                       display: 'grid',
-                      gridTemplateColumns: {
-                        xs: '1fr',
-                        md: 'minmax(160px, 1.1fr) minmax(0, 1.6fr) minmax(220px, 1.1fr)',
-                      },
+                      gridTemplateColumns: { xs: '1fr', md: 'minmax(180px, 1.2fr) minmax(240px, 1.1fr)' },
                       gap: 1.25,
                       alignItems: 'center',
+                      mb: 1,
                     }}
                   >
                     <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, minWidth: 0 }}>
@@ -512,12 +488,10 @@ export default function HeatRatioModal({
                           />
                         </Box>
                         <Typography sx={{ fontSize: '0.68rem', color: '#94A3B8', mt: 0.25 }}>
-                          Nilai {fmt(toNum(row.nilai))} / Baku {bakuText}
+                          {rowSubtitle(row, ratio, unit)}
                         </Typography>
                       </Box>
                     </Box>
-
-                    <HeatBar ratio={ratio} />
 
                     <Box
                       sx={{
@@ -589,10 +563,70 @@ export default function HeatRatioModal({
                       </Box>
                     </Box>
                   </Box>
+
+                  <HeatBar ratio={ratio} />
                 </Box>
               );
             })}
           </Box>
+        </Box>
+
+        {/* Derived SPARING cards (Table 1) */}
+        <Typography sx={{ fontWeight: 800, fontSize: '0.78rem', mb: 1, color: 'text.primary' }}>
+          SPARING · Analysis cards (Table 1)
+        </Typography>
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+            gap: 1.25,
+          }}
+        >
+          {sparingCards.map((card) => (
+            <Box
+              key={card.id}
+              sx={{
+                p: 1.5,
+                borderRadius: 2,
+                bgcolor: '#0F172A',
+                border: '1px solid',
+                borderColor: alpha(card.color || '#94A3B8', 0.35),
+                boxShadow: `0 0 0 1px ${alpha(card.color || '#94A3B8', 0.12)}`,
+                minHeight: 120,
+              }}
+            >
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 0.75 }}>
+                <Typography sx={{ fontWeight: 800, fontSize: '0.78rem', color: '#F8FAFC' }}>
+                  {card.title}
+                </Typography>
+                <Chip
+                  size="small"
+                  label={card.label}
+                  sx={{
+                    height: 20,
+                    fontSize: '0.6rem',
+                    fontWeight: 800,
+                    bgcolor: alpha(card.color, 0.2),
+                    color: card.color,
+                    border: `1px solid ${alpha(card.color, 0.45)}`,
+                    '& .MuiChip-label': { px: 0.7 },
+                  }}
+                />
+              </Box>
+              <Typography sx={{ fontSize: '1.05rem', fontWeight: 800, color: '#F8FAFC', mb: 0.35 }}>
+                {card.primary}
+              </Typography>
+              <Typography sx={{ fontSize: '0.65rem', color: '#94A3B8' }}>
+                {card.ready
+                  ? card.detail
+                  : `Data kurang: ${(card.missing || []).join(', ') || '—'}`}
+              </Typography>
+              <Typography sx={{ fontSize: '0.6rem', color: '#64748B', mt: 0.5, fontFamily: 'monospace' }}>
+                {card.formula}
+              </Typography>
+              <MiniHeatBar ratio={card.ratio} color={card.color} />
+            </Box>
+          ))}
         </Box>
       </DialogContent>
     </Dialog>
