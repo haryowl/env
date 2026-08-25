@@ -61,7 +61,8 @@ export function isTrueBand(bakuMin, bakuMax) {
 /**
  * Ratio % on a 0–120 heat scale (aligned with alert min/max).
  * - Upper limit only (or min=0 + max): nilai / bakuMax × 100
- * - True band (min>0 and max): 0% while inside; below min / above max = violation depth
+ * - True band (min>0 and max): (nilai − min) / (max − min) × 100
+ *   → 0% at min, 100% at max, >100% above max, <0% below min
  * - Lower limit only: below min → (min−nilai)/min×100; at/above min → 0%
  */
 export function computeHeatRatio(nilai, bakuMin, bakuMax) {
@@ -70,11 +71,9 @@ export function computeHeatRatio(nilai, bakuMin, bakuMax) {
   const mx = toNum(bakuMax);
   if (v == null) return null;
 
-  // True band (pH etc.): heat only rises when outside [min, max]
+  // True band (pH etc.): position within [min, max] span
   if (isTrueBand(mn, mx)) {
-    if (v >= mn && v <= mx) return 0;
-    if (v > mx) return ((v - mx) / Math.abs(mx)) * 100;
-    return ((mn - v) / Math.abs(mn)) * 100;
+    return ((v - mn) / (mx - mn)) * 100;
   }
 
   // Max-only ceiling — includes alerts/ranges that store min=0 with a max
@@ -93,10 +92,25 @@ export function computeHeatRatio(nilai, bakuMin, bakuMax) {
   return null;
 }
 
-export function heatStatus(ratio) {
+/** Map ratio (and optional out-of-band nilai) to AMAN / WASPADA / MELEBIHI. */
+export function heatStatus(ratio, nilai, bakuMin, bakuMax) {
   if (ratio == null || !Number.isFinite(ratio)) {
     return { key: 'unknown', label: '—', color: '#64748B' };
   }
+
+  // Below min on a true band: severity = how far below as % of band width
+  const v = toNum(nilai);
+  if (isTrueBand(bakuMin, bakuMax) && v != null && v < toNum(bakuMin)) {
+    const mn = toNum(bakuMin);
+    const mx = toNum(bakuMax);
+    const severity = ((mn - v) / (mx - mn)) * 100;
+    if (severity >= 100) return { key: 'melebihi', label: 'MELEBIHI', color: '#DC2626' };
+    if (severity >= 85) return { key: 'waspada', label: 'WASPADA', color: '#EA580C' };
+    if (severity >= 75) return { key: 'waspada', label: 'WASPADA', color: '#CA8A04' };
+    // Any reading below min is already out of Baku Mutu
+    return { key: 'waspada', label: 'WASPADA', color: '#CA8A04' };
+  }
+
   if (ratio >= 100) return { key: 'melebihi', label: 'MELEBIHI', color: '#DC2626' };
   if (ratio >= 85) return { key: 'waspada', label: 'WASPADA', color: '#EA580C' };
   if (ratio >= 75) return { key: 'waspada', label: 'WASPADA', color: '#CA8A04' };
@@ -427,7 +441,7 @@ export default function HeatRatioModal({
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
             {rows.map((row) => {
               const ratio = computeHeatRatio(row.nilai, row.bakuMin, row.bakuMax);
-              const status = heatStatus(ratio);
+              const status = heatStatus(ratio, row.nilai, row.bakuMin, row.bakuMax);
               const unit = unitOf(row.param);
               const mn = toNum(row.bakuMin);
               const mx = toNum(row.bakuMax);
