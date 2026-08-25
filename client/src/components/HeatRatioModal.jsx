@@ -50,10 +50,10 @@ function toNum(v) {
 }
 
 /**
- * Ratio % on a 0–120 heat scale.
+ * Ratio % on a 0–120 heat scale (aligned with alert min/max).
  * - Upper limit only: nilai / bakuMax × 100
- * - Range (min+max): distance from midpoint toward edge (0% at center, 100% at boundary)
- * - Lower limit only: how far below min (min / nilai × 100 when nilai > 0)
+ * - Band (min+max): 0% while inside; below min → (min−nilai)/min×100; above max → (nilai−max)/max×100
+ * - Lower limit only: below min → (min−nilai)/min×100; at/above min → 0%
  */
 export function computeHeatRatio(nilai, bakuMin, bakuMax) {
   const v = toNum(nilai);
@@ -61,18 +61,31 @@ export function computeHeatRatio(nilai, bakuMin, bakuMax) {
   const mx = toNum(bakuMax);
   if (v == null) return null;
 
+  // Band: heat only rises when outside [min, max]
   if (mn != null && mx != null && mx > mn) {
-    const mid = (mn + mx) / 2;
-    const half = (mx - mn) / 2;
-    if (half <= 0) return null;
-    return (Math.abs(v - mid) / half) * 100;
+    if (v >= mn && v <= mx) return 0;
+    if (v > mx) {
+      if (mx === 0) return null;
+      return ((v - mx) / Math.abs(mx)) * 100;
+    }
+    // v < mn
+    if (mn === 0) return null;
+    return ((mn - v) / Math.abs(mn)) * 100;
   }
-  if (mx != null && mx !== 0) {
+
+  // Max-only ceiling (COD, TSS, debit, …)
+  if (mx != null && mn == null) {
+    if (mx === 0) return null;
     return (v / mx) * 100;
   }
-  if (mn != null && v !== 0) {
-    return (mn / v) * 100;
+
+  // Min-only floor
+  if (mn != null && mx == null) {
+    if (v >= mn) return 0;
+    if (mn === 0) return null;
+    return ((mn - v) / Math.abs(mn)) * 100;
   }
+
   return null;
 }
 
