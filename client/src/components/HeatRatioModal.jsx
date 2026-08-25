@@ -50,9 +50,18 @@ function toNum(v) {
 }
 
 /**
+ * True range band (e.g. pH 6–9). Min of 0 with a max is a ceiling, not a band.
+ */
+export function isTrueBand(bakuMin, bakuMax) {
+  const mn = toNum(bakuMin);
+  const mx = toNum(bakuMax);
+  return mn != null && mx != null && mx > mn && mn > 0;
+}
+
+/**
  * Ratio % on a 0–120 heat scale (aligned with alert min/max).
- * - Upper limit only: nilai / bakuMax × 100
- * - Band (min+max): 0% while inside; below min → (min−nilai)/min×100; above max → (nilai−max)/max×100
+ * - Upper limit only (or min=0 + max): nilai / bakuMax × 100
+ * - True band (min>0 and max): 0% while inside; below min / above max = violation depth
  * - Lower limit only: below min → (min−nilai)/min×100; at/above min → 0%
  */
 export function computeHeatRatio(nilai, bakuMin, bakuMax) {
@@ -61,20 +70,15 @@ export function computeHeatRatio(nilai, bakuMin, bakuMax) {
   const mx = toNum(bakuMax);
   if (v == null) return null;
 
-  // Band: heat only rises when outside [min, max]
-  if (mn != null && mx != null && mx > mn) {
+  // True band (pH etc.): heat only rises when outside [min, max]
+  if (isTrueBand(mn, mx)) {
     if (v >= mn && v <= mx) return 0;
-    if (v > mx) {
-      if (mx === 0) return null;
-      return ((v - mx) / Math.abs(mx)) * 100;
-    }
-    // v < mn
-    if (mn === 0) return null;
+    if (v > mx) return ((v - mx) / Math.abs(mx)) * 100;
     return ((mn - v) / Math.abs(mn)) * 100;
   }
 
-  // Max-only ceiling (COD, TSS, debit, …)
-  if (mx != null && mn == null) {
+  // Max-only ceiling — includes alerts/ranges that store min=0 with a max
+  if (mx != null && (mn == null || mn <= 0)) {
     if (mx === 0) return null;
     return (v / mx) * 100;
   }
@@ -217,6 +221,10 @@ function buildRows(params, latestFields, alertThresholds, getDisplayRange) {
     if (bakuMin == null && bakuMax == null && range) {
       bakuMin = range.min;
       bakuMax = range.max;
+    }
+    // Min 0 + max is a ceiling (COD/TSS), not a real band — drop min so UI/ratio match
+    if (bakuMin != null && bakuMin <= 0 && bakuMax != null && bakuMax > 0) {
+      bakuMin = null;
     }
     return {
       param: p,
@@ -431,7 +439,7 @@ export default function HeatRatioModal({
                     : mn != null
                       ? `≥ ${fmt(mn)}${unit ? ` ${unit}` : ''}`
                       : '—';
-              const isRange = mn != null && mx != null;
+              const isRange = isTrueBand(row.bakuMin, row.bakuMax);
 
               return (
                 <Box
