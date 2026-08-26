@@ -1,9 +1,54 @@
 /**
  * TMAT Table 2 analysis helpers (infiltration, flood, drought, recharge).
  * Uses latest values + short history for Δ moisture / Δ TMAT / dry spell.
+ *
+ * Regulatory vs operational (Section B):
+ * - TMAT has a fixed legal limit (PP No. 57/2016): 0.4 m depth → elevation −0.40 m.
+ * - Soil Moisture, Soil Temperature, Rainfall are operational / physiological / EWS
+ *   indicators (hydrophobic peat, canopy loss, BMKG dry-spell), not hard statute caps.
  */
 
 import { toNum, normalizeKey } from './sparingAnalysis';
+
+/**
+ * IoT monitoring thresholds for peatland telemetry (volumetric moisture, °C, mm, m).
+ * TMAT baku mutu from PP 57/2016; other params are early-warning guidance.
+ */
+export const TMAT_EWS = {
+  tmat: {
+    /** Legal depth limit (m below surface) → signed elevation */
+    bakuMutuM: -0.4,
+    amanMin: -0.39,
+    amanMax: 0,
+    label: 'PP No. 57/2016 · baku mutu −0,40 m',
+  },
+  moisture: {
+    idealMin: 50,
+    idealMax: 80,
+    waspadaMin: 35,
+    waspadaMax: 49,
+    hydrophobicMax: 35,
+    label: 'Volumetrik gambut · hidrofobik < 35%',
+  },
+  soil_temp: {
+    idealMin: 24,
+    idealMax: 30,
+    waspadaMin: 31,
+    waspadaMax: 35,
+    bahaya: 35,
+    smoldering: 45,
+    label: 'Gambut tropis · >35°C anomali / >45°C smoldering',
+  },
+  rainfall: {
+    drySpellWaspadaDays: 10,
+    drySpellBahayaDays: 14,
+    dailyLowMm: 5,
+    monthlyCriticalMm: 50,
+    monthlyRechargeMinMm: 150,
+    monthlyRechargeGoodMm: 200,
+    label: 'BMKG dry spell · Siaga 1 >10–14 hari tanpa hujan',
+  },
+};
 
 export const TMAT_PARAM_ALIASES = {
   tmat: ['tmat', 'tmat_level', 'groundwater_level', 'gw_level', 'muka_air_tanah'],
@@ -23,17 +68,112 @@ export function resolveTmatParamKey(keys, kind) {
   return null;
 }
 
-export function isTmatKindParam(paramKey) {
+export function tmatParamKind(paramKey) {
   const k = normalizeKey(paramKey);
-  return Object.values(TMAT_PARAM_ALIASES).some((aliases) =>
-    aliases.some((a) => k === a || k.includes(a))
-  );
+  const kinds = Object.keys(TMAT_PARAM_ALIASES);
+  for (const kind of kinds) {
+    if (TMAT_PARAM_ALIASES[kind].some((a) => k === a || k.includes(a))) return kind;
+  }
+  return null;
 }
 
-/** TMAT depth: shallower = higher risk → Rasio = Ambang / Nilai × 100 */
+export function isTmatKindParam(paramKey) {
+  return tmatParamKind(paramKey) != null;
+}
+
+/** TMAT elevation param (signed m relative to soil surface). */
 export function isInvertedTmatParam(paramKey) {
-  const k = normalizeKey(paramKey);
-  return TMAT_PARAM_ALIASES.tmat.some((a) => k === a || k.includes(a));
+  return tmatParamKind(paramKey) === 'tmat';
+}
+
+/**
+ * Default ZONA MIN/MAX when device alerts are empty.
+ * Alert thresholds always win when present.
+ */
+export function getTmatOperationalDefaults(paramKey) {
+  const kind = tmatParamKind(paramKey);
+  if (kind === 'tmat') {
+    // Floor ambang PP 57/2016 (−0.40 m). Depth beyond this → heat via PP57 ratio.
+    return { bakuMin: TMAT_EWS.tmat.bakuMutuM, bakuMax: null };
+  }
+  if (kind === 'moisture') {
+    return { bakuMin: TMAT_EWS.moisture.idealMin, bakuMax: TMAT_EWS.moisture.idealMax };
+  }
+  if (kind === 'soil_temp') {
+    return { bakuMin: TMAT_EWS.soil_temp.idealMin, bakuMax: TMAT_EWS.soil_temp.idealMax };
+  }
+  if (kind === 'rainfall') {
+    // Soft daily floor for EWS (< 5 mm several days → waspada in drought card)
+    return { bakuMin: TMAT_EWS.rainfall.dailyLowMm, bakuMax: null };
+  }
+  return null;
+}
+
+/**
+ * PP 57/2016 TMAT heat vs −0.40 m baku mutu.
+ * Aman 0…−0.39 m → &lt;85%; waspada −0.40 m → 100%; bahaya deeper (e.g. −0.50 → 125%).
+ * Positive nilai (above surface) → flood/ponding heat ≥ 100%.
+ */
+export function computePp57TmatRatio(nilai, bakuMutu = TMAT_EWS.tmat.bakuMutuM) {
+  const v = toNum(nilai);
+  const limit = toNum(bakuMutu) ?? TMAT_EWS.tmat.bakuMutuM;
+  if (v == null || limit === 0) return null;
+  const limDepth = Math.abs(limit);
+  const amanDepth = Math.abs(TMAT_EWS.tmat.amanMin); // 0.39
+  if (v > 0) return 100 + (v / limDepth) * 100;
+  const depth = -v;
+  if (depth <= amanDepth) {
+    // Stay in AMAN chip band (&lt;85%) through −0.39 m
+    return (depth / amanDepth) * 74;
+  }
+  if (depth <= limDepth) {
+    // −0.39…−0.40 → 74…100 (WASPADA at baku mutu)
+    return 74 + ((depth - amanDepth) / (limDepth - amanDepth)) * 26;
+  }
+  // Deeper than −0.40 → MELEBIHI
+  return 100 + ((depth - limDepth) / limDepth) * 100;
+}
+
+/** Soil moisture volumetric EWS heat (ideal 50–80%, hydrophobic < 35%). */
+export function computeMoistureEwsRatio(nilai) {
+  const m = toNum(nilai);
+  if (m == null) return null;
+  const { idealMin, idealMax, waspadaMin, hydrophobicMax } = TMAT_EWS.moisture;
+  if (m >= idealMin && m <= idealMax) {
+    const mid = (idealMin + idealMax) / 2;
+    const half = (idealMax - idealMin) / 2;
+    return half > 0 ? (Math.abs(m - mid) / half) * 45 : 0;
+  }
+  if (m >= waspadaMin && m < idealMin) {
+    return 75 + ((idealMin - m) / (idealMin - waspadaMin)) * 25;
+  }
+  if (m < hydrophobicMax) {
+    return 100 + Math.min(50, ((hydrophobicMax - m) / hydrophobicMax) * 50);
+  }
+  // > idealMax: saturation / reduced infiltration capacity
+  return 55 + Math.min(40, (m - idealMax) * 1.5);
+}
+
+/** Soil temperature EWS heat (ideal 24–30°C, >35 bahaya, >45 smoldering). */
+export function computeSoilTempEwsRatio(nilai) {
+  const t = toNum(nilai);
+  if (t == null) return null;
+  const { idealMin, idealMax, waspadaMax, bahaya, smoldering } = TMAT_EWS.soil_temp;
+  if (t >= idealMin && t <= idealMax) {
+    const mid = (idealMin + idealMax) / 2;
+    const half = (idealMax - idealMin) / 2;
+    return half > 0 ? (Math.abs(t - mid) / half) * 40 : 0;
+  }
+  if (t < idealMin) {
+    return Math.min(70, ((idealMin - t) / idealMin) * 70);
+  }
+  if (t <= waspadaMax) {
+    return 75 + ((t - idealMax) / (waspadaMax - idealMax)) * 25;
+  }
+  if (t <= smoldering) {
+    return 100 + ((t - bahaya) / (smoldering - bahaya)) * 20;
+  }
+  return 120;
 }
 
 export function computeInvertedCeilingRatio(nilai, ambang) {
@@ -134,9 +274,8 @@ export function infiltrationStatus(inf) {
 }
 
 /**
- * Flood risk score ~ sample: 0.5×TMAT_risk + 0.25×Water + 0.25×Moist (0–100+).
- * TMAT with safe band [min, max] (incl. negative, e.g. −0.4…0.1): deviation from mid.
- * Legacy positive-depth TMAT: invert vs ambang (default 2).
+ * Flood risk: shallow / ponding TMAT + high water + high moisture.
+ * PP 57 signed TMAT: shallower (→ 0) raises flood risk; deeper than −0.4 lowers it.
  */
 export function groundwaterFloodScore({
   tmat,
@@ -151,37 +290,40 @@ export function groundwaterFloodScore({
   const t = toNum(tmat);
   const tMin = toNum(tmatMin);
   const tMax = toNum(tmatMax);
-  const ta = toNum(tmatAmbang) ?? 2;
+  const ta = toNum(tmatAmbang) ?? TMAT_EWS.tmat.bakuMutuM;
   const w = toNum(water);
   const wa = toNum(waterAmbang) ?? 2;
   const m = toNum(moisture);
-  const ma = toNum(moistureAmbang) ?? 80;
+  const ma = toNum(moistureAmbang) ?? TMAT_EWS.moisture.idealMax;
   if (t == null && w == null && m == null) return null;
 
   const hasTmatBand = tMin != null && tMax != null && tMax > tMin && tMin !== 0;
+  const pp57Ambang = ta != null && ta < 0;
 
   let tmatRisk = 0;
   if (t != null) {
-    if (hasTmatBand) {
+    if (hasTmatBand && !pp57Ambang) {
       const mid = (tMin + tMax) / 2;
       const half = (tMax - tMin) / 2;
       tmatRisk = half > 0 ? Math.min(2, Math.abs(t - mid) / half) : 0;
+    } else if (pp57Ambang || (t <= 0 && (ta == null || ta < 0))) {
+      const lim = Math.abs(ta ?? TMAT_EWS.tmat.bakuMutuM);
+      if (t > 0) tmatRisk = Math.min(2, 1 + t / lim);
+      else tmatRisk = Math.min(2, Math.max(0, 1 - (-t) / lim)); // 1 at surface, 0 at −0.4
     } else if (t > 0 && ta > 0) {
       tmatRisk = Math.min(2, (ta / t));
-    } else if (ta < 0) {
-      // Floor-only signed ambang: deeper than ta is risk
-      tmatRisk = t >= ta ? 0 : Math.min(2, (ta - t) / Math.abs(ta));
     }
   }
 
   const waterRisk = w != null && wa > 0 ? Math.min(2, w / wa) : 0;
+  // High moisture contributes to flood; hydrophobic low moisture does not
   const moistRisk = m != null && ma > 0 ? Math.min(2, m / ma) : 0;
   const score = (0.5 * tmatRisk + 0.25 * waterRisk + 0.25 * moistRisk) * 100;
 
   const outsideBand = hasTmatBand && t != null && (t < tMin || t > tMax);
-  const criticalCombo = outsideBand && m != null && m > 90 && w != null && w > 1.5
-    ? true
-    : (!hasTmatBand && t != null && t < 0.5 && m != null && m > 90 && w != null && w > 1.5);
+  const deepBreach = t != null && ta != null && ta < 0 && t < ta;
+  const criticalCombo = m != null && m > 90 && w != null && w > 1.5
+    && (t != null && (t > -0.1 || t > 0));
 
   return {
     score,
@@ -190,6 +332,7 @@ export function groundwaterFloodScore({
     tmatMin: hasTmatBand ? tMin : null,
     tmatMax: hasTmatBand ? tMax : null,
     outsideBand,
+    deepBreach,
     water: w,
     moisture: m,
   };
@@ -200,72 +343,148 @@ export function floodStatus(flood) {
     return { key: 'unknown', label: '—', color: '#64748B', detail: '', ratio: null, primary: '—' };
   }
   const s = flood.score;
-  if (flood.criticalCombo || s >= 100 || flood.outsideBand) {
-    const detail = flood.outsideBand && flood.tmatMin != null
-      ? `TMAT di luar zona [${flood.tmatMin} … ${flood.tmatMax}]`
-      : 'Banjir tanah risk';
+  if (flood.criticalCombo || s >= 100) {
     return {
       key: 'melebihi',
       label: 'MELEBIHI',
       color: '#DC2626',
-      detail,
+      detail: 'Banjir / genangan · TMAT dangkal + moisture tinggi',
       ratio: Math.max(100, s),
       primary: `${s.toFixed(0)}% skor banjir`,
     };
   }
-  const t = flood.tmat;
-  if (flood.tmatMin != null && flood.tmatMax != null) {
-    if (s >= 85) {
-      return { key: 'melebihi', label: 'MELEBIHI', color: '#DC2626', detail: '0.5×TMAT + 0.25×Water + 0.25×Moist', ratio: s, primary: `${s.toFixed(0)}% skor banjir` };
-    }
-    if (s >= 50) {
-      return { key: 'waspada', label: 'WASPADA', color: '#EA580C', detail: 'Mendekati tepi zona aman TMAT', ratio: Math.max(75, s), primary: `${s.toFixed(0)}% skor banjir` };
-    }
-    return { key: 'aman', label: 'AMAN', color: '#16A34A', detail: 'TMAT dalam zona aman', ratio: s, primary: `${s.toFixed(0)}% skor banjir` };
+  if (flood.outsideBand && flood.tmat != null && flood.tmatMax != null && flood.tmat > flood.tmatMax) {
+    return {
+      key: 'melebihi',
+      label: 'MELEBIHI',
+      color: '#DC2626',
+      detail: `TMAT di atas zona [${flood.tmatMin} … ${flood.tmatMax}]`,
+      ratio: Math.max(100, s),
+      primary: `${s.toFixed(0)}% skor banjir`,
+    };
   }
-  if (t != null && t >= 0.5 && t <= 1.5 && s < 100) {
-    return { key: 'waspada', label: 'WASPADA', color: '#EA580C', detail: 'TMAT dangkal–sedang', ratio: Math.max(75, s), primary: `${s.toFixed(0)}% skor banjir` };
+  if (s >= 85) {
+    return { key: 'melebihi', label: 'MELEBIHI', color: '#DC2626', detail: '0.5×TMAT + 0.25×Water + 0.25×Moist', ratio: s, primary: `${s.toFixed(0)}% skor banjir` };
   }
-  if (t != null && t > 2 && s < 75) {
-    return { key: 'aman', label: 'AMAN', color: '#16A34A', detail: 'TMAT dalam', ratio: s, primary: `${s.toFixed(0)}% skor banjir` };
+  if (s >= 50) {
+    return { key: 'waspada', label: 'WASPADA', color: '#EA580C', detail: 'TMAT mendekati permukaan', ratio: Math.max(75, s), primary: `${s.toFixed(0)}% skor banjir` };
   }
-  if (s >= 85) return { key: 'melebihi', label: 'MELEBIHI', color: '#DC2626', detail: '0.5×TMAT + 0.25×Water + 0.25×Moist', ratio: s, primary: `${s.toFixed(0)}% skor banjir` };
-  if (s >= 50) return { key: 'waspada', label: 'WASPADA', color: '#EA580C', detail: '0.5×TMAT + 0.25×Water + 0.25×Moist', ratio: s, primary: `${s.toFixed(0)}% skor banjir` };
-  return { key: 'aman', label: 'AMAN', color: '#16A34A', detail: '0.5×TMAT + 0.25×Water + 0.25×Moist', ratio: s, primary: `${s.toFixed(0)}% skor banjir` };
+  return { key: 'aman', label: 'AMAN', color: '#16A34A', detail: 'Risiko genangan rendah', ratio: s, primary: `${s.toFixed(0)}% skor banjir` };
 }
 
+/**
+ * Drought / fire-weather index from peat EWS guidance:
+ * moisture hydrophobic, soil temp anomaly/smoldering, BMKG dry spell.
+ */
 export function droughtIndex({ moisture, soilTemp, rainLatest, dryHours }) {
   const m = toNum(moisture);
   const temp = toNum(soilTemp);
   const rain = toNum(rainLatest) ?? 0;
-  if (m == null && temp == null) return null;
+  if (m == null && temp == null && dryHours == null) return null;
+
+  const ewsM = TMAT_EWS.moisture;
+  const ewsT = TMAT_EWS.soil_temp;
+  const ewsR = TMAT_EWS.rainfall;
 
   let idx = 0;
-  if (m != null) {
-    if (m < 30) idx += 50;
-    else if (m <= 50) idx += 30;
-    else idx += Math.max(0, 60 - m) * 0.4;
-  }
-  if (temp != null && temp > 35) idx += 25;
-  if (rain <= 0.05) idx += 15;
-  if (dryHours != null && dryHours >= 7 * 24) idx += 40;
-  else if (dryHours != null && dryHours >= 48) idx += 20;
+  let hydrophobic = false;
+  let smoldering = false;
 
-  const critical = m != null && m < 30 && temp != null && temp > 35 && rain <= 0.05
-    && (dryHours == null || dryHours >= 24);
-  return { idx: Math.min(120, idx), critical, moisture: m, dryHours };
+  if (m != null) {
+    if (m < ewsM.hydrophobicMax) {
+      idx += 55;
+      hydrophobic = true;
+    } else if (m <= ewsM.waspadaMax) {
+      idx += 30;
+    } else if (m < ewsM.idealMin) {
+      idx += 15;
+    } else if (m <= ewsM.idealMax) {
+      idx += 0;
+    }
+  }
+
+  if (temp != null) {
+    if (temp >= ewsT.smoldering) {
+      idx += 50;
+      smoldering = true;
+    } else if (temp > ewsT.bahaya) {
+      idx += 30;
+    } else if (temp >= ewsT.waspadaMin) {
+      idx += 15;
+    }
+  }
+
+  if (rain < ewsR.dailyLowMm) idx += 10;
+  if (rain <= 0.05) idx += 8;
+
+  const dryDays = dryHours != null ? dryHours / 24 : null;
+  if (dryDays != null && dryDays >= ewsR.drySpellBahayaDays) idx += 45;
+  else if (dryDays != null && dryDays >= ewsR.drySpellWaspadaDays) idx += 30;
+  else if (dryDays != null && dryDays >= 2) idx += 12;
+
+  const critical = (hydrophobic && temp != null && temp > ewsT.bahaya)
+    || smoldering
+    || (hydrophobic && dryDays != null && dryDays >= ewsR.drySpellWaspadaDays);
+
+  return {
+    idx: Math.min(120, idx),
+    critical,
+    hydrophobic,
+    smoldering,
+    moisture: m,
+    soilTemp: temp,
+    dryHours,
+    dryDays,
+  };
 }
 
 export function droughtStatus(d) {
   if (d == null) return { key: 'unknown', label: '—', color: '#64748B', detail: '', ratio: null, primary: '—' };
-  if (d.critical || d.idx >= 85) {
-    return { key: 'melebihi', label: 'KRITIS', color: '#DC2626', detail: 'Kekeringan', ratio: Math.max(100, d.idx), primary: `${d.idx.toFixed(0)} drought idx` };
+  const dryLabel = d.dryDays != null ? ` · dry spell ${d.dryDays.toFixed(0)} hari` : '';
+
+  if (d.smoldering) {
+    return {
+      key: 'melebihi',
+      label: 'KRITIS',
+      color: '#DC2626',
+      detail: `Smoldering risk · suhu ≥ ${TMAT_EWS.soil_temp.smoldering}°C${dryLabel}`,
+      ratio: Math.max(110, d.idx),
+      primary: `${d.idx.toFixed(0)} drought idx`,
+    };
   }
-  const m = d.moisture;
-  if ((m != null && m >= 30 && m <= 50) || d.idx >= 50) {
-    return { key: 'waspada', label: 'WASPADA', color: '#EA580C', detail: 'Moisture 30–50% / stress', ratio: Math.max(75, d.idx), primary: `${d.idx.toFixed(0)} drought idx` };
+  if (d.critical || d.idx >= 85 || d.hydrophobic) {
+    return {
+      key: 'melebihi',
+      label: 'KRITIS',
+      color: '#DC2626',
+      detail: d.hydrophobic
+        ? `Hidrofobik · moisture < ${TMAT_EWS.moisture.hydrophobicMax}%${dryLabel}`
+        : `Kekeringan gambut${dryLabel}`,
+      ratio: Math.max(100, d.idx),
+      primary: `${d.idx.toFixed(0)} drought idx`,
+    };
   }
-  return { key: 'aman', label: 'AMAN', color: '#16A34A', detail: 'ET / kelembaban OK', ratio: d.idx, primary: `${d.idx.toFixed(0)} drought idx` };
+  if ((d.moisture != null && d.moisture < TMAT_EWS.moisture.idealMin)
+    || (d.soilTemp != null && d.soilTemp >= TMAT_EWS.soil_temp.waspadaMin)
+    || (d.dryDays != null && d.dryDays >= TMAT_EWS.rainfall.drySpellWaspadaDays)
+    || d.idx >= 50) {
+    return {
+      key: 'waspada',
+      label: 'WASPADA',
+      color: '#EA580C',
+      detail: `EWS gambut · Siaga 1${dryLabel}`,
+      ratio: Math.max(75, d.idx),
+      primary: `${d.idx.toFixed(0)} drought idx`,
+    };
+  }
+  return {
+    key: 'aman',
+    label: 'AMAN',
+    color: '#16A34A',
+    detail: `Kelembaban ${TMAT_EWS.moisture.idealMin}–${TMAT_EWS.moisture.idealMax}% · suhu ${TMAT_EWS.soil_temp.idealMin}–${TMAT_EWS.soil_temp.idealMax}°C`,
+    ratio: d.idx,
+    primary: `${d.idx.toFixed(0)} drought idx`,
+  };
 }
 
 /** Efficiency = ΔTMAT / Rainfall (same window). Higher = more permeable. */
@@ -330,11 +549,11 @@ export function buildTmatCards(rows, history, getUnit) {
     tmat: by.tmat?.nilai,
     tmatMin: by.tmat?.bakuMin,
     tmatMax: by.tmat?.bakuMax,
-    tmatAmbang: by.tmat?.bakuMax || by.tmat?.bakuMin || 2,
+    tmatAmbang: by.tmat?.bakuMin || by.tmat?.bakuMax || TMAT_EWS.tmat.bakuMutuM,
     water: by.water?.nilai,
     waterAmbang: by.water?.bakuMax || by.water?.bakuMin || 2,
     moisture: by.moisture?.nilai,
-    moistureAmbang: by.moisture?.bakuMax || by.moisture?.bakuMin || 80,
+    moistureAmbang: by.moisture?.bakuMax || by.moisture?.bakuMin || TMAT_EWS.moisture.idealMax,
   });
   const dryHours = consecutiveDryHours(history, rainKey);
   const drought = droughtIndex({
@@ -362,15 +581,15 @@ export function buildTmatCards(rows, history, getUnit) {
     {
       id: 'flood',
       title: 'Groundwater Flood Risk',
-      formula: '0.5×TMAT + 0.25×Water + 0.25×Moist',
+      formula: '0.5×TMAT(dangkal) + 0.25×Water + 0.25×Moist',
       ready: flood != null,
       missing: [!by.tmat && 'TMAT', !by.water && 'Water Level', !by.moisture && 'Soil Moisture'].filter(Boolean),
       ...floodSt,
     },
     {
       id: 'drought',
-      title: 'Drought & Evapotranspiration',
-      formula: 'f(Soil Temp, Soil Moisture, Rainfall)',
+      title: 'Drought & Peat Fire EWS',
+      formula: `Moisture <${TMAT_EWS.moisture.hydrophobicMax}% · Temp >${TMAT_EWS.soil_temp.bahaya}°C · Dry spell >${TMAT_EWS.rainfall.drySpellWaspadaDays} hari`,
       ready: drought != null,
       missing: [!by.moisture && 'Soil Moisture', !by.soil_temp && 'Soil Temp'].filter(Boolean),
       ...droughtSt,
@@ -378,7 +597,7 @@ export function buildTmatCards(rows, history, getUnit) {
     {
       id: 'recharge',
       title: 'Aquifer Recharge Lag',
-      formula: 'Efficiency = ΔTMAT / Rainfall',
+      formula: `Efficiency = ΔTMAT / Rainfall · target bulanan ≥${TMAT_EWS.rainfall.monthlyRechargeMinMm} mm`,
       ready: eff != null,
       missing: [!by.tmat && 'TMAT', !by.rainfall && 'Rainfall'].filter(Boolean),
       ...rechSt,

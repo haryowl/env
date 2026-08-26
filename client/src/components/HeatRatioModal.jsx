@@ -27,8 +27,14 @@ import {
 import {
   buildTmatCards,
   computeInvertedCeilingRatio,
+  computeMoistureEwsRatio,
+  computePp57TmatRatio,
+  computeSoilTempEwsRatio,
+  getTmatOperationalDefaults,
   isInvertedTmatParam,
   isTmatKindParam,
+  tmatParamKind,
+  TMAT_EWS,
 } from '../utils/tmatAnalysis';
 
 const SCALE_MAX = 120;
@@ -146,7 +152,18 @@ function rowSubtitle(row, ratio, unit, inverted) {
   const mn = toNum(row.bakuMin);
   const mx = toNum(row.bakuMax);
   const v = toNum(row.nilai);
+  const kind = tmatParamKind(row.param);
   if (ratio == null) return `Nilai ${fmt(v)} / Baku -`;
+  if (kind === 'moisture') {
+    return `${ratio.toFixed(1)}% EWS kelembaban · ideal ${TMAT_EWS.moisture.idealMin}–${TMAT_EWS.moisture.idealMax}% · hidrofobik <${TMAT_EWS.moisture.hydrophobicMax}%${unit ? ` | ${unit}` : ''}`;
+  }
+  if (kind === 'soil_temp') {
+    return `${ratio.toFixed(1)}% EWS suhu · ideal ${TMAT_EWS.soil_temp.idealMin}–${TMAT_EWS.soil_temp.idealMax}°C · bahaya >${TMAT_EWS.soil_temp.bahaya}°C${unit ? ` | ${unit}` : ''}`;
+  }
+  if (kind === 'tmat' && !isTrueBand(mn, mx)) {
+    const outside = v != null && mn != null && v < mn;
+    return `${ratio.toFixed(1)}% vs PP57 ${fmt(mn ?? TMAT_EWS.tmat.bakuMutuM)} m · aman 0…−0,39 · baku −0,40${outside ? ' · di bawah baku mutu' : ''}${unit ? ` | ${unit}` : ''}`;
+  }
   if (isTrueBand(mn, mx)) {
     const mid = (mn + mx) / 2;
     const outside = v != null && (v < mn || v > mx);
@@ -165,21 +182,27 @@ function rowSubtitle(row, ratio, unit, inverted) {
 }
 
 /**
- * Prefer safe-zone band (incl. negative TMAT mins) over legacy inverted depth ratio.
- * Positive-depth TMAT with a single ambang still uses Ambang/Nilai×100.
+ * Prefer EWS / PP57 helpers for peat params; custom true bands for TMAT still win.
  */
 function ratioForRow(row) {
-  if (isTrueBand(row.bakuMin, row.bakuMax)) {
-    return computeHeatRatio(row.nilai, row.bakuMin, row.bakuMax);
-  }
-  if (isInvertedTmatParam(row.param)) {
-    const ambang = toNum(row.bakuMax) ?? toNum(row.bakuMin);
-    const v = toNum(row.nilai);
-    // Signed single bound (e.g. only min=-0.4): floor/ceiling heat, not Ambang/Nilai
-    if ((ambang != null && ambang < 0) || (v != null && v < 0)) {
+  const kind = tmatParamKind(row.param);
+  if (kind === 'moisture') return computeMoistureEwsRatio(row.nilai);
+  if (kind === 'soil_temp') return computeSoilTempEwsRatio(row.nilai);
+
+  if (kind === 'tmat') {
+    if (isTrueBand(row.bakuMin, row.bakuMax)) {
       return computeHeatRatio(row.nilai, row.bakuMin, row.bakuMax);
     }
-    return computeInvertedCeilingRatio(row.nilai, ambang ?? 2);
+    const ambang = toNum(row.bakuMin) ?? toNum(row.bakuMax) ?? TMAT_EWS.tmat.bakuMutuM;
+    const v = toNum(row.nilai);
+    if (ambang < 0 || (v != null && v < 0)) {
+      return computePp57TmatRatio(row.nilai, ambang);
+    }
+    return computeInvertedCeilingRatio(row.nilai, ambang);
+  }
+
+  if (isTrueBand(row.bakuMin, row.bakuMax)) {
+    return computeHeatRatio(row.nilai, row.bakuMin, row.bakuMax);
   }
   return computeHeatRatio(row.nilai, row.bakuMin, row.bakuMax);
 }
@@ -276,11 +299,17 @@ function buildRows(params, latestFields, alertThresholds, getDisplayRange) {
     const nilai = toNum(latestFields?.[p]);
     let bakuMin = thr.min != null ? Number(thr.min) : null;
     let bakuMax = thr.max != null ? Number(thr.max) : null;
-    if (bakuMin == null && bakuMax == null && range) {
-      bakuMin = range.min;
-      bakuMax = range.max;
+    if (bakuMin == null && bakuMax == null) {
+      const ews = getTmatOperationalDefaults(p);
+      if (ews) {
+        bakuMin = ews.bakuMin;
+        bakuMax = ews.bakuMax;
+      } else if (range) {
+        bakuMin = range.min;
+        bakuMax = range.max;
+      }
     }
-    // Exact 0 min + max → SPARING ceiling placeholder. Keep negative mins (TMAT safe zone).
+    // Exact 0 min + max → SPARING ceiling placeholder. Keep negative mins (TMAT).
     if (bakuMin != null && bakuMin === 0 && bakuMax != null && bakuMax > 0) {
       bakuMin = null;
     }
@@ -746,10 +775,10 @@ export default function HeatRatioModal({
                   <OpacityIcon sx={{ color: '#38BDF8', fontSize: 20, mt: 0.2 }} />
                   <Box sx={{ minWidth: 0 }}>
                     <Typography sx={{ fontWeight: 800, fontSize: '0.82rem', color: '#F8FAFC' }}>
-                      SECTION B — TMAT · GROUNDWATER & INFILTRATION
+                      SECTION B — TMAT · GROUNDWATER & PEAT EWS
                     </Typography>
                     <Typography sx={{ fontSize: '0.65rem', color: '#94A3B8' }}>
-                      Group {groupLabel} · Zona aman = Baku Min–Max (boleh negatif, mis. −0.4…0.1) · di luar zona = panas
+                      Group {groupLabel} · TMAT = baku mutu PP 57/2016 (−0,40 m) · Moisture / Suhu / Hujan = indikator operasional & early warning
                     </Typography>
                   </Box>
                 </Box>
@@ -757,6 +786,79 @@ export default function HeatRatioModal({
                   SCALE 0–{SCALE_MAX}% · LIVE
                 </Typography>
               </Box>
+
+              <Box
+                sx={{
+                  mb: 1.5,
+                  p: 1.25,
+                  borderRadius: 2,
+                  bgcolor: alpha('#38BDF8', 0.06),
+                  border: '1px solid',
+                  borderColor: alpha('#38BDF8', 0.2),
+                }}
+              >
+                <Typography sx={{ fontSize: '0.68rem', fontWeight: 800, color: '#7DD3FC', mb: 0.75 }}>
+                  Ambang pemantauan telemetri (IoT)
+                </Typography>
+                <Typography sx={{ fontSize: '0.62rem', color: '#94A3B8', mb: 1, lineHeight: 1.45 }}>
+                  Berbeda dengan TMAT yang punya batas angka pasti di regulasi, Soil Moisture, Soil Temperature, dan Curah Hujan
+                  diperlakukan sebagai indikator kondisi operasional, ambang fisiologis (hidrofobik), serta pemicu peringatan dini.
+                </Typography>
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: { xs: '1fr', sm: '1.1fr 1fr 1fr 1fr' },
+                    gap: 0.75,
+                    fontSize: '0.6rem',
+                  }}
+                >
+                  {[
+                    {
+                      p: 'TMAT',
+                      aman: '0 … −0,39 m',
+                      waspada: '−0,40 m (PP 57/2016)',
+                      bahaya: '< −0,40 m (mis. −0,50 m)',
+                    },
+                    {
+                      p: 'Soil Moisture',
+                      aman: '> 50% (ideal 50–80%)',
+                      waspada: '35–49%',
+                      bahaya: '< 35% hidrofobik',
+                    },
+                    {
+                      p: 'Soil Temperature',
+                      aman: '24–30°C',
+                      waspada: '31–35°C',
+                      bahaya: '> 35°C / ≥45°C smoldering',
+                    },
+                    {
+                      p: 'Curah Hujan',
+                      aman: 'Terdistribusi kontinu',
+                      waspada: '< 5 mm · dry spell 10 hari',
+                      bahaya: 'Dry spell > 10–14 hari',
+                    },
+                  ].map((row) => (
+                    <Box
+                      key={row.p}
+                      sx={{
+                        p: 0.85,
+                        borderRadius: 1.5,
+                        bgcolor: alpha('#fff', 0.03),
+                        border: '1px solid',
+                        borderColor: alpha('#fff', 0.06),
+                      }}
+                    >
+                      <Typography sx={{ fontWeight: 800, fontSize: '0.65rem', color: '#E2E8F0', mb: 0.4 }}>
+                        {row.p}
+                      </Typography>
+                      <Typography sx={{ color: '#86EFAC', lineHeight: 1.35 }}>Aman: {row.aman}</Typography>
+                      <Typography sx={{ color: '#FCD34D', lineHeight: 1.35 }}>Waspada: {row.waspada}</Typography>
+                      <Typography sx={{ color: '#FCA5A5', lineHeight: 1.35 }}>Bahaya: {row.bahaya}</Typography>
+                    </Box>
+                  ))}
+                </Box>
+              </Box>
+
               {tmatRows.length === 0 ? (
                 <Typography sx={{ fontSize: '0.78rem', color: '#94A3B8', textAlign: 'center', py: 2 }}>
                   Tidak ada parameter TMAT (TMAT / water level / soil moisture / soil temp / rainfall) pada perangkat ini.
