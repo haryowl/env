@@ -70,19 +70,22 @@ const LEGEND_CHIPS = [
 ];
 
 /**
- * True range band (e.g. pH 6-9). Min of 0 with a max is a ceiling, not a band.
+ * True safe-zone band (e.g. pH 6–9, TMAT -0.4–0.1).
+ * Exact min=0 with a max is a SPARING-style ceiling placeholder, not a band.
+ * Negative mins are kept (groundwater elevation below soil surface).
  */
 export function isTrueBand(bakuMin, bakuMax) {
   const mn = toNum(bakuMin);
   const mx = toNum(bakuMax);
-  return mn != null && mx != null && mx > mn && mn > 0;
+  return mn != null && mx != null && mx > mn && mn !== 0;
 }
 
 /**
  * Ratio % on a 0-120 heat scale.
- * - Ceiling (max only / min=0+max): nilai / bakuMax x 100
- * - Band (min>0 + max): |nilai - mid| / half x 100  (0% at ideal center, 100% at edge)
- * - Floor only: below min -> (min-nilai)/minx100
+ * - Safe band (min≠0 + max, incl. negative min): |nilai−mid|/half×100
+ *   (0% at band center, 100% at edge, >100% outside — e.g. TMAT −0.6 vs [−0.4, 0.1])
+ * - Ceiling (max only / min=0+max): nilai/bakuMax×100 (SPARING)
+ * - Floor only: below min → (min−nilai)/|min|×100
  */
 export function computeHeatRatio(nilai, bakuMin, bakuMax) {
   const v = toNum(nilai);
@@ -97,7 +100,8 @@ export function computeHeatRatio(nilai, bakuMin, bakuMax) {
     return (Math.abs(v - mid) / half) * 100;
   }
 
-  if (mx != null && (mn == null || mn <= 0)) {
+  // SPARING ceiling: min omitted or exact 0 placeholder
+  if (mx != null && (mn == null || mn === 0)) {
     if (mx === 0) return null;
     return (v / mx) * 100;
   }
@@ -143,23 +147,39 @@ function rowSubtitle(row, ratio, unit, inverted) {
   const mx = toNum(row.bakuMax);
   const v = toNum(row.nilai);
   if (ratio == null) return `Nilai ${fmt(v)} / Baku -`;
-  if (inverted) {
-    return `${ratio.toFixed(1)}% risiko dangkal | invert${unit ? ` | ${unit}` : ''}`;
-  }
   if (isTrueBand(mn, mx)) {
     const mid = (mn + mx) / 2;
-    return `${ratio.toFixed(1)}% deviasi dari ideal ${fmt(mid)}${unit ? ` | ${unit}` : ''}`;
+    const outside = v != null && (v < mn || v > mx);
+    return `${ratio.toFixed(1)}% vs zona aman [${fmt(mn)} … ${fmt(mx)}] · ideal ${fmt(mid)}${outside ? ' · di luar zona' : ''}${unit ? ` | ${unit}` : ''}`;
+  }
+  if (inverted) {
+    return `${ratio.toFixed(1)}% risiko dangkal | invert${unit ? ` | ${unit}` : ''}`;
   }
   if (mx != null) {
     return `${ratio.toFixed(1)}% dari baku mutu${unit ? ` | ${unit}` : ''}`;
   }
+  if (mn != null) {
+    return `${ratio.toFixed(1)}% vs batas min ${fmt(mn)}${unit ? ` | ${unit}` : ''}`;
+  }
   return `Nilai ${fmt(v)}`;
 }
 
+/**
+ * Prefer safe-zone band (incl. negative TMAT mins) over legacy inverted depth ratio.
+ * Positive-depth TMAT with a single ambang still uses Ambang/Nilai×100.
+ */
 function ratioForRow(row) {
+  if (isTrueBand(row.bakuMin, row.bakuMax)) {
+    return computeHeatRatio(row.nilai, row.bakuMin, row.bakuMax);
+  }
   if (isInvertedTmatParam(row.param)) {
-    const ambang = row.bakuMax || row.bakuMin || '2';
-    return computeInvertedCeilingRatio(row.nilai, ambang);
+    const ambang = toNum(row.bakuMax) ?? toNum(row.bakuMin);
+    const v = toNum(row.nilai);
+    // Signed single bound (e.g. only min=-0.4): floor/ceiling heat, not Ambang/Nilai
+    if ((ambang != null && ambang < 0) || (v != null && v < 0)) {
+      return computeHeatRatio(row.nilai, row.bakuMin, row.bakuMax);
+    }
+    return computeInvertedCeilingRatio(row.nilai, ambang ?? 2);
   }
   return computeHeatRatio(row.nilai, row.bakuMin, row.bakuMax);
 }
@@ -260,7 +280,8 @@ function buildRows(params, latestFields, alertThresholds, getDisplayRange) {
       bakuMin = range.min;
       bakuMax = range.max;
     }
-    if (bakuMin != null && bakuMin <= 0 && bakuMax != null && bakuMax > 0) {
+    // Exact 0 min + max → SPARING ceiling placeholder. Keep negative mins (TMAT safe zone).
+    if (bakuMin != null && bakuMin === 0 && bakuMax != null && bakuMax > 0) {
       bakuMin = null;
     }
     return {
@@ -354,7 +375,8 @@ export default function HeatRatioModal({
         const ratio = ratioForRow(row);
         const status = heatStatus(ratio);
         const unit = unitOf(row.param);
-        const isRange = !inverted && isTrueBand(row.bakuMin, row.bakuMax);
+        // TMAT always edits min+max (safe zone may be negative). SPARING bands when both bounds set.
+        const isRange = inverted || isTrueBand(row.bakuMin, row.bakuMax);
 
         return (
           <Box
@@ -437,7 +459,7 @@ export default function HeatRatioModal({
                   <>
                     <TextField
                       size="small"
-                      label="BAKU MIN"
+                      label={inverted ? 'ZONA MIN' : 'BAKU MIN'}
                       type="number"
                       value={row.bakuMin}
                       onChange={(e) => updateRow(row.param, { bakuMin: e.target.value })}
@@ -446,7 +468,7 @@ export default function HeatRatioModal({
                     />
                     <TextField
                       size="small"
-                      label="BAKU MAX"
+                      label={inverted ? 'ZONA MAX' : 'BAKU MAX'}
                       type="number"
                       value={row.bakuMax}
                       onChange={(e) => updateRow(row.param, { bakuMax: e.target.value })}
@@ -727,7 +749,7 @@ export default function HeatRatioModal({
                       SECTION B — TMAT · GROUNDWATER & INFILTRATION
                     </Typography>
                     <Typography sx={{ fontSize: '0.65rem', color: '#94A3B8' }}>
-                      Group {groupLabel} · TMAT Level rasio terbalik (dangkal = merah) · Delta history untuk infiltrasi / recharge
+                      Group {groupLabel} · Zona aman = Baku Min–Max (boleh negatif, mis. −0.4…0.1) · di luar zona = panas
                     </Typography>
                   </Box>
                 </Box>

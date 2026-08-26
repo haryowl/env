@@ -135,10 +135,22 @@ export function infiltrationStatus(inf) {
 
 /**
  * Flood risk score ~ sample: 0.5×TMAT_risk + 0.25×Water + 0.25×Moist (0–100+).
- * TMAT_risk uses invert vs ambang (default 2 m).
+ * TMAT with safe band [min, max] (incl. negative, e.g. −0.4…0.1): deviation from mid.
+ * Legacy positive-depth TMAT: invert vs ambang (default 2).
  */
-export function groundwaterFloodScore({ tmat, tmatAmbang, water, waterAmbang, moisture, moistureAmbang }) {
+export function groundwaterFloodScore({
+  tmat,
+  tmatMin,
+  tmatMax,
+  tmatAmbang,
+  water,
+  waterAmbang,
+  moisture,
+  moistureAmbang,
+}) {
   const t = toNum(tmat);
+  const tMin = toNum(tmatMin);
+  const tMax = toNum(tmatMax);
   const ta = toNum(tmatAmbang) ?? 2;
   const w = toNum(water);
   const wa = toNum(waterAmbang) ?? 2;
@@ -146,14 +158,41 @@ export function groundwaterFloodScore({ tmat, tmatAmbang, water, waterAmbang, mo
   const ma = toNum(moistureAmbang) ?? 80;
   if (t == null && w == null && m == null) return null;
 
-  const tmatRisk = t != null && t > 0 ? Math.min(200, (ta / t) * 100) / 100 : 0;
+  const hasTmatBand = tMin != null && tMax != null && tMax > tMin && tMin !== 0;
+
+  let tmatRisk = 0;
+  if (t != null) {
+    if (hasTmatBand) {
+      const mid = (tMin + tMax) / 2;
+      const half = (tMax - tMin) / 2;
+      tmatRisk = half > 0 ? Math.min(2, Math.abs(t - mid) / half) : 0;
+    } else if (t > 0 && ta > 0) {
+      tmatRisk = Math.min(2, (ta / t));
+    } else if (ta < 0) {
+      // Floor-only signed ambang: deeper than ta is risk
+      tmatRisk = t >= ta ? 0 : Math.min(2, (ta - t) / Math.abs(ta));
+    }
+  }
+
   const waterRisk = w != null && wa > 0 ? Math.min(2, w / wa) : 0;
   const moistRisk = m != null && ma > 0 ? Math.min(2, m / ma) : 0;
   const score = (0.5 * tmatRisk + 0.25 * waterRisk + 0.25 * moistRisk) * 100;
 
-  // Table 2 discrete rules (override to MELEBIHI when all fire)
-  const criticalCombo = t != null && t < 0.5 && m != null && m > 90 && w != null && w > 1.5;
-  return { score, criticalCombo, tmat: t, water: w, moisture: m };
+  const outsideBand = hasTmatBand && t != null && (t < tMin || t > tMax);
+  const criticalCombo = outsideBand && m != null && m > 90 && w != null && w > 1.5
+    ? true
+    : (!hasTmatBand && t != null && t < 0.5 && m != null && m > 90 && w != null && w > 1.5);
+
+  return {
+    score,
+    criticalCombo,
+    tmat: t,
+    tmatMin: hasTmatBand ? tMin : null,
+    tmatMax: hasTmatBand ? tMax : null,
+    outsideBand,
+    water: w,
+    moisture: m,
+  };
 }
 
 export function floodStatus(flood) {
@@ -161,10 +200,29 @@ export function floodStatus(flood) {
     return { key: 'unknown', label: '—', color: '#64748B', detail: '', ratio: null, primary: '—' };
   }
   const s = flood.score;
-  if (flood.criticalCombo || s >= 100) {
-    return { key: 'melebihi', label: 'MELEBIHI', color: '#DC2626', detail: 'Banjir tanah risk', ratio: Math.max(100, s), primary: `${s.toFixed(0)}% skor banjir` };
+  if (flood.criticalCombo || s >= 100 || flood.outsideBand) {
+    const detail = flood.outsideBand && flood.tmatMin != null
+      ? `TMAT di luar zona [${flood.tmatMin} … ${flood.tmatMax}]`
+      : 'Banjir tanah risk';
+    return {
+      key: 'melebihi',
+      label: 'MELEBIHI',
+      color: '#DC2626',
+      detail,
+      ratio: Math.max(100, s),
+      primary: `${s.toFixed(0)}% skor banjir`,
+    };
   }
   const t = flood.tmat;
+  if (flood.tmatMin != null && flood.tmatMax != null) {
+    if (s >= 85) {
+      return { key: 'melebihi', label: 'MELEBIHI', color: '#DC2626', detail: '0.5×TMAT + 0.25×Water + 0.25×Moist', ratio: s, primary: `${s.toFixed(0)}% skor banjir` };
+    }
+    if (s >= 50) {
+      return { key: 'waspada', label: 'WASPADA', color: '#EA580C', detail: 'Mendekati tepi zona aman TMAT', ratio: Math.max(75, s), primary: `${s.toFixed(0)}% skor banjir` };
+    }
+    return { key: 'aman', label: 'AMAN', color: '#16A34A', detail: 'TMAT dalam zona aman', ratio: s, primary: `${s.toFixed(0)}% skor banjir` };
+  }
   if (t != null && t >= 0.5 && t <= 1.5 && s < 100) {
     return { key: 'waspada', label: 'WASPADA', color: '#EA580C', detail: 'TMAT dangkal–sedang', ratio: Math.max(75, s), primary: `${s.toFixed(0)}% skor banjir` };
   }
@@ -270,6 +328,8 @@ export function buildTmatCards(rows, history, getUnit) {
   const inf = infiltrationPercent(history, moistureKey, rainKey, by.moisture?.nilai);
   const flood = groundwaterFloodScore({
     tmat: by.tmat?.nilai,
+    tmatMin: by.tmat?.bakuMin,
+    tmatMax: by.tmat?.bakuMax,
     tmatAmbang: by.tmat?.bakuMax || by.tmat?.bakuMin || 2,
     water: by.water?.nilai,
     waterAmbang: by.water?.bakuMax || by.water?.bakuMin || 2,
