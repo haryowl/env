@@ -1,5 +1,19 @@
 /**
  * Base map tiles (Carto / Esri / OpenTopoMap). Used by Dashboard map and Live tracking.
+ *
+ * Dark / Light use CARTO raster basemaps, which require a free API key:
+ * https://carto.com/basemaps/apikey
+ * Set VITE_CARTO_MAP_API_KEY in client/.env (then restart Vite / rebuild).
+ */
+
+const CARTO_KEY = (import.meta.env.VITE_CARTO_MAP_API_KEY || '').trim();
+
+function cartoUrl(stylePath) {
+  const base = `https://{s}.basemaps.cartocdn.com/${stylePath}/{z}/{x}/{y}{r}.png`;
+  return CARTO_KEY ? `${base}?key=${encodeURIComponent(CARTO_KEY)}` : base;
+}
+
+/**
  * @type {Array<{ value: string, label: string, swatch: string, url: string, attribution: string }>}
  */
 export const MAP_BASE_LAYERS = [
@@ -7,7 +21,7 @@ export const MAP_BASE_LAYERS = [
     value: 'dark',
     label: 'Dark',
     swatch: 'linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #1e3a5f 100%)',
-    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    url: cartoUrl('dark_all'),
     attribution:
       '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
   },
@@ -15,7 +29,7 @@ export const MAP_BASE_LAYERS = [
     value: 'modern',
     label: 'Light',
     swatch: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #cbd5e1 100%)',
-    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    url: cartoUrl('light_all'),
     attribution:
       '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
   },
@@ -34,3 +48,6 @@ export const MAP_BASE_LAYERS = [
     attribution: '&copy; <a href="https://opentopomap.org/">OpenTopoMap</a> contributors',
   },
 ];
+
+/** True when Dark/Light tiles will include a CARTO key (avoids "API KEY REQUIRED" watermark). */
+export const hasCartoMapApiKey = Boolean(CARTO_KEY);
