@@ -13,10 +13,20 @@ function cartoUrl(stylePath) {
   return CARTO_KEY ? `${base}?key=${encodeURIComponent(CARTO_KEY)}` : base;
 }
 
+/** Default basemap for Dashboard / U-Dashboard / N-Dashboard maps. */
+export const DEFAULT_MAP_BASE_LAYER = 'satellite';
+
 /**
  * @type {Array<{ value: string, label: string, swatch: string, url: string, attribution: string }>}
  */
 export const MAP_BASE_LAYERS = [
+  {
+    value: 'satellite',
+    label: 'Satellite',
+    swatch: 'linear-gradient(135deg, #14532d 0%, #365314 35%, #1e3a8a 100%)',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: '&copy; <a href="https://www.esri.com/">Esri</a>',
+  },
   {
     value: 'dark',
     label: 'Dark',
@@ -32,13 +42,6 @@ export const MAP_BASE_LAYERS = [
     url: cartoUrl('light_all'),
     attribution:
       '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-  },
-  {
-    value: 'satellite',
-    label: 'Satellite',
-    swatch: 'linear-gradient(135deg, #14532d 0%, #365314 35%, #1e3a8a 100%)',
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    attribution: '&copy; <a href="https://www.esri.com/">Esri</a>',
   },
   {
     value: 'terrain',

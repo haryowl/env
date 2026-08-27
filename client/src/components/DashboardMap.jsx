@@ -26,7 +26,7 @@ import 'react-leaflet-cluster/dist/assets/MarkerCluster.css';
 import 'react-leaflet-cluster/dist/assets/MarkerCluster.Default.css';
 import { subHours } from 'date-fns';
 import { API_BASE_URL } from '../config/api';
-import { MAP_BASE_LAYERS } from '../config/mapLayers';
+import { MAP_BASE_LAYERS, DEFAULT_MAP_BASE_LAYER } from '../config/mapLayers';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import { getChartCardSx } from '../utils/chartStyles';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
@@ -841,7 +841,7 @@ const DashboardMap = ({
   useDeviceSocketSubscription(socket, socketDeviceIds);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [selectedLayer, setSelectedLayer] = useState('dark');
+  const [selectedLayer, setSelectedLayer] = useState(DEFAULT_MAP_BASE_LAYER);
   const [deviceData, setDeviceData] = useState({});
   /** Mapper target fields per device — popup shows only these (same as Realtime Data View cards) */
   const [deviceMappedParams, setDeviceMappedParams] = useState({});
