@@ -166,6 +166,7 @@ export default function TmatSimulationModal({
             levelPct={levelPct}
             flowDrivers={flowDrivers}
             waterColors={waterColors}
+            uplinkActive={hasLive}
           />
         </Suspense>
 
@@ -375,7 +376,7 @@ export default function TmatSimulationModal({
           }}
         >
           <Typography sx={{ fontSize: '0.62rem', color: alpha('#00e5ff', 0.85), letterSpacing: '0.1em', whiteSpace: 'nowrap' }}>
-            FIXED CAMERA · FLOW = LIVE RAIN / SOIL / TMAT · TANK TINT = PP57
+            RKL-01 · HAIWELL · STARLINK · RAIN / SOIL / TMAT FLOW
           </Typography>
         </Box>
       </Box>

@@ -119,7 +119,7 @@ export function batteryEwsStatus(volts, pct) {
 }
 
 /** Scene animation speeds tied to live telemetry magnitude. */
-export function buildFlowDrivers({ rain, soil, levelPct }) {
+export function buildFlowDrivers({ rain, soil, levelPct, batteryPct }) {
   const rainNorm = rain != null ? Math.min(1, Math.max(0, rain / 25)) : 0.12;
   const soilNorm = soil != null ? Math.min(1, Math.max(0, soil / 85)) : 0.25;
   const levelNorm = levelPct != null ? Math.min(1, Math.max(0, levelPct / 100)) : 0.45;
@@ -130,6 +130,7 @@ export function buildFlowDrivers({ rain, soil, levelPct }) {
     rainIntensity: rainNorm,
     soilIntensity: soilNorm,
     tmatIntensity: levelNorm,
+    batteryPct,
     showRain: rain != null && rain > 0.05,
     showFlow: rain != null || soil != null || levelPct != null,
   };
@@ -215,7 +216,7 @@ export function buildTmatSimulationTelemetry(paramKeys, latestFields, history) {
     pp57,
     ews,
     waterColors: statusWaterColors(pp57.key),
-    flowDrivers: buildFlowDrivers({ rain, soil, levelPct }),
+    flowDrivers: buildFlowDrivers({ rain, soil, levelPct, batteryPct }),
     alerts: buildEwsAlerts({ soil, rain, dryDays, tmatRaw, soilTemp }),
     keys: {
       rain: rainKey || undefined,
