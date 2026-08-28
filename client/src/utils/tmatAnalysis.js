@@ -56,6 +56,7 @@ export const TMAT_PARAM_ALIASES = {
   moisture: ['soil_moisture', 'moisture', 'kelembaban', 'sm', 'soil_moist'],
   soil_temp: ['soil_temperature', 'soil_temp', 'temperature_soil', 'temp_tanah'],
   rainfall: ['rainfall', 'rain', 'precip', 'curah_hujan', 'ch'],
+  battery: ['battery_voltage', 'battery_volt', 'battery_v', 'voltage_v', 'voltage', 'battery', 'batt', 'bat_v', 'v_batt'],
 };
 
 export function resolveTmatParamKey(keys, kind) {

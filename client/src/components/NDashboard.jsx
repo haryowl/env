@@ -30,7 +30,10 @@ import { filterDataViewParams } from '../utils/fieldCategory';
 import { alertAppliesToDevice } from '../utils/alertDevices';
 import DashboardMap from './DashboardMap';
 import RealtimeChartDisplaySelect from './RealtimeChartDisplaySelect';
-import HeatRatioModal from './HeatRatioModal';
+import ViewInArIcon from '@mui/icons-material/ViewInAr';
+import HeatRatioModal, { resolveHeatProgram } from './HeatRatioModal';
+import TmatSimulationModal from './TmatSimulationModal';
+import { hasTmatSimulationParams } from '../utils/tmatSimulationData';
 import {
   buildRealtimeChartSeries,
   REALTIME_CHART_DISPLAY_MODES,
@@ -201,6 +204,7 @@ export default function NDashboard({ socket }) {
   const [loadingDevices, setLoadingDevices] = useState(true);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [heatRatioOpen, setHeatRatioOpen] = useState(false);
+  const [tmat3dOpen, setTmat3dOpen] = useState(false);
 
   const selectedDevice = devices.find((d) => d.device_id === selectedDeviceId) || null;
   const rangeHours = ({ '2h': 2, '3h': 3, '6h': 6, '48h': 48 })[chartRange] ?? 48;
@@ -361,6 +365,11 @@ export default function NDashboard({ socket }) {
     history.forEach((row) => addKeysFrom(row));
     return orderParams([...keySet]);
   }, [mappedParams, latest.fields, history]);
+
+  const showTmat3dButton = useMemo(() => {
+    const program = resolveHeatProgram(selectedDevice?.group_name, selectedDevice?.group_description);
+    return program === 'tmat' && hasTmatSimulationParams(availableParams);
+  }, [selectedDevice, availableParams]);
 
   // All numeric mapped parameters are represented. The layout wraps as needed.
   const chartParams = availableParams;
@@ -1091,27 +1100,55 @@ export default function NDashboard({ socket }) {
             aria-label="Open heat ratio visualization"
           >
             <CardContent sx={{ p: 1.25, '&:last-child': { pb: 1.25 } }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, gap: 0.75 }}>
                 <Box sx={{ minWidth: 0 }}>
                   <Typography sx={sectionTitleSx}>Latest Readings</Typography>
                   <Typography sx={{ fontSize: '0.6rem', color: 'text.secondary', mt: 0.15 }}>
                     Click for heat / rasio view
                   </Typography>
                 </Box>
-                <Chip
-                  size="small"
-                  icon={<SensorsIcon sx={{ fontSize: '11px !important' }} />}
-                  label={selectedDevice?.name || '-'}
-                  title={selectedDevice?.name || ''}
-                  sx={{
-                    height: 20,
-                    fontSize: '0.62rem',
-                    fontWeight: 700,
-                    maxWidth: 140,
-                    bgcolor: alpha(theme.palette.primary.main, 0.08),
-                    '& .MuiChip-label': { px: 0.6, overflow: 'hidden', textOverflow: 'ellipsis' },
-                  }}
-                />
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
+                  {showTmat3dButton && (
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<ViewInArIcon sx={{ fontSize: '14px !important' }} />}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setTmat3dOpen(true);
+                      }}
+                      sx={{
+                        minWidth: 0,
+                        px: 1,
+                        py: 0.35,
+                        fontSize: '0.62rem',
+                        fontWeight: 800,
+                        borderColor: alpha(theme.palette.info.main, 0.45),
+                        color: 'info.main',
+                        '&:hover': {
+                          borderColor: 'info.main',
+                          bgcolor: alpha(theme.palette.info.main, 0.08),
+                        },
+                      }}
+                    >
+                      3D View
+                    </Button>
+                  )}
+                  <Chip
+                    size="small"
+                    icon={<SensorsIcon sx={{ fontSize: '11px !important' }} />}
+                    label={selectedDevice?.name || '-'}
+                    title={selectedDevice?.name || ''}
+                    sx={{
+                      height: 20,
+                      fontSize: '0.62rem',
+                      fontWeight: 700,
+                      maxWidth: 140,
+                      bgcolor: alpha(theme.palette.primary.main, 0.08),
+                      '& .MuiChip-label': { px: 0.6, overflow: 'hidden', textOverflow: 'ellipsis' },
+                    }}
+                  />
+                </Box>
               </Box>
               <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                 {availableParams.slice(0, 6).map((p, idx) => {
@@ -1240,6 +1277,15 @@ export default function NDashboard({ socket }) {
         formatDisplayName={formatDisplayName}
         getUnit={getUnit}
         getDisplayRange={getDisplayRange}
+      />
+
+      <TmatSimulationModal
+        open={tmat3dOpen}
+        onClose={() => setTmat3dOpen(false)}
+        deviceName={selectedDevice?.name}
+        groupName={selectedDevice?.group_name}
+        params={availableParams}
+        latestFields={latest.fields}
       />
     </Box>
   );
