@@ -1,6 +1,6 @@
 import React, { useLayoutEffect, useMemo, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Line, Text } from '@react-three/drei';
+import { Line, Html } from '@react-three/drei';
 import * as THREE from 'three';
 
 const TANK_RADIUS = 0.65;
@@ -37,20 +37,23 @@ function FixedCamera() {
   return null;
 }
 
-function Label3D({ position, children, color = '#80deea', size = 0.09 }) {
+function Label3D({ position, children, color = '#80deea' }) {
   return (
-    <Text
-      position={position}
-      fontSize={size}
-      color={color}
-      anchorX="center"
-      anchorY="middle"
-      outlineWidth={0.012}
-      outlineColor="#0a1512"
-      font={undefined}
-    >
-      {children}
-    </Text>
+    <Html position={position} center distanceFactor={7} style={{ pointerEvents: 'none', userSelect: 'none' }}>
+      <div
+        style={{
+          color,
+          fontSize: '9px',
+          fontWeight: 800,
+          letterSpacing: '0.14em',
+          textShadow: '0 0 10px rgba(0,0,0,0.95)',
+          whiteSpace: 'nowrap',
+          fontFamily: 'system-ui, sans-serif',
+        }}
+      >
+        {children}
+      </div>
+    </Html>
   );
 }
 
@@ -198,7 +201,7 @@ function TmatTank({ levelPct, waterColors }) {
 
   return (
     <group position={TANK_POS}>
-      <Label3D position={[0, TANK_HEIGHT + 0.35, 0]} color="#00e5ff" size={0.1}>
+      <Label3D position={[0, TANK_HEIGHT + 0.35, 0]} color="#00e5ff">
         RKL-01 TMAT
       </Label3D>
       <mesh position={[0, TANK_Y, 0]} castShadow receiveShadow>
@@ -243,7 +246,7 @@ function PeatGround({ soilIntensity = 0.5 }) {
   const moist = 0.2 + (soilIntensity ?? 0.3) * 0.35;
   return (
     <group position={[-1.15, 0, -0.15]}>
-      <Label3D position={[0, 0.72, 0]} color="#8bc34a" size={0.075}>
+      <Label3D position={[0, 0.72, 0]} color="#8bc34a">
         SOIL PROBE
       </Label3D>
       <mesh position={[0, 0.12, 0]} receiveShadow>
@@ -276,7 +279,7 @@ function PeatGround({ soilIntensity = 0.5 }) {
 function RainGauge() {
   return (
     <group position={[0.55, 0, -0.35]}>
-      <Label3D position={[0, 1.55, 0]} color="#ffeb3b" size={0.075}>
+      <Label3D position={[0, 1.55, 0]} color="#ffeb3b">
         RAIN GAUGE
       </Label3D>
       <mesh position={[0, 0.65, 0]} castShadow>
@@ -301,7 +304,7 @@ function SolarArray({ batteryPct }) {
   const glow = batteryPct != null ? 0.3 + (batteryPct / 100) * 0.7 : 0.5;
   return (
     <group position={[-1.55, 0, 0.85]} rotation={[0, 0.35, 0]}>
-      <Label3D position={[0, 0.95, 0]} color="#ff9800" size={0.075}>
+      <Label3D position={[0, 0.95, 0]} color="#ff9800">
         SOLAR
       </Label3D>
       {/* stand */}
@@ -347,7 +350,7 @@ function HaiwellPanel({ uplinkActive }) {
 
   return (
     <group position={[1.35, 0, 0.15]} rotation={[0, -0.45, 0]}>
-      <Label3D position={[0, 1.05, 0]} color="#b0bec5" size={0.075}>
+      <Label3D position={[0, 1.05, 0]} color="#b0bec5">
         HAIWELL D4
       </Label3D>
       {/* enclosure */}
@@ -389,7 +392,7 @@ function StarlinkDish({ uplinkActive }) {
 
   return (
     <group position={[1.85, 0, -0.55]}>
-      <Label3D position={[0, 1.45, 0]} color="#e0e0e0" size={0.075}>
+      <Label3D position={[0, 1.45, 0]} color="#e0e0e0">
         STARLINK
       </Label3D>
       {/* pole */}

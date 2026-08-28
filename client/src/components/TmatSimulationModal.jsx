@@ -19,6 +19,37 @@ import { TMAT_EWS } from '../utils/tmatAnalysis';
 
 const TmatScene3D = React.lazy(() => import('./tmat3d/TmatScene3D'));
 
+class SceneErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  render() {
+    const { error } = this.state;
+    if (error) {
+      return (
+        <Box sx={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', p: 3 }}>
+          <Box sx={{ textAlign: 'center', maxWidth: 360 }}>
+            <WarningAmberIcon sx={{ color: '#EA580C', fontSize: 36, mb: 1 }} />
+            <Typography sx={{ color: '#fff', fontWeight: 700, mb: 0.5 }}>
+              3D scene failed to load
+            </Typography>
+            <Typography sx={{ color: alpha('#fff', 0.55), fontSize: '0.75rem' }}>
+              WebGL or scene assets may be unavailable in this browser. HUD telemetry above still works.
+            </Typography>
+          </Box>
+        </Box>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function fmt(n, digits = 1) {
   if (n == null || !Number.isFinite(n)) return '—';
   return n.toFixed(digits);
@@ -155,20 +186,22 @@ export default function TmatSimulationModal({
       }}
     >
       <Box sx={{ position: 'relative', width: '100%', height: '100%', bgcolor: '#142822' }}>
-        <Suspense
-          fallback={(
-            <Box sx={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center' }}>
-              <CircularProgress sx={{ color: '#00e5ff' }} />
-            </Box>
-          )}
-        >
-          <TmatScene3D
-            levelPct={levelPct}
-            flowDrivers={flowDrivers}
-            waterColors={waterColors}
-            uplinkActive={hasLive}
-          />
-        </Suspense>
+        <SceneErrorBoundary>
+          <Suspense
+            fallback={(
+              <Box sx={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center' }}>
+                <CircularProgress sx={{ color: '#00e5ff' }} />
+              </Box>
+            )}
+          >
+            <TmatScene3D
+              levelPct={levelPct}
+              flowDrivers={flowDrivers}
+              waterColors={waterColors}
+              uplinkActive={hasLive}
+            />
+          </Suspense>
+        </SceneErrorBoundary>
 
         {/* Top bar */}
         <Box
