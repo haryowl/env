@@ -154,19 +154,20 @@ export default function TmatSimulationModal({
   params = [],
   latestFields = {},
   history = [],
+  fieldMetadata = {},
 }) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('md'));
 
   const telemetry = useMemo(
-    () => buildTmatSimulationTelemetry(params, latestFields, history),
-    [params, latestFields, history]
+    () => buildTmatSimulationTelemetry(params, latestFields, history, fieldMetadata),
+    [params, latestFields, history, fieldMetadata]
   );
 
   const hasLive = telemetry.tmatRaw != null || telemetry.rain != null || telemetry.soil != null;
-  const levelPct = telemetry.levelPct ?? 45;
+  const levelPct = telemetry.levelPct;
   const groupLabel = (groupName || '').trim() || 'TMAT';
-  const { ews, flowDrivers, waterColors, alerts } = telemetry;
+  const { ews, flowDrivers, waterColors, alerts, wellWater } = telemetry;
 
   return (
     <Dialog
@@ -196,6 +197,7 @@ export default function TmatSimulationModal({
           >
             <TmatScene3D
               levelPct={levelPct}
+              wellWater={wellWater}
               flowDrivers={flowDrivers}
               waterColors={waterColors}
               uplinkActive={hasLive}
@@ -248,7 +250,7 @@ export default function TmatSimulationModal({
           </IconButton>
         </Box>
 
-        {/* HMI panel — bottom-left so right-side Starlink / Haiwell stay visible */}
+        {/* HMI panel — bottom-left so right-side Starlink / HMI Logger stay visible */}
         <Box
           sx={{
             position: 'absolute',
@@ -347,8 +349,8 @@ export default function TmatSimulationModal({
                   dotColor={waterColors.emissive}
                   label="TMAT LEVEL"
                   unit="% CAP"
-                  value={`${fmt(levelPct, 1)}%`}
-                  barValue={levelPct}
+                  value={levelPct != null ? `${fmt(levelPct, 1)}%` : '—'}
+                  barValue={levelPct ?? undefined}
                   barMax={100}
                   large
                   ewsStatus={ews.tmat}
@@ -408,7 +410,7 @@ export default function TmatSimulationModal({
           }}
         >
           <Typography sx={{ fontSize: '0.62rem', color: alpha('#00e5ff', 0.85), letterSpacing: '0.1em', whiteSpace: 'nowrap' }}>
-            RKL-01 · HAIWELL · STARLINK · RAIN / SOIL / TMAT FLOW
+            SENSORS → HMI → STARLINK · TMAT + GW LEVEL · SOIL MOIST / TEMP
           </Typography>
         </Box>
       </Box>

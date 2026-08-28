@@ -51,12 +51,22 @@ export const TMAT_EWS = {
 };
 
 export const TMAT_PARAM_ALIASES = {
-  tmat: ['tmat', 'tmat_level', 'groundwater_level', 'ground_water_level', 'ground_water', 'gwl', 'gw_level', 'muka_air_tanah', 'tma'],
-  water: ['water_level', 'waterlevel', 'wl', 'surface_water', 'level_air'],
-  moisture: ['soil_moisture', 'soil_moisturize', 'moisture', 'kelembaban', 'sm', 'soil_moist'],
-  soil_temp: ['soil_temperature', 'soil_temp', 'temperature_soil', 'temp_tanah'],
-  rainfall: ['rainfall', 'rain', 'precip', 'curah_hujan', 'ch'],
-  battery: ['battery_voltage', 'battery_volt', 'battery_v', 'voltage_v', 'voltage', 'battery', 'batt', 'bat_v', 'v_batt', 'vdc', 'bat_vol'],
+  tmat: [
+    'tmat_value',
+    'tmat_level',
+    'muka_air_tanah',
+    'tinggi_muka_air_tanah',
+    'tinggi_muka_air',
+    'elevasi_tmat',
+    'depth_tmat',
+    'tmat',
+    'tma',
+  ],
+  water: ['water_level', 'waterlevel', 'wl', 'surface_water', 'level_air', 'ground_water_level', 'groundwater_level', 'ground_water', 'gwl', 'gw_level'],
+  moisture: ['soil_moisture', 'soil_moisturize', 'moisture', 'kelembaban', 'kelembapan_tanah', 'kelembapan', 'sm', 'soil_moist'],
+  soil_temp: ['soil_temperature', 'soil_temp', 'temperature_soil', 'temp_tanah', 'suhu_value', 'suhu_tanah', 'suhu'],
+  rainfall: ['rainfall', 'rain', 'precip', 'curah_hujan', 'hujan_value', 'hujan', 'ch'],
+  battery: ['battery_voltage', 'battery_volt', 'battery_v', 'voltage_v', 'voltage', 'battery', 'baterai_value', 'baterai', 'batt', 'bat_v', 'v_batt', 'vdc', 'bat_vol'],
 };
 
 export function resolveTmatParamKey(keys, kind) {

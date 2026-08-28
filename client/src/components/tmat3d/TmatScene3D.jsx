@@ -11,18 +11,15 @@ const TANK_CENTER_Y = TANK_HEIGHT / 2 - TANK_BURIED_DEPTH;
 const TANK_POS = [0, 0, 0.2];
 const GROUND_Y = 0;
 
-/** Scene anchor points for flow lines */
-const ANCHORS = {
-  rain: [0.5, 1.35, -0.35],
-  soil: [-1.05, 0.55, -0.15],
-  tmat: [0, 0.22, 0.2],
-  uplink: [1.85, 1.05, -0.55],
-};
+/** Scene anchor points — sensor → HMI hub → Starlink uplink */
+const HMI_ANCHOR = [1.48, 0.48, 0.42];
+const STARLINK_ANCHOR = [1.85, 1.12, -0.43];
 
 const FLOW_CURVES = [
-  { id: 'rain', color: '#ffeb3b', points: [ANCHORS.rain, [0.25, 1.05, 0.05], ANCHORS.tmat] },
-  { id: 'soil', color: '#8bc34a', points: [ANCHORS.soil, [-0.45, 0.75, 0.1], ANCHORS.tmat] },
-  { id: 'tmat', color: '#00e5ff', points: [ANCHORS.tmat, [0.95, 1.15, 0.05], ANCHORS.uplink] },
+  { id: 'rain', color: '#ffeb3b', points: [[0.55, 1.28, -0.35], [1.05, 0.72, 0.08], HMI_ANCHOR] },
+  { id: 'soil', color: '#8bc34a', points: [[-1.05, 0.55, -0.15], [-0.15, 0.48, 0.18], HMI_ANCHOR] },
+  { id: 'tmat', color: '#00e5ff', points: [[0, 0.14, 0.2], [0.72, 0.34, 0.3], HMI_ANCHOR] },
+  { id: 'uplink', color: '#80deea', points: [HMI_ANCHOR, [1.68, 0.82, 0.02], STARLINK_ANCHOR] },
 ];
 
 function FixedCamera() {
@@ -99,12 +96,14 @@ function FlowPaths({ flowDrivers }) {
   const speedMap = {
     rain: drivers.rainSpeed ?? 0.2,
     soil: drivers.soilSpeed ?? 0.18,
-    tmat: drivers.tmatSpeed ?? 0.22,
+    tmat: drivers.tmatSpeed ?? 0.2,
+    uplink: drivers.uplinkSpeed ?? 0.24,
   };
   const opacityMap = {
     rain: 0.4 + (drivers.rainIntensity ?? 0.1) * 0.6,
     soil: 0.4 + (drivers.soilIntensity ?? 0.1) * 0.6,
     tmat: 0.4 + (drivers.tmatIntensity ?? 0.1) * 0.6,
+    uplink: 0.55 + (drivers.batteryPct != null ? (drivers.batteryPct / 100) * 0.35 : 0.2),
   };
 
   return (
@@ -197,6 +196,26 @@ function WaterSurface({ y, waterColors }) {
   );
 }
 
+function GroundwaterReference({ y, color = '#ffa726' }) {
+  if (y == null) return null;
+  return (
+    <mesh position={[0, y, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <ringGeometry args={[TANK_RADIUS * 0.55, TANK_RADIUS * 1.05, 40]} />
+      <meshBasicMaterial color={color} transparent opacity={0.55} toneMapped={false} />
+    </mesh>
+  );
+}
+
+function Pp57ReferenceLine({ y }) {
+  if (y == null) return null;
+  return (
+    <mesh position={[0, y, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <ringGeometry args={[TANK_RADIUS * 1.08, TANK_RADIUS * 1.18, 40]} />
+      <meshBasicMaterial color="#ef5350" transparent opacity={0.45} toneMapped={false} />
+    </mesh>
+  );
+}
+
 function SubmersibleSensor({ waterTopY }) {
   const tankBottom = TANK_CENTER_Y - TANK_HEIGHT / 2;
   const sensorY = tankBottom + Math.max(0.12, (waterTopY - tankBottom) * 0.55);
@@ -231,12 +250,16 @@ function SubmersibleSensor({ waterTopY }) {
   );
 }
 
-function TmatTank({ levelPct, waterColors }) {
-  const fill = Math.max(0.05, Math.min(1, (levelPct ?? 45) / 100));
+function TmatTank({ wellWater, levelPct, waterColors }) {
   const colors = waterColors || { water: '#29b6f6', emissive: '#00bcd4', glass: '#81d4fa' };
-  const tankBottom = TANK_CENTER_Y - TANK_HEIGHT / 2;
-  const waterH = TANK_HEIGHT * fill;
-  const waterTopY = tankBottom + waterH;
+  const tankBottom = wellWater?.tankBottom ?? (TANK_CENTER_Y - TANK_HEIGHT / 2);
+  const fallbackFill = wellWater?.fillPct != null
+    ? Math.max(0.05, Math.min(1, wellWater.fillPct / 100))
+    : (levelPct != null ? Math.max(0.05, Math.min(1, levelPct / 100)) : 0.05);
+  const waterTopY = wellWater?.waterSurfaceY ?? (tankBottom + TANK_HEIGHT * fallbackFill);
+  const waterH = Math.max(0.04, waterTopY - tankBottom);
+  const groundwaterY = wellWater?.groundwaterY;
+  const showGwRef = groundwaterY != null && Math.abs(groundwaterY - waterTopY) > 0.04;
   const visibleAboveGround = TANK_HEIGHT - TANK_BURIED_DEPTH;
 
   return (
@@ -265,7 +288,7 @@ function TmatTank({ levelPct, waterColors }) {
         <meshBasicMaterial color="#4dd0e1" wireframe transparent opacity={0.28} />
       </mesh>
 
-      {/* groundwater fill */}
+      {/* groundwater fill from TMAT elevation (m) */}
       <mesh position={[0, tankBottom + waterH / 2, 0]}>
         <cylinderGeometry args={[TANK_RADIUS * 0.88, TANK_RADIUS * 0.88, waterH, 28]} />
         <meshStandardMaterial
@@ -278,6 +301,14 @@ function TmatTank({ levelPct, waterColors }) {
         />
       </mesh>
       <WaterSurface y={waterTopY} waterColors={colors} />
+      <Pp57ReferenceLine y={wellWater?.pp57LineY} />
+      {showGwRef && <GroundwaterReference y={groundwaterY} />}
+
+      {/* ground surface cut plane hint */}
+      <mesh position={[0, GROUND_Y, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[TANK_RADIUS * 0.95, TANK_RADIUS * 1.25, 40]} />
+        <meshBasicMaterial color="#8d6e63" transparent opacity={0.35} toneMapped={false} />
+      </mesh>
 
       {/* wellhead collar at ground surface */}
       <mesh position={[0, GROUND_Y + 0.025, 0]} receiveShadow>
@@ -295,22 +326,99 @@ function TmatTank({ levelPct, waterColors }) {
   );
 }
 
-function PeatGround({ soilIntensity = 0.5 }) {
-  const moist = 0.2 + (soilIntensity ?? 0.3) * 0.35;
+function SoilHeatParticles({ active, intensity = 0.5 }) {
+  const refs = useRef([]);
+  const seeds = useMemo(
+    () => Array.from({ length: 10 }, (_, i) => ({
+      x: -0.05 + (i % 3) * 0.08,
+      z: -0.02 + (i % 2) * 0.06,
+      phase: i * 0.7,
+    })),
+    []
+  );
+
+  useFrame(({ clock }) => {
+    if (!active) return;
+    const t = clock.getElapsedTime();
+    refs.current.forEach((mesh, i) => {
+      if (!mesh) return;
+      const s = seeds[i];
+      mesh.position.set(s.x, 0.28 + ((t * 0.45 + s.phase) % 0.35), s.z);
+      mesh.scale.setScalar(0.7 + intensity * 0.8);
+    });
+  });
+
+  if (!active) return null;
+
+  return (
+    <group position={[0, 0, 0]}>
+      {seeds.map((s, i) => (
+        <mesh key={i} ref={(el) => { refs.current[i] = el; }} position={[s.x, 0.28, s.z]}>
+          <sphereGeometry args={[0.012, 6, 6]} />
+          <meshBasicMaterial color="#ff7043" transparent opacity={0.65} toneMapped={false} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function PeatGround({ soilIntensity = 0.5, soilTemp = null, soilTempNorm = 0.35 }) {
+  const blockRef = useRef(null);
+  const probeLedRef = useRef(null);
+  const moist = Math.max(0, Math.min(1, soilIntensity ?? 0.3));
+  const temp = soilTemp ?? 26;
+  const tempNorm = Math.max(0, Math.min(1, soilTempNorm ?? 0.35));
+  const dry = moist < 0.35;
+  const hot = temp >= 31;
+
+  useFrame(({ clock }) => {
+    const t = clock.getElapsedTime();
+    if (blockRef.current) {
+      const pulse = 1 + Math.sin(t * (1.2 + moist * 2.5)) * 0.012 * moist;
+      blockRef.current.scale.set(pulse, 1, pulse);
+      const mat = blockRef.current.material;
+      mat.emissiveIntensity = 0.12 + moist * 0.55 + (hot ? Math.sin(t * 3) * 0.08 : 0);
+      if (hot) mat.emissive.set('#bf360c');
+      else mat.emissive.set(moist > 0.5 ? '#1b5e20' : '#3e2723');
+      if (dry) mat.color.set('#5d4037');
+      else if (moist > 0.55) mat.color.set('#2e7d32');
+      else mat.color.set('#6d4c41');
+    }
+    if (probeLedRef.current) {
+      const ledColor = hot ? '#ff7043' : moist < 0.35 ? '#ffeb3b' : '#8bc34a';
+      probeLedRef.current.material.color.set(ledColor);
+      probeLedRef.current.material.emissive.set(ledColor);
+      probeLedRef.current.material.emissiveIntensity = 1 + Math.sin(t * 4) * 0.35;
+    }
+  });
+
   return (
     <group position={[-1.15, 0, -0.15]}>
-      <Label3D position={[0, 0.72, 0]} color="#8bc34a">
+      <Label3D position={[0, 0.72, 0]} color={hot ? '#ff7043' : '#8bc34a'}>
         SOIL PROBE
       </Label3D>
-      <mesh position={[0, 0.12, 0]} receiveShadow>
+      <mesh ref={blockRef} position={[0, 0.12, 0]} receiveShadow>
         <boxGeometry args={[0.75, 0.24, 0.55]} />
         <meshStandardMaterial
           color="#6d4c41"
-          roughness={0.85}
+          roughness={0.82}
           emissive="#2e7d32"
-          emissiveIntensity={moist}
+          emissiveIntensity={0.2 + moist * 0.35}
         />
       </mesh>
+      {/* moisture strata layers */}
+      {[0.06, 0.12, 0.18].map((y, i) => (
+        <mesh key={y} position={[0, y, 0.01]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[0.62, 0.42]} />
+          <meshBasicMaterial
+            color={moist > (i + 1) * 0.25 ? '#43a047' : '#795548'}
+            transparent
+            opacity={0.18 + moist * 0.22}
+            toneMapped={false}
+          />
+        </mesh>
+      ))}
+      <SoilHeatParticles active={hot} intensity={tempNorm} />
       {/* probe rod */}
       <mesh position={[0.12, 0.38, 0.08]} castShadow>
         <cylinderGeometry args={[0.018, 0.018, 0.52, 8]} />
@@ -321,7 +429,7 @@ function PeatGround({ soilIntensity = 0.5 }) {
         <boxGeometry args={[0.08, 0.06, 0.06]} />
         <meshStandardMaterial color="#37474f" metalness={0.5} roughness={0.4} />
       </mesh>
-      <mesh position={[0.12, 0.66, 0.12]}>
+      <mesh ref={probeLedRef} position={[0.12, 0.66, 0.12]}>
         <sphereGeometry args={[0.018, 8, 8]} />
         <meshStandardMaterial color="#8bc34a" emissive="#8bc34a" emissiveIntensity={1.2} toneMapped={false} />
       </mesh>
@@ -393,7 +501,7 @@ function SolarArray({ batteryPct }) {
   );
 }
 
-function HaiwellPanel({ uplinkActive }) {
+function HmiLoggerPanel({ uplinkActive }) {
   const ledRef = useRef(null);
   useFrame(({ clock }) => {
     if (!ledRef.current) return;
@@ -404,7 +512,7 @@ function HaiwellPanel({ uplinkActive }) {
   return (
     <group position={[1.35, 0, 0.15]} rotation={[0, -0.45, 0]}>
       <Label3D position={[0, 1.05, 0]} color="#b0bec5">
-        HAIWELL D4
+        HMI LOGGER
       </Label3D>
       {/* enclosure */}
       <mesh position={[0, 0.42, 0]} castShadow receiveShadow>
@@ -495,7 +603,7 @@ function SitePlatform() {
   );
 }
 
-function SceneContent({ levelPct, flowDrivers, waterColors, uplinkActive }) {
+function SceneContent({ levelPct, wellWater, flowDrivers, waterColors, uplinkActive }) {
   const drivers = flowDrivers || {};
   const batteryPct = drivers.batteryPct;
 
@@ -516,19 +624,23 @@ function SceneContent({ levelPct, flowDrivers, waterColors, uplinkActive }) {
       </mesh>
       <gridHelper args={[6, 12, '#2e7d6a', '#1a4d42']} position={[0, 0.01, 0]} />
       <SitePlatform />
-      <PeatGround soilIntensity={drivers.soilIntensity} />
+      <PeatGround
+        soilIntensity={drivers.soilIntensity}
+        soilTemp={drivers.soilTemp}
+        soilTempNorm={drivers.soilTempNorm}
+      />
       <RainGauge />
       <SolarArray batteryPct={batteryPct} />
-      <HaiwellPanel uplinkActive={uplinkActive} />
+      <HmiLoggerPanel uplinkActive={uplinkActive} />
       <StarlinkDish uplinkActive={uplinkActive} />
-      <TmatTank levelPct={levelPct} waterColors={waterColors} />
+      <TmatTank levelPct={levelPct} wellWater={wellWater} waterColors={waterColors} />
       <RainParticles active={drivers.showRain} intensity={drivers.rainIntensity} />
       <FlowPaths flowDrivers={flowDrivers} />
     </>
   );
 }
 
-export default function TmatScene3D({ levelPct, flowDrivers, waterColors, uplinkActive = true }) {
+export default function TmatScene3D({ levelPct, wellWater, flowDrivers, waterColors, uplinkActive = true }) {
   return (
     <Canvas
       shadows
@@ -543,6 +655,7 @@ export default function TmatScene3D({ levelPct, flowDrivers, waterColors, uplink
     >
       <SceneContent
         levelPct={levelPct}
+        wellWater={wellWater}
         flowDrivers={flowDrivers}
         waterColors={waterColors}
         uplinkActive={uplinkActive}

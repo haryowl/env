@@ -378,8 +378,8 @@ export default function NDashboard({ socket }) {
       selectedDevice?.group_description || groupMeta?.description
     );
     if (program === 'tmat') return true;
-    return hasTmatSimulationParams(availableParams);
-  }, [selectedDevice, availableParams, knownGroups, groupFilter]);
+    return hasTmatSimulationParams(availableParams, fieldMetadata);
+  }, [selectedDevice, availableParams, knownGroups, groupFilter, fieldMetadata]);
 
   // All numeric mapped parameters are represented. The layout wraps as needed.
   const chartParams = availableParams;
@@ -1293,6 +1293,7 @@ export default function NDashboard({ socket }) {
         params={availableParams}
         latestFields={latest.fields}
         history={history}
+        fieldMetadata={fieldMetadata}
       />
     </Box>
   );

@@ -5,6 +5,7 @@
 import { toNum } from './sparingAnalysis';
 import {
   resolveTmatParamKey,
+  tmatParamKind,
   TMAT_EWS,
   computePp57TmatRatio,
   consecutiveDryHours,
@@ -118,21 +119,107 @@ export function batteryEwsStatus(volts, pct) {
   return { key: 'aman', label: 'OK', color: EWS_COLORS.aman, detail: `${BATTERY_V_MIN}–${BATTERY_V_MAX} V span` };
 }
 
+/** Resolve signed TMAT elevation field — prefer keys that carry a live numeric value. */
+export function resolveTmatElevationKey(keys, fields = {}, fieldMetadata = {}) {
+  const allKeys = [...new Set([...(keys || []), ...Object.keys(fields || {})])];
+  const candidates = [];
+  const push = (k) => {
+    if (k && !candidates.includes(k)) candidates.push(k);
+  };
+
+  push(resolveTmatParamKey(allKeys, 'tmat'));
+
+  for (const k of allKeys) {
+    if (tmatParamKind(k) === 'tmat') push(k);
+  }
+
+  for (const k of allKeys) {
+    const meta = fieldMetadata[k];
+    const label = String(meta?.displayName || meta?.display_name || '').toLowerCase();
+    if (!label) continue;
+    const isTmatLabel = /\btmat\b|muka\s*air\s*tanah|tinggi\s*muka\s*air/i.test(label);
+    const isGwLabel = /ground\s*water|\bgwl\b|permukaan/i.test(label);
+    if (isTmatLabel && !isGwLabel) push(k);
+  }
+
+  const withValue = candidates.filter((k) => toNum(fields[k]) != null);
+  if (withValue.length) return withValue[0];
+  return candidates[0] || null;
+}
+
 /** Scene animation speeds tied to live telemetry magnitude. */
-export function buildFlowDrivers({ rain, soil, levelPct, batteryPct }) {
+export function buildFlowDrivers({ rain, soil, soilTemp, levelPct, batteryPct }) {
   const rainNorm = rain != null ? Math.min(1, Math.max(0, rain / 25)) : 0.12;
   const soilNorm = soil != null ? Math.min(1, Math.max(0, soil / 85)) : 0.25;
-  const levelNorm = levelPct != null ? Math.min(1, Math.max(0, levelPct / 100)) : 0.45;
+  const levelNorm = levelPct != null ? Math.min(1, Math.max(0, levelPct / 100)) : 0.25;
+  const temp = toNum(soilTemp);
+  const tempNorm = temp != null ? Math.min(1, Math.max(0, (temp - 20) / 25)) : 0.35;
   return {
     rainSpeed: 0.1 + rainNorm * 0.42,
     soilSpeed: 0.08 + soilNorm * 0.32,
-    tmatSpeed: 0.12 + levelNorm * 0.38,
+    tmatSpeed: 0.1 + levelNorm * 0.28,
+    uplinkSpeed: 0.14 + (batteryPct != null ? Math.min(1, batteryPct / 100) * 0.35 : 0.25),
     rainIntensity: rainNorm,
     soilIntensity: soilNorm,
+    soilTemp: temp,
+    soilTempNorm: tempNorm,
+    showSoilHeat: temp != null && temp >= TMAT_EWS.soil_temp.waspadaMin,
     tmatIntensity: levelNorm,
     batteryPct,
     showRain: rain != null && rain > 0.05,
-    showFlow: rain != null || soil != null || levelPct != null,
+    showFlow: rain != null || soil != null || levelPct != null || temp != null,
+  };
+}
+
+/** Normalize groundwater level reading to signed elevation (m) relative to surface. */
+export function groundwaterElevationM(waterRaw, tmatRaw) {
+  const w = toNum(waterRaw);
+  if (w == null) return null;
+  const t = toNum(tmatRaw);
+  if (t != null && t <= 0 && w > 0) return -Math.abs(w);
+  if (t != null && t <= 0 && w < 0) return w;
+  return w;
+}
+
+/** Well geometry constants mirrored in the 3D scene (m). */
+export const WELL_GEOMETRY = {
+  tankHeight: 1.45,
+  buriedDepth: 1.08,
+  groundY: 0,
+};
+
+/** Signed TMAT elevation (m) → water surface Y inside the buried well. */
+export function tmatWaterSurfaceY(tmatRaw, { tankHeight, buriedDepth, groundY } = WELL_GEOMETRY) {
+  const t = toNum(tmatRaw);
+  if (t == null) return null;
+  const tankCenterY = tankHeight / 2 - buriedDepth;
+  const tankBottom = tankCenterY - tankHeight / 2;
+  const tankTop = tankBottom + tankHeight;
+  const surfaceY = groundY + t;
+  return Math.max(tankBottom + 0.04, Math.min(tankTop, surfaceY));
+}
+
+export function buildWellWaterState(tmatRaw, waterRaw) {
+  const tankCenterY = WELL_GEOMETRY.tankHeight / 2 - WELL_GEOMETRY.buriedDepth;
+  const tankBottom = tankCenterY - WELL_GEOMETRY.tankHeight / 2;
+  const tankTop = tankBottom + WELL_GEOMETRY.tankHeight;
+  const waterSurfaceY = tmatWaterSurfaceY(tmatRaw);
+  const gwElevationM = groundwaterElevationM(waterRaw, tmatRaw);
+  const groundwaterY = gwElevationM != null
+    ? Math.max(tankBottom, Math.min(tankTop, WELL_GEOMETRY.groundY + gwElevationM))
+    : null;
+  const fillPct = waterSurfaceY != null
+    ? ((waterSurfaceY - tankBottom) / WELL_GEOMETRY.tankHeight) * 100
+    : null;
+  return {
+    tmatElevationM: toNum(tmatRaw),
+    groundwaterElevationM: gwElevationM,
+    waterSurfaceY,
+    groundwaterY,
+    tankBottom,
+    tankTop,
+    pp57LineY: WELL_GEOMETRY.groundY + TMAT_EWS.tmat.bakuMutuM,
+    fillPct,
   };
 }
 
@@ -175,22 +262,25 @@ export function statusWaterColors(statusKey) {
 /**
  * @returns full telemetry bundle for HUD + 3D scene
  */
-export function buildTmatSimulationTelemetry(paramKeys, latestFields, history) {
+export function buildTmatSimulationTelemetry(paramKeys, latestFields, history, fieldMetadata = {}) {
   const keys = paramKeys || [];
   const fields = latestFields || {};
   const rainKey = resolveTmatParamKey(keys, 'rainfall');
   const soilKey = resolveTmatParamKey(keys, 'moisture');
-  const tmatKey = resolveTmatParamKey(keys, 'tmat');
+  const tmatKey = resolveTmatElevationKey(keys, fields, fieldMetadata);
+  const waterKey = resolveTmatParamKey(keys, 'water');
   const batteryKey = resolveTmatParamKey(keys, 'battery');
   const tempKey = resolveTmatParamKey(keys, 'soil_temp');
 
   const rain = rainKey != null ? toNum(fields[rainKey]) : null;
   const soil = soilKey != null ? toNum(fields[soilKey]) : null;
   const tmatRaw = tmatKey != null ? toNum(fields[tmatKey]) : null;
+  const waterRaw = waterKey != null ? toNum(fields[waterKey]) : null;
   const batteryV = batteryKey != null ? toNum(fields[batteryKey]) : null;
   const soilTemp = tempKey != null ? toNum(fields[tempKey]) : null;
   const levelPct = tmatElevationToLevelPct(tmatRaw);
   const batteryPct = batteryVoltageToPct(batteryV);
+  const wellWater = buildWellWaterState(tmatRaw, waterRaw);
 
   const dryHours = rainKey ? consecutiveDryHours(history, rainKey) : null;
   const dryDays = dryHours != null ? dryHours / 24 : null;
@@ -208,26 +298,31 @@ export function buildTmatSimulationTelemetry(paramKeys, latestFields, history) {
     soil,
     soilTemp,
     tmatRaw,
+    waterRaw,
     levelPct,
     batteryV,
     batteryPct,
     dryHours,
     dryDays,
     pp57,
+    wellWater,
     ews,
     waterColors: statusWaterColors(pp57.key),
-    flowDrivers: buildFlowDrivers({ rain, soil, levelPct, batteryPct }),
+    flowDrivers: buildFlowDrivers({ rain, soil, soilTemp, levelPct, batteryPct }),
     alerts: buildEwsAlerts({ soil, rain, dryDays, tmatRaw, soilTemp }),
     keys: {
       rain: rainKey || undefined,
       soil: soilKey || undefined,
       tmat: tmatKey || undefined,
+      water: waterKey || undefined,
       battery: batteryKey || undefined,
       soil_temp: tempKey || undefined,
     },
   };
 }
 
-export function hasTmatSimulationParams(paramKeys) {
-  return Boolean(resolveTmatParamKey(paramKeys || [], 'tmat'));
+export function hasTmatSimulationParams(paramKeys, fieldMetadata = {}) {
+  const keys = paramKeys || [];
+  if (resolveTmatElevationKey(keys, {}, fieldMetadata)) return true;
+  return keys.some((k) => tmatParamKind(k) === 'tmat');
 }
