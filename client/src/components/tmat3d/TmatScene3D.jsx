@@ -3,16 +3,19 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Line, Html } from '@react-three/drei';
 import * as THREE from 'three';
 
-const TANK_RADIUS = 0.65;
-const TANK_HEIGHT = 1.68;
-const TANK_Y = TANK_HEIGHT / 2 + 0.04;
-const TANK_POS = [0, 0, 0.25];
+const TANK_RADIUS = 0.38;
+const TANK_HEIGHT = 1.45;
+/** Depth below ground surface (y=0); only casing + water column remain visible. */
+const TANK_BURIED_DEPTH = 1.08;
+const TANK_CENTER_Y = TANK_HEIGHT / 2 - TANK_BURIED_DEPTH;
+const TANK_POS = [0, 0, 0.2];
+const GROUND_Y = 0;
 
 /** Scene anchor points for flow lines */
 const ANCHORS = {
-  rain: [0.55, 1.35, -0.35],
+  rain: [0.5, 1.35, -0.35],
   soil: [-1.05, 0.55, -0.15],
-  tmat: [0, 0.95, 0.25],
+  tmat: [0, 0.22, 0.2],
   uplink: [1.85, 1.05, -0.55],
 };
 
@@ -25,8 +28,8 @@ const FLOW_CURVES = [
 function FixedCamera() {
   const { camera } = useThree();
   useLayoutEffect(() => {
-    camera.position.set(2.85, 1.75, 3.35);
-    camera.lookAt(0.15, 0.72, 0.05);
+    camera.position.set(2.75, 1.55, 3.25);
+    camera.lookAt(0.1, 0.35, 0.05);
     if ('fov' in camera) {
       camera.fov = 42;
       camera.near = 0.1;
@@ -194,50 +197,100 @@ function WaterSurface({ y, waterColors }) {
   );
 }
 
+function SubmersibleSensor({ waterTopY }) {
+  const tankBottom = TANK_CENTER_Y - TANK_HEIGHT / 2;
+  const sensorY = tankBottom + Math.max(0.12, (waterTopY - tankBottom) * 0.55);
+  const cableTop = GROUND_Y + 0.04;
+
+  return (
+    <group>
+      {/* suspension cable */}
+      <mesh position={[0, (cableTop + sensorY) / 2, 0]}>
+        <cylinderGeometry args={[0.006, 0.006, Math.max(0.08, cableTop - sensorY), 6]} />
+        <meshStandardMaterial color="#455a64" metalness={0.75} roughness={0.25} />
+      </mesh>
+      {/* sensor body */}
+      <mesh position={[0, sensorY, 0]}>
+        <cylinderGeometry args={[0.045, 0.05, 0.16, 12]} />
+        <meshStandardMaterial color="#263238" metalness={0.55} roughness={0.35} />
+      </mesh>
+      {/* pressure port / tip */}
+      <mesh position={[0, sensorY - 0.1, 0]}>
+        <sphereGeometry args={[0.028, 10, 10]} />
+        <meshStandardMaterial
+          color="#00e5ff"
+          emissive="#00bcd4"
+          emissiveIntensity={1.4}
+          toneMapped={false}
+        />
+      </mesh>
+      <Label3D position={[0.14, sensorY + 0.08, 0]} color="#80deea">
+        SUBMERSIBLE
+      </Label3D>
+    </group>
+  );
+}
+
 function TmatTank({ levelPct, waterColors }) {
   const fill = Math.max(0.05, Math.min(1, (levelPct ?? 45) / 100));
-  const waterH = TANK_HEIGHT * fill;
   const colors = waterColors || { water: '#29b6f6', emissive: '#00bcd4', glass: '#81d4fa' };
+  const tankBottom = TANK_CENTER_Y - TANK_HEIGHT / 2;
+  const waterH = TANK_HEIGHT * fill;
+  const waterTopY = tankBottom + waterH;
+  const visibleAboveGround = TANK_HEIGHT - TANK_BURIED_DEPTH;
 
   return (
     <group position={TANK_POS}>
-      <Label3D position={[0, TANK_HEIGHT + 0.35, 0]} color="#00e5ff">
-        RKL-01 TMAT
+      <Label3D position={[0, visibleAboveGround + 0.22, 0]} color="#00e5ff">
+        RKL-01 TMAT WELL
       </Label3D>
-      <mesh position={[0, TANK_Y, 0]} castShadow receiveShadow>
-        <cylinderGeometry args={[TANK_RADIUS, TANK_RADIUS, TANK_HEIGHT, 36, 1, true]} />
+
+      {/* buried casing — glass section below + above ground */}
+      <mesh position={[0, TANK_CENTER_Y, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[TANK_RADIUS, TANK_RADIUS, TANK_HEIGHT, 32, 1, true]} />
         <meshPhysicalMaterial
           color={colors.glass}
           transparent
-          opacity={0.45}
+          opacity={0.42}
           roughness={0.08}
           metalness={0.12}
           side={THREE.DoubleSide}
           transmission={0.22}
           emissive={colors.emissive}
-          emissiveIntensity={0.2}
+          emissiveIntensity={0.18}
         />
       </mesh>
-      <mesh position={[0, TANK_Y, 0]}>
-        <cylinderGeometry args={[TANK_RADIUS * 1.02, TANK_RADIUS * 1.02, TANK_HEIGHT, 36, 1, true]} />
-        <meshBasicMaterial color="#4dd0e1" wireframe transparent opacity={0.35} />
+      <mesh position={[0, TANK_CENTER_Y, 0]}>
+        <cylinderGeometry args={[TANK_RADIUS * 1.03, TANK_RADIUS * 1.03, TANK_HEIGHT, 32, 1, true]} />
+        <meshBasicMaterial color="#4dd0e1" wireframe transparent opacity={0.28} />
       </mesh>
-      <mesh position={[0, waterH / 2 + 0.04, 0]}>
-        <cylinderGeometry args={[TANK_RADIUS * 0.92, TANK_RADIUS * 0.92, waterH, 32]} />
+
+      {/* groundwater fill */}
+      <mesh position={[0, tankBottom + waterH / 2, 0]}>
+        <cylinderGeometry args={[TANK_RADIUS * 0.88, TANK_RADIUS * 0.88, waterH, 28]} />
         <meshStandardMaterial
           color={colors.water}
           emissive={colors.emissive}
           emissiveIntensity={0.95}
           transparent
-          opacity={0.93}
+          opacity={0.9}
           roughness={0.1}
         />
       </mesh>
-      <WaterSurface y={waterH + 0.04} waterColors={colors} />
-      <mesh position={[0, 0.03, 0]} receiveShadow>
-        <cylinderGeometry args={[TANK_RADIUS + 0.08, TANK_RADIUS + 0.12, 0.06, 32]} />
-        <meshStandardMaterial color="#546e7a" metalness={0.45} roughness={0.45} />
+      <WaterSurface y={waterTopY} waterColors={colors} />
+
+      {/* wellhead collar at ground surface */}
+      <mesh position={[0, GROUND_Y + 0.025, 0]} receiveShadow>
+        <cylinderGeometry args={[TANK_RADIUS + 0.1, TANK_RADIUS + 0.14, 0.05, 32]} />
+        <meshStandardMaterial color="#546e7a" metalness={0.5} roughness={0.4} />
       </mesh>
+      {/* peat ring around well opening */}
+      <mesh position={[0, GROUND_Y + 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[TANK_RADIUS + 0.08, TANK_RADIUS + 0.38, 32]} />
+        <meshStandardMaterial color="#5d4037" roughness={0.9} emissive="#1b5e20" emissiveIntensity={0.15} />
+      </mesh>
+
+      <SubmersibleSensor waterTopY={waterTopY} />
     </group>
   );
 }

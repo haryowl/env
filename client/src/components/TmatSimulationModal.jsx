@@ -248,15 +248,15 @@ export default function TmatSimulationModal({
           </IconButton>
         </Box>
 
-        {/* HMI panel */}
+        {/* HMI panel — bottom-left so right-side Starlink / Haiwell stay visible */}
         <Box
           sx={{
             position: 'absolute',
-            top: { xs: 56, md: 64 },
-            right: { xs: 8, md: 16 },
+            bottom: { xs: 44, md: 48 },
+            left: { xs: 8, md: 16 },
             zIndex: 2,
-            width: { xs: 'min(92vw, 300px)', md: 300 },
-            maxHeight: { xs: 'calc(100% - 120px)', md: 'calc(100% - 100px)' },
+            width: { xs: 'min(88vw, 280px)', md: 280 },
+            maxHeight: { xs: '42vh', md: '46vh' },
             overflowY: 'auto',
           }}
         >
@@ -393,13 +393,12 @@ export default function TmatSimulationModal({
           </Box>
         </Box>
 
-        {/* Footer hint */}
+        {/* Footer hint — bottom-right; HMI sits bottom-left */}
         <Box
           sx={{
             position: 'absolute',
             bottom: 12,
-            left: '50%',
-            transform: 'translateX(-50%)',
+            right: { xs: 8, md: 16 },
             zIndex: 2,
             px: 1.5,
             py: 0.75,
