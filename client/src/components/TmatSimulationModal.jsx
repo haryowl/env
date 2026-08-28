@@ -12,6 +12,8 @@ import {
 import { alpha } from '@mui/material/styles';
 import CloseIcon from '@mui/icons-material/Close';
 import ViewInArIcon from '@mui/icons-material/ViewInAr';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import { buildTmatSimulationTelemetry } from '../utils/tmatSimulationData';
 import { TMAT_EWS } from '../utils/tmatAnalysis';
 
@@ -39,7 +41,28 @@ function HudBar({ value, max, color }) {
   );
 }
 
-function HudRow({ dotColor, label, unit, value, barValue, barMax, large = false }) {
+function EwsChip({ status }) {
+  if (!status || status.key === 'unknown') return null;
+  return (
+    <Chip
+      size="small"
+      label={status.label}
+      title={status.detail}
+      sx={{
+        height: 18,
+        fontWeight: 800,
+        fontSize: '0.52rem',
+        letterSpacing: '0.06em',
+        bgcolor: alpha(status.color, 0.18),
+        color: status.color,
+        border: `1px solid ${alpha(status.color, 0.4)}`,
+        '& .MuiChip-label': { px: 0.75 },
+      }}
+    />
+  );
+}
+
+function HudRow({ dotColor, label, unit, value, barValue, barMax, large = false, ewsStatus }) {
   return (
     <Box sx={{ mb: 2 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.75 }}>
@@ -49,7 +72,10 @@ function HudRow({ dotColor, label, unit, value, barValue, barMax, large = false 
             {label}
           </Typography>
         </Box>
-        <Typography sx={{ fontSize: '0.62rem', color: alpha('#fff', 0.45) }}>{unit}</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <EwsChip status={ewsStatus} />
+          <Typography sx={{ fontSize: '0.62rem', color: alpha('#fff', 0.45) }}>{unit}</Typography>
+        </Box>
       </Box>
       <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 1 }}>
         <Typography
@@ -63,8 +89,28 @@ function HudRow({ dotColor, label, unit, value, barValue, barMax, large = false 
         >
           {value}
         </Typography>
-        {barValue != null && barMax != null && <HudBar value={barValue} max={barMax} color={dotColor} />}
+        {barValue != null && barMax != null && (
+          <HudBar value={barValue} max={barMax} color={ewsStatus?.color ?? dotColor} />
+        )}
       </Box>
+      {ewsStatus?.detail && (
+        <Typography sx={{ mt: 0.5, fontSize: '0.54rem', color: alpha(ewsStatus.color, 0.85), lineHeight: 1.35 }}>
+          {ewsStatus.detail}
+        </Typography>
+      )}
+    </Box>
+  );
+}
+
+function AlertRow({ alert }) {
+  const color = alert.level === 'melebihi' ? '#DC2626' : alert.level === 'waspada' ? '#EA580C' : '#16A34A';
+  const Icon = alert.level === 'aman' ? CheckCircleOutlineIcon : WarningAmberIcon;
+  return (
+    <Box sx={{ display: 'flex', gap: 0.75, alignItems: 'flex-start', mb: 0.75 }}>
+      <Icon sx={{ fontSize: 14, color, mt: '2px', flexShrink: 0 }} />
+      <Typography sx={{ fontSize: '0.56rem', color: alpha('#fff', 0.82), lineHeight: 1.4 }}>
+        {alert.text}
+      </Typography>
     </Box>
   );
 }
@@ -76,18 +122,20 @@ export default function TmatSimulationModal({
   groupName,
   params = [],
   latestFields = {},
+  history = [],
 }) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('md'));
 
   const telemetry = useMemo(
-    () => buildTmatSimulationTelemetry(params, latestFields),
-    [params, latestFields]
+    () => buildTmatSimulationTelemetry(params, latestFields, history),
+    [params, latestFields, history]
   );
 
   const hasLive = telemetry.tmatRaw != null || telemetry.rain != null || telemetry.soil != null;
   const levelPct = telemetry.levelPct ?? 45;
   const groupLabel = (groupName || '').trim() || 'TMAT';
+  const { ews, flowDrivers, waterColors, alerts } = telemetry;
 
   return (
     <Dialog
@@ -100,13 +148,13 @@ export default function TmatSimulationModal({
           width: fullScreen ? '100%' : 'min(96vw, 1100px)',
           height: fullScreen ? '100%' : 'min(88vh, 760px)',
           maxWidth: 'none',
-          bgcolor: '#070d0b',
+          bgcolor: '#142822',
           backgroundImage: 'none',
           overflow: 'hidden',
         },
       }}
     >
-      <Box sx={{ position: 'relative', width: '100%', height: '100%', bgcolor: '#070d0b' }}>
+      <Box sx={{ position: 'relative', width: '100%', height: '100%', bgcolor: '#142822' }}>
         <Suspense
           fallback={(
             <Box sx={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center' }}>
@@ -114,7 +162,11 @@ export default function TmatSimulationModal({
             </Box>
           )}
         >
-          <TmatScene3D levelPct={levelPct} hasLiveData={hasLive} />
+          <TmatScene3D
+            levelPct={levelPct}
+            flowDrivers={flowDrivers}
+            waterColors={waterColors}
+          />
         </Suspense>
 
         {/* Top bar */}
@@ -170,6 +222,8 @@ export default function TmatSimulationModal({
             right: { xs: 8, md: 16 },
             zIndex: 2,
             width: { xs: 'min(92vw, 300px)', md: 300 },
+            maxHeight: { xs: 'calc(100% - 120px)', md: 'calc(100% - 100px)' },
+            overflowY: 'auto',
           }}
         >
           <Box
@@ -201,15 +255,20 @@ export default function TmatSimulationModal({
                   PP57 baku {TMAT_EWS.tmat.bakuMutuM} m
                 </Typography>
               </Box>
-              <Box
-                sx={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  bgcolor: hasLive ? '#34d399' : '#64748B',
-                  boxShadow: hasLive ? '0 0 10px #34d399' : 'none',
-                }}
-              />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                <Typography sx={{ fontSize: '0.52rem', color: alpha('#fff', 0.45), letterSpacing: '0.08em' }}>
+                  UPLINK
+                </Typography>
+                <Box
+                  sx={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    bgcolor: hasLive ? '#34d399' : '#64748B',
+                    boxShadow: hasLive ? '0 0 10px #34d399' : 'none',
+                  }}
+                />
+              </Box>
             </Box>
 
             <Box sx={{ p: 1.5 }}>
@@ -220,6 +279,7 @@ export default function TmatSimulationModal({
                 value={fmt(telemetry.rain)}
                 barValue={telemetry.rain}
                 barMax={30}
+                ewsStatus={ews.rain}
               />
               <HudRow
                 dotColor="#8bc34a"
@@ -228,24 +288,36 @@ export default function TmatSimulationModal({
                 value={fmt(telemetry.soil)}
                 barValue={telemetry.soil}
                 barMax={70}
+                ewsStatus={ews.soil}
               />
+              {telemetry.soilTemp != null && (
+                <HudRow
+                  dotColor="#ef5350"
+                  label="SOIL TEMP"
+                  unit="°C"
+                  value={fmt(telemetry.soilTemp, 1)}
+                  barValue={telemetry.soilTemp}
+                  barMax={50}
+                />
+              )}
               <Box
                 sx={{
                   mb: 2,
                   p: 1.25,
                   borderRadius: 1.5,
-                  bgcolor: alpha('#00e5ff', 0.08),
-                  border: `1px solid ${alpha('#00e5ff', 0.2)}`,
+                  bgcolor: alpha(waterColors.water, 0.1),
+                  border: `1px solid ${alpha(waterColors.emissive, 0.35)}`,
                 }}
               >
                 <HudRow
-                  dotColor="#00e5ff"
+                  dotColor={waterColors.emissive}
                   label="TMAT LEVEL"
                   unit="% CAP"
                   value={`${fmt(levelPct, 1)}%`}
                   barValue={levelPct}
                   barMax={100}
                   large
+                  ewsStatus={ews.tmat}
                 />
                 <Typography sx={{ fontSize: '0.58rem', color: alpha('#00e5ff', 0.65), letterSpacing: '0.08em' }}>
                   Raw {fmt(telemetry.tmatRaw, 2)} m · 22% min · 90% max
@@ -258,8 +330,32 @@ export default function TmatSimulationModal({
                 value={telemetry.batteryV != null ? `${fmt(telemetry.batteryV, 2)} V` : '—'}
                 barValue={telemetry.batteryPct}
                 barMax={100}
+                ewsStatus={ews.battery}
               />
+              {telemetry.dryDays != null && telemetry.dryDays >= 1 && (
+                <Typography sx={{ fontSize: '0.56rem', color: alpha('#ffeb3b', 0.85), mb: 1.5 }}>
+                  Dry spell · {telemetry.dryDays.toFixed(1)} hari tanpa hujan signifikan
+                </Typography>
+              )}
             </Box>
+
+            {alerts.length > 0 && (
+              <Box
+                sx={{
+                  px: 1.5,
+                  py: 1.25,
+                  borderTop: `1px solid ${alpha('#fff', 0.08)}`,
+                  bgcolor: alpha('#000', 0.25),
+                }}
+              >
+                <Typography sx={{ fontSize: '0.58rem', fontWeight: 800, color: alpha('#fff', 0.55), letterSpacing: '0.12em', mb: 1 }}>
+                  EWS SIGNALS
+                </Typography>
+                {alerts.map((a, i) => (
+                  <AlertRow key={i} alert={a} />
+                ))}
+              </Box>
+            )}
           </Box>
         </Box>
 
@@ -279,7 +375,7 @@ export default function TmatSimulationModal({
           }}
         >
           <Typography sx={{ fontSize: '0.62rem', color: alpha('#00e5ff', 0.85), letterSpacing: '0.1em', whiteSpace: 'nowrap' }}>
-            FIXED CAMERA · TMAT TANK · LIVE DATA FLOW
+            FIXED CAMERA · FLOW = LIVE RAIN / SOIL / TMAT · TANK TINT = PP57
           </Typography>
         </Box>
       </Box>

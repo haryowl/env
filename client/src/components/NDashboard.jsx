@@ -1286,6 +1286,7 @@ export default function NDashboard({ socket }) {
         groupName={selectedDevice?.group_name}
         params={availableParams}
         latestFields={latest.fields}
+        history={history}
       />
     </Box>
   );
