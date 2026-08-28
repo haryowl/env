@@ -51,12 +51,12 @@ export const TMAT_EWS = {
 };
 
 export const TMAT_PARAM_ALIASES = {
-  tmat: ['tmat', 'tmat_level', 'groundwater_level', 'gw_level', 'muka_air_tanah'],
+  tmat: ['tmat', 'tmat_level', 'groundwater_level', 'ground_water_level', 'ground_water', 'gwl', 'gw_level', 'muka_air_tanah', 'tma'],
   water: ['water_level', 'waterlevel', 'wl', 'surface_water', 'level_air'],
-  moisture: ['soil_moisture', 'moisture', 'kelembaban', 'sm', 'soil_moist'],
+  moisture: ['soil_moisture', 'soil_moisturize', 'moisture', 'kelembaban', 'sm', 'soil_moist'],
   soil_temp: ['soil_temperature', 'soil_temp', 'temperature_soil', 'temp_tanah'],
   rainfall: ['rainfall', 'rain', 'precip', 'curah_hujan', 'ch'],
-  battery: ['battery_voltage', 'battery_volt', 'battery_v', 'voltage_v', 'voltage', 'battery', 'batt', 'bat_v', 'v_batt'],
+  battery: ['battery_voltage', 'battery_volt', 'battery_v', 'voltage_v', 'voltage', 'battery', 'batt', 'bat_v', 'v_batt', 'vdc', 'bat_vol'],
 };
 
 export function resolveTmatParamKey(keys, kind) {
