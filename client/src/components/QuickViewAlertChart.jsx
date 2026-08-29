@@ -36,42 +36,73 @@ import {
   getTooltipContentStyle,
 } from '../utils/chartStyles';
 
-const SEVERITY = {
-  low: { color: '#10B981', label: 'LOW' },
-  medium: { color: '#F59E0B', label: 'MEDIUM' },
-  high: { color: '#EF4444', label: 'HIGH' },
-  critical: { color: '#0099CC', label: 'CRITICAL' },
-};
-
 const severityRank = { low: 1, medium: 2, high: 3, critical: 4 };
-const CHART_BAR = '#1E293B';
 
-const selectSx = {
-  minWidth: { xs: '100%', sm: 128 },
-  bgcolor: '#fff',
-  borderRadius: 999,
-  '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(15,23,42,0.12)' },
-  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(15,23,42,0.22)' },
-  '& .MuiSelect-select': {
-    py: 0.85,
-    px: 1.5,
-    fontSize: '0.78rem',
-    fontWeight: 700,
-    color: '#334155',
-  },
-};
+function useAlertThemeTokens() {
+  const theme = useTheme();
+  return useMemo(() => {
+    const isDark = theme.palette.mode === 'dark';
+    return {
+      theme,
+      isDark,
+      surface: theme.palette.background.default,
+      card: theme.palette.background.paper,
+      text: theme.palette.text.primary,
+      muted: theme.palette.text.secondary,
+      border: theme.palette.divider,
+      primary: theme.palette.primary.main,
+      accent: theme.palette.secondary.main,
+      success: theme.palette.success.main,
+      warning: theme.palette.warning.main,
+      error: theme.palette.error.main,
+      info: theme.palette.info.main,
+      shadow: isDark
+        ? '0 8px 28px rgba(0,0,0,0.35)'
+        : '0 8px 28px rgba(15,23,42,0.06)',
+      cardShadow: isDark
+        ? '0 1px 2px rgba(0,0,0,0.35)'
+        : '0 1px 2px rgba(15,23,42,0.04)',
+      severity: {
+        low: { color: theme.palette.success.main, label: 'LOW' },
+        medium: { color: theme.palette.warning.main, label: 'MEDIUM' },
+        high: { color: theme.palette.error.main, label: 'HIGH' },
+        critical: { color: theme.palette.info.main, label: 'CRITICAL' },
+      },
+    };
+  }, [theme]);
+}
 
-function MetricCard({ title, value, subtitle, dotColor, icon }) {
+function getSelectSx(t) {
+  return {
+    minWidth: { xs: '100%', sm: 128 },
+    bgcolor: t.card,
+    borderRadius: 999,
+    color: t.text,
+    '& .MuiOutlinedInput-notchedOutline': { borderColor: t.border },
+    '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: alpha(t.primary, 0.45) },
+    '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: t.primary },
+    '& .MuiSelect-select': {
+      py: 0.85,
+      px: 1.5,
+      fontSize: '0.78rem',
+      fontWeight: 700,
+      color: t.text,
+    },
+    '& .MuiSvgIcon-root': { color: t.muted },
+  };
+}
+
+function MetricCard({ title, value, subtitle, dotColor, icon, t }) {
   return (
     <Box
       sx={{
         position: 'relative',
         p: 1.75,
         borderRadius: 2,
-        bgcolor: '#fff',
+        bgcolor: t.card,
         border: '1px solid',
-        borderColor: 'rgba(15,23,42,0.08)',
-        boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
+        borderColor: t.border,
+        boxShadow: t.cardShadow,
         minHeight: 96,
       }}
     >
@@ -96,7 +127,7 @@ function MetricCard({ title, value, subtitle, dotColor, icon }) {
           fontSize: '0.68rem',
           fontWeight: 800,
           letterSpacing: '0.08em',
-          color: '#64748B',
+          color: t.muted,
           textTransform: 'uppercase',
           mb: 0.75,
           pr: 2,
@@ -104,17 +135,17 @@ function MetricCard({ title, value, subtitle, dotColor, icon }) {
       >
         {title}
       </Typography>
-      <Typography sx={{ fontSize: '1.55rem', fontWeight: 800, color: '#0F172A', lineHeight: 1.1 }}>
+      <Typography sx={{ fontSize: '1.55rem', fontWeight: 800, color: t.text, lineHeight: 1.1 }}>
         {value}
       </Typography>
-      <Typography sx={{ mt: 0.6, fontSize: '0.72rem', color: '#94A3B8', fontWeight: 500 }}>
+      <Typography sx={{ mt: 0.6, fontSize: '0.72rem', color: t.muted, fontWeight: 500 }}>
         {subtitle}
       </Typography>
     </Box>
   );
 }
 
-function InsightCard({ title, value, subtitle, accent, footer }) {
+function InsightCard({ title, value, subtitle, accent, footer, t }) {
   return (
     <Box
       sx={{
@@ -122,10 +153,10 @@ function InsightCard({ title, value, subtitle, accent, footer }) {
         p: 1.75,
         pl: 2,
         borderRadius: 2,
-        bgcolor: '#fff',
+        bgcolor: t.card,
         border: '1px solid',
-        borderColor: 'rgba(15,23,42,0.08)',
-        boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
+        borderColor: t.border,
+        boxShadow: t.cardShadow,
         borderLeft: `4px solid ${accent}`,
         minHeight: 108,
         display: 'flex',
@@ -137,17 +168,17 @@ function InsightCard({ title, value, subtitle, accent, footer }) {
           fontSize: '0.68rem',
           fontWeight: 800,
           letterSpacing: '0.08em',
-          color: '#64748B',
+          color: t.muted,
           textTransform: 'uppercase',
           mb: 0.75,
         }}
       >
         {title}
       </Typography>
-      <Typography sx={{ fontSize: '1.35rem', fontWeight: 800, color: '#0F172A', lineHeight: 1.1 }}>
+      <Typography sx={{ fontSize: '1.35rem', fontWeight: 800, color: t.text, lineHeight: 1.1 }}>
         {value}
       </Typography>
-      <Typography sx={{ mt: 0.5, fontSize: '0.72rem', color: '#94A3B8', fontWeight: 500, flexGrow: 1 }}>
+      <Typography sx={{ mt: 0.5, fontSize: '0.72rem', color: t.muted, fontWeight: 500, flexGrow: 1 }}>
         {subtitle}
       </Typography>
       {footer}
@@ -155,12 +186,51 @@ function InsightCard({ title, value, subtitle, accent, footer }) {
   );
 }
 
+function MetaPill({ label, value, accent, endAdornment, t }) {
+  return (
+    <Box
+      sx={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 0.75,
+        px: 1.15,
+        py: 0.55,
+        borderRadius: 999,
+        bgcolor: t.card,
+        border: '1px solid',
+        borderColor: t.border,
+        maxWidth: '100%',
+      }}
+    >
+      <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: accent || t.text, flexShrink: 0 }} />
+      <Typography sx={{ fontSize: '0.62rem', fontWeight: 800, letterSpacing: '0.08em', color: t.muted }}>
+        {label}
+      </Typography>
+      <Typography
+        noWrap
+        sx={{
+          fontSize: '0.72rem',
+          fontWeight: 700,
+          color: accent || t.text,
+          maxWidth: 220,
+        }}
+      >
+        {value}
+      </Typography>
+      {endAdornment}
+    </Box>
+  );
+}
+
 const QuickViewAlertChart = ({ alertData, deviceName }) => {
-  const theme = useTheme();
+  const t = useAlertThemeTokens();
+  const { theme } = t;
   const { formatDisplayName } = useFieldMetadata();
   const [severityFilter, setSeverityFilter] = useState('all');
   const [parameterFilter, setParameterFilter] = useState('all');
   const [bucket, setBucket] = useState('hour');
+  const selectSx = getSelectSx(t);
+  const chartBar = t.primary;
 
   const normalizedAlerts = useMemo(() => {
     if (!Array.isArray(alertData)) return [];
@@ -286,7 +356,7 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
 
   const incidentSparkData = useMemo(() => {
     if (!timelineData.length) return [];
-    return timelineData.slice(-18).map((t, idx) => ({ idx, count: t.alertCount }));
+    return timelineData.slice(-18).map((row, idx) => ({ idx, count: row.alertCount }));
   }, [timelineData]);
 
   const incidentTrendPct = useMemo(() => {
@@ -327,13 +397,13 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
     if (!active || !payload?.length) return null;
     const data = payload[0].payload;
     return (
-      <Box sx={{ ...getTooltipContentStyle(theme), border: '1px solid rgba(15,23,42,0.1)', p: 1.5 }}>
-        <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', mb: 0.75 }}>{label}</Typography>
-        <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>
-          Alerts: <Box component="span" sx={{ fontWeight: 800, color: '#0F172A' }}>{data.alertCount}</Box>
+      <Box sx={{ ...getTooltipContentStyle(theme), border: `1px solid ${t.border}`, p: 1.5 }}>
+        <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', mb: 0.75, color: t.text }}>{label}</Typography>
+        <Typography sx={{ fontSize: '0.78rem', color: t.muted }}>
+          Alerts: <Box component="span" sx={{ fontWeight: 800, color: t.text }}>{data.alertCount}</Box>
         </Typography>
         {data.parameters && (
-          <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', mt: 0.35 }}>
+          <Typography sx={{ fontSize: '0.72rem', color: t.muted, mt: 0.35 }}>
             {data.parameters}
           </Typography>
         )}
@@ -353,14 +423,13 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
         minHeight: 520,
         borderRadius: 2.5,
         border: '1px solid',
-        borderColor: 'rgba(15,23,42,0.08)',
-        bgcolor: '#F8FAFC',
-        boxShadow: '0 8px 28px rgba(15,23,42,0.06)',
+        borderColor: t.border,
+        bgcolor: t.surface,
+        boxShadow: t.shadow,
         overflow: 'hidden',
       }}
     >
       <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', p: { xs: 2, md: 2.5 } }}>
-        {/* Header */}
         <Box
           sx={{
             display: 'flex',
@@ -379,18 +448,18 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
                 borderRadius: 1.5,
                 display: 'grid',
                 placeItems: 'center',
-                bgcolor: alpha('#1E3A5F', 0.08),
-                color: '#1E3A5F',
+                bgcolor: alpha(t.primary, 0.12),
+                color: t.primary,
                 flexShrink: 0,
               }}
             >
               <TimelineIcon sx={{ fontSize: 22 }} />
             </Box>
             <Box sx={{ minWidth: 0 }}>
-              <Typography sx={{ fontWeight: 800, fontSize: '1.15rem', color: '#0F172A', letterSpacing: '-0.01em' }}>
+              <Typography sx={{ fontWeight: 800, fontSize: '1.15rem', color: t.text, letterSpacing: '-0.01em' }}>
                 Alert Timeline
               </Typography>
-              <Typography sx={{ fontSize: '0.78rem', color: '#64748B', fontWeight: 500 }}>
+              <Typography sx={{ fontSize: '0.78rem', color: t.muted, fontWeight: 500 }}>
                 {deviceName
                   ? `${deviceName} · ${totalLabel} threshold violation${totalLabel === 1 ? '' : 's'}`
                   : `${totalLabel} threshold violation${totalLabel === 1 ? '' : 's'}`}
@@ -406,7 +475,7 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
                   width: 8,
                   height: 8,
                   borderRadius: '50%',
-                  bgcolor: totalLabel > 0 ? '#EF4444' : '#10B981',
+                  bgcolor: totalLabel > 0 ? t.error : t.success,
                   ml: '8px !important',
                 }}
               />
@@ -415,35 +484,28 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
               height: 28,
               fontWeight: 800,
               fontSize: '0.72rem',
-              bgcolor: '#fff',
-              border: '1px solid rgba(15,23,42,0.1)',
+              bgcolor: t.card,
+              color: t.text,
+              border: `1px solid ${t.border}`,
               '& .MuiChip-label': { px: 1 },
             }}
           />
         </Box>
 
-        {/* Meta + filters */}
-        <Box
-          sx={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: 1,
-            alignItems: 'center',
-            mb: 2,
-          }}
-        >
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center', mb: 2 }}>
           {insights && (
             <>
-              <MetaPill label="LAST ALERT" value={insights.lastAlertAt} />
-              <MetaPill label="TOP PARAMETER" value={insights.topParam} />
+              <MetaPill t={t} label="LAST ALERT" value={insights.lastAlertAt} />
+              <MetaPill t={t} label="TOP PARAMETER" value={insights.topParam} />
               {insights.trendPct != null && (
                 <MetaPill
+                  t={t}
                   label="TREND"
                   value={`${insights.trendPct >= 0 ? '+' : ''}${insights.trendPct.toFixed(0)}%`}
-                  accent={insights.trendPct >= 0 ? '#F59E0B' : '#10B981'}
+                  accent={insights.trendPct >= 0 ? t.warning : t.success}
                   endAdornment={insights.trendPct >= 0
-                    ? <TrendingUpIcon sx={{ fontSize: 14, color: '#F59E0B' }} />
-                    : <TrendingDownIcon sx={{ fontSize: 14, color: '#10B981' }} />}
+                    ? <TrendingUpIcon sx={{ fontSize: 14, color: t.warning }} />
+                    : <TrendingDownIcon sx={{ fontSize: 14, color: t.success }} />}
                 />
               )}
             </>
@@ -497,7 +559,6 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
           </FormControl>
         </Box>
 
-        {/* KPI row */}
         <Box
           sx={{
             display: 'grid',
@@ -507,33 +568,38 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
           }}
         >
           <MetricCard
+            t={t}
             title="Total Alerts"
             value={stats.totalAlerts}
             subtitle="All time in range"
-            dotColor="#EF4444"
+            dotColor={t.error}
           />
           <MetricCard
+            t={t}
             title={`Max / ${bucketLabel}`}
             value={stats.maxAlerts}
             subtitle="Peak intensity"
-            dotColor="#F59E0B"
+            dotColor={t.warning}
           />
           <MetricCard
+            t={t}
             title={`Avg / ${bucketLabel}`}
             value={stats.avgAlerts ? stats.avgAlerts.toFixed(1) : '0'}
             subtitle="Steady state"
-            dotColor="#94A3B8"
+            dotColor={t.muted}
           />
           <MetricCard
+            t={t}
             title="Critical / High Hours"
             value={severeBuckets}
             subtitle={severeBuckets === 0 ? 'No severe incidents' : 'Severe bucket peaks'}
-            dotColor={severeBuckets === 0 ? '#10B981' : '#0099CC'}
-            icon={severeBuckets === 0 ? <CheckCircleIcon sx={{ fontSize: 10, color: '#fff' }} /> : null}
+            dotColor={severeBuckets === 0 ? t.success : t.info}
+            icon={severeBuckets === 0
+              ? <CheckCircleIcon sx={{ fontSize: 10, color: theme.palette.success.contrastText || '#fff' }} />
+              : null}
           />
         </Box>
 
-        {/* Insight row */}
         {resolutionInsights && (
           <Box
             sx={{
@@ -544,17 +610,18 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
             }}
           >
             <InsightCard
+              t={t}
               title="Recovery Rate"
               value={`${resolutionInsights.recoveryRate.toFixed(0)}%`}
               subtitle={resolutionInsights.recoveryRate >= 100 ? 'All alerts resolved' : 'Stable / recovered share'}
-              accent="#10B981"
+              accent={t.success}
               footer={(
-                <Box sx={{ mt: 1.25, height: 4, borderRadius: 999, bgcolor: alpha('#10B981', 0.15), overflow: 'hidden' }}>
+                <Box sx={{ mt: 1.25, height: 4, borderRadius: 999, bgcolor: alpha(t.success, 0.15), overflow: 'hidden' }}>
                   <Box
                     sx={{
                       width: `${Math.min(100, resolutionInsights.recoveryRate)}%`,
                       height: '100%',
-                      bgcolor: '#0F172A',
+                      bgcolor: t.text,
                       borderRadius: 999,
                     }}
                   />
@@ -562,30 +629,32 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
               )}
             />
             <InsightCard
+              t={t}
               title="Median Gap"
               value={resolutionInsights.medianGapMin != null
                 ? `${resolutionInsights.medianGapMin.toFixed(0)} min`
                 : '—'}
               subtitle="Between incidents"
-              accent="#2563EB"
+              accent={t.info}
               footer={(
                 <Box
                   sx={{
                     mt: 1.25,
                     height: 0,
                     borderTop: '2px dashed',
-                    borderColor: alpha('#2563EB', 0.45),
+                    borderColor: alpha(t.info, 0.45),
                   }}
                 />
               )}
             />
             <InsightCard
+              t={t}
               title="No-Alert Streak"
               value={resolutionInsights.noAlertStreakMin >= 60
                 ? `${(resolutionInsights.noAlertStreakMin / 60).toFixed(1)} h`
                 : `${resolutionInsights.noAlertStreakMin.toFixed(0)} min`}
               subtitle="Currently quiet"
-              accent="#7C3AED"
+              accent={t.primary}
               footer={(
                 <Chip
                   size="small"
@@ -596,7 +665,7 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
                         width: 6,
                         height: 6,
                         borderRadius: '50%',
-                        bgcolor: '#7C3AED',
+                        bgcolor: t.primary,
                         ml: '8px !important',
                         animation: 'pulse 1.6s ease-in-out infinite',
                         '@keyframes pulse': {
@@ -613,14 +682,15 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
                     fontWeight: 800,
                     fontSize: '0.62rem',
                     letterSpacing: '0.08em',
-                    bgcolor: alpha('#7C3AED', 0.08),
-                    color: '#7C3AED',
-                    border: `1px solid ${alpha('#7C3AED', 0.25)}`,
+                    bgcolor: alpha(t.primary, 0.1),
+                    color: t.primary,
+                    border: `1px solid ${alpha(t.primary, 0.3)}`,
                   }}
                 />
               )}
             />
             <InsightCard
+              t={t}
               title="Incident Trend"
               value={(
                 <Box sx={{ height: 42, width: '100%', mt: 0.25 }}>
@@ -629,7 +699,7 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
                       <Line
                         type="monotone"
                         dataKey="count"
-                        stroke="#F59E0B"
+                        stroke={t.accent}
                         strokeWidth={2.25}
                         dot={false}
                         isAnimationActive={false}
@@ -639,7 +709,7 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
                 </Box>
               )}
               subtitle={`LAST ${Math.min(2, timelineData.length)} BUCKETS`}
-              accent="#F59E0B"
+              accent={t.accent}
               footer={incidentTrendPct != null ? (
                 <Chip
                   size="small"
@@ -651,8 +721,8 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
                     height: 22,
                     fontWeight: 800,
                     fontSize: '0.65rem',
-                    bgcolor: alpha(incidentTrendPct >= 0 ? '#EF4444' : '#10B981', 0.1),
-                    color: incidentTrendPct >= 0 ? '#DC2626' : '#059669',
+                    bgcolor: alpha(incidentTrendPct >= 0 ? t.error : t.success, 0.12),
+                    color: incidentTrendPct >= 0 ? t.error : t.success,
                   }}
                 />
               ) : null}
@@ -660,16 +730,15 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
           </Box>
         )}
 
-        {/* Chart panel */}
         <Box
           sx={{
             flexGrow: 1,
             display: 'flex',
             flexDirection: 'column',
             borderRadius: 2,
-            bgcolor: '#fff',
-            border: '1px solid rgba(15,23,42,0.08)',
-            boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
+            bgcolor: t.card,
+            border: `1px solid ${t.border}`,
+            boxShadow: t.cardShadow,
             overflow: 'hidden',
             minHeight: 340,
           }}
@@ -682,23 +751,23 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
               gap: 1,
               px: 2,
               py: 1.35,
-              borderBottom: '1px solid rgba(15,23,42,0.06)',
+              borderBottom: `1px solid ${t.border}`,
               flexWrap: 'wrap',
             }}
           >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
-              <Typography sx={{ fontWeight: 800, fontSize: '0.92rem', color: '#0F172A' }}>
+              <Typography sx={{ fontWeight: 800, fontSize: '0.92rem', color: t.text }}>
                 {volumeTitle}
               </Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
-                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: CHART_BAR }} />
-                <Typography sx={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>
+                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: chartBar }} />
+                <Typography sx={{ fontSize: '0.72rem', color: t.muted, fontWeight: 600 }}>
                   Alerts
                 </Typography>
               </Box>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Typography sx={{ fontSize: '0.7rem', color: '#94A3B8', fontWeight: 700, letterSpacing: '0.06em' }}>
+              <Typography sx={{ fontSize: '0.7rem', color: t.muted, fontWeight: 700, letterSpacing: '0.06em' }}>
                 LOCAL
               </Typography>
               <Chip
@@ -708,8 +777,8 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
                   height: 22,
                   fontWeight: 700,
                   fontSize: '0.68rem',
-                  bgcolor: alpha('#1E293B', 0.06),
-                  color: '#334155',
+                  bgcolor: alpha(t.primary, 0.1),
+                  color: t.text,
                 }}
               />
             </Box>
@@ -734,10 +803,10 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
                     tickLine={false}
                     allowDecimals={false}
                   />
-                  <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: alpha('#1E293B', 0.04) }} />
+                  <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: alpha(t.primary, 0.06) }} />
                   <Bar
                     dataKey="alertCount"
-                    fill={CHART_BAR}
+                    fill={chartBar}
                     radius={[8, 8, 0, 0]}
                     maxBarSize={56}
                     isAnimationActive={false}
@@ -752,12 +821,12 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
                   alignItems: 'center',
                   justifyContent: 'center',
                   height: '100%',
-                  color: '#94A3B8',
+                  color: t.muted,
                 }}
               >
-                <CheckCircleIcon sx={{ fontSize: 44, mb: 1.25, opacity: 0.35, color: '#10B981' }} />
-                <Typography sx={{ fontWeight: 700, color: '#334155' }}>No alerts in this period</Typography>
-                <Typography sx={{ fontSize: '0.8rem', mt: 0.35 }}>
+                <CheckCircleIcon sx={{ fontSize: 44, mb: 1.25, opacity: 0.45, color: t.success }} />
+                <Typography sx={{ fontWeight: 700, color: t.text }}>No alerts in this period</Typography>
+                <Typography sx={{ fontSize: '0.8rem', mt: 0.35, color: t.muted }}>
                   All parameters within normal range
                 </Typography>
               </Box>
@@ -772,11 +841,11 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
               gap: 1,
               px: 2,
               py: 1.1,
-              borderTop: '1px solid rgba(15,23,42,0.06)',
+              borderTop: `1px solid ${t.border}`,
               flexWrap: 'wrap',
             }}
           >
-            <Typography sx={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 500 }}>
+            <Typography sx={{ fontSize: '0.72rem', color: t.muted, fontWeight: 500 }}>
               Showing {timelineData.length} {bucket === 'hour' ? 'hourly' : bucket === 'day' ? 'daily' : '15-min'} bucket
               {timelineData.length === 1 ? '' : 's'} · {stats.totalAlerts} alert{stats.totalAlerts === 1 ? '' : 's'} total
             </Typography>
@@ -786,7 +855,7 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
                   width: 7,
                   height: 7,
                   borderRadius: '50%',
-                  bgcolor: '#10B981',
+                  bgcolor: t.success,
                   animation: 'pulse 1.6s ease-in-out infinite',
                   '@keyframes pulse': {
                     '0%, 100%': { opacity: 1 },
@@ -794,22 +863,21 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
                   },
                 }}
               />
-              <Typography sx={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>
+              <Typography sx={{ fontSize: '0.72rem', color: t.muted, fontWeight: 600 }}>
                 Live bucket updates
               </Typography>
             </Box>
           </Box>
         </Box>
 
-        {/* Severity legend */}
         <Box
           sx={{
             mt: 1.75,
             px: 1.75,
             py: 1.25,
             borderRadius: 2,
-            bgcolor: '#fff',
-            border: '1px solid rgba(15,23,42,0.08)',
+            bgcolor: t.card,
+            border: `1px solid ${t.border}`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -818,20 +886,20 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
           }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.85 }}>
-            <ShieldOutlinedIcon sx={{ fontSize: 18, color: '#64748B' }} />
+            <ShieldOutlinedIcon sx={{ fontSize: 18, color: t.muted }} />
             <Typography
               sx={{
                 fontSize: '0.7rem',
                 fontWeight: 800,
                 letterSpacing: '0.1em',
-                color: '#64748B',
+                color: t.muted,
               }}
             >
               ALERT SEVERITY LEVELS
             </Typography>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1.25, sm: 2 }, flexWrap: 'wrap' }}>
-            {Object.entries(SEVERITY).map(([key, meta]) => (
+            {Object.entries(t.severity).map(([key, meta]) => (
               <Box key={key} sx={{ display: 'flex', alignItems: 'center', gap: 0.7 }}>
                 <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: meta.color }} />
                 <Typography
@@ -839,7 +907,7 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
                     fontSize: '0.68rem',
                     fontWeight: 800,
                     letterSpacing: '0.06em',
-                    color: '#475569',
+                    color: t.text,
                   }}
                 >
                   {meta.label}
@@ -852,40 +920,5 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
     </Card>
   );
 };
-
-function MetaPill({ label, value, accent, endAdornment }) {
-  return (
-    <Box
-      sx={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 0.75,
-        px: 1.15,
-        py: 0.55,
-        borderRadius: 999,
-        bgcolor: '#fff',
-        border: '1px solid rgba(15,23,42,0.08)',
-        maxWidth: '100%',
-      }}
-    >
-      <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: accent || '#0F172A', flexShrink: 0 }} />
-      <Typography sx={{ fontSize: '0.62rem', fontWeight: 800, letterSpacing: '0.08em', color: '#94A3B8' }}>
-        {label}
-      </Typography>
-      <Typography
-        noWrap
-        sx={{
-          fontSize: '0.72rem',
-          fontWeight: 700,
-          color: accent || '#0F172A',
-          maxWidth: 220,
-        }}
-      >
-        {value}
-      </Typography>
-      {endAdornment}
-    </Box>
-  );
-}
 
 export default QuickViewAlertChart;
