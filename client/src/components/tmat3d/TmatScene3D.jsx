@@ -15,6 +15,8 @@ const GROUND_Y = 0;
 const CUTAWAY_DEPTH = 1.85;
 const CUTAWAY_BOTTOM = GROUND_Y - CUTAWAY_DEPTH;
 const CUTAWAY_RADIUS = 0.92;
+/** Ground ring hole — exposes below-grade pit to the camera. */
+const PIT_OPEN_RADIUS = 1.28;
 
 const SOIL_LAYERS = [
   { id: 'topsoil', label: 'TOPSOIL', top: 0, bottom: -0.32, color: '#5d4037', emissive: '#2e7d32' },
@@ -225,42 +227,7 @@ function Pp57ReferenceLine({ y }) {
   );
 }
 
-/** Cross-section faces the fixed camera (+Z). */
-const CUTAWAY_FACE_Z = 0.48;
-const CUTAWAY_WALL_X = -0.42;
-
-function AnimatedWaterVolume({ waterYRef, width, depth, bottomY, waterColors, emissiveIntensity = 1.1 }) {
-  const fillRef = useRef(null);
-  const colors = waterColors || { water: '#0288d1', emissive: '#00bcd4' };
-
-  useFrame(({ clock }) => {
-    if (!fillRef.current) return;
-    const surfaceY = waterYRef.current;
-    const fillH = Math.max(0.06, surfaceY - bottomY);
-    fillRef.current.scale.y = fillH;
-    fillRef.current.position.y = bottomY + fillH / 2;
-    const pulse = 0.78 + Math.sin(clock.getElapsedTime() * 2.6) * 0.08;
-    fillRef.current.material.emissiveIntensity = emissiveIntensity * pulse;
-  });
-
-  return (
-    <mesh ref={fillRef} position={[0, bottomY, 0]}>
-      <boxGeometry args={[width, 1, depth]} />
-      <meshStandardMaterial
-        color={colors.water}
-        emissive={colors.emissive}
-        emissiveIntensity={emissiveIntensity}
-        transparent
-        opacity={0.82}
-        roughness={0.12}
-        metalness={0.08}
-        depthWrite={false}
-        toneMapped={false}
-      />
-    </mesh>
-  );
-}
-
+/** Animated water column for pit + well. */
 function AnimatedWaterColumn({ waterYRef, radius, bottomY, waterColors }) {
   const fillRef = useRef(null);
   const colors = waterColors || { water: '#29b6f6', emissive: '#00bcd4' };
@@ -362,8 +329,8 @@ function CutawayWaterSurface({ waterYRef, waterColors, wide = false }) {
     });
   });
 
-  const innerR = wide ? CUTAWAY_RADIUS * 0.58 : TANK_RADIUS * 0.52;
-  const outerR = wide ? CUTAWAY_RADIUS * 0.96 : TANK_RADIUS * 0.94;
+  const innerR = wide ? PIT_OPEN_RADIUS * 0.55 : TANK_RADIUS * 0.52;
+  const outerR = wide ? PIT_OPEN_RADIUS * 0.94 : TANK_RADIUS * 0.94;
 
   return (
     <group>
@@ -416,8 +383,8 @@ function WaterTableLabels({ waterYRef, tmatElevationM }) {
 
   useFrame(() => {
     const y = waterYRef.current;
-    if (waterLabelRef.current) waterLabelRef.current.position.set(0.72, y + 0.14, 0.28);
-    if (depthLabelRef.current) depthLabelRef.current.position.set(0.72, y - 0.05, 0.28);
+    if (waterLabelRef.current) waterLabelRef.current.position.set(0.55, y + 0.14, 0.35);
+    if (depthLabelRef.current) depthLabelRef.current.position.set(0.55, y - 0.05, 0.35);
   });
 
   return (
@@ -437,59 +404,47 @@ function WaterTableLabels({ waterYRef, tmatElevationM }) {
 }
 
 function UndergroundCutaway({ waterYRef, waterColors, tmatElevationM, pp57LineY }) {
-  const wallWidth = CUTAWAY_RADIUS * 2.15;
-  const wallDepth = 0.62;
+  const pitR = PIT_OPEN_RADIUS * 0.94;
+  const wallX = -pitR * 0.92;
 
   return (
-    <group position={[CUTAWAY_WALL_X, 0, CUTAWAY_FACE_Z]}>
-      {/* Pit back + side walls */}
-      <mesh position={[wallWidth * 0.22, (GROUND_Y + CUTAWAY_BOTTOM) / 2, -wallDepth * 0.42]} receiveShadow>
-        <boxGeometry args={[wallWidth, CUTAWAY_DEPTH, 0.14]} />
-        <meshStandardMaterial color="#3e2723" roughness={0.92} />
-      </mesh>
-      <mesh position={[-0.08, (GROUND_Y + CUTAWAY_BOTTOM) / 2, -wallDepth * 0.18]} receiveShadow>
-        <boxGeometry args={[0.14, CUTAWAY_DEPTH, wallDepth * 0.85]} />
-        <meshStandardMaterial color="#4e342e" roughness={0.9} />
-      </mesh>
-      <mesh position={[wallWidth * 0.22, CUTAWAY_BOTTOM + 0.02, -wallDepth * 0.18]} receiveShadow>
-        <boxGeometry args={[wallWidth, 0.1, wallDepth * 0.85]} />
-        <meshStandardMaterial color="#5d4037" roughness={0.88} />
-      </mesh>
-
-      {/* Soil strata — front face toward camera */}
+    <group>
       {SOIL_LAYERS.map((layer) => {
         const h = layer.top - layer.bottom;
         const midY = (layer.top + layer.bottom) / 2;
         return (
           <group key={layer.id}>
-            <mesh position={[wallWidth * 0.22, midY, 0.02]} castShadow receiveShadow>
-              <boxGeometry args={[wallWidth, h, 0.18]} />
+            <mesh position={[wallX, midY, 0]} rotation={[0, Math.PI / 2, 0]} castShadow receiveShadow>
+              <planeGeometry args={[pitR * 1.85, h]} />
               <meshStandardMaterial
                 color={layer.color}
-                roughness={0.82}
+                roughness={0.78}
                 emissive={layer.emissive}
-                emissiveIntensity={0.28}
-                metalness={0.05}
+                emissiveIntensity={0.45}
+                side={THREE.DoubleSide}
               />
             </mesh>
-            <mesh position={[wallWidth * 0.22, layer.bottom, 0.12]}>
-              <boxGeometry args={[wallWidth * 1.02, 0.012, 0.02]} />
+            <mesh position={[wallX + 0.02, layer.bottom, 0]} rotation={[0, Math.PI / 2, 0]}>
+              <planeGeometry args={[pitR * 1.9, 0.014]} />
               <meshBasicMaterial color="#bcaaa4" toneMapped={false} />
             </mesh>
-            <Label3D position={[-0.06, midY, 0.18]} color="#d7ccc8">
+            <Label3D position={[wallX - 0.12, midY, pitR * 0.55]} color="#efebe9">
               {layer.label}
             </Label3D>
           </group>
         );
       })}
 
-      <AnimatedWaterVolume
+      <mesh position={[0, (GROUND_Y + CUTAWAY_BOTTOM) / 2, -pitR * 0.72]}>
+        <boxGeometry args={[pitR * 1.7, CUTAWAY_DEPTH, 0.12]} />
+        <meshStandardMaterial color="#4e342e" roughness={0.9} />
+      </mesh>
+
+      <AnimatedWaterColumn
         waterYRef={waterYRef}
-        width={wallWidth * 0.96}
-        depth={wallDepth * 0.72}
-        bottomY={CUTAWAY_BOTTOM + 0.04}
+        radius={pitR * 0.82}
+        bottomY={CUTAWAY_BOTTOM + 0.05}
         waterColors={waterColors}
-        emissiveIntensity={1.25}
       />
 
       <CutawayWaterSurface waterYRef={waterYRef} waterColors={waterColors} wide />
@@ -498,20 +453,15 @@ function UndergroundCutaway({ waterYRef, waterColors, tmatElevationM, pp57LineY 
 
       {pp57LineY != null && pp57LineY >= CUTAWAY_BOTTOM && (
         <group>
-          <mesh position={[wallWidth * 0.22, pp57LineY, 0.14]}>
-            <boxGeometry args={[wallWidth * 1.04, 0.018, 0.04]} />
-            <meshBasicMaterial color="#ef5350" transparent opacity={0.9} toneMapped={false} />
+          <mesh position={[0, pp57LineY, 0]} rotation={[0, 0, Math.PI / 2]}>
+            <planeGeometry args={[pitR * 1.9, 0.016]} />
+            <meshBasicMaterial color="#ef5350" transparent opacity={0.95} toneMapped={false} />
           </mesh>
-          <Label3D position={[-0.04, pp57LineY, 0.22]} color="#ef5350">
+          <Label3D position={[wallX - 0.08, pp57LineY, pitR * 0.45]} color="#ef5350">
             PP57 −0.40 m
           </Label3D>
         </group>
       )}
-
-      <mesh position={[wallWidth * 0.22, GROUND_Y + 0.008, 0.06]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[wallWidth * 1.05, wallDepth * 0.95]} />
-        <meshStandardMaterial color="#6d4c41" roughness={0.85} emissive="#2e7d32" emissiveIntensity={0.15} />
-      </mesh>
     </group>
   );
 }
@@ -646,17 +596,17 @@ function TmatWellAssembly({ wellWater, levelPct, waterColors }) {
 
   return (
     <group position={TANK_POS}>
-      <TmatTank
-        wellWater={wellWater}
-        levelPct={levelPct}
-        waterColors={waterColors}
-        waterYRef={tankWaterYRef}
-      />
       <UndergroundCutaway
         waterYRef={sceneWaterYRef}
         waterColors={waterColors}
         tmatElevationM={wellWater?.tmatElevationM}
         pp57LineY={wellWater?.pp57LineY}
+      />
+      <TmatTank
+        wellWater={wellWater}
+        levelPct={levelPct}
+        waterColors={waterColors}
+        waterYRef={tankWaterYRef}
       />
     </group>
   );
@@ -924,15 +874,39 @@ function StarlinkDish({ uplinkActive }) {
   );
 }
 
-function SitePlatform() {
+/** Pit inner radius — ground ring uses this to expose below-grade view. */
+function GroundWithWellOpening() {
+  const [px, , pz] = TANK_POS;
   return (
-    <group position={[0, 0, 0]}>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0.1]} receiveShadow>
-        <circleGeometry args={[2.1, 48]} />
+    <group position={[px, 0, pz]}>
+      {/* Site ground — ring with hole over the well pit */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.003, 0]} receiveShadow>
+        <ringGeometry args={[PIT_OPEN_RADIUS, 5.5, 64]} />
+        <meshStandardMaterial color="#1e3a32" roughness={0.92} emissive="#0d2818" emissiveIntensity={0.35} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.006, 0]}>
+        <ringGeometry args={[PIT_OPEN_RADIUS + 0.02, PIT_OPEN_RADIUS + 0.18, 64]} />
+        <meshStandardMaterial color="#6d4c41" roughness={0.85} emissive="#2e7d32" emissiveIntensity={0.2} />
+      </mesh>
+      {/* Pit floor */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, CUTAWAY_BOTTOM + 0.02, 0]}>
+        <circleGeometry args={[PIT_OPEN_RADIUS * 0.92, 48]} />
+        <meshStandardMaterial color="#4e342e" roughness={0.95} />
+      </mesh>
+    </group>
+  );
+}
+
+function SitePlatform() {
+  const [px, , pz] = TANK_POS;
+  return (
+    <group position={[px, 0, pz]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]} receiveShadow>
+        <ringGeometry args={[PIT_OPEN_RADIUS + 0.12, 2.05, 48]} />
         <meshStandardMaterial color="#2e4a3f" roughness={0.88} metalness={0.08} />
       </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.008, 0.1]}>
-        <ringGeometry args={[1.95, 2.1, 48]} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.008, 0]}>
+        <ringGeometry args={[1.88, 2.05, 48]} />
         <meshStandardMaterial color="#3d6b5a" roughness={0.7} />
       </mesh>
     </group>
@@ -954,11 +928,8 @@ function SceneContent({ levelPct, wellWater, flowDrivers, waterColors, uplinkAct
       <directionalLight position={[-2, 3, -1]} intensity={0.55} color="#80deea" />
       <pointLight position={[0, 2.2, 1.5]} intensity={1.4} color="#00e5ff" distance={10} />
       <pointLight position={[1.8, 1.2, 0.5]} intensity={0.8} color="#ffeb3b" distance={8} />
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
-        <planeGeometry args={[12, 12]} />
-        <meshStandardMaterial color="#1e3a32" roughness={0.92} emissive="#0d2818" emissiveIntensity={0.35} />
-      </mesh>
-      <gridHelper args={[6, 12, '#2e7d6a', '#1a4d42']} position={[0, 0.01, 0]} />
+      <GroundWithWellOpening />
+      <gridHelper args={[6, 12, '#2e7d6a', '#1a4d42']} position={[TANK_POS[0], 0.01, TANK_POS[2]]} />
       <SitePlatform />
       <PeatGround
         soilIntensity={drivers.soilIntensity}
