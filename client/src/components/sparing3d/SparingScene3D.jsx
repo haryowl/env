@@ -468,20 +468,20 @@ function SceneContent({
 
   return (
     <>
-      <color attach="background" args={['#0b1222']} />
-      <fog attach="fog" args={['#0b1222', 18, 42]} />
+      <color attach="background" args={['#dce8f4']} />
+      <fog attach="fog" args={['#dce8f4', 22, 48]} />
       <IsoCamera />
-      <ambientLight intensity={0.55} />
-      <hemisphereLight color="#94a3b8" groundColor="#020617" intensity={0.65} />
+      <ambientLight intensity={0.95} />
+      <hemisphereLight color="#ffffff" groundColor="#94a3b8" intensity={0.85} />
       <directionalLight
         position={[8, 14, 6]}
-        intensity={1.35}
+        intensity={1.55}
         castShadow
         shadow-mapSize-width={1024}
         shadow-mapSize-height={1024}
-        color="#f8fafc"
+        color="#ffffff"
       />
-      <directionalLight position={[-6, 6, -4]} intensity={0.45} color="#38bdf8" />
+      <directionalLight position={[-6, 6, -4]} intensity={0.55} color="#7dd3fc" />
       {nh3Glow && (
         <pointLight
           position={[PROBE_XS[1], 0.2, 0]}
@@ -492,7 +492,7 @@ function SceneContent({
       )}
 
       {showGrid && (
-        <gridHelper args={[22, 22, '#1e293b', '#0f172a']} position={[0, -CHANNEL_H / 2 - 0.08, 0]} />
+        <gridHelper args={[22, 22, '#94a3b8', '#cbd5e1']} position={[0, -CHANNEL_H / 2 - 0.08, 0]} />
       )}
 
       <ConcreteChannel />

@@ -105,9 +105,9 @@ function MetricCard({ probe }) {
         minWidth: 0,
         p: { xs: 1.25, md: 1.5 },
         borderRadius: 2,
-        bgcolor: accent ? alpha('#bef264', 0.06) : alpha('#0f172a', 0.72),
-        border: `1px solid ${accent ? alpha('#bef264', 0.35) : alpha('#64748b', 0.35)}`,
-        boxShadow: accent ? `0 0 24px ${alpha('#bef264', 0.12)}` : 'none',
+        bgcolor: accent ? alpha('#bef264', 0.2) : '#fff',
+        border: `1px solid ${accent ? alpha('#65a30d', 0.45) : alpha('#94a3b8', 0.4)}`,
+        boxShadow: accent ? `0 0 18px ${alpha('#84cc16', 0.18)}` : 'none',
       }}
     >
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.75 }}>
@@ -116,7 +116,7 @@ function MetricCard({ probe }) {
             fontSize: '0.62rem',
             fontWeight: 800,
             letterSpacing: '0.14em',
-            color: accent ? '#bef264' : alpha('#e2e8f0', 0.75),
+            color: accent ? '#3f6212' : '#475569',
             fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
           }}
         >
@@ -128,14 +128,14 @@ function MetricCard({ probe }) {
         sx={{
           fontSize: { xs: '1.15rem', md: '1.35rem' },
           fontWeight: 800,
-          color: accent ? '#bef264' : '#fff',
+          color: accent ? '#3f6212' : '#0f172a',
           fontVariantNumeric: 'tabular-nums',
           lineHeight: 1.1,
         }}
       >
         {valueText}
         {probe.unit ? (
-          <Typography component="span" sx={{ ml: 0.5, fontSize: '0.65rem', color: alpha('#fff', 0.45), fontWeight: 600 }}>
+          <Typography component="span" sx={{ ml: 0.5, fontSize: '0.65rem', color: '#64748b', fontWeight: 600 }}>
             {probe.unit}
           </Typography>
         ) : null}
@@ -154,21 +154,21 @@ function LayerToggle({ label, detail, checked, onChange }) {
         gap: 1,
         p: 1.25,
         borderRadius: 2,
-        bgcolor: alpha('#1e293b', 0.55),
-        border: `1px solid ${alpha('#475569', 0.4)}`,
+        bgcolor: '#fff',
+        border: `1px solid ${alpha('#94a3b8', 0.45)}`,
         mb: 1,
       }}
     >
       <Box sx={{ minWidth: 0 }}>
-        <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#e2e8f0' }}>{label}</Typography>
-        <Typography sx={{ fontSize: '0.58rem', color: alpha('#94a3b8', 0.9) }}>{detail}</Typography>
+        <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#0f172a' }}>{label}</Typography>
+        <Typography sx={{ fontSize: '0.58rem', color: '#64748b' }}>{detail}</Typography>
       </Box>
       <Switch
         size="small"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
         sx={{
-          '& .MuiSwitch-switchBase.Mui-checked': { color: '#bef264' },
+          '& .MuiSwitch-switchBase.Mui-checked': { color: '#65a30d' },
           '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#84cc16' },
         }}
       />
@@ -191,23 +191,23 @@ function TelemetryRow({ probe }) {
         p: 1.25,
         mb: 1,
         borderRadius: 2,
-        bgcolor: alpha('#0f172a', 0.65),
-        border: `1px solid ${alpha(probe.accent ? '#bef264' : '#475569', probe.accent ? 0.35 : 0.35)}`,
+        bgcolor: '#fff',
+        border: `1px solid ${alpha(probe.accent ? '#65a30d' : '#94a3b8', probe.accent ? 0.45 : 0.4)}`,
       }}
     >
       <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 0.5 }}>
-        <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: probe.accent ? '#bef264' : '#e2e8f0' }}>
+        <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: probe.accent ? '#3f6212' : '#0f172a' }}>
           {probe.fullName}
         </Typography>
         <StatusPill status={probe.status} />
       </Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
         <Icon sx={{ fontSize: 14, color }} />
-        <Typography sx={{ fontSize: '0.85rem', fontWeight: 800, color: '#fff', fontVariantNumeric: 'tabular-nums' }}>
+        <Typography sx={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>
           {valueText}
         </Typography>
       </Box>
-      <Typography sx={{ mt: 0.4, fontSize: '0.56rem', color: alpha('#94a3b8', 0.95) }}>{probe.note}</Typography>
+      <Typography sx={{ mt: 0.4, fontSize: '0.56rem', color: '#64748b' }}>{probe.note}</Typography>
     </Box>
   );
 }
@@ -255,7 +255,7 @@ export default function SparingSimulationModal({
           width: fullScreen ? '100%' : 'min(96vw, 1280px)',
           height: fullScreen ? '100%' : 'min(90vh, 820px)',
           maxWidth: 'none',
-          bgcolor: '#0B0E14',
+          bgcolor: '#dce8f4',
           backgroundImage: 'none',
           overflow: 'hidden',
         },
@@ -266,7 +266,7 @@ export default function SparingSimulationModal({
           position: 'relative',
           width: '100%',
           height: '100%',
-          bgcolor: '#0B0E14',
+          bgcolor: '#dce8f4',
           display: 'grid',
           gridTemplateRows: 'auto 1fr auto',
         }}
@@ -281,20 +281,20 @@ export default function SparingSimulationModal({
             gap: 1.5,
             px: 2,
             py: 1.25,
-            borderBottom: `1px solid ${alpha('#64748b', 0.35)}`,
-            background: 'linear-gradient(90deg, rgba(15,23,42,0.95), rgba(11,14,20,0.9))',
+            borderBottom: `1px solid ${alpha('#64748b', 0.28)}`,
+            background: 'linear-gradient(90deg, rgba(248,250,252,0.96), rgba(226,232,240,0.92))',
           }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0 }}>
-            <ViewInArIcon sx={{ color: '#bef264', fontSize: 22 }} />
+            <ViewInArIcon sx={{ color: '#4d7c0f', fontSize: 22 }} />
             <Box sx={{ minWidth: 0 }}>
-              <Typography sx={{ fontWeight: 800, fontSize: '0.82rem', color: '#fff', letterSpacing: '0.08em' }}>
+              <Typography sx={{ fontWeight: 800, fontSize: '0.82rem', color: '#0f172a', letterSpacing: '0.08em' }}>
                 SPARING 3D · ISOMETRIC
-                <Typography component="span" sx={{ ml: 1, fontWeight: 500, fontSize: '0.62rem', color: alpha('#94a3b8', 0.9) }}>
+                <Typography component="span" sx={{ ml: 1, fontWeight: 500, fontSize: '0.62rem', color: '#64748b' }}>
                   | TRUE ISOMETRIC · THREE.JS
                 </Typography>
               </Typography>
-              <Typography noWrap sx={{ fontSize: '0.65rem', color: alpha('#94a3b8', 0.9) }}>
+              <Typography noWrap sx={{ fontSize: '0.65rem', color: '#64748b' }}>
                 {deviceName || 'Device'} · {groupLabel} · CHANNEL A · 12m CONCRETE
               </Typography>
             </Box>
@@ -305,9 +305,9 @@ export default function SparingSimulationModal({
                 height: 22,
                 fontWeight: 800,
                 fontSize: '0.62rem',
-                bgcolor: alpha(telemetry.hasLive ? '#34d399' : '#64748B', 0.2),
-                color: telemetry.hasLive ? '#34d399' : '#94A3B8',
-                border: `1px solid ${alpha(telemetry.hasLive ? '#34d399' : '#64748B', 0.45)}`,
+                bgcolor: alpha(telemetry.hasLive ? '#16a34a' : '#64748B', 0.15),
+                color: telemetry.hasLive ? '#15803d' : '#64748B',
+                border: `1px solid ${alpha(telemetry.hasLive ? '#16a34a' : '#64748B', 0.4)}`,
               }}
             />
           </Box>
@@ -316,14 +316,14 @@ export default function SparingSimulationModal({
               sx={{
                 display: { xs: 'none', md: 'block' },
                 fontSize: '0.58rem',
-                color: alpha('#7dd3fc', 0.9),
+                color: '#0369a1',
                 fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
                 letterSpacing: '0.04em',
               }}
             >
               ORTHO CAM 10,10,10 · 54.7° ISO · SHADOWS
             </Typography>
-            <IconButton onClick={onClose} aria-label="Close" sx={{ color: '#fff' }}>
+            <IconButton onClick={onClose} aria-label="Close" sx={{ color: '#0f172a' }}>
               <CloseIcon />
             </IconButton>
           </Box>
@@ -402,7 +402,7 @@ export default function SparingSimulationModal({
                 zIndex: 2,
               }}
             >
-              <Typography sx={{ fontSize: '0.55rem', color: alpha('#94a3b8', 0.85), letterSpacing: '0.06em' }}>
+              <Typography sx={{ fontSize: '0.55rem', color: '#475569', letterSpacing: '0.06em', fontWeight: 700 }}>
                 DRAG TO ROTATE · SCROLL ZOOM
               </Typography>
             </Box>
@@ -451,8 +451,9 @@ export default function SparingSimulationModal({
             sx={{
               overflowY: 'auto',
               p: 1.75,
-              bgcolor: alpha('#020617', 0.55),
-              borderTop: { xs: `1px solid ${alpha('#334155', 0.5)}`, lg: 'none' },
+              bgcolor: alpha('#f8fafc', 0.92),
+              borderTop: { xs: `1px solid ${alpha('#94a3b8', 0.35)}`, lg: 'none' },
+              borderLeft: { lg: `1px solid ${alpha('#94a3b8', 0.35)}` },
             }}
           >
             <Typography
@@ -460,7 +461,7 @@ export default function SparingSimulationModal({
                 fontSize: '0.62rem',
                 fontWeight: 800,
                 letterSpacing: '0.16em',
-                color: alpha('#94a3b8', 0.95),
+                color: '#64748b',
                 mb: 1.25,
               }}
             >
@@ -492,7 +493,7 @@ export default function SparingSimulationModal({
                 fontSize: '0.62rem',
                 fontWeight: 800,
                 letterSpacing: '0.14em',
-                color: alpha('#cbd5e1', 0.95),
+                color: '#475569',
               }}
             >
               LIVE TELEMETRY · MODBUS MAP · 3D
@@ -507,20 +508,20 @@ export default function SparingSimulationModal({
                   mt: 0.5,
                   p: 1.25,
                   borderRadius: 2,
-                  bgcolor: alpha('#0c4a6e', 0.25),
-                  border: `1px solid ${alpha('#38bdf8', 0.3)}`,
+                  bgcolor: alpha('#e0f2fe', 0.9),
+                  border: `1px solid ${alpha('#0284c7', 0.35)}`,
                 }}
               >
-                <Typography sx={{ fontSize: '0.62rem', letterSpacing: '0.12em', color: '#7dd3fc', fontWeight: 800 }}>
+                <Typography sx={{ fontSize: '0.62rem', letterSpacing: '0.12em', color: '#0369a1', fontWeight: 800 }}>
                   FLOW RATE
                 </Typography>
-                <Typography sx={{ fontSize: '1rem', fontWeight: 800, color: '#fff', mt: 0.35 }}>
+                <Typography sx={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', mt: 0.35 }}>
                   {fmt(telemetry.flowRaw, telemetry.flowRaw >= 100 ? 0 : 2)}
-                  <Typography component="span" sx={{ ml: 0.5, fontSize: '0.65rem', color: alpha('#bae6fd', 0.8) }}>
+                  <Typography component="span" sx={{ ml: 0.5, fontSize: '0.65rem', color: '#0369a1' }}>
                     {telemetry.flowUnit || 'L/min'}
                   </Typography>
                 </Typography>
-                <Typography sx={{ fontSize: '0.55rem', color: alpha('#94a3b8', 0.95), mt: 0.35 }}>
+                <Typography sx={{ fontSize: '0.55rem', color: '#64748b', mt: 0.35 }}>
                   Channel ≈ {flowLabel} m/s · impeller {spinLabel} rad/s
                 </Typography>
               </Box>
@@ -534,8 +535,8 @@ export default function SparingSimulationModal({
             display: 'flex',
             gap: 1,
             p: 1.25,
-            borderTop: `1px solid ${alpha('#334155', 0.55)}`,
-            bgcolor: alpha('#020617', 0.85),
+            borderTop: `1px solid ${alpha('#94a3b8', 0.4)}`,
+            bgcolor: alpha('#f8fafc', 0.95),
             overflowX: 'auto',
           }}
         >
