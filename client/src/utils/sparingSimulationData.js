@@ -222,11 +222,11 @@ export function buildSparingSimulationTelemetry(
   const nh3Glow = nh3n != null && nh3n > 25;
   const waterTint = phColor(ph);
 
-  // Stronger perceptual density: mid-range values already look busy
+  // Floor densities so mid-range live values stay clearly visible in the channel
   const particles = {
-    tssDensity: tss == null ? 0.15 : Math.min(1, Math.max(0, tss / 120)),
-    nh3Density: nh3n == null ? 0.12 : Math.min(1, Math.max(0, nh3n / 30)),
-    codDensity: cod == null ? 0.15 : Math.min(1, Math.max(0, cod / 140)),
+    tssDensity: tss == null ? 0.4 : Math.min(1, Math.max(0.35, tss / 100)),
+    nh3Density: nh3n == null ? 0.3 : Math.min(1, Math.max(0.25, nh3n / 25)),
+    codDensity: cod == null ? 0.4 : Math.min(1, Math.max(0.35, cod / 120)),
     tssSettle: tss == null ? 0.4 : Math.min(1.6, 0.35 + (tss / 100)),
     codFlutter: cod == null ? 0.4 : Math.min(2.2, 0.4 + (cod / 90)),
     nh3Glow,

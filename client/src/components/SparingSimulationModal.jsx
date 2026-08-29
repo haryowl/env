@@ -419,9 +419,9 @@ export default function SparingSimulationModal({
               }}
             >
               {[
-                { c: '#a16207', l: 'TSS brown · settles' },
-                { c: '#bef264', l: 'NH3N lime ↑ glow' },
-                { c: '#1c1917', l: 'COD flakes · flutter' },
+                { c: '#f59e0b', l: 'TSS amber · settles' },
+                { c: '#a3e635', l: 'NH3N lime ↑ glow' },
+                { c: '#57534e', l: 'COD grey · flutter' },
               ].map((z) => (
                 <Box
                   key={z.l}

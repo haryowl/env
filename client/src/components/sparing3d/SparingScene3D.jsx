@@ -359,9 +359,12 @@ function ParticleCloud({
     const attr = pointsRef.current.geometry.attributes.position;
     const arr = attr.array;
     const d = Math.max(0, Math.min(1, density));
-    const activeCount = Math.max(0, Math.floor(count * d));
-    const yMin = -CHANNEL_H / 2 + 0.14;
-    const yMax = -CHANNEL_H / 2 + 0.1 + WATER_H * 0.92;
+    // Keep a visible baseline under orthographic zoom (sparse clouds vanish easily)
+    const activeCount = d <= 0.01
+      ? 0
+      : Math.max(Math.ceil(count * 0.35), Math.floor(count * (0.35 + d * 0.65)));
+    const yMin = -CHANNEL_H / 2 + 0.16;
+    const yMax = -CHANNEL_H / 2 + 0.1 + WATER_H * 0.88;
     const t = state.clock.elapsedTime;
 
     // Park inactive particles below floor (hidden)
@@ -408,15 +411,15 @@ function ParticleCloud({
 
     attr.needsUpdate = true;
     if (matRef.current) {
-      matRef.current.opacity = 0.35 + d * 0.55;
-      matRef.current.size = size * (0.75 + d * 0.55);
+      matRef.current.opacity = 0.72 + d * 0.28;
+      matRef.current.size = size * (0.85 + d * 0.35);
     }
   });
 
-  if (!enabled || density < 0.02) return null;
+  if (!enabled || density < 0.01) return null;
 
   return (
-    <points ref={pointsRef}>
+    <points ref={pointsRef} renderOrder={5} frustumCulled={false}>
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
       </bufferGeometry>
@@ -424,10 +427,12 @@ function ParticleCloud({
         ref={matRef}
         color={color}
         size={size}
+        sizeAttenuation={false}
         transparent
-        opacity={0.8}
+        opacity={0.92}
+        depthTest={false}
         depthWrite={false}
-        sizeAttenuation
+        toneMapped={false}
       />
     </points>
   );
@@ -435,35 +440,36 @@ function ParticleCloud({
 
 function WaterParticles({ particles, particleDrift = 0.7, enabled = true }) {
   if (!enabled) return null;
-  const drift = particleDrift;
+  const drift = Math.max(0.15, particleDrift);
   return (
     <group>
+      {/* Pixel sizes (sizeAttenuation off) — readable in orthographic view */}
       <ParticleCloud
         kind="tss"
-        count={160}
-        color="#a16207"
-        size={0.095}
-        density={particles?.tssDensity ?? 0.3}
+        count={140}
+        color="#f59e0b"
+        size={9}
+        density={particles?.tssDensity ?? 0.45}
         drift={drift}
         settle={particles?.tssSettle ?? 0.8}
         enabled={enabled}
       />
       <ParticleCloud
         kind="cod"
-        count={180}
-        color="#1c1917"
-        size={0.042}
-        density={particles?.codDensity ?? 0.3}
+        count={160}
+        color="#57534e"
+        size={5}
+        density={particles?.codDensity ?? 0.45}
         drift={drift * 1.2}
         flutter={particles?.codFlutter ?? 0.9}
         enabled={enabled}
       />
       <ParticleCloud
         kind="nh3"
-        count={120}
+        count={110}
         color="#a3e635"
-        size={0.06}
-        density={particles?.nh3Density ?? 0.2}
+        size={7}
+        density={particles?.nh3Density ?? 0.35}
         drift={drift * 0.9}
         buoyant={0.7 + (particles?.nh3Density ?? 0.2)}
         enabled={enabled}
