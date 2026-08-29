@@ -5,48 +5,32 @@ import {
   Typography,
   Box,
   Chip,
-  Tooltip,
-  useTheme
+  useTheme,
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import {
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
   ReferenceLine,
-  ReferenceArea
 } from 'recharts';
-import {
-  TrendingUp as TrendingUpIcon,
-  Warning as WarningIcon,
-  CheckCircle as CheckCircleIcon
-} from '@mui/icons-material';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
-import { getChartCardSx, getCartesianGridProps, getAxisTickStyle, getParameterColorIndex, CHART_COLORS } from '../utils/chartStyles';
+import {
+  getCartesianGridProps,
+  getAxisTickStyle,
+  getParameterColor,
+} from '../utils/chartStyles';
+import { matchesAlertParameter } from '../utils/quickViewAlertBreaches';
 
-/** Bottom margin reserves space for X ticks inside the SVG (card stays overflow:hidden so grid rows do not overlap). */
-const QUICK_VIEW_LINE_MARGIN = { top: 12, right: 16, left: 8, bottom: 56 };
-
-/** Extra space above the plotted max: 2% of the Y span (max − min), or 2% of |value| when the series is flat. */
+const QUICK_VIEW_LINE_MARGIN = { top: 14, right: 16, left: 4, bottom: 36 };
 const Y_AXIS_HEADROOM_RATIO = 0.02;
-
-/** Match alert log/config parameter names to chart field keys (mapper ids). */
-function matchesChartParameter(alertParameter, chartParameter) {
-  if (alertParameter == null || chartParameter == null) return false;
-  const a = String(alertParameter).trim();
-  const p = String(chartParameter).trim();
-  if (!a || !p) return false;
-  return (
-    a === p ||
-    a === p.replace(/_/g, ' ') ||
-    a === p.replace(/_/g, '.') ||
-    a.replace(/_/g, ' ') === p.replace(/_/g, ' ')
-  );
-}
 
 const QuickViewChart = ({ parameter, data, alertLogs = [], alertConfigs = [], deviceName, addChartRef }) => {
   const theme = useTheme();
@@ -54,23 +38,22 @@ const QuickViewChart = ({ parameter, data, alertLogs = [], alertConfigs = [], de
   const { formatDisplayName, getUnit } = useFieldMetadata();
   const parameterUnit = getUnit(parameter);
   const parameterDisplayName = formatDisplayName(parameter, { withUnit: true });
+  const accent = getParameterColor(parameter);
+  const isDark = theme.palette.mode === 'dark';
+  const errorColor = theme.palette.error.main;
+  const gradientId = `qv-area-${String(parameter).replace(/[^a-zA-Z0-9_-]/g, '_')}`;
 
   const formatValue = useCallback(
     (value, precision = 3, includeUnit = true) => {
-      if (value === null || value === undefined || value === '') {
-        return '-';
-      }
+      if (value === null || value === undefined || value === '') return '—';
       if (typeof value === 'number') {
         const formatted = Number.isFinite(value) ? value.toFixed(precision) : value;
         return includeUnit && parameterUnit ? `${formatted} ${parameterUnit}` : `${formatted}`;
       }
-      if (typeof value === 'string') {
-        const numeric = parseFloat(value);
-        if (!Number.isNaN(numeric)) {
-          const formatted = Number.isFinite(numeric) ? numeric.toFixed(precision) : numeric;
-          return includeUnit && parameterUnit ? `${formatted} ${parameterUnit}` : `${formatted}`;
-        }
-        return includeUnit && parameterUnit ? `${value} ${parameterUnit}` : value;
+      const numeric = parseFloat(String(value));
+      if (!Number.isNaN(numeric)) {
+        const formatted = Number.isFinite(numeric) ? numeric.toFixed(precision) : numeric;
+        return includeUnit && parameterUnit ? `${formatted} ${parameterUnit}` : `${formatted}`;
       }
       return includeUnit && parameterUnit ? `${value} ${parameterUnit}` : value;
     },
@@ -82,23 +65,18 @@ const QuickViewChart = ({ parameter, data, alertLogs = [], alertConfigs = [], de
     return Number.isFinite(n) ? n.toFixed(3) : '';
   }, []);
 
-  // Register chart ref with parent component
   useEffect(() => {
-    if (addChartRef) {
-      addChartRef(parameter, chartRef);
-    }
+    if (addChartRef) addChartRef(parameter, chartRef);
   }, [parameter, addChartRef]);
 
-  // Alert log rows for this chart parameter (scoped by device + time in parent fetch)
   const parameterAlertLogs = useMemo(() => {
     if (!Array.isArray(alertLogs)) return [];
-    return alertLogs.filter((log) => matchesChartParameter(log.parameter, parameter));
+    return alertLogs.filter((log) => matchesAlertParameter(log.parameter, parameter));
   }, [alertLogs, parameter]);
 
-  // Threshold lines from alert rules (/api/alerts), not alert_logs rows
   const thresholds = useMemo(() => {
     const configs = (alertConfigs || []).filter(
-      (a) => a.type === 'threshold' && matchesChartParameter(a.parameter, parameter)
+      (a) => a.type === 'threshold' && matchesAlertParameter(a.parameter, parameter)
     );
     let minT = null;
     let maxT = null;
@@ -115,10 +93,8 @@ const QuickViewChart = ({ parameter, data, alertLogs = [], alertConfigs = [], de
     return { min: minT, max: maxT };
   }, [alertConfigs, parameter]);
 
-  // Process data for chart (use timestamp when datetime missing — matches /data-dash rows)
   const chartData = useMemo(() => {
     if (!data || !Array.isArray(data)) return [];
-
     return data
       .filter((item) => item[parameter] !== undefined && item[parameter] !== null)
       .map((item) => {
@@ -140,108 +116,28 @@ const QuickViewChart = ({ parameter, data, alertLogs = [], alertConfigs = [], de
       .sort((a, b) => a.timestamp - b.timestamp);
   }, [data, parameter]);
 
-  const colorIndex = getParameterColorIndex(parameter);
-  const lineColor = CHART_COLORS[colorIndex];
-  const colorScheme = { line: lineColor, area: `${lineColor}20`, bg: `${lineColor}08` };
-
-  // Modern custom tooltip
-  const CustomTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      const isOutOfRange =
-        (thresholds.min != null && data.value < thresholds.min) ||
-        (thresholds.max != null && data.value > thresholds.max);
-      
-      return (
-        <Box
-          sx={{
-            bgcolor: 'background.paper',
-            border: '1px solid',
-            borderColor: isOutOfRange ? '#EF4444' : 'divider',
-            borderRadius: 1,
-            p: 2,
-            boxShadow: theme.palette.mode === 'dark' ? '0 4px 20px rgba(0, 0, 0, 0.35)' : '0 4px 20px rgba(0, 0, 0, 0.1)',
-            fontFamily: '"Inter", "Roboto", sans-serif'
-          }}
-        >
-          <Typography variant="body2" sx={{ 
-            fontWeight: 600, 
-            color: theme.palette.text.primary,
-            mb: 1
-          }}>
-            {label}
-          </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-            <Box sx={{ 
-              width: 12, 
-              height: 12, 
-              backgroundColor: colorScheme.line, 
-              borderRadius: '50%' 
-            }} />
-            <Typography variant="body2" sx={{ 
-              color: isOutOfRange ? '#EF4444' : theme.palette.text.primary,
-              fontWeight: isOutOfRange ? 700 : 500
-            }}>
-              {parameterDisplayName}: {formatValue(data.value, 3)}
-            </Typography>
-            {isOutOfRange && <WarningIcon sx={{ fontSize: 16, color: '#EF4444' }} />}
-          </Box>
-          {(thresholds.min != null || thresholds.max != null) && (
-            <Box sx={{ display: 'flex', gap: 2, mt: 1 }}>
-              {thresholds.min != null && (
-                <Typography variant="caption" sx={{ 
-                  color: theme.palette.text.secondary,
-                  fontWeight: 500
-                }}>
-                  Min: {formatValue(thresholds.min)}
-                </Typography>
-              )}
-              {thresholds.max != null && (
-                <Typography variant="caption" sx={{ 
-                  color: theme.palette.text.secondary,
-                  fontWeight: 500
-                }}>
-                  Max: {formatValue(thresholds.max)}
-                </Typography>
-              )}
-            </Box>
-          )}
-        </Box>
-      );
-    }
-    return null;
-  };
-
-  // Calculate statistics
   const stats = useMemo(() => {
     if (!chartData.length) return {};
-    
-    const values = chartData.map(d => d.value);
+    const values = chartData.map((d) => d.value);
     const min = Math.min(...values);
     const max = Math.max(...values);
     const avg = values.reduce((sum, val) => sum + val, 0) / values.length;
     const latest = chartData[chartData.length - 1]?.value;
-    
     return { min, max, avg, latest };
   }, [chartData]);
 
-  // Y-axis domain: include threshold lines, then add 2% headroom above the top of that range
   const yAxisDomain = useMemo(() => {
     if (!Number.isFinite(stats.min) || !Number.isFinite(stats.max)) return [0, 100];
-
     let minV = stats.min;
     let maxV = stats.max;
     const tMin = thresholds.min != null ? Number(thresholds.min) : NaN;
     const tMax = thresholds.max != null ? Number(thresholds.max) : NaN;
     if (Number.isFinite(tMin)) minV = Math.min(minV, tMin);
     if (Number.isFinite(tMax)) maxV = Math.max(maxV, tMax);
-
     const span = maxV - minV;
-    const headroom =
-      span > 0 && Number.isFinite(span)
-        ? span * Y_AXIS_HEADROOM_RATIO
-        : Math.max(Math.abs(maxV), Math.abs(minV), 1e-12) * Y_AXIS_HEADROOM_RATIO;
-
+    const headroom = span > 0 && Number.isFinite(span)
+      ? span * Y_AXIS_HEADROOM_RATIO
+      : Math.max(Math.abs(maxV), Math.abs(minV), 1e-12) * Y_AXIS_HEADROOM_RATIO;
     let minDomain = minV - headroom;
     let maxDomain = maxV + headroom;
     if (!Number.isFinite(minDomain) || !Number.isFinite(maxDomain) || minDomain >= maxDomain) {
@@ -249,63 +145,83 @@ const QuickViewChart = ({ parameter, data, alertLogs = [], alertConfigs = [], de
       minDomain = minV - pad;
       maxDomain = maxV + pad;
     }
-
     return [minDomain, maxDomain];
   }, [stats.min, stats.max, thresholds.min, thresholds.max]);
 
-  // Check if latest value is out of range
   const isLatestOutOfRange = useMemo(() => {
     if (!Number.isFinite(stats.latest)) return false;
-    return (
-      (thresholds.min != null && stats.latest < thresholds.min) ||
-      (thresholds.max != null && stats.latest > thresholds.max)
-    );
+    return (thresholds.min != null && stats.latest < thresholds.min)
+      || (thresholds.max != null && stats.latest > thresholds.max);
   }, [stats.latest, thresholds]);
 
-  // "Become" look: minimal header, neutral metric cards, clean chart
-  const metricCardSx = {
-    textAlign: 'center',
-    p: 1.25,
-    borderRadius: 1.5,
-    background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : '#FAFAF9',
-    border: '1px solid',
-    borderColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
-    transition: 'all 0.2s ease',
-    '&:hover': {
-      borderColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
-    }
-  };
-  const metricValueSx = (isAccent) => ({
-    fontWeight: 800,
-    fontSize: '0.82rem',
-    fontVariantNumeric: 'tabular-nums',
-    mb: 0.25,
-    color: isAccent ? (isLatestOutOfRange ? '#EF4444' : colorScheme.line) : theme.palette.text.primary
-  });
-  const metricLabelSx = {
-    color: theme.palette.text.secondary,
-    fontWeight: 600,
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px',
-    fontSize: '0.6rem'
+  const statusDot = isLatestOutOfRange ? errorColor : accent;
+
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (!active || !payload?.length) return null;
+    const point = payload[0].payload;
+    const out = (thresholds.min != null && point.value < thresholds.min)
+      || (thresholds.max != null && point.value > thresholds.max);
+    return (
+      <Box
+        sx={{
+          bgcolor: 'background.paper',
+          border: '1px solid',
+          borderColor: out ? errorColor : 'divider',
+          borderRadius: 1.5,
+          p: 1.5,
+          boxShadow: isDark ? '0 4px 20px rgba(0,0,0,0.4)' : '0 4px 16px rgba(15,23,42,0.12)',
+        }}
+      >
+        <Typography sx={{ fontWeight: 700, fontSize: '0.75rem', mb: 0.75, color: 'text.primary' }}>
+          {label}
+        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: out ? errorColor : accent }} />
+          <Typography sx={{ fontSize: '0.78rem', fontWeight: out ? 800 : 600, color: out ? errorColor : 'text.primary' }}>
+            {formatValue(point.value, 3)}
+          </Typography>
+          {out && <WarningAmberIcon sx={{ fontSize: 14, color: errorColor }} />}
+        </Box>
+      </Box>
+    );
   };
 
+  const statCells = [
+    { key: 'latest', label: 'LATEST', value: stats.latest, accent: true },
+    { key: 'avg', label: 'AVERAGE', value: stats.avg, accent: false },
+    { key: 'min', label: 'MIN', value: stats.min, accent: false },
+    { key: 'max', label: 'MAX', value: stats.max, accent: false },
+  ];
+
   return (
-    <Card sx={{ 
-      height: '100%', 
-      display: 'flex', 
-      flexDirection: 'column', 
-      minHeight: 400, 
-      width: '100%',
-      borderRadius: 1.5,
-      border: '1px solid',
-      borderColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
-      boxShadow: theme.palette.mode === 'dark' ? 'none' : '0 1px 3px rgba(0,0,0,0.06)',
-      transition: 'all 0.2s ease',
-      overflow: 'hidden',
-      '&:hover': { boxShadow: theme.palette.mode === 'dark' ? '0 0 0 1px rgba(255,255,255,0.1)' : '0 4px 12px rgba(0,0,0,0.08)' }
-    }}>
+    <Card
+      sx={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: 380,
+        width: '100%',
+        borderRadius: 2.5,
+        border: '1px solid',
+        borderColor: 'divider',
+        bgcolor: 'background.paper',
+        boxShadow: isDark ? 'none' : '0 1px 3px rgba(15,23,42,0.06)',
+        overflow: 'hidden',
+        position: 'relative',
+      }}
+    >
+      {/* Left accent bar */}
+      <Box
+        sx={{
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: 4,
+          bgcolor: statusDot,
+        }}
+      />
+
       <CardContent
         sx={{
           flexGrow: 1,
@@ -313,123 +229,136 @@ const QuickViewChart = ({ parameter, data, alertLogs = [], alertConfigs = [], de
           flexDirection: 'column',
           height: '100%',
           width: '100%',
-          p: 1.5,
+          p: 2,
+          pl: 2.25,
           overflow: 'hidden',
           minHeight: 0,
         }}
       >
-        {/* Become look: minimal header – title + subtitle, thin left accent, alerts on right */}
-        <Box sx={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'flex-start', 
-          mb: 1.25,
-          pb: 1,
-          borderBottom: '1px solid',
-          borderColor: theme.palette.divider
-        }}>
-          <Box sx={{ 
-            display: 'flex', 
-            alignItems: 'stretch', 
-            gap: 0,
-            borderLeft: '3px solid',
-            borderColor: colorScheme.line,
-            pl: 1.25
-          }}>
-            <Box>
-              <Typography component="h3" sx={{ 
-                fontWeight: 700,
-                fontSize: '0.82rem',
-                color: theme.palette.text.primary,
-                lineHeight: 1.3
-              }}>
-                {parameterDisplayName}
-              </Typography>
-              <Typography sx={{ 
-                color: theme.palette.text.secondary,
-                fontSize: '0.68rem',
-                display: 'block',
-                mt: 0.25
-              }}>
-                {deviceName}
-              </Typography>
-            </Box>
+        {/* Card header */}
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            mb: 1.5,
+            gap: 1,
+          }}
+        >
+          <Box sx={{ minWidth: 0 }}>
+            <Typography
+              sx={{
+                fontWeight: 800,
+                fontSize: '0.95rem',
+                color: 'text.primary',
+                lineHeight: 1.25,
+                letterSpacing: '-0.01em',
+              }}
+            >
+              {parameterDisplayName}
+            </Typography>
+            <Typography sx={{ color: 'text.secondary', fontSize: '0.72rem', mt: 0.25 }}>
+              {deviceName || 'Sensor series'}
+            </Typography>
           </Box>
-          <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0 }}>
             {isLatestOutOfRange && (
-              <Chip 
-                label="ALERT" 
+              <Chip
                 size="small"
-                sx={{ 
-                  fontWeight: 600,
-                  fontSize: '0.65rem',
+                label="ALERT"
+                icon={<WarningAmberIcon sx={{ fontSize: '14px !important' }} />}
+                sx={{
                   height: 22,
-                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
-                  color: '#DC2626',
-                  border: '1px solid rgba(239, 68, 68, 0.4)'
-                }}
-                icon={<WarningIcon sx={{ color: '#DC2626', fontSize: 14 }} />}
-              />
-            )}
-            {parameterAlertLogs.length > 0 && (
-              <Chip 
-                label={`${parameterAlertLogs.length} Alert${parameterAlertLogs.length > 1 ? 's' : ''}`}
-                size="small"
-                sx={{ 
-                  fontWeight: 500,
-                  fontSize: '0.65rem',
-                  height: 22,
-                  backgroundColor: theme.palette.mode === 'dark' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(245, 158, 11, 0.14)',
-                  color: theme.palette.mode === 'dark' ? '#FBBF24' : '#B45309',
-                  border: '1px solid rgba(245, 158, 11, 0.35)'
+                  fontWeight: 800,
+                  fontSize: '0.62rem',
+                  bgcolor: alpha(errorColor, 0.12),
+                  color: errorColor,
+                  border: `1px solid ${alpha(errorColor, 0.35)}`,
+                  '& .MuiChip-icon': { color: errorColor },
                 }}
               />
             )}
+            {parameterAlertLogs.length > 0 && !isLatestOutOfRange && (
+              <Chip
+                size="small"
+                label={`${parameterAlertLogs.length} log${parameterAlertLogs.length === 1 ? '' : 's'}`}
+                sx={{
+                  height: 22,
+                  fontWeight: 700,
+                  fontSize: '0.62rem',
+                  bgcolor: alpha(theme.palette.warning.main, 0.12),
+                  color: theme.palette.warning.main,
+                }}
+              />
+            )}
+            <Box
+              sx={{
+                width: 10,
+                height: 10,
+                borderRadius: '50%',
+                bgcolor: statusDot,
+                boxShadow: `0 0 0 3px ${alpha(statusDot, 0.2)}`,
+              }}
+            />
           </Box>
         </Box>
 
-        {/* Become look: neutral metric cards – light beige/off-white, dark text */}
-        <Box sx={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(4, 1fr)', 
-          gap: 1, 
-          mb: 1.25 
-        }}>
-          <Box sx={metricCardSx}>
-            <Typography sx={metricValueSx(true)}>
-              {formatValue(stats.latest)}
-            </Typography>
-            <Typography sx={metricLabelSx}>Latest</Typography>
-          </Box>
-          <Box sx={metricCardSx}>
-            <Typography sx={metricValueSx(false)}>
-              {formatValue(stats.avg)}
-            </Typography>
-            <Typography sx={metricLabelSx}>Average</Typography>
-          </Box>
-          <Box sx={metricCardSx}>
-            <Typography sx={metricValueSx(false)}>
-              {formatValue(stats.min)}
-            </Typography>
-            <Typography sx={metricLabelSx}>Min</Typography>
-          </Box>
-          <Box sx={metricCardSx}>
-            <Typography sx={metricValueSx(false)}>
-              {formatValue(stats.max)}
-            </Typography>
-            <Typography sx={metricLabelSx}>Max</Typography>
-          </Box>
+        {/* Stats row */}
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, 1fr)',
+            gap: 0.75,
+            mb: 1.5,
+            pb: 1.25,
+            borderBottom: '1px solid',
+            borderColor: 'divider',
+          }}
+        >
+          {statCells.map((cell) => {
+            const highlight = cell.accent;
+            const color = highlight
+              ? (isLatestOutOfRange ? errorColor : accent)
+              : theme.palette.text.primary;
+            return (
+              <Box key={cell.key} sx={{ minWidth: 0, px: 0.25 }}>
+                <Typography
+                  sx={{
+                    fontSize: '0.58rem',
+                    fontWeight: 800,
+                    letterSpacing: '0.1em',
+                    color: 'text.secondary',
+                    mb: 0.45,
+                  }}
+                >
+                  {cell.label}
+                </Typography>
+                <Typography
+                  noWrap
+                  title={formatValue(cell.value)}
+                  sx={{
+                    fontWeight: 800,
+                    fontSize: { xs: '0.78rem', sm: '0.88rem' },
+                    fontVariantNumeric: 'tabular-nums',
+                    color,
+                    lineHeight: 1.15,
+                  }}
+                >
+                  {formatValue(cell.value)}
+                </Typography>
+              </Box>
+            );
+          })}
         </Box>
 
-        {/* Modern Chart — explicit height so ResponsiveContainer works inside flex/mobile (height:100% often resolves to 0) */}
+        {/* Chart */}
         <Box
           ref={chartRef}
           sx={{
             flex: '1 1 0',
             width: '100%',
             minWidth: 0,
-            minHeight: { xs: 260, sm: 280 },
-            ...getChartCardSx(theme),
+            minHeight: { xs: 220, sm: 240 },
             position: 'relative',
             overflow: 'hidden',
             display: 'flex',
@@ -439,98 +368,98 @@ const QuickViewChart = ({ parameter, data, alertLogs = [], alertConfigs = [], de
           {chartData.length > 0 ? (
             <Box sx={{ flex: 1, minHeight: 200, width: '100%', minWidth: 0 }}>
               <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={QUICK_VIEW_LINE_MARGIN}>
-                <CartesianGrid {...getCartesianGridProps(theme)} />
-                <XAxis
-                  dataKey="datetime"
-                  stroke={theme.palette.divider}
-                  tick={getAxisTickStyle(theme)}
-                  tickMargin={8}
-                  minTickGap={16}
-                  interval="preserveStartEnd"
-                  height={32}
-                />
-                <YAxis
-                  stroke={theme.palette.divider}
-                  tick={getAxisTickStyle(theme)}
-                  domain={yAxisDomain}
-                  tickFormatter={formatYAxisTick}
-                />
-                <RechartsTooltip content={<CustomTooltip />} />
-                
-                {/* Modern threshold lines */}
-                {thresholds.min != null && (
-                  <ReferenceLine 
-                    y={thresholds.min} 
-                    stroke="#EF4444" 
-                    strokeDasharray="5 5"
-                    strokeWidth={2}
-                    label={{ 
-                      value: `Min: ${formatValue(thresholds.min)}`, 
-                      position: 'insideBottomLeft',
-                      style: { 
-                        fill: '#EF4444', 
-                        fontSize: '11px', 
-                        fontWeight: '600',
-                        fontFamily: 'Inter, sans-serif'
-                      }
-                    }}
+                <AreaChart data={chartData} margin={QUICK_VIEW_LINE_MARGIN}>
+                  <defs>
+                    <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={accent} stopOpacity={0.28} />
+                      <stop offset="100%" stopColor={accent} stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid {...getCartesianGridProps(theme)} vertical={false} />
+                  <XAxis
+                    dataKey="datetime"
+                    stroke={theme.palette.divider}
+                    tick={getAxisTickStyle(theme)}
+                    tickMargin={6}
+                    minTickGap={28}
+                    interval="preserveStartEnd"
+                    axisLine={false}
+                    tickLine={false}
                   />
-                )}
-                {thresholds.max != null && (
-                  <ReferenceLine 
-                    y={thresholds.max} 
-                    stroke="#EF4444" 
-                    strokeDasharray="5 5"
-                    strokeWidth={2}
-                    label={{ 
-                      value: `Max: ${formatValue(thresholds.max)}`, 
-                      position: 'insideTopLeft',
-                      style: { 
-                        fill: '#EF4444', 
-                        fontSize: '11px', 
-                        fontWeight: '600',
-                        fontFamily: 'Inter, sans-serif'
-                      }
-                    }}
+                  <YAxis
+                    stroke={theme.palette.divider}
+                    tick={getAxisTickStyle(theme)}
+                    domain={yAxisDomain}
+                    tickFormatter={formatYAxisTick}
+                    axisLine={false}
+                    tickLine={false}
+                    width={52}
                   />
-                )}
-                
-                {/* Modern data line */}
-                <Line
-                  type="monotone"
-                  dataKey="value"
-                  name={parameterDisplayName}
-                  stroke={colorScheme.line}
-                  strokeWidth={3}
-                  dot={false}
-                  activeDot={{ 
-                    r: 6, 
-                    stroke: colorScheme.line,
-                    strokeWidth: 2,
-                    fill: theme.palette.background.paper,
-                    filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))'
-                  }}
-                  isAnimationActive={false}
-                  connectNulls={false}
-                />
-              </LineChart>
+                  <RechartsTooltip content={<CustomTooltip />} />
+                  {thresholds.min != null && (
+                    <ReferenceLine
+                      y={thresholds.min}
+                      stroke={errorColor}
+                      strokeDasharray="4 4"
+                      strokeWidth={1.75}
+                      label={{
+                        value: `Min: ${formatValue(thresholds.min)}`,
+                        position: 'insideBottomLeft',
+                        fill: errorColor,
+                        fontSize: 10,
+                        fontWeight: 700,
+                      }}
+                    />
+                  )}
+                  {thresholds.max != null && (
+                    <ReferenceLine
+                      y={thresholds.max}
+                      stroke={errorColor}
+                      strokeDasharray="4 4"
+                      strokeWidth={1.75}
+                      label={{
+                        value: `Max: ${formatValue(thresholds.max)}`,
+                        position: 'insideTopLeft',
+                        fill: errorColor,
+                        fontSize: 10,
+                        fontWeight: 700,
+                      }}
+                    />
+                  )}
+                  <Area
+                    type="monotone"
+                    dataKey="value"
+                    name={parameterDisplayName}
+                    stroke={accent}
+                    strokeWidth={2.5}
+                    fill={`url(#${gradientId})`}
+                    dot={false}
+                    activeDot={{
+                      r: 5,
+                      stroke: accent,
+                      strokeWidth: 2,
+                      fill: theme.palette.background.paper,
+                    }}
+                    isAnimationActive={false}
+                    connectNulls={false}
+                  />
+                </AreaChart>
               </ResponsiveContainer>
             </Box>
           ) : (
-            <Box sx={{ 
-              display: 'flex', 
-              flexDirection: 'column',
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              height: '100%',
-              color: theme.palette.text.secondary
-            }}>
-              <TrendingUpIcon sx={{ fontSize: 48, mb: 2, opacity: 0.3 }} />
-              <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                No data available
-              </Typography>
-              <Typography variant="body2" sx={{ opacity: 0.7 }}>
+            <Box
+              sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '100%',
+                color: 'text.secondary',
+              }}
+            >
+              <TrendingUpIcon sx={{ fontSize: 40, mb: 1, opacity: 0.3, color: accent }} />
+              <Typography sx={{ fontWeight: 700, color: 'text.primary' }}>No data available</Typography>
+              <Typography sx={{ fontSize: '0.78rem', opacity: 0.75 }}>
                 Select a time period to view data
               </Typography>
             </Box>

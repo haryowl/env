@@ -26,6 +26,10 @@ import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import TableChartIcon from '@mui/icons-material/TableChart';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
+import {
+  buildThresholdMap,
+  isValueOutOfRange,
+} from '../utils/quickViewAlertBreaches';
 
 function useTableThemeTokens() {
   const theme = useTheme();
@@ -92,18 +96,10 @@ const QuickViewTable = ({ data, parameters, deviceName, alertConfigs = [], getEx
   const [page, setPage] = useState(0);
   const { formatDisplayName, getUnit } = useFieldMetadata();
 
-  const thresholdsByParameter = useMemo(() => {
-    const map = {};
-    for (const a of alertConfigs) {
-      if (a.type !== 'threshold') continue;
-      const key = a.parameter;
-      if (!key) continue;
-      if (!map[key]) map[key] = { min: null, max: null };
-      if (a.min != null) map[key].min = map[key].min == null ? a.min : Math.min(map[key].min, a.min);
-      if (a.max != null) map[key].max = map[key].max == null ? a.max : Math.max(map[key].max, a.max);
-    }
-    return map;
-  }, [alertConfigs]);
+  const thresholdsByParameter = useMemo(
+    () => buildThresholdMap(alertConfigs, parameters),
+    [alertConfigs, parameters]
+  );
 
   const formatParameterValue = useCallback(
     (parameter, value, precision = 3, includeUnit = true) => {
@@ -139,12 +135,7 @@ const QuickViewTable = ({ data, parameters, deviceName, alertConfigs = [], getEx
   }, [data]);
 
   const isOutOfRange = useCallback((parameter, value) => {
-    const thresholds = thresholdsByParameter[parameter];
-    if (!thresholds || (thresholds.min == null && thresholds.max == null)) return false;
-    const numValue = parseFloat(value);
-    if (Number.isNaN(numValue)) return false;
-    return (thresholds.min != null && numValue < thresholds.min)
-      || (thresholds.max != null && numValue > thresholds.max);
+    return isValueOutOfRange(value, thresholdsByParameter[parameter]);
   }, [thresholdsByParameter]);
 
   const handleExportTableData = useCallback(async () => {

@@ -817,50 +817,171 @@ const QuickView = () => {
         <Box>
           {/* Parameter Charts Section */}
           {parameters.length > 0 && (
-            <Box sx={{ mb: 4 }}>
-              <Box sx={{ mb: 2 }}>
-                <SectionHeader
-                  icon={<ScienceIcon sx={{ fontSize: 18 }} />}
-                  title="Parameter Analytics"
-                  subtitle="Trends, thresholds, and comparisons"
-                />
+            <Box
+              sx={{
+                mb: 4,
+                borderRadius: 2.5,
+                border: '1px solid',
+                borderColor: 'divider',
+                bgcolor: 'background.default',
+                boxShadow: theme.palette.mode === 'dark'
+                  ? 'none'
+                  : '0 8px 28px rgba(15,23,42,0.06)',
+                overflow: 'hidden',
+              }}
+            >
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 1.5,
+                  px: { xs: 2, md: 2.5 },
+                  py: 1.5,
+                  borderBottom: '1px solid',
+                  borderColor: 'divider',
+                  bgcolor: 'background.paper',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+                  <Box
+                    sx={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 1.5,
+                      display: 'grid',
+                      placeItems: 'center',
+                      bgcolor: (t) => alpha(t.palette.primary.main, 0.12),
+                      color: 'primary.main',
+                    }}
+                  >
+                    <ScienceIcon sx={{ fontSize: 20 }} />
+                  </Box>
+                  <Box>
+                    <Typography sx={{ fontWeight: 800, fontSize: '1.05rem', color: 'text.primary' }}>
+                      Parameter Analytics
+                    </Typography>
+                    <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary' }}>
+                      Trends, thresholds, and comparisons
+                    </Typography>
+                  </Box>
+                </Box>
+                {(() => {
+                  const sensorCount = parameters.filter((p) => !isGpsParam(p)).length;
+                  return (
+                    <Chip
+                      size="small"
+                      label={`LIVE · ${sensorCount} SENSOR${sensorCount === 1 ? '' : 'S'}`}
+                      icon={(
+                        <Box
+                          sx={{
+                            width: 7,
+                            height: 7,
+                            borderRadius: '50%',
+                            bgcolor: 'success.main',
+                            ml: '8px !important',
+                            animation: 'pulse 1.6s ease-in-out infinite',
+                            '@keyframes pulse': {
+                              '0%, 100%': { opacity: 1 },
+                              '50%': { opacity: 0.35 },
+                            },
+                          }}
+                        />
+                      )}
+                      sx={{
+                        height: 28,
+                        fontWeight: 800,
+                        fontSize: '0.68rem',
+                        letterSpacing: '0.04em',
+                        bgcolor: 'background.default',
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        color: 'text.primary',
+                      }}
+                    />
+                  );
+                })()}
               </Box>
-              
-              <Box 
-                sx={{ 
-                  display: 'grid', 
+
+              <Box
+                sx={{
+                  display: 'grid',
                   gridTemplateColumns: '1fr 1fr',
-                  gap: 3,
+                  gap: 2,
+                  p: { xs: 1.5, md: 2 },
                   '@media (max-width: 1200px)': {
-                    gridTemplateColumns: '1fr'
-                  }
+                    gridTemplateColumns: '1fr',
+                  },
                 }}
               >
                 {parameters
                   .filter((p) => !isGpsParam(p))
-                  .map((parameter) => {
-                  return (
+                  .map((parameter) => (
                     <Box key={parameter} sx={{ display: 'flex', minWidth: 0, width: '100%' }}>
                       <QuickViewChart
                         parameter={parameter}
                         data={chartData}
                         alertLogs={alertData}
                         alertConfigs={alertConfigs}
-                        deviceName={devices.find(d => d.device_id === selectedDevice)?.name}
+                        deviceName={devices.find((d) => d.device_id === selectedDevice)?.name}
                         addChartRef={addChartRef}
                       />
                     </Box>
-                  );
-                })}
+                  ))}
+              </Box>
+
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 1,
+                  px: { xs: 2, md: 2.5 },
+                  py: 1.15,
+                  borderTop: '1px solid',
+                  borderColor: 'divider',
+                  bgcolor: 'background.paper',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', fontWeight: 500 }}>
+                  Updated {chartData?.length
+                    ? formatInUserTimezone(
+                        chartData[chartData.length - 1]?.datetime
+                          ?? chartData[chartData.length - 1]?.timestamp,
+                        'YYYY-MM-DD HH:mm'
+                      )
+                    : '—'}
+                  {devices.find((d) => d.device_id === selectedDevice)?.name
+                    ? ` · ${devices.find((d) => d.device_id === selectedDevice)?.name}`
+                    : ''}
+                  {' · Thresholds shown in red'}
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                  <Box
+                    sx={{
+                      width: 7,
+                      height: 7,
+                      borderRadius: '50%',
+                      bgcolor: 'success.main',
+                    }}
+                  />
+                  <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', fontWeight: 600 }}>
+                    All systems nominal
+                  </Typography>
+                </Box>
               </Box>
             </Box>
           )}
           
           {/* Alert Chart Section */}
           <Box sx={{ mb: 4 }}>
-            {console.log('Passing alertData to QuickViewAlertChart:', alertData)}
             <QuickViewAlertChart
               alertData={alertData}
+              seriesData={chartData}
+              parameters={parameters}
+              alertConfigs={alertConfigs}
               deviceName={devices.find(d => d.device_id === selectedDevice)?.name}
             />
           </Box>

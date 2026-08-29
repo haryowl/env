@@ -16,17 +16,19 @@ import {
   IconButton,
   Paper,
   ListItemText,
+  Chip,
 } from '@mui/material';
 import TimelineIcon from '@mui/icons-material/Timeline';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import TableChartIcon from '@mui/icons-material/TableChart';
+import ScienceIcon from '@mui/icons-material/Science';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { Link } from 'react-router-dom';
 import moment from 'moment-timezone';
 import { useTheme, alpha } from '@mui/material/styles';
 import { API_BASE_URL } from '../config/api';
-import { getUserTimezone } from '../utils/timezoneUtils';
+import { formatInUserTimezone, getUserTimezone } from '../utils/timezoneUtils';
 import { getDeviceDisplayName } from '../utils/deviceLabel';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import { filterDataViewParams } from '../utils/fieldCategory';
@@ -394,67 +396,173 @@ const MobileQuickView = () => {
                 No mapped parameters for this device.
               </Alert>
             ) : (
-              <>
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  fontWeight={800}
-                  sx={{ mb: 0.75, letterSpacing: 0.5, fontSize: '0.8rem' }}
-                >
-                  METRIC
-                </Typography>
-                <FormControl fullWidth size="small" sx={{ mb: 1.5 }}>
-                  <InputLabel id="m-qv-metric">Choose metric</InputLabel>
-                  <Select
-                    labelId="m-qv-metric"
-                    label="Choose metric"
-                    value={activeParam}
-                    onChange={(e) => setSelectedParam(e.target.value)}
-                    sx={{ borderRadius: 2 }}
-                    renderValue={(id) =>
-                      id ? formatDisplayName(id, { withUnit: true }) : 'Select metric'
-                    }
-                  >
-                    {parameters.map((p) => (
-                      <MenuItem key={p} value={p} dense>
-                        <ListItemText
-                          primary={formatDisplayName(p, { withUnit: true })}
-                          secondary={p}
-                          primaryTypographyProps={{ fontWeight: 700, fontSize: '1rem' }}
-                          secondaryTypographyProps={{
-                            variant: 'caption',
-                            sx: { fontFamily: 'monospace', fontSize: '0.7rem' },
-                          }}
-                        />
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                {/* Fixed-height shell so Recharts always measures; activeParam avoids empty selection */}
+              <Box
+                sx={{
+                  borderRadius: 2.5,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  bgcolor: 'background.default',
+                  overflow: 'hidden',
+                }}
+              >
                 <Box
                   sx={{
-                    width: '100%',
-                    minWidth: 0,
-                    minHeight: 380,
-                    '& .MuiCard-root': { borderRadius: 3 },
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 1,
+                    px: 1.5,
+                    py: 1.25,
+                    borderBottom: '1px solid',
+                    borderColor: 'divider',
+                    bgcolor: 'background.paper',
+                    flexWrap: 'wrap',
                   }}
                 >
-                  {activeParam ? (
-                    <QuickViewChart
-                      key={`${selectedDevice}-${activeParam}-${selectedPeriod}`}
-                      parameter={activeParam}
-                      data={chartData}
-                      alertLogs={alertData}
-                      alertConfigs={alertConfigs}
-                      deviceName={deviceName}
-                    />
-                  ) : null}
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box
+                      sx={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 1.25,
+                        display: 'grid',
+                        placeItems: 'center',
+                        bgcolor: alpha(theme.palette.primary.main, 0.12),
+                        color: 'primary.main',
+                      }}
+                    >
+                      <ScienceIcon sx={{ fontSize: 18 }} />
+                    </Box>
+                    <Typography sx={{ fontWeight: 800, fontSize: '0.95rem', color: 'text.primary' }}>
+                      Parameter Analytics
+                    </Typography>
+                  </Box>
+                  <Chip
+                    size="small"
+                    label={`LIVE · ${parameters.length} SENSOR${parameters.length === 1 ? '' : 'S'}`}
+                    icon={(
+                      <Box
+                        sx={{
+                          width: 6,
+                          height: 6,
+                          borderRadius: '50%',
+                          bgcolor: 'success.main',
+                          ml: '8px !important',
+                        }}
+                      />
+                    )}
+                    sx={{
+                      height: 26,
+                      fontWeight: 800,
+                      fontSize: '0.62rem',
+                      letterSpacing: '0.04em',
+                      bgcolor: 'background.default',
+                      border: '1px solid',
+                      borderColor: 'divider',
+                    }}
+                  />
                 </Box>
-              </>
+
+                <Box sx={{ p: 1.5 }}>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    fontWeight={800}
+                    sx={{ mb: 0.75, letterSpacing: 0.5, fontSize: '0.8rem' }}
+                  >
+                    METRIC
+                  </Typography>
+                  <FormControl fullWidth size="small" sx={{ mb: 1.5 }}>
+                    <InputLabel id="m-qv-metric">Choose metric</InputLabel>
+                    <Select
+                      labelId="m-qv-metric"
+                      label="Choose metric"
+                      value={activeParam}
+                      onChange={(e) => setSelectedParam(e.target.value)}
+                      sx={{ borderRadius: 2 }}
+                      renderValue={(id) =>
+                        id ? formatDisplayName(id, { withUnit: true }) : 'Select metric'
+                      }
+                    >
+                      {parameters.map((p) => (
+                        <MenuItem key={p} value={p} dense>
+                          <ListItemText
+                            primary={formatDisplayName(p, { withUnit: true })}
+                            secondary={p}
+                            primaryTypographyProps={{ fontWeight: 700, fontSize: '1rem' }}
+                            secondaryTypographyProps={{
+                              variant: 'caption',
+                              sx: { fontFamily: 'monospace', fontSize: '0.7rem' },
+                            }}
+                          />
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <Box
+                    sx={{
+                      width: '100%',
+                      minWidth: 0,
+                      minHeight: 380,
+                      '& .MuiCard-root': { borderRadius: 2.5 },
+                    }}
+                  >
+                    {activeParam ? (
+                      <QuickViewChart
+                        key={`${selectedDevice}-${activeParam}-${selectedPeriod}`}
+                        parameter={activeParam}
+                        data={chartData}
+                        alertLogs={alertData}
+                        alertConfigs={alertConfigs}
+                        deviceName={deviceName}
+                      />
+                    ) : null}
+                  </Box>
+                </Box>
+
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 1,
+                    px: 1.5,
+                    py: 1,
+                    borderTop: '1px solid',
+                    borderColor: 'divider',
+                    bgcolor: 'background.paper',
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary', fontWeight: 500 }}>
+                    Updated {chartData?.length
+                      ? formatInUserTimezone(
+                          chartData[chartData.length - 1]?.datetime
+                            ?? chartData[chartData.length - 1]?.timestamp,
+                          'YYYY-MM-DD HH:mm'
+                        )
+                      : '—'}
+                    {deviceName ? ` · ${deviceName}` : ''}
+                    {' · Thresholds in red'}
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'success.main' }} />
+                    <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary', fontWeight: 600 }}>
+                      Nominal
+                    </Typography>
+                  </Box>
+                </Box>
+              </Box>
             )}
           </TabPanel>
           <TabPanel value={tab} index={1}>
-            <QuickViewAlertChart alertData={alertData} deviceName={deviceName} />
+            <QuickViewAlertChart
+              alertData={alertData}
+              seriesData={chartData}
+              parameters={parameters}
+              alertConfigs={alertConfigs}
+              deviceName={deviceName}
+            />
           </TabPanel>
           <TabPanel value={tab} index={2}>
             {parameters.length === 0 ? (

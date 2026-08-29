@@ -35,6 +35,10 @@ import {
   getAxisTickStyle,
   getTooltipContentStyle,
 } from '../utils/chartStyles';
+import {
+  buildSyntheticThresholdAlerts,
+  mergeAlertLogsWithThresholdScans,
+} from '../utils/quickViewAlertBreaches';
 
 const severityRank = { low: 1, medium: 2, high: 3, critical: 4 };
 
@@ -222,7 +226,13 @@ function MetaPill({ label, value, accent, endAdornment, t }) {
   );
 }
 
-const QuickViewAlertChart = ({ alertData, deviceName }) => {
+const QuickViewAlertChart = ({
+  alertData,
+  deviceName,
+  seriesData = [],
+  parameters = [],
+  alertConfigs = [],
+}) => {
   const t = useAlertThemeTokens();
   const { theme } = t;
   const { formatDisplayName } = useFieldMetadata();
@@ -232,16 +242,25 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
   const selectSx = getSelectSx(t);
   const chartBar = t.primary;
 
+  const mergedAlertSource = useMemo(() => {
+    const synthetic = buildSyntheticThresholdAlerts({
+      rows: seriesData,
+      parameters,
+      alertConfigs,
+    });
+    return mergeAlertLogsWithThresholdScans(alertData, synthetic);
+  }, [alertData, seriesData, parameters, alertConfigs]);
+
   const normalizedAlerts = useMemo(() => {
-    if (!Array.isArray(alertData)) return [];
-    return alertData
+    if (!Array.isArray(mergedAlertSource)) return [];
+    return mergedAlertSource
       .map((a) => {
         const ts = a.timestamp || a.detected_at || a.created_at;
         if (!ts) return null;
         const d = new Date(ts);
         if (Number.isNaN(d.getTime())) return null;
-        const sevRaw = String(a.severity || a.status || 'low').toLowerCase();
-        const sev = ['low', 'medium', 'high', 'critical'].includes(sevRaw) ? sevRaw : 'low';
+        const sevRaw = String(a.severity || a.status || 'high').toLowerCase();
+        const sev = ['low', 'medium', 'high', 'critical'].includes(sevRaw) ? sevRaw : 'high';
         const param = a.parameter || a.alert_name || 'Unknown';
         return {
           id: a.log_id || `${d.getTime()}_${param}`,
@@ -254,11 +273,12 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
           min: a.min,
           max: a.max,
           status: a.status || '',
+          source: a.source || 'alert_log',
         };
       })
       .filter(Boolean)
       .sort((x, y) => x.timestamp - y.timestamp);
-  }, [alertData, formatDisplayName]);
+  }, [mergedAlertSource, formatDisplayName]);
 
   const parameterOptions = useMemo(
     () => [...new Set(normalizedAlerts.map((a) => a.parameter))],
@@ -463,6 +483,7 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
                 {deviceName
                   ? `${deviceName} · ${totalLabel} threshold violation${totalLabel === 1 ? '' : 's'}`
                   : `${totalLabel} threshold violation${totalLabel === 1 ? '' : 's'}`}
+                {' · logs + live series scan'}
               </Typography>
             </Box>
           </Box>
