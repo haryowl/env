@@ -225,6 +225,73 @@ function Pp57ReferenceLine({ y }) {
   );
 }
 
+/** Cross-section faces the fixed camera (+Z). */
+const CUTAWAY_FACE_Z = 0.48;
+const CUTAWAY_WALL_X = -0.42;
+
+function AnimatedWaterVolume({ waterYRef, width, depth, bottomY, waterColors, emissiveIntensity = 1.1 }) {
+  const fillRef = useRef(null);
+  const colors = waterColors || { water: '#0288d1', emissive: '#00bcd4' };
+
+  useFrame(({ clock }) => {
+    if (!fillRef.current) return;
+    const surfaceY = waterYRef.current;
+    const fillH = Math.max(0.06, surfaceY - bottomY);
+    fillRef.current.scale.y = fillH;
+    fillRef.current.position.y = bottomY + fillH / 2;
+    const pulse = 0.78 + Math.sin(clock.getElapsedTime() * 2.6) * 0.08;
+    fillRef.current.material.emissiveIntensity = emissiveIntensity * pulse;
+  });
+
+  return (
+    <mesh ref={fillRef} position={[0, bottomY, 0]}>
+      <boxGeometry args={[width, 1, depth]} />
+      <meshStandardMaterial
+        color={colors.water}
+        emissive={colors.emissive}
+        emissiveIntensity={emissiveIntensity}
+        transparent
+        opacity={0.82}
+        roughness={0.12}
+        metalness={0.08}
+        depthWrite={false}
+        toneMapped={false}
+      />
+    </mesh>
+  );
+}
+
+function AnimatedWaterColumn({ waterYRef, radius, bottomY, waterColors }) {
+  const fillRef = useRef(null);
+  const colors = waterColors || { water: '#29b6f6', emissive: '#00bcd4' };
+
+  useFrame(({ clock }) => {
+    if (!fillRef.current) return;
+    const surfaceY = waterYRef.current;
+    const fillH = Math.max(0.06, surfaceY - bottomY);
+    fillRef.current.scale.y = fillH;
+    fillRef.current.position.y = bottomY + fillH / 2;
+    const pulse = 0.95 + Math.sin(clock.getElapsedTime() * 3.2) * 0.12;
+    fillRef.current.material.emissiveIntensity = pulse * 1.35;
+  });
+
+  return (
+    <mesh ref={fillRef} position={[0, bottomY, 0]}>
+      <cylinderGeometry args={[radius, radius, 1, 32]} />
+      <meshStandardMaterial
+        color={colors.water}
+        emissive={colors.emissive}
+        emissiveIntensity={1.35}
+        transparent
+        opacity={0.92}
+        roughness={0.08}
+        depthWrite={false}
+        toneMapped={false}
+      />
+    </mesh>
+  );
+}
+
 function WaterTableBubbles({ waterYRef, active }) {
   const refs = useRef([]);
   const seeds = useMemo(
@@ -272,18 +339,27 @@ function WaterTableBubbles({ waterYRef, active }) {
 function CutawayWaterSurface({ waterYRef, waterColors, wide = false }) {
   const ref = useRef(null);
   const innerRef = useRef(null);
+  const rippleRefs = useRef([]);
 
   useFrame(({ clock }) => {
     const y = waterYRef.current;
+    const t = clock.getElapsedTime();
     if (ref.current) {
       ref.current.position.y = y;
-      ref.current.rotation.z = Math.sin(clock.getElapsedTime() * 2.2) * 0.06;
+      ref.current.rotation.z = Math.sin(t * 2.2) * 0.06;
     }
     if (innerRef.current) {
       innerRef.current.position.y = y + 0.006;
-      const pulse = 1 + Math.sin(clock.getElapsedTime() * 4.1) * 0.03;
+      const pulse = 1 + Math.sin(t * 4.1) * 0.04;
       innerRef.current.scale.set(pulse, pulse, 1);
     }
+    rippleRefs.current.forEach((ring, i) => {
+      if (!ring) return;
+      ring.position.y = y + 0.01;
+      const phase = (t * 0.7 + i * 0.33) % 1;
+      ring.scale.set(0.4 + phase * 0.9, 0.4 + phase * 0.9, 1);
+      ring.material.opacity = (1 - phase) * 0.45;
+    });
   });
 
   const innerR = wide ? CUTAWAY_RADIUS * 0.58 : TANK_RADIUS * 0.52;
@@ -296,9 +372,9 @@ function CutawayWaterSurface({ waterYRef, waterColors, wide = false }) {
         <meshStandardMaterial
           color={waterColors?.water ?? '#29b6f6'}
           emissive={waterColors?.emissive ?? '#00bcd4'}
-          emissiveIntensity={1.5}
+          emissiveIntensity={1.8}
           transparent
-          opacity={0.92}
+          opacity={0.95}
           side={THREE.DoubleSide}
           toneMapped={false}
         />
@@ -308,10 +384,25 @@ function CutawayWaterSurface({ waterYRef, waterColors, wide = false }) {
         <meshBasicMaterial
           color={waterColors?.emissive ?? '#00e5ff'}
           transparent
-          opacity={0.22}
+          opacity={0.35}
           toneMapped={false}
         />
       </mesh>
+      {[0, 1, 2].map((i) => (
+        <mesh
+          key={i}
+          ref={(el) => { rippleRefs.current[i] = el; }}
+          rotation={[-Math.PI / 2, 0, 0]}
+        >
+          <ringGeometry args={[innerR * 0.5, innerR * 0.85, 32]} />
+          <meshBasicMaterial
+            color={waterColors?.emissive ?? '#00e5ff'}
+            transparent
+            opacity={0.3}
+            toneMapped={false}
+          />
+        </mesh>
+      ))}
     </group>
   );
 }
@@ -325,8 +416,8 @@ function WaterTableLabels({ waterYRef, tmatElevationM }) {
 
   useFrame(() => {
     const y = waterYRef.current;
-    if (waterLabelRef.current) waterLabelRef.current.position.set(CUTAWAY_RADIUS * 0.55, y + 0.12, 0.15);
-    if (depthLabelRef.current) depthLabelRef.current.position.set(CUTAWAY_RADIUS * 0.55, y - 0.06, 0.15);
+    if (waterLabelRef.current) waterLabelRef.current.position.set(0.72, y + 0.14, 0.28);
+    if (depthLabelRef.current) depthLabelRef.current.position.set(0.72, y - 0.05, 0.28);
   });
 
   return (
@@ -346,63 +437,60 @@ function WaterTableLabels({ waterYRef, tmatElevationM }) {
 }
 
 function UndergroundCutaway({ waterYRef, waterColors, tmatElevationM, pp57LineY }) {
-  const fillRef = useRef(null);
-  const glowRef = useRef(null);
-  useFrame(({ clock }) => {
-    const surfaceY = waterYRef.current;
-    const fillH = Math.max(0.04, surfaceY - CUTAWAY_BOTTOM);
-    if (fillRef.current) {
-      fillRef.current.scale.y = fillH;
-      fillRef.current.position.y = CUTAWAY_BOTTOM + fillH / 2;
-    }
-    if (glowRef.current) {
-      glowRef.current.scale.y = fillH;
-      glowRef.current.position.y = CUTAWAY_BOTTOM + fillH / 2;
-      const pulse = 0.14 + Math.sin(clock.getElapsedTime() * 1.8) * 0.04;
-      glowRef.current.material.opacity = pulse;
-    }
-  });
+  const wallWidth = CUTAWAY_RADIUS * 2.15;
+  const wallDepth = 0.62;
 
   return (
-    <group>
-      {/* cutaway soil block */}
+    <group position={[CUTAWAY_WALL_X, 0, CUTAWAY_FACE_Z]}>
+      {/* Pit back + side walls */}
+      <mesh position={[wallWidth * 0.22, (GROUND_Y + CUTAWAY_BOTTOM) / 2, -wallDepth * 0.42]} receiveShadow>
+        <boxGeometry args={[wallWidth, CUTAWAY_DEPTH, 0.14]} />
+        <meshStandardMaterial color="#3e2723" roughness={0.92} />
+      </mesh>
+      <mesh position={[-0.08, (GROUND_Y + CUTAWAY_BOTTOM) / 2, -wallDepth * 0.18]} receiveShadow>
+        <boxGeometry args={[0.14, CUTAWAY_DEPTH, wallDepth * 0.85]} />
+        <meshStandardMaterial color="#4e342e" roughness={0.9} />
+      </mesh>
+      <mesh position={[wallWidth * 0.22, CUTAWAY_BOTTOM + 0.02, -wallDepth * 0.18]} receiveShadow>
+        <boxGeometry args={[wallWidth, 0.1, wallDepth * 0.85]} />
+        <meshStandardMaterial color="#5d4037" roughness={0.88} />
+      </mesh>
+
+      {/* Soil strata — front face toward camera */}
       {SOIL_LAYERS.map((layer) => {
         const h = layer.top - layer.bottom;
         const midY = (layer.top + layer.bottom) / 2;
         return (
           <group key={layer.id}>
-            <mesh position={[0, midY, -0.08]} receiveShadow>
-              <boxGeometry args={[CUTAWAY_RADIUS * 2.05, h, 0.42]} />
+            <mesh position={[wallWidth * 0.22, midY, 0.02]} castShadow receiveShadow>
+              <boxGeometry args={[wallWidth, h, 0.18]} />
               <meshStandardMaterial
                 color={layer.color}
-                roughness={0.88}
+                roughness={0.82}
                 emissive={layer.emissive}
-                emissiveIntensity={0.12}
+                emissiveIntensity={0.28}
+                metalness={0.05}
               />
             </mesh>
-            <Label3D position={[-CUTAWAY_RADIUS - 0.08, midY, 0.02]} color="#bcaaa4">
+            <mesh position={[wallWidth * 0.22, layer.bottom, 0.12]}>
+              <boxGeometry args={[wallWidth * 1.02, 0.012, 0.02]} />
+              <meshBasicMaterial color="#bcaaa4" toneMapped={false} />
+            </mesh>
+            <Label3D position={[-0.06, midY, 0.18]} color="#d7ccc8">
               {layer.label}
             </Label3D>
           </group>
         );
       })}
 
-      {/* saturated zone — rises/falls with TMAT */}
-      <mesh ref={glowRef} position={[0, CUTAWAY_BOTTOM + 0.02, -0.04]}>
-        <boxGeometry args={[CUTAWAY_RADIUS * 1.95, 0.04, 0.36]} />
-        <meshBasicMaterial color="#0288d1" transparent opacity={0.16} toneMapped={false} />
-      </mesh>
-      <mesh ref={fillRef} position={[0, CUTAWAY_BOTTOM + 0.02, -0.04]}>
-        <boxGeometry args={[CUTAWAY_RADIUS * 1.88, 0.04, 0.32]} />
-        <meshStandardMaterial
-          color={waterColors?.water ?? '#0288d1'}
-          emissive={waterColors?.emissive ?? '#00bcd4'}
-          emissiveIntensity={0.75}
-          transparent
-          opacity={0.62}
-          roughness={0.15}
-        />
-      </mesh>
+      <AnimatedWaterVolume
+        waterYRef={waterYRef}
+        width={wallWidth * 0.96}
+        depth={wallDepth * 0.72}
+        bottomY={CUTAWAY_BOTTOM + 0.04}
+        waterColors={waterColors}
+        emissiveIntensity={1.25}
+      />
 
       <CutawayWaterSurface waterYRef={waterYRef} waterColors={waterColors} wide />
       <WaterTableBubbles waterYRef={waterYRef} active={tmatElevationM != null} />
@@ -410,20 +498,19 @@ function UndergroundCutaway({ waterYRef, waterColors, tmatElevationM, pp57LineY 
 
       {pp57LineY != null && pp57LineY >= CUTAWAY_BOTTOM && (
         <group>
-          <mesh position={[0, pp57LineY, 0.02]} rotation={[-Math.PI / 2, 0, 0]}>
-            <planeGeometry args={[CUTAWAY_RADIUS * 2.1, 0.012]} />
-            <meshBasicMaterial color="#ef5350" transparent opacity={0.75} toneMapped={false} />
+          <mesh position={[wallWidth * 0.22, pp57LineY, 0.14]}>
+            <boxGeometry args={[wallWidth * 1.04, 0.018, 0.04]} />
+            <meshBasicMaterial color="#ef5350" transparent opacity={0.9} toneMapped={false} />
           </mesh>
-          <Label3D position={[-CUTAWAY_RADIUS - 0.05, pp57LineY, 0.08]} color="#ef5350">
+          <Label3D position={[-0.04, pp57LineY, 0.22]} color="#ef5350">
             PP57 −0.40 m
           </Label3D>
         </group>
       )}
 
-      {/* ground surface lip */}
-      <mesh position={[0, GROUND_Y, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[CUTAWAY_RADIUS * 0.92, CUTAWAY_RADIUS * 1.12, 48]} />
-        <meshBasicMaterial color="#8d6e63" transparent opacity={0.45} toneMapped={false} />
+      <mesh position={[wallWidth * 0.22, GROUND_Y + 0.008, 0.06]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[wallWidth * 1.05, wallDepth * 0.95]} />
+        <meshStandardMaterial color="#6d4c41" roughness={0.85} emissive="#2e7d32" emissiveIntensity={0.15} />
       </mesh>
     </group>
   );
@@ -476,18 +563,8 @@ function SubmersibleSensor({ waterYRef, tankBottom }) {
 function TmatTank({ wellWater, levelPct, waterColors, waterYRef }) {
   const colors = waterColors || { water: '#29b6f6', emissive: '#00bcd4', glass: '#81d4fa' };
   const tankBottom = wellWater?.tankBottom ?? (TANK_CENTER_Y - TANK_HEIGHT / 2);
-  const fillRef = useRef(null);
   const groundwaterY = wellWater?.groundwaterY;
   const visibleAboveGround = TANK_HEIGHT - TANK_BURIED_DEPTH;
-
-  useFrame(() => {
-    const waterTopY = waterYRef.current;
-    const waterH = Math.max(0.04, waterTopY - tankBottom);
-    if (fillRef.current) {
-      fillRef.current.scale.y = waterH;
-      fillRef.current.position.y = tankBottom + waterH / 2;
-    }
-  });
 
   const showGwRef = groundwaterY != null
     && wellWater?.groundwaterElevationM != null
@@ -506,32 +583,28 @@ function TmatTank({ wellWater, levelPct, waterColors, waterYRef }) {
         <meshPhysicalMaterial
           color={colors.glass}
           transparent
-          opacity={0.42}
+          opacity={0.32}
           roughness={0.08}
           metalness={0.12}
           side={THREE.DoubleSide}
-          transmission={0.22}
+          transmission={0.18}
           emissive={colors.emissive}
-          emissiveIntensity={0.18}
+          emissiveIntensity={0.12}
+          depthWrite={false}
         />
       </mesh>
       <mesh position={[0, TANK_CENTER_Y, 0]}>
         <cylinderGeometry args={[TANK_RADIUS * 1.03, TANK_RADIUS * 1.03, TANK_HEIGHT, 32, 1, true]} />
-        <meshBasicMaterial color="#4dd0e1" wireframe transparent opacity={0.28} />
+        <meshBasicMaterial color="#4dd0e1" wireframe transparent opacity={0.22} depthWrite={false} />
       </mesh>
 
-      {/* groundwater fill from TMAT elevation (m) — height driven by animated ref */}
-      <mesh ref={fillRef} position={[0, tankBottom + 0.02, 0]}>
-        <cylinderGeometry args={[TANK_RADIUS * 0.88, TANK_RADIUS * 0.88, 0.04, 28]} />
-        <meshStandardMaterial
-          color={colors.water}
-          emissive={colors.emissive}
-          emissiveIntensity={0.95}
-          transparent
-          opacity={0.9}
-          roughness={0.1}
-        />
-      </mesh>
+      {/* groundwater column — unit height scaled to live TMAT level */}
+      <AnimatedWaterColumn
+        waterYRef={waterYRef}
+        radius={TANK_RADIUS * 0.86}
+        bottomY={tankBottom + 0.02}
+        waterColors={colors}
+      />
       <CutawayWaterSurface waterYRef={waterYRef} waterColors={colors} />
       <Pp57ReferenceLine y={wellWater?.pp57LineY} />
       {showGwRef && <GroundwaterReference y={groundwaterY} />}
@@ -573,17 +646,17 @@ function TmatWellAssembly({ wellWater, levelPct, waterColors }) {
 
   return (
     <group position={TANK_POS}>
-      <UndergroundCutaway
-        waterYRef={sceneWaterYRef}
-        waterColors={waterColors}
-        tmatElevationM={wellWater?.tmatElevationM}
-        pp57LineY={wellWater?.pp57LineY}
-      />
       <TmatTank
         wellWater={wellWater}
         levelPct={levelPct}
         waterColors={waterColors}
         waterYRef={tankWaterYRef}
+      />
+      <UndergroundCutaway
+        waterYRef={sceneWaterYRef}
+        waterColors={waterColors}
+        tmatElevationM={wellWater?.tmatElevationM}
+        pp57LineY={wellWater?.pp57LineY}
       />
     </group>
   );
