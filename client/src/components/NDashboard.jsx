@@ -33,7 +33,9 @@ import RealtimeChartDisplaySelect from './RealtimeChartDisplaySelect';
 import ViewInArIcon from '@mui/icons-material/ViewInAr';
 import HeatRatioModal, { resolveHeatProgram } from './HeatRatioModal';
 import TmatSimulationModal from './TmatSimulationModal';
+import SparingSimulationModal from './SparingSimulationModal';
 import { hasTmatSimulationParams } from '../utils/tmatSimulationData';
+import { hasSparingSimulationParams } from '../utils/sparingSimulationData';
 import {
   buildRealtimeChartSeries,
   REALTIME_CHART_DISPLAY_MODES,
@@ -205,6 +207,7 @@ export default function NDashboard({ socket }) {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [heatRatioOpen, setHeatRatioOpen] = useState(false);
   const [tmat3dOpen, setTmat3dOpen] = useState(false);
+  const [sparing3dOpen, setSparing3dOpen] = useState(false);
 
   const selectedDevice = devices.find((d) => d.device_id === selectedDeviceId) || null;
   const rangeHours = ({ '2h': 2, '3h': 3, '6h': 6, '48h': 48 })[chartRange] ?? 48;
@@ -366,20 +369,30 @@ export default function NDashboard({ socket }) {
     return orderParams([...keySet]);
   }, [mappedParams, latest.fields, history]);
 
-  const showTmat3dButton = useMemo(() => {
+  const heatProgram = useMemo(() => {
     const groupMeta = knownGroups.find((g) => {
       if (selectedDevice?.group_id && String(g.id) === String(selectedDevice.group_id)) return true;
       if (groupFilter !== GROUP_FILTER_ALL && groupFilter !== GROUP_FILTER_UNGROUPED
         && String(g.id) === String(groupFilter)) return true;
       return false;
     });
-    const program = resolveHeatProgram(
+    return resolveHeatProgram(
       selectedDevice?.group_name || groupMeta?.name,
       selectedDevice?.group_description || groupMeta?.description
     );
-    if (program === 'tmat') return true;
+  }, [selectedDevice, knownGroups, groupFilter]);
+
+  const showTmat3dButton = useMemo(() => {
+    if (heatProgram === 'sparing') return false;
+    if (heatProgram === 'tmat') return true;
     return hasTmatSimulationParams(availableParams, fieldMetadata);
-  }, [selectedDevice, availableParams, knownGroups, groupFilter, fieldMetadata]);
+  }, [heatProgram, availableParams, fieldMetadata]);
+
+  const showSparing3dButton = useMemo(() => {
+    if (heatProgram === 'tmat') return false;
+    if (heatProgram === 'sparing') return true;
+    return hasSparingSimulationParams(availableParams);
+  }, [heatProgram, availableParams]);
 
   // All numeric mapped parameters are represented. The layout wraps as needed.
   const chartParams = availableParams;
@@ -1133,28 +1146,54 @@ export default function NDashboard({ socket }) {
                   }}
                 />
               </Box>
-              {showTmat3dButton && (
-                <Button
-                  fullWidth
-                  size="small"
-                  variant="contained"
-                  startIcon={<ViewInArIcon sx={{ fontSize: '16px !important' }} />}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setTmat3dOpen(true);
-                  }}
-                  sx={{
-                    mb: 1,
-                    py: 0.55,
-                    fontSize: '0.7rem',
-                    fontWeight: 800,
-                    letterSpacing: '0.06em',
-                    bgcolor: '#0e7490',
-                    '&:hover': { bgcolor: '#155e75' },
-                  }}
-                >
-                  3D View
-                </Button>
+              {(showTmat3dButton || showSparing3dButton) && (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, mb: 1 }}>
+                  {showTmat3dButton && (
+                    <Button
+                      fullWidth
+                      size="small"
+                      variant="contained"
+                      startIcon={<ViewInArIcon sx={{ fontSize: '16px !important' }} />}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setTmat3dOpen(true);
+                      }}
+                      sx={{
+                        py: 0.55,
+                        fontSize: '0.7rem',
+                        fontWeight: 800,
+                        letterSpacing: '0.06em',
+                        bgcolor: '#0e7490',
+                        '&:hover': { bgcolor: '#155e75' },
+                      }}
+                    >
+                      {showSparing3dButton ? 'TMAT 3D' : '3D View'}
+                    </Button>
+                  )}
+                  {showSparing3dButton && (
+                    <Button
+                      fullWidth
+                      size="small"
+                      variant="contained"
+                      startIcon={<ViewInArIcon sx={{ fontSize: '16px !important' }} />}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSparing3dOpen(true);
+                      }}
+                      sx={{
+                        py: 0.55,
+                        fontSize: '0.7rem',
+                        fontWeight: 800,
+                        letterSpacing: '0.06em',
+                        bgcolor: '#3f6212',
+                        color: '#ecfccb',
+                        '&:hover': { bgcolor: '#365314' },
+                      }}
+                    >
+                      {showTmat3dButton ? 'SPARING 3D' : '3D View'}
+                    </Button>
+                  )}
+                </Box>
               )}
               <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                 {availableParams.slice(0, 6).map((p, idx) => {
@@ -1294,6 +1333,18 @@ export default function NDashboard({ socket }) {
         latestFields={latest.fields}
         history={history}
         fieldMetadata={fieldMetadata}
+      />
+
+      <SparingSimulationModal
+        open={sparing3dOpen}
+        onClose={() => setSparing3dOpen(false)}
+        deviceName={selectedDevice?.name}
+        groupName={selectedDevice?.group_name}
+        params={availableParams}
+        latestFields={latest.fields}
+        fieldMetadata={fieldMetadata}
+        alertThresholds={alertThresholds}
+        getUnit={getUnit}
       />
     </Box>
   );
