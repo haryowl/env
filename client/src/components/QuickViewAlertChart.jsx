@@ -5,20 +5,12 @@ import {
   Typography,
   Box,
   Chip,
-  Tooltip,
-  useTheme,
   FormControl,
-  InputLabel,
   Select,
   MenuItem,
-  Table,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
-  TableContainer,
-  Paper
+  useTheme,
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import {
   BarChart,
   Bar,
@@ -29,19 +21,139 @@ import {
   CartesianGrid,
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
-  Cell
 } from 'recharts';
-import {
-  Warning as WarningIcon,
-  Error as ErrorIcon,
-  Info as InfoIcon,
-  CheckCircle as CheckCircleIcon,
-  Timeline as TimelineIcon
-} from '@mui/icons-material';
+import TimelineIcon from '@mui/icons-material/Timeline';
+import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
-import { getChartCardSx, CHART_MARGIN, getCartesianGridProps, getAxisTickStyle, getTooltipContentStyle } from '../utils/chartStyles';
-import SectionHeader from './SectionHeader';
+import {
+  CHART_MARGIN,
+  getCartesianGridProps,
+  getAxisTickStyle,
+  getTooltipContentStyle,
+} from '../utils/chartStyles';
+
+const SEVERITY = {
+  low: { color: '#10B981', label: 'LOW' },
+  medium: { color: '#F59E0B', label: 'MEDIUM' },
+  high: { color: '#EF4444', label: 'HIGH' },
+  critical: { color: '#0099CC', label: 'CRITICAL' },
+};
+
+const severityRank = { low: 1, medium: 2, high: 3, critical: 4 };
+const CHART_BAR = '#1E293B';
+
+const selectSx = {
+  minWidth: { xs: '100%', sm: 128 },
+  bgcolor: '#fff',
+  borderRadius: 999,
+  '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(15,23,42,0.12)' },
+  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(15,23,42,0.22)' },
+  '& .MuiSelect-select': {
+    py: 0.85,
+    px: 1.5,
+    fontSize: '0.78rem',
+    fontWeight: 700,
+    color: '#334155',
+  },
+};
+
+function MetricCard({ title, value, subtitle, dotColor, icon }) {
+  return (
+    <Box
+      sx={{
+        position: 'relative',
+        p: 1.75,
+        borderRadius: 2,
+        bgcolor: '#fff',
+        border: '1px solid',
+        borderColor: 'rgba(15,23,42,0.08)',
+        boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
+        minHeight: 96,
+      }}
+    >
+      <Box
+        sx={{
+          position: 'absolute',
+          top: 12,
+          right: 12,
+          width: 10,
+          height: 10,
+          borderRadius: '50%',
+          bgcolor: dotColor,
+          boxShadow: `0 0 0 3px ${alpha(dotColor, 0.18)}`,
+          display: 'grid',
+          placeItems: 'center',
+        }}
+      >
+        {icon}
+      </Box>
+      <Typography
+        sx={{
+          fontSize: '0.68rem',
+          fontWeight: 800,
+          letterSpacing: '0.08em',
+          color: '#64748B',
+          textTransform: 'uppercase',
+          mb: 0.75,
+          pr: 2,
+        }}
+      >
+        {title}
+      </Typography>
+      <Typography sx={{ fontSize: '1.55rem', fontWeight: 800, color: '#0F172A', lineHeight: 1.1 }}>
+        {value}
+      </Typography>
+      <Typography sx={{ mt: 0.6, fontSize: '0.72rem', color: '#94A3B8', fontWeight: 500 }}>
+        {subtitle}
+      </Typography>
+    </Box>
+  );
+}
+
+function InsightCard({ title, value, subtitle, accent, footer }) {
+  return (
+    <Box
+      sx={{
+        position: 'relative',
+        p: 1.75,
+        pl: 2,
+        borderRadius: 2,
+        bgcolor: '#fff',
+        border: '1px solid',
+        borderColor: 'rgba(15,23,42,0.08)',
+        boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
+        borderLeft: `4px solid ${accent}`,
+        minHeight: 108,
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      <Typography
+        sx={{
+          fontSize: '0.68rem',
+          fontWeight: 800,
+          letterSpacing: '0.08em',
+          color: '#64748B',
+          textTransform: 'uppercase',
+          mb: 0.75,
+        }}
+      >
+        {title}
+      </Typography>
+      <Typography sx={{ fontSize: '1.35rem', fontWeight: 800, color: '#0F172A', lineHeight: 1.1 }}>
+        {value}
+      </Typography>
+      <Typography sx={{ mt: 0.5, fontSize: '0.72rem', color: '#94A3B8', fontWeight: 500, flexGrow: 1 }}>
+        {subtitle}
+      </Typography>
+      {footer}
+    </Box>
+  );
+}
 
 const QuickViewAlertChart = ({ alertData, deviceName }) => {
   const theme = useTheme();
@@ -49,8 +161,6 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
   const [severityFilter, setSeverityFilter] = useState('all');
   const [parameterFilter, setParameterFilter] = useState('all');
   const [bucket, setBucket] = useState('hour');
-
-  const severityRank = { low: 1, medium: 2, high: 3, critical: 4 };
 
   const normalizedAlerts = useMemo(() => {
     if (!Array.isArray(alertData)) return [];
@@ -80,9 +190,10 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
       .sort((x, y) => x.timestamp - y.timestamp);
   }, [alertData, formatDisplayName]);
 
-  const parameterOptions = useMemo(() => {
-    return [...new Set(normalizedAlerts.map((a) => a.parameter))];
-  }, [normalizedAlerts]);
+  const parameterOptions = useMemo(
+    () => [...new Set(normalizedAlerts.map((a) => a.parameter))],
+    [normalizedAlerts]
+  );
 
   const filteredAlerts = useMemo(() => {
     return normalizedAlerts.filter((a) => {
@@ -92,7 +203,13 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
     });
   }, [normalizedAlerts, severityFilter, parameterFilter]);
 
-  // Group filtered alerts by selected bucket for timeline chart
+  const bucketLabel = bucket === 'day' ? 'Day' : bucket === '15m' ? '15 min' : 'Hour';
+  const volumeTitle = bucket === 'day'
+    ? 'Alert Volume by Day'
+    : bucket === '15m'
+      ? 'Alert Volume by 15 min'
+      : 'Alert Volume by Hour';
+
   const timelineData = useMemo(() => {
     const grouped = {};
     const keyFmt = bucket === 'day' ? 'MM/DD' : bucket === '15m' ? 'MM/DD HH:mm' : 'MM/DD HH:00';
@@ -132,87 +249,15 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
       .sort((a, b) => a.timestamp - b.timestamp);
   }, [filteredAlerts, bucket]);
 
-  // Modern color scheme for severity levels
-  const getSeverityColor = (severity) => {
-    const colors = {
-      low: '#10B981',
-      medium: '#F59E0B',
-      high: '#EF4444',
-      critical: '#0099CC'
-    };
-    return colors[severity] || colors.low;
-  };
-
-  // Modern color scheme with background colors
-  const getSeverityColors = (severity) => {
-    const schemes = {
-      low: { bg: '#10B98108', border: '#10B98130', text: '#10B981' },
-      medium: { bg: '#F59E0B08', border: '#F59E0B30', text: '#F59E0B' },
-      high: { bg: '#EF444408', border: '#EF444430', text: '#EF4444' },
-      critical: { bg: '#0099CC08', border: '#0099CC30', text: '#0099CC' }
-    };
-    return schemes[severity] || schemes.low;
-  };
-
-  // Modern custom tooltip
-  const CustomTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      const severityColors = getSeverityColors(data.severity);
-      
-      return (
-        <Box sx={{ ...getTooltipContentStyle(theme), border: `1px solid ${severityColors.border}`, p: 2 }}>
-          <Typography variant="body2" sx={{ 
-            fontWeight: 600, 
-            color: theme.palette.text.primary,
-            mb: 1
-          }}>
-            {label}
-          </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-            <Box sx={{ 
-              width: 12, 
-              height: 12, 
-              backgroundColor: getSeverityColor(data.severity), 
-              borderRadius: '50%' 
-            }} />
-            <Typography variant="body2" sx={{ 
-              color: theme.palette.text.primary,
-              fontWeight: 500
-            }}>
-              Alerts: {data.alertCount}
-            </Typography>
-          </Box>
-          <Typography variant="caption" sx={{ 
-            color: theme.palette.text.secondary,
-            fontWeight: 500,
-            display: 'block'
-          }}>
-            Parameters: {data.parameters}
-          </Typography>
-          <Typography variant="caption" sx={{ 
-            color: severityColors.text,
-            fontWeight: 600,
-            textTransform: 'capitalize'
-          }}>
-            Severity: {data.severity}
-          </Typography>
-        </Box>
-      );
-    }
-    return null;
-  };
-
-  // Calculate statistics
   const stats = useMemo(() => {
-    if (!timelineData.length) return {};
-    
+    if (!timelineData.length) {
+      return { totalAlerts: 0, maxAlerts: 0, avgAlerts: 0, criticalHours: 0, highHours: 0 };
+    }
     const totalAlerts = timelineData.reduce((sum, item) => sum + item.alertCount, 0);
-    const maxAlerts = Math.max(...timelineData.map(item => item.alertCount));
+    const maxAlerts = Math.max(...timelineData.map((item) => item.alertCount));
     const avgAlerts = totalAlerts / timelineData.length;
-    const criticalHours = timelineData.filter(item => item.severity === 'critical').length;
-    const highHours = timelineData.filter(item => item.severity === 'high').length;
-    
+    const criticalHours = timelineData.filter((item) => item.severity === 'critical').length;
+    const highHours = timelineData.filter((item) => item.severity === 'high').length;
     return { totalAlerts, maxAlerts, avgAlerts, criticalHours, highHours };
   }, [timelineData]);
 
@@ -220,10 +265,11 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
     if (!filteredAlerts.length) return null;
     const last = filteredAlerts[filteredAlerts.length - 1];
     const byParam = {};
-    filteredAlerts.forEach((a) => { byParam[a.parameterLabel] = (byParam[a.parameterLabel] || 0) + 1; });
-    const topParam = Object.entries(byParam).sort((a, b) => b[1] - a[1])[0]?.[0] || '-';
+    filteredAlerts.forEach((a) => {
+      byParam[a.parameterLabel] = (byParam[a.parameterLabel] || 0) + 1;
+    });
+    const topParam = Object.entries(byParam).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
 
-    // Trend vs previous half
     const half = Math.floor(filteredAlerts.length / 2);
     let trendPct = null;
     if (half > 0) {
@@ -238,36 +284,26 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
     };
   }, [filteredAlerts]);
 
-  const topIncidents = useMemo(() => {
-    return [...filteredAlerts]
-      .sort((a, b) => {
-        const s = (severityRank[b.severity] || 0) - (severityRank[a.severity] || 0);
-        if (s !== 0) return s;
-        return b.timestamp - a.timestamp;
-      })
-      .slice(0, 5);
-  }, [filteredAlerts]);
-
   const incidentSparkData = useMemo(() => {
     if (!timelineData.length) return [];
-    const recent = timelineData.slice(-18);
-    return recent.map((t, idx) => ({
-      idx,
-      count: t.alertCount,
-    }));
+    return timelineData.slice(-18).map((t, idx) => ({ idx, count: t.alertCount }));
+  }, [timelineData]);
+
+  const incidentTrendPct = useMemo(() => {
+    if (timelineData.length < 2) return null;
+    const last = timelineData[timelineData.length - 1].alertCount;
+    const prev = timelineData[timelineData.length - 2].alertCount;
+    if (prev <= 0) return last > 0 ? 100 : 0;
+    return ((last - prev) / prev) * 100;
   }, [timelineData]);
 
   const resolutionInsights = useMemo(() => {
     if (!normalizedAlerts.length) return null;
-
     const sorted = [...normalizedAlerts].sort((a, b) => a.timestamp - b.timestamp);
     const total = sorted.length;
-
-    // Approximation: low/medium represent stable/recovered states
     const recovered = sorted.filter((a) => a.severity === 'low' || a.severity === 'medium').length;
     const recoveryRate = total > 0 ? (recovered / total) * 100 : 0;
 
-    // Median gap in minutes between consecutive alerts
     const gaps = [];
     for (let i = 1; i < sorted.length; i += 1) {
       gaps.push((sorted[i].timestamp - sorted[i - 1].timestamp) / (1000 * 60));
@@ -284,66 +320,143 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
     const lastAlert = sorted[sorted.length - 1];
     const noAlertStreakMin = Math.max(0, (Date.now() - lastAlert.timestamp) / (1000 * 60));
 
-    return {
-      recoveryRate,
-      medianGapMin,
-      noAlertStreakMin,
-    };
+    return { recoveryRate, medianGapMin, noAlertStreakMin };
   }, [normalizedAlerts]);
 
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (!active || !payload?.length) return null;
+    const data = payload[0].payload;
+    return (
+      <Box sx={{ ...getTooltipContentStyle(theme), border: '1px solid rgba(15,23,42,0.1)', p: 1.5 }}>
+        <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', mb: 0.75 }}>{label}</Typography>
+        <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>
+          Alerts: <Box component="span" sx={{ fontWeight: 800, color: '#0F172A' }}>{data.alertCount}</Box>
+        </Typography>
+        {data.parameters && (
+          <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', mt: 0.35 }}>
+            {data.parameters}
+          </Typography>
+        )}
+      </Box>
+    );
+  };
+
+  const severeBuckets = stats.criticalHours + stats.highHours;
+  const totalLabel = stats.totalAlerts || filteredAlerts.length;
+
   return (
-    <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 500, ...getChartCardSx(theme), transition: 'all 0.2s ease', '&:hover': { boxShadow: '0 4px 20px rgba(0,0,0,0.08)' } }}>
-      <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: '100%', p: 3 }}>
-        <Box sx={{ mb: 2 }}>
-          <SectionHeader
-            icon={<TimelineIcon sx={{ fontSize: 18 }} />}
-            title="Alert Timeline"
-            subtitle={deviceName ? `${deviceName} · threshold violations` : 'Threshold violations'}
-            right={(
-              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                {stats.totalAlerts > 0 && (
-                  <Chip
-                    label={`${stats.totalAlerts} total`}
-                    size="small"
-                    sx={{ fontWeight: 800 }}
-                    icon={<WarningIcon sx={{ color: '#EF4444' }} />}
-                  />
-                )}
-                {stats.criticalHours > 0 && (
-                  <Chip
-                    label={`${stats.criticalHours} critical`}
-                    size="small"
-                    color="error"
-                    variant="outlined"
-                    sx={{ fontWeight: 800 }}
-                    icon={<ErrorIcon color="error" />}
-                  />
-                )}
-              </Box>
+    <Card
+      sx={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: 520,
+        borderRadius: 2.5,
+        border: '1px solid',
+        borderColor: 'rgba(15,23,42,0.08)',
+        bgcolor: '#F8FAFC',
+        boxShadow: '0 8px 28px rgba(15,23,42,0.06)',
+        overflow: 'hidden',
+      }}
+    >
+      <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', p: { xs: 2, md: 2.5 } }}>
+        {/* Header */}
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: { xs: 'flex-start', sm: 'center' },
+            justifyContent: 'space-between',
+            gap: 1.5,
+            mb: 2,
+            flexWrap: 'wrap',
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0 }}>
+            <Box
+              sx={{
+                width: 40,
+                height: 40,
+                borderRadius: 1.5,
+                display: 'grid',
+                placeItems: 'center',
+                bgcolor: alpha('#1E3A5F', 0.08),
+                color: '#1E3A5F',
+                flexShrink: 0,
+              }}
+            >
+              <TimelineIcon sx={{ fontSize: 22 }} />
+            </Box>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography sx={{ fontWeight: 800, fontSize: '1.15rem', color: '#0F172A', letterSpacing: '-0.01em' }}>
+                Alert Timeline
+              </Typography>
+              <Typography sx={{ fontSize: '0.78rem', color: '#64748B', fontWeight: 500 }}>
+                {deviceName
+                  ? `${deviceName} · ${totalLabel} threshold violation${totalLabel === 1 ? '' : 's'}`
+                  : `${totalLabel} threshold violation${totalLabel === 1 ? '' : 's'}`}
+              </Typography>
+            </Box>
+          </Box>
+          <Chip
+            size="small"
+            label={`${totalLabel} total`}
+            icon={(
+              <Box
+                sx={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  bgcolor: totalLabel > 0 ? '#EF4444' : '#10B981',
+                  ml: '8px !important',
+                }}
+              />
             )}
+            sx={{
+              height: 28,
+              fontWeight: 800,
+              fontSize: '0.72rem',
+              bgcolor: '#fff',
+              border: '1px solid rgba(15,23,42,0.1)',
+              '& .MuiChip-label': { px: 1 },
+            }}
           />
         </Box>
 
-        {/* Intelligence row + filters */}
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2, alignItems: 'center' }}>
+        {/* Meta + filters */}
+        <Box
+          sx={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 1,
+            alignItems: 'center',
+            mb: 2,
+          }}
+        >
           {insights && (
             <>
-              <Chip size="small" label={`Last alert: ${insights.lastAlertAt}`} />
-              <Chip size="small" label={`Top parameter: ${insights.topParam}`} variant="outlined" />
+              <MetaPill label="LAST ALERT" value={insights.lastAlertAt} />
+              <MetaPill label="TOP PARAMETER" value={insights.topParam} />
               {insights.trendPct != null && (
-                <Chip
-                  size="small"
-                  label={`Trend: ${insights.trendPct >= 0 ? '+' : ''}${insights.trendPct.toFixed(0)}%`}
-                  color={insights.trendPct >= 0 ? 'warning' : 'success'}
-                  variant="outlined"
+                <MetaPill
+                  label="TREND"
+                  value={`${insights.trendPct >= 0 ? '+' : ''}${insights.trendPct.toFixed(0)}%`}
+                  accent={insights.trendPct >= 0 ? '#F59E0B' : '#10B981'}
+                  endAdornment={insights.trendPct >= 0
+                    ? <TrendingUpIcon sx={{ fontSize: 14, color: '#F59E0B' }} />
+                    : <TrendingDownIcon sx={{ fontSize: 14, color: '#10B981' }} />}
                 />
               )}
             </>
           )}
-          <Box sx={{ flex: 1 }} />
-          <FormControl size="small" sx={{ minWidth: 130 }}>
-            <InputLabel>Severity</InputLabel>
-            <Select value={severityFilter} label="Severity" onChange={(e) => setSeverityFilter(e.target.value)}>
+          <Box sx={{ flex: 1, minWidth: 8 }} />
+          <FormControl size="small">
+            <Select
+              value={severityFilter}
+              displayEmpty
+              onChange={(e) => setSeverityFilter(e.target.value)}
+              sx={selectSx}
+              renderValue={(v) => `Severity ${v === 'all' ? 'All' : v.charAt(0).toUpperCase() + v.slice(1)}`}
+            >
               <MenuItem value="all">All</MenuItem>
               <MenuItem value="low">Low</MenuItem>
               <MenuItem value="medium">Medium</MenuItem>
@@ -351,18 +464,32 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
               <MenuItem value="critical">Critical</MenuItem>
             </Select>
           </FormControl>
-          <FormControl size="small" sx={{ minWidth: 170 }}>
-            <InputLabel>Parameter</InputLabel>
-            <Select value={parameterFilter} label="Parameter" onChange={(e) => setParameterFilter(e.target.value)}>
+          <FormControl size="small">
+            <Select
+              value={parameterFilter}
+              displayEmpty
+              onChange={(e) => setParameterFilter(e.target.value)}
+              sx={{ ...selectSx, minWidth: { xs: '100%', sm: 150 } }}
+              renderValue={(v) => (
+                v === 'all'
+                  ? 'Parameter All'
+                  : `Parameter ${formatDisplayName(v, { withUnit: false })}`
+              )}
+            >
               <MenuItem value="all">All</MenuItem>
               {parameterOptions.map((p) => (
                 <MenuItem key={p} value={p}>{formatDisplayName(p, { withUnit: true })}</MenuItem>
               ))}
             </Select>
           </FormControl>
-          <FormControl size="small" sx={{ minWidth: 120 }}>
-            <InputLabel>Bucket</InputLabel>
-            <Select value={bucket} label="Bucket" onChange={(e) => setBucket(e.target.value)}>
+          <FormControl size="small">
+            <Select
+              value={bucket}
+              displayEmpty
+              onChange={(e) => setBucket(e.target.value)}
+              sx={selectSx}
+              renderValue={(v) => `Bucket ${v === '15m' ? '15 min' : v === 'day' ? 'Day' : 'Hour'}`}
+            >
               <MenuItem value="15m">15 min</MenuItem>
               <MenuItem value="hour">Hour</MenuItem>
               <MenuItem value="day">Day</MenuItem>
@@ -370,351 +497,395 @@ const QuickViewAlertChart = ({ alertData, deviceName }) => {
           </FormControl>
         </Box>
 
-        {/* Modern Statistics */}
-        {stats.totalAlerts > 0 && (
-          <Box sx={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(4, 1fr)', 
-            gap: 2, 
-            mb: 3 
-          }}>
-            <Box sx={{ textAlign: 'center', p: 2, borderRadius: 1.5, background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.25)', transition: 'all 0.2s ease' }}>
-              <Typography variant="h6" sx={{ 
-                color: '#EF4444',
-                fontWeight: 800,
-                fontSize: '1.1rem',
-                mb: 0.5
-              }}>
-                {stats.totalAlerts}
-              </Typography>
-              <Typography variant="caption" sx={{ 
-                color: theme.palette.text.secondary,
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px'
-              }}>
-                Total Alerts
-              </Typography>
-            </Box>
-            <Box sx={{ textAlign: 'center', p: 2, borderRadius: 1.5, background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.25)', transition: 'all 0.2s ease' }}>
-              <Typography variant="body1" sx={{ 
-                color: '#F59E0B',
-                fontWeight: 700,
-                fontSize: '1rem',
-                mb: 0.5
-              }}>
-                {stats.maxAlerts}
-              </Typography>
-              <Typography variant="caption" sx={{ 
-                color: theme.palette.text.secondary,
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px'
-              }}>
-                Max/Hour
-              </Typography>
-            </Box>
-            <Box sx={{ textAlign: 'center', p: 2, borderRadius: 1.5, background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.25)', transition: 'all 0.2s ease' }}>
-              <Typography variant="body1" sx={{ 
-                color: '#2563EB',
-                fontWeight: 700,
-                fontSize: '1rem',
-                mb: 0.5
-              }}>
-                {stats.avgAlerts?.toFixed(1) || '0'}
-              </Typography>
-              <Typography variant="caption" sx={{ 
-                color: theme.palette.text.secondary,
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px'
-              }}>
-                Avg/Hour
-              </Typography>
-            </Box>
-            <Box sx={{ 
-              textAlign: 'center',
-              p: 2,
-              borderRadius: 1.5,
-              background: 'rgba(124, 58, 237, 0.08)',
-              border: '1px solid rgba(124, 58, 237, 0.25)',
-              transition: 'all 0.2s ease'
-            }}>
-              <Typography variant="body1" sx={{ 
-                color: '#0099CC',
-                fontWeight: 700,
-                fontSize: '1rem',
-                mb: 0.5
-              }}>
-                {stats.criticalHours + stats.highHours}
-              </Typography>
-              <Typography variant="caption" sx={{ 
-                color: theme.palette.text.secondary,
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px'
-              }}>
-                Critical/High Hours
-              </Typography>
-            </Box>
-          </Box>
-        )}
+        {/* KPI row */}
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' },
+            gap: 1.25,
+            mb: 1.25,
+          }}
+        >
+          <MetricCard
+            title="Total Alerts"
+            value={stats.totalAlerts}
+            subtitle="All time in range"
+            dotColor="#EF4444"
+          />
+          <MetricCard
+            title={`Max / ${bucketLabel}`}
+            value={stats.maxAlerts}
+            subtitle="Peak intensity"
+            dotColor="#F59E0B"
+          />
+          <MetricCard
+            title={`Avg / ${bucketLabel}`}
+            value={stats.avgAlerts ? stats.avgAlerts.toFixed(1) : '0'}
+            subtitle="Steady state"
+            dotColor="#94A3B8"
+          />
+          <MetricCard
+            title="Critical / High Hours"
+            value={severeBuckets}
+            subtitle={severeBuckets === 0 ? 'No severe incidents' : 'Severe bucket peaks'}
+            dotColor={severeBuckets === 0 ? '#10B981' : '#0099CC'}
+            icon={severeBuckets === 0 ? <CheckCircleIcon sx={{ fontSize: 10, color: '#fff' }} /> : null}
+          />
+        </Box>
 
-        {/* Resolution insights */}
+        {/* Insight row */}
         {resolutionInsights && (
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: { xs: '1fr', sm: 'repeat(4, 1fr)' },
+              gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(4, 1fr)' },
               gap: 1.25,
               mb: 2,
             }}
           >
-            <Box sx={{ p: 1.25, borderRadius: 1.25, border: '1px solid rgba(16,185,129,0.25)', bgcolor: 'rgba(16,185,129,0.06)' }}>
-              <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', fontWeight: 700, letterSpacing: 0.3, textTransform: 'uppercase' }}>
-                Recovery Rate
-              </Typography>
-              <Typography sx={{ mt: 0.25, fontWeight: 800, color: '#10B981' }}>
-                {resolutionInsights.recoveryRate.toFixed(0)}%
-              </Typography>
-            </Box>
-            <Box sx={{ p: 1.25, borderRadius: 1.25, border: '1px solid rgba(37,99,235,0.25)', bgcolor: 'rgba(37,99,235,0.06)' }}>
-              <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', fontWeight: 700, letterSpacing: 0.3, textTransform: 'uppercase' }}>
-                Median Gap
-              </Typography>
-              <Typography sx={{ mt: 0.25, fontWeight: 800, color: '#2563EB' }}>
-                {resolutionInsights.medianGapMin != null ? `${resolutionInsights.medianGapMin.toFixed(0)} min` : '-'}
-              </Typography>
-            </Box>
-            <Box sx={{ p: 1.25, borderRadius: 1.25, border: '1px solid rgba(124,58,237,0.25)', bgcolor: 'rgba(124,58,237,0.06)' }}>
-              <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', fontWeight: 700, letterSpacing: 0.3, textTransform: 'uppercase' }}>
-                No-Alert Streak
-              </Typography>
-              <Typography sx={{ mt: 0.25, fontWeight: 800, color: '#7C3AED' }}>
-                {resolutionInsights.noAlertStreakMin >= 60
-                  ? `${(resolutionInsights.noAlertStreakMin / 60).toFixed(1)} h`
-                  : `${resolutionInsights.noAlertStreakMin.toFixed(0)} min`}
-              </Typography>
-            </Box>
-            <Box sx={{ p: 1.25, borderRadius: 1.25, border: '1px solid rgba(245,158,11,0.25)', bgcolor: 'rgba(245,158,11,0.06)' }}>
-              <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', fontWeight: 700, letterSpacing: 0.3, textTransform: 'uppercase', mb: 0.5 }}>
-                Incident Trend
-              </Typography>
-              <Box sx={{ height: 46, width: '100%' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={incidentSparkData} margin={{ top: 4, right: 2, left: 2, bottom: 2 }}>
-                    <Line
-                      type="monotone"
-                      dataKey="count"
-                      stroke="#F59E0B"
-                      strokeWidth={2}
-                      dot={false}
-                      isAnimationActive={false}
+            <InsightCard
+              title="Recovery Rate"
+              value={`${resolutionInsights.recoveryRate.toFixed(0)}%`}
+              subtitle={resolutionInsights.recoveryRate >= 100 ? 'All alerts resolved' : 'Stable / recovered share'}
+              accent="#10B981"
+              footer={(
+                <Box sx={{ mt: 1.25, height: 4, borderRadius: 999, bgcolor: alpha('#10B981', 0.15), overflow: 'hidden' }}>
+                  <Box
+                    sx={{
+                      width: `${Math.min(100, resolutionInsights.recoveryRate)}%`,
+                      height: '100%',
+                      bgcolor: '#0F172A',
+                      borderRadius: 999,
+                    }}
+                  />
+                </Box>
+              )}
+            />
+            <InsightCard
+              title="Median Gap"
+              value={resolutionInsights.medianGapMin != null
+                ? `${resolutionInsights.medianGapMin.toFixed(0)} min`
+                : '—'}
+              subtitle="Between incidents"
+              accent="#2563EB"
+              footer={(
+                <Box
+                  sx={{
+                    mt: 1.25,
+                    height: 0,
+                    borderTop: '2px dashed',
+                    borderColor: alpha('#2563EB', 0.45),
+                  }}
+                />
+              )}
+            />
+            <InsightCard
+              title="No-Alert Streak"
+              value={resolutionInsights.noAlertStreakMin >= 60
+                ? `${(resolutionInsights.noAlertStreakMin / 60).toFixed(1)} h`
+                : `${resolutionInsights.noAlertStreakMin.toFixed(0)} min`}
+              subtitle="Currently quiet"
+              accent="#7C3AED"
+              footer={(
+                <Chip
+                  size="small"
+                  label="LIVE"
+                  icon={(
+                    <Box
+                      sx={{
+                        width: 6,
+                        height: 6,
+                        borderRadius: '50%',
+                        bgcolor: '#7C3AED',
+                        ml: '8px !important',
+                        animation: 'pulse 1.6s ease-in-out infinite',
+                        '@keyframes pulse': {
+                          '0%, 100%': { opacity: 1 },
+                          '50%': { opacity: 0.35 },
+                        },
+                      }}
                     />
-                  </LineChart>
-                </ResponsiveContainer>
-              </Box>
-              <Typography sx={{ mt: 0.25, fontSize: '0.72rem', color: 'text.secondary' }}>
-                Last {incidentSparkData.length} buckets
-              </Typography>
-            </Box>
+                  )}
+                  sx={{
+                    mt: 1,
+                    alignSelf: 'flex-start',
+                    height: 22,
+                    fontWeight: 800,
+                    fontSize: '0.62rem',
+                    letterSpacing: '0.08em',
+                    bgcolor: alpha('#7C3AED', 0.08),
+                    color: '#7C3AED',
+                    border: `1px solid ${alpha('#7C3AED', 0.25)}`,
+                  }}
+                />
+              )}
+            />
+            <InsightCard
+              title="Incident Trend"
+              value={(
+                <Box sx={{ height: 42, width: '100%', mt: 0.25 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={incidentSparkData} margin={{ top: 4, right: 2, left: 2, bottom: 2 }}>
+                      <Line
+                        type="monotone"
+                        dataKey="count"
+                        stroke="#F59E0B"
+                        strokeWidth={2.25}
+                        dot={false}
+                        isAnimationActive={false}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </Box>
+              )}
+              subtitle={`LAST ${Math.min(2, timelineData.length)} BUCKETS`}
+              accent="#F59E0B"
+              footer={incidentTrendPct != null ? (
+                <Chip
+                  size="small"
+                  label={`${incidentTrendPct >= 0 ? '+' : ''}${incidentTrendPct.toFixed(0)}%`}
+                  sx={{
+                    position: 'absolute',
+                    top: 12,
+                    right: 12,
+                    height: 22,
+                    fontWeight: 800,
+                    fontSize: '0.65rem',
+                    bgcolor: alpha(incidentTrendPct >= 0 ? '#EF4444' : '#10B981', 0.1),
+                    color: incidentTrendPct >= 0 ? '#DC2626' : '#059669',
+                  }}
+                />
+              ) : null}
+            />
           </Box>
         )}
 
-        {/* Modern Chart */}
-        <Box sx={{ 
-          flexGrow: 1, 
-          minHeight: 300, height: '400px', width: '100%', p: 2, position: 'relative', overflow: 'hidden', ...getChartCardSx(theme)
-        }}>
-          {timelineData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={timelineData} margin={{ ...CHART_MARGIN, bottom: 56 }}>
-                <CartesianGrid {...getCartesianGridProps(theme)} />
-                <XAxis dataKey="hour" stroke={theme.palette.divider} tick={getAxisTickStyle(theme)} angle={-45} textAnchor="end" height={56} />
-                <YAxis stroke={theme.palette.divider} tick={getAxisTickStyle(theme)} />
-                <RechartsTooltip content={<CustomTooltip />} />
-                
-                <Bar
-                  dataKey="alertCount"
-                  radius={[8, 8, 0, 0]}
-                  isAnimationActive={false}
-                >
-                  {timelineData.map((entry, index) => (
-                    <Cell 
-                      key={`cell-${index}`} 
-                      fill={getSeverityColor(entry.severity)}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <Box sx={{ 
-              display: 'flex', 
-              flexDirection: 'column',
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              height: '100%',
-              color: theme.palette.text.secondary
-            }}>
-              <CheckCircleIcon sx={{ fontSize: 48, mb: 2, opacity: 0.3 }} />
-              <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                No alerts in this period
+        {/* Chart panel */}
+        <Box
+          sx={{
+            flexGrow: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            borderRadius: 2,
+            bgcolor: '#fff',
+            border: '1px solid rgba(15,23,42,0.08)',
+            boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
+            overflow: 'hidden',
+            minHeight: 340,
+          }}
+        >
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 1,
+              px: 2,
+              py: 1.35,
+              borderBottom: '1px solid rgba(15,23,42,0.06)',
+              flexWrap: 'wrap',
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+              <Typography sx={{ fontWeight: 800, fontSize: '0.92rem', color: '#0F172A' }}>
+                {volumeTitle}
               </Typography>
-              <Typography variant="body2" sx={{ opacity: 0.7 }}>
-                All parameters within normal range
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
+                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: CHART_BAR }} />
+                <Typography sx={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>
+                  Alerts
+                </Typography>
+              </Box>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography sx={{ fontSize: '0.7rem', color: '#94A3B8', fontWeight: 700, letterSpacing: '0.06em' }}>
+                LOCAL
+              </Typography>
+              <Chip
+                size="small"
+                label={`${timelineData.length} bucket${timelineData.length === 1 ? '' : 's'}`}
+                sx={{
+                  height: 22,
+                  fontWeight: 700,
+                  fontSize: '0.68rem',
+                  bgcolor: alpha('#1E293B', 0.06),
+                  color: '#334155',
+                }}
+              />
+            </Box>
+          </Box>
+
+          <Box sx={{ flexGrow: 1, px: 1, py: 1.5, height: 300, minHeight: 280 }}>
+            {timelineData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={timelineData} margin={{ ...CHART_MARGIN, top: 8, bottom: 28 }}>
+                  <CartesianGrid {...getCartesianGridProps(theme)} vertical={false} />
+                  <XAxis
+                    dataKey="hour"
+                    stroke={theme.palette.divider}
+                    tick={getAxisTickStyle(theme)}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    stroke={theme.palette.divider}
+                    tick={getAxisTickStyle(theme)}
+                    axisLine={false}
+                    tickLine={false}
+                    allowDecimals={false}
+                  />
+                  <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: alpha('#1E293B', 0.04) }} />
+                  <Bar
+                    dataKey="alertCount"
+                    fill={CHART_BAR}
+                    radius={[8, 8, 0, 0]}
+                    maxBarSize={56}
+                    isAnimationActive={false}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <Box
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: '100%',
+                  color: '#94A3B8',
+                }}
+              >
+                <CheckCircleIcon sx={{ fontSize: 44, mb: 1.25, opacity: 0.35, color: '#10B981' }} />
+                <Typography sx={{ fontWeight: 700, color: '#334155' }}>No alerts in this period</Typography>
+                <Typography sx={{ fontSize: '0.8rem', mt: 0.35 }}>
+                  All parameters within normal range
+                </Typography>
+              </Box>
+            )}
+          </Box>
+
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 1,
+              px: 2,
+              py: 1.1,
+              borderTop: '1px solid rgba(15,23,42,0.06)',
+              flexWrap: 'wrap',
+            }}
+          >
+            <Typography sx={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 500 }}>
+              Showing {timelineData.length} {bucket === 'hour' ? 'hourly' : bucket === 'day' ? 'daily' : '15-min'} bucket
+              {timelineData.length === 1 ? '' : 's'} · {stats.totalAlerts} alert{stats.totalAlerts === 1 ? '' : 's'} total
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+              <Box
+                sx={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: '50%',
+                  bgcolor: '#10B981',
+                  animation: 'pulse 1.6s ease-in-out infinite',
+                  '@keyframes pulse': {
+                    '0%, 100%': { opacity: 1 },
+                    '50%': { opacity: 0.35 },
+                  },
+                }}
+              />
+              <Typography sx={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>
+                Live bucket updates
               </Typography>
             </Box>
-          )}
+          </Box>
         </Box>
 
-        {/* Modern Legend */}
-        {timelineData.length > 0 && (
-          <Box sx={{ 
-            mt: 3, p: 2, borderRadius: 1.5, background: 'rgba(0,0,0,0.02)', border: '1px solid rgba(0,0,0,0.06)'
-          }}>
-            <Typography variant="subtitle2" sx={{ 
-              fontWeight: 600, 
-              color: theme.palette.text.primary,
-              mb: 2,
-              textAlign: 'center'
-            }}>
-              Alert Severity Levels
+        {/* Severity legend */}
+        <Box
+          sx={{
+            mt: 1.75,
+            px: 1.75,
+            py: 1.25,
+            borderRadius: 2,
+            bgcolor: '#fff',
+            border: '1px solid rgba(15,23,42,0.08)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 1.5,
+            flexWrap: 'wrap',
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.85 }}>
+            <ShieldOutlinedIcon sx={{ fontSize: 18, color: '#64748B' }} />
+            <Typography
+              sx={{
+                fontSize: '0.7rem',
+                fontWeight: 800,
+                letterSpacing: '0.1em',
+                color: '#64748B',
+              }}
+            >
+              ALERT SEVERITY LEVELS
             </Typography>
-            <Box sx={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', 
-              gap: 2 
-            }}>
-              <Box sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 1,
-                p: 1, borderRadius: 1, background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.2)'
-              }}>
-                <Box sx={{ 
-                  width: 12, 
-                  height: 12, 
-                  backgroundColor: '#10B981', 
-                  borderRadius: '50%' 
-                }} />
-                <Typography variant="caption" sx={{ 
-                  fontWeight: 600,
-                  color: '#10B981',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px'
-                }}>
-                  Low
-                </Typography>
-              </Box>
-              <Box sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 1,
-                p: 1, borderRadius: 1, background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.2)'
-              }}>
-                <Box sx={{ 
-                  width: 12, 
-                  height: 12, 
-                  backgroundColor: '#F59E0B', 
-                  borderRadius: '50%' 
-                }} />
-                <Typography variant="caption" sx={{ 
-                  fontWeight: 600,
-                  color: '#F59E0B',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px'
-                }}>
-                  Medium
-                </Typography>
-              </Box>
-              <Box sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 1,
-                p: 1, borderRadius: 1, background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)'
-              }}>
-                <Box sx={{ 
-                  width: 12, 
-                  height: 12, 
-                  backgroundColor: '#EF4444', 
-                  borderRadius: '50%' 
-                }} />
-                <Typography variant="caption" sx={{ 
-                  fontWeight: 600,
-                  color: '#EF4444',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px'
-                }}>
-                  High
-                </Typography>
-              </Box>
-              <Box sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 1,
-                p: 1, borderRadius: 1, background: 'rgba(0, 153, 204, 0.08)', border: '1px solid rgba(0, 153, 204, 0.2)'
-              }}>
-                <Box sx={{ 
-                  width: 12, 
-                  height: 12, 
-                  backgroundColor: '#0099CC', 
-                  borderRadius: '50%' 
-                }} />
-                <Typography variant="caption" sx={{ 
-                  fontWeight: 600,
-                  color: '#0099CC',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px'
-                }}>
-                  Critical
-                </Typography>
-              </Box>
-            </Box>
           </Box>
-        )}
-
-        {/* Top incidents mini table */}
-        {topIncidents.length > 0 && (
-          <Box sx={{ mt: 2 }}>
-            <SectionHeader
-              icon={<InfoIcon sx={{ fontSize: 18 }} />}
-              title="Top Incidents"
-              subtitle="Most severe and recent events"
-              sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1 }}
-            />
-            <TableContainer component={Paper} sx={{ border: '1px solid rgba(0,0,0,0.06)', borderTop: 'none' }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Time</TableCell>
-                    <TableCell>Parameter</TableCell>
-                    <TableCell>Severity</TableCell>
-                    <TableCell>Value</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {topIncidents.map((r) => (
-                    <TableRow key={r.id}>
-                      <TableCell>{formatInUserTimezone(r.detectedAt)}</TableCell>
-                      <TableCell>{r.parameterLabel}</TableCell>
-                      <TableCell sx={{ textTransform: 'capitalize' }}>
-                        <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>
-                          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: getSeverityColor(r.severity) }} />
-                          {r.severity}
-                        </Box>
-                      </TableCell>
-                      <TableCell>{r.value ?? '-'}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1.25, sm: 2 }, flexWrap: 'wrap' }}>
+            {Object.entries(SEVERITY).map(([key, meta]) => (
+              <Box key={key} sx={{ display: 'flex', alignItems: 'center', gap: 0.7 }}>
+                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: meta.color }} />
+                <Typography
+                  sx={{
+                    fontSize: '0.68rem',
+                    fontWeight: 800,
+                    letterSpacing: '0.06em',
+                    color: '#475569',
+                  }}
+                >
+                  {meta.label}
+                </Typography>
+              </Box>
+            ))}
           </Box>
-        )}
+        </Box>
       </CardContent>
     </Card>
   );
 };
+
+function MetaPill({ label, value, accent, endAdornment }) {
+  return (
+    <Box
+      sx={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 0.75,
+        px: 1.15,
+        py: 0.55,
+        borderRadius: 999,
+        bgcolor: '#fff',
+        border: '1px solid rgba(15,23,42,0.08)',
+        maxWidth: '100%',
+      }}
+    >
+      <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: accent || '#0F172A', flexShrink: 0 }} />
+      <Typography sx={{ fontSize: '0.62rem', fontWeight: 800, letterSpacing: '0.08em', color: '#94A3B8' }}>
+        {label}
+      </Typography>
+      <Typography
+        noWrap
+        sx={{
+          fontSize: '0.72rem',
+          fontWeight: 700,
+          color: accent || '#0F172A',
+          maxWidth: 220,
+        }}
+      >
+        {value}
+      </Typography>
+      {endAdornment}
+    </Box>
+  );
+}
 
 export default QuickViewAlertChart;
