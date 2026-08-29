@@ -211,10 +211,14 @@ export function buildWellWaterState(tmatRaw, waterRaw) {
   const fillPct = waterSurfaceY != null
     ? ((waterSurfaceY - tankBottom) / WELL_GEOMETRY.tankHeight) * 100
     : null;
+  const sceneWaterY = tmatRaw != null
+    ? Math.max(WELL_GEOMETRY.groundY - 1.85 + 0.05, Math.min(WELL_GEOMETRY.groundY + 0.02, WELL_GEOMETRY.groundY + toNum(tmatRaw)))
+    : waterSurfaceY;
   return {
     tmatElevationM: toNum(tmatRaw),
     groundwaterElevationM: gwElevationM,
     waterSurfaceY,
+    sceneWaterY,
     groundwaterY,
     tankBottom,
     tankTop,
