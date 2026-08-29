@@ -243,12 +243,16 @@ const QuickViewAlertChart = ({
   const chartBar = t.primary;
 
   const mergedAlertSource = useMemo(() => {
+    const rows = Array.isArray(seriesData) ? seriesData : [];
+    const params = Array.isArray(parameters) ? parameters : [];
+    const configs = Array.isArray(alertConfigs) ? alertConfigs : [];
+    const logs = Array.isArray(alertData) ? alertData : [];
     const synthetic = buildSyntheticThresholdAlerts({
-      rows: seriesData,
-      parameters,
-      alertConfigs,
+      rows,
+      parameters: params,
+      alertConfigs: configs,
     });
-    return mergeAlertLogsWithThresholdScans(alertData, synthetic);
+    return mergeAlertLogsWithThresholdScans(logs, synthetic);
   }, [alertData, seriesData, parameters, alertConfigs]);
 
   const normalizedAlerts = useMemo(() => {

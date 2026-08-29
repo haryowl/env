@@ -4,6 +4,10 @@
  * Alert Timeline previously used only /alert-logs — merge both so panels stay consistent.
  */
 
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
 export function matchesAlertParameter(alertParameter, chartParameter) {
   if (alertParameter == null || chartParameter == null) return false;
   const a = String(alertParameter).trim();
@@ -20,8 +24,8 @@ export function matchesAlertParameter(alertParameter, chartParameter) {
 
 export function buildThresholdMap(alertConfigs = [], parameters = []) {
   const map = {};
-  (parameters || []).forEach((param) => {
-    const configs = (alertConfigs || []).filter(
+  asArray(parameters).forEach((param) => {
+    const configs = asArray(alertConfigs).filter(
       (a) => a.type === 'threshold' && matchesAlertParameter(a.parameter, param)
     );
     if (!configs.length) return;
@@ -60,14 +64,15 @@ export function buildSyntheticThresholdAlerts({
 }) {
   const thresholdsByParam = buildThresholdMap(alertConfigs, parameters);
   const events = [];
+  const paramList = asArray(parameters);
 
-  (rows || []).forEach((row, rowIdx) => {
+  asArray(rows).forEach((row, rowIdx) => {
     const rawTs = row.datetime ?? row.timestamp ?? row.server_received_at;
     if (!rawTs) return;
     const d = new Date(rawTs);
     if (Number.isNaN(d.getTime())) return;
 
-    (parameters || []).forEach((param) => {
+    paramList.forEach((param) => {
       const thr = thresholdsByParam[param];
       if (!thr) return;
       const value = row[param];
@@ -108,12 +113,12 @@ function alertDedupeKey(alert) {
  */
 export function mergeAlertLogsWithThresholdScans(alertLogs = [], syntheticAlerts = []) {
   const map = new Map();
-  (syntheticAlerts || []).forEach((a) => {
+  asArray(syntheticAlerts).forEach((a) => {
     const key = alertDedupeKey(a);
     if (!key) return;
     map.set(key, a);
   });
-  (alertLogs || []).forEach((a) => {
+  asArray(alertLogs).forEach((a) => {
     const key = alertDedupeKey(a);
     if (!key) {
       // keep unmatched logs with unique fallback key

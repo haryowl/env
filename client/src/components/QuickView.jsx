@@ -76,7 +76,7 @@ const QuickView = () => {
   const [viewMode, setViewMode] = useState('realtime');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [chartData, setChartData] = useState({});
+  const [chartData, setChartData] = useState([]);
   const [alertData, setAlertData] = useState([]);
   const [tableData, setTableData] = useState([]);
   const [parameters, setParameters] = useState([]);
@@ -317,7 +317,7 @@ const QuickView = () => {
 
       if (dataDashResponse.ok) {
         const payload = await dataDashResponse.json();
-        const rows = payload.data || [];
+        const rows = Array.isArray(payload.data) ? payload.data : [];
         setChartData(rows);
         setTableData(rows);
       }
