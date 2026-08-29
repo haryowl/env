@@ -328,6 +328,24 @@ function SonarRing({ active, x }) {
   );
 }
 
+function makeParticleSpriteTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  const g = ctx.createRadialGradient(32, 32, 2, 32, 32, 28);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.45, 'rgba(255,255,255,0.85)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 64, 64);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.needsUpdate = true;
+  return tex;
+}
+
+const PARTICLE_SPRITE = typeof document !== 'undefined' ? makeParticleSpriteTexture() : null;
+
 function ParticleCloud({
   kind,
   count,
@@ -362,7 +380,7 @@ function ParticleCloud({
     // Keep a visible baseline under orthographic zoom (sparse clouds vanish easily)
     const activeCount = d <= 0.01
       ? 0
-      : Math.max(Math.ceil(count * 0.35), Math.floor(count * (0.35 + d * 0.65)));
+      : Math.max(Math.ceil(count * 0.2), Math.floor(count * (0.2 + d * 0.8)));
     const yMin = -CHANNEL_H / 2 + 0.16;
     const yMax = -CHANNEL_H / 2 + 0.1 + WATER_H * 0.88;
     const t = state.clock.elapsedTime;
@@ -425,6 +443,7 @@ function ParticleCloud({
       </bufferGeometry>
       <pointsMaterial
         ref={matRef}
+        map={PARTICLE_SPRITE || undefined}
         color={color}
         size={size}
         sizeAttenuation={false}
@@ -433,6 +452,7 @@ function ParticleCloud({
         depthTest={false}
         depthWrite={false}
         toneMapped={false}
+        alphaTest={0.08}
       />
     </points>
   );
@@ -443,12 +463,12 @@ function WaterParticles({ particles, particleDrift = 0.7, enabled = true }) {
   const drift = Math.max(0.15, particleDrift);
   return (
     <group>
-      {/* Pixel sizes (sizeAttenuation off) — readable in orthographic view */}
+      {/* Small pixel sizes — visible in ortho without covering the channel */}
       <ParticleCloud
         kind="tss"
-        count={140}
+        count={120}
         color="#f59e0b"
-        size={9}
+        size={3.2}
         density={particles?.tssDensity ?? 0.45}
         drift={drift}
         settle={particles?.tssSettle ?? 0.8}
@@ -456,9 +476,9 @@ function WaterParticles({ particles, particleDrift = 0.7, enabled = true }) {
       />
       <ParticleCloud
         kind="cod"
-        count={160}
+        count={140}
         color="#57534e"
-        size={5}
+        size={2}
         density={particles?.codDensity ?? 0.45}
         drift={drift * 1.2}
         flutter={particles?.codFlutter ?? 0.9}
@@ -466,9 +486,9 @@ function WaterParticles({ particles, particleDrift = 0.7, enabled = true }) {
       />
       <ParticleCloud
         kind="nh3"
-        count={110}
+        count={90}
         color="#a3e635"
-        size={7}
+        size={2.6}
         density={particles?.nh3Density ?? 0.35}
         drift={drift * 0.9}
         buoyant={0.7 + (particles?.nh3Density ?? 0.2)}
