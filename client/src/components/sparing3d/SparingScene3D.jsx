@@ -1,6 +1,6 @@
 import React, { useLayoutEffect, useMemo, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Html, OrbitControls } from '@react-three/drei';
+import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 
 const CHANNEL_LEN = 10.5;
@@ -17,47 +17,95 @@ const PROBE_META = [
 
 function IsoCamera() {
   const { camera, size } = useThree();
+  const primed = useRef(false);
+
   useLayoutEffect(() => {
+    if (!camera.isOrthographicCamera) return;
     const aspect = size.width / Math.max(1, size.height);
     const frustum = 6.2;
-    if (camera.isOrthographicCamera) {
-      camera.left = -frustum * aspect;
-      camera.right = frustum * aspect;
-      camera.top = frustum;
-      camera.bottom = -frustum;
-      camera.near = 0.1;
-      camera.far = 80;
+    // Only update frustum on resize — never reset position/zoom (OrbitControls owns those).
+    camera.left = -frustum * aspect;
+    camera.right = frustum * aspect;
+    camera.top = frustum;
+    camera.bottom = -frustum;
+    camera.near = 0.1;
+    camera.far = 80;
+    if (!primed.current) {
       camera.position.set(10, 10, 10);
       camera.lookAt(0, 0.2, 0);
       camera.zoom = 1;
-      camera.updateProjectionMatrix();
+      primed.current = true;
     }
+    camera.updateProjectionMatrix();
   }, [camera, size.width, size.height]);
   return null;
 }
 
+/** Canvas sprite labels — Html + distanceFactor breaks under orthographic zoom. */
+function makeLabelTexture(text, color, glow) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const label = String(text || '').toUpperCase();
+  ctx.font = '800 42px ui-monospace, SFMono-Regular, Menlo, monospace';
+  const metrics = ctx.measureText(label);
+  const padX = 36;
+  const padY = 18;
+  const w = Math.min(canvas.width - 16, metrics.width + padX * 2);
+  const h = 64;
+  const x = (canvas.width - w) / 2;
+  const y = (canvas.height - h) / 2;
+
+  ctx.fillStyle = glow ? 'rgba(190,242,100,0.22)' : 'rgba(15,23,42,0.82)';
+  ctx.strokeStyle = glow ? 'rgba(190,242,100,0.7)' : 'rgba(148,163,184,0.45)';
+  ctx.lineWidth = 3;
+  const r = 28;
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = color;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(0,0,0,0.85)';
+  ctx.shadowBlur = 8;
+  ctx.fillText(label, canvas.width / 2, canvas.height / 2 + 1);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  return tex;
+}
+
 function Label3D({ position, children, color = '#e2e8f0', glow = false }) {
+  const texture = useMemo(
+    () => makeLabelTexture(children, color, glow),
+    [children, color, glow]
+  );
+
+  useLayoutEffect(() => () => {
+    texture.dispose();
+  }, [texture]);
+
   return (
-    <Html position={position} center distanceFactor={14} style={{ pointerEvents: 'none', userSelect: 'none' }}>
-      <div
-        style={{
-          color,
-          fontSize: '10px',
-          fontWeight: 800,
-          letterSpacing: '0.12em',
-          padding: '2px 8px',
-          borderRadius: 999,
-          background: glow ? 'rgba(190,242,100,0.18)' : 'rgba(15,23,42,0.72)',
-          border: `1px solid ${glow ? 'rgba(190,242,100,0.55)' : 'rgba(148,163,184,0.35)'}`,
-          boxShadow: glow ? '0 0 16px rgba(190,242,100,0.45)' : '0 4px 14px rgba(0,0,0,0.45)',
-          whiteSpace: 'nowrap',
-          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-          textShadow: '0 0 8px rgba(0,0,0,0.9)',
-        }}
-      >
-        {children}
-      </div>
-    </Html>
+    <sprite position={position} scale={[1.55, 0.39, 1]}>
+      <spriteMaterial
+        map={texture}
+        transparent
+        depthTest
+        depthWrite={false}
+        toneMapped={false}
+      />
+    </sprite>
   );
 }
 
