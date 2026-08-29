@@ -7,6 +7,7 @@ import {
   resolveParamKey,
   normalizeKey,
   flowToM3PerSec,
+  flowToM3PerMin,
   freeAmmoniaMgL,
   organicLoadKgDay,
 } from './sparingAnalysis';
@@ -88,8 +89,54 @@ function readField(fields, key) {
 export function flowToChannelMs(flowValue, unitHint = '') {
   const q = flowToM3PerSec(flowValue, unitHint);
   if (q == null) return null;
+  if (q <= 0) return 0;
   const areaM2 = 0.18; // ~0.6 m wide × 0.3 m deep visual channel
-  return Math.max(0.05, Math.min(3.5, q / areaM2));
+  return Math.max(0, Math.min(3.5, q / areaM2));
+}
+
+/**
+ * Map live flow → clearly distinct 3D animation drivers.
+ * Tuned so 0 / ~0.55 / ~1.8 m³/min read as stop / medium / fast.
+ */
+export function flowVisualDrivers(flowValue, unitHint = '') {
+  const m3min = flowToM3PerMin(flowValue, unitHint);
+  if (m3min == null) {
+    return {
+      flowM3Min: null,
+      flowMs: null,
+      flowSpeed: 0.9,
+      impellerSpin: 4,
+      waveAmp: 0.016,
+      textureScroll: 0.014,
+      particleDrift: 0.7,
+    };
+  }
+
+  // Hard stop when effectively zero
+  if (m3min <= 0.001) {
+    return {
+      flowM3Min: 0,
+      flowMs: 0,
+      flowSpeed: 0,
+      impellerSpin: 0,
+      waveAmp: 0,
+      textureScroll: 0,
+      particleDrift: 0,
+    };
+  }
+
+  // Perceptual curve: 0.55 → ~1.0, 1.8 → ~2.4
+  const flowSpeed = Math.min(2.8, 0.28 + m3min * 1.2);
+  const flowMs = flowToChannelMs(flowValue, unitHint) ?? 0;
+  return {
+    flowM3Min: m3min,
+    flowMs,
+    flowSpeed,
+    impellerSpin: flowSpeed * 5.8,
+    waveAmp: Math.min(0.055, 0.01 + flowSpeed * 0.016),
+    textureScroll: 0.006 + flowSpeed * 0.022,
+    particleDrift: 0.25 + flowSpeed * 0.85,
+  };
 }
 
 function phColor(ph) {
@@ -147,7 +194,7 @@ export function buildSparingSimulationTelemetry(
     ? (getUnit(flowKey) || fieldMetadata?.[flowKey]?.unit || 'L/min')
     : (fieldMetadata?.[flowKey]?.unit || 'L/min');
 
-  const flowMs = flowToChannelMs(flowRaw, flowUnit);
+  const flowDrivers = flowVisualDrivers(flowRaw, flowUnit);
   const freeNh3 = freeAmmoniaMgL(nh3n, ph);
   const load = organicLoadKgDay(cod, flowRaw, flowUnit);
 
@@ -175,16 +222,26 @@ export function buildSparingSimulationTelemetry(
   const nh3Glow = nh3n != null && nh3n > 25;
   const waterTint = phColor(ph);
 
+  // Stronger perceptual density: mid-range values already look busy
   const particles = {
-    tssDensity: tss == null ? 0.25 : Math.min(1, tss / 250),
-    nh3Density: nh3n == null ? 0.2 : Math.min(1, nh3n / 40),
-    codDensity: cod == null ? 0.2 : Math.min(1, cod / 300),
+    tssDensity: tss == null ? 0.15 : Math.min(1, Math.max(0, tss / 120)),
+    nh3Density: nh3n == null ? 0.12 : Math.min(1, Math.max(0, nh3n / 30)),
+    codDensity: cod == null ? 0.15 : Math.min(1, Math.max(0, cod / 140)),
+    tssSettle: tss == null ? 0.4 : Math.min(1.6, 0.35 + (tss / 100)),
+    codFlutter: cod == null ? 0.4 : Math.min(2.2, 0.4 + (cod / 90)),
     nh3Glow,
     nh3LightIntensity: nh3Glow ? Math.min(2.2, nh3n / 10) : 0.35,
   };
 
-  const flowSpeed = flowMs != null ? Math.min(2.5, Math.max(0.25, flowMs)) : 0.8;
-  const impellerSpin = flowSpeed * 4.5;
+  const {
+    flowMs,
+    flowSpeed,
+    impellerSpin,
+    flowM3Min,
+    waveAmp,
+    textureScroll,
+    particleDrift,
+  } = flowDrivers;
 
   const probes = [
     {
@@ -249,8 +306,12 @@ export function buildSparingSimulationTelemetry(
     flowRaw,
     flowUnit,
     flowMs,
+    flowM3Min,
     flowSpeed,
     impellerSpin,
+    waveAmp,
+    textureScroll,
+    particleDrift,
     freeNh3,
     load,
     waterTint,

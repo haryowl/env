@@ -419,10 +419,9 @@ export default function SparingSimulationModal({
               }}
             >
               {[
-                { c: '#a8a29e', l: 'TSS brown' },
+                { c: '#a16207', l: 'TSS brown · settles' },
                 { c: '#bef264', l: 'NH3N lime ↑ glow' },
-                { c: '#44403c', l: 'COD flakes' },
-                { c: '#94a3b8', l: 'Tracer' },
+                { c: '#1c1917', l: 'COD flakes · flutter' },
               ].map((z) => (
                 <Box
                   key={z.l}
@@ -522,7 +521,8 @@ export default function SparingSimulationModal({
                   </Typography>
                 </Typography>
                 <Typography sx={{ fontSize: '0.55rem', color: '#64748b', mt: 0.35 }}>
-                  Channel ≈ {flowLabel} m/s · impeller {spinLabel} rad/s
+                  ≈ {telemetry.flowM3Min != null ? fmt(telemetry.flowM3Min, 2) : flowLabel} m³/min
+                  {' · '}channel {flowLabel} m/s · impeller {spinLabel} rad/s
                 </Typography>
               </Box>
             )}

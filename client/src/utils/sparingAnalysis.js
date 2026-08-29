@@ -46,12 +46,21 @@ export function flowToM3PerSec(flowValue, unitHint = '') {
   if (q == null) return null;
   const u = String(unitHint || '').toLowerCase().replace(/\s+/g, '');
   if (/m3\/s|m³\/s|cms/.test(u)) return q;
-  if (/m3\/h|m³\/h|m3\/jam/.test(u)) return q / 3600;
-  if (/m3\/d|m³\/d|m3\/hari/.test(u)) return q / 86400;
+  // m³/min before m³/h so "m3/min" is not missed (no match on /h)
+  if (/m3\/min|m³\/min|m3\/menit|m³\/menit/.test(u)) return q / 60;
+  if (/m3\/h|m³\/h|m3\/jam|m³\/jam/.test(u)) return q / 3600;
+  if (/m3\/d|m³\/d|m3\/hari|m³\/hari/.test(u)) return q / 86400;
   if (/l\/s|liter\/s|lps/.test(u)) return q / 1000;
   if (/l\/h|liter\/h/.test(u)) return q / 1000 / 3600;
   // L/min (default) and bare "l/min"
   return q / 60000;
+}
+
+/** Flow reading as m³/min for display / 3D mapping. */
+export function flowToM3PerMin(flowValue, unitHint = '') {
+  const q = flowToM3PerSec(flowValue, unitHint);
+  if (q == null) return null;
+  return q * 60;
 }
 
 /** Organic pollution load (kg/day). */

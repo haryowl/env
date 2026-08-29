@@ -181,7 +181,13 @@ function makeFlowTexture() {
   return tex;
 }
 
-function AnimatedWater({ flowSpeed = 0.8, tint = '#4FC3F7', animate = true }) {
+function AnimatedWater({
+  flowSpeed = 0.8,
+  waveAmp = 0.016,
+  textureScroll = 0.014,
+  tint = '#4FC3F7',
+  animate = true,
+}) {
   const meshRef = useRef(null);
   const matRef = useRef(null);
   const basePositions = useRef(null);
@@ -195,27 +201,38 @@ function AnimatedWater({ flowSpeed = 0.8, tint = '#4FC3F7', animate = true }) {
 
   useFrame((state) => {
     const t = state.clock.elapsedTime;
-    if (animate && meshRef.current && basePositions.current) {
+    const moving = animate && flowSpeed > 0.001;
+    if (meshRef.current && basePositions.current) {
       const pos = meshRef.current.geometry.attributes.position;
       const base = basePositions.current;
-      const speed = flowSpeed;
-      for (let i = 0; i < pos.count; i += 1) {
-        const ix = i * 3;
-        const x = base[ix];
-        const z = base[ix + 2];
-        const wave = Math.sin(x * 1.2 + t * speed * 2.2) * 0.018
-          + Math.sin(z * 2.4 + t * speed * 1.4) * 0.01;
-        pos.array[ix + 1] = base[ix + 1] + wave;
+      if (moving) {
+        const speed = flowSpeed;
+        const amp = waveAmp;
+        for (let i = 0; i < pos.count; i += 1) {
+          const ix = i * 3;
+          const x = base[ix];
+          const z = base[ix + 2];
+          const wave = Math.sin(x * 1.35 + t * speed * 3.1) * amp
+            + Math.sin(z * 2.6 + t * speed * 2.0) * amp * 0.55;
+          pos.array[ix + 1] = base[ix + 1] + wave;
+        }
+      } else {
+        // Flat surface when flow is zero
+        for (let i = 0; i < pos.count; i += 1) {
+          const ix = i * 3;
+          pos.array[ix + 1] = base[ix + 1];
+        }
       }
       pos.needsUpdate = true;
       meshRef.current.geometry.computeVertexNormals();
     }
     if (flowTex) {
-      flowTex.offset.x = (flowTex.offset.x - 0.012 * flowSpeed) % 1;
+      if (moving) flowTex.offset.x = (flowTex.offset.x - textureScroll) % 1;
     }
     if (matRef.current) {
       matRef.current.color.set(tint);
       matRef.current.emissive.set(tint);
+      matRef.current.emissiveIntensity = moving ? 0.22 + Math.min(0.35, flowSpeed * 0.08) : 0.12;
     }
   });
 
@@ -311,77 +328,147 @@ function SonarRing({ active, x }) {
   );
 }
 
-function WaterParticles({ particles, flowSpeed = 0.8, enabled = true }) {
+function ParticleCloud({
+  kind,
+  count,
+  color,
+  size,
+  density = 0.4,
+  drift = 0.7,
+  settle = 0,
+  flutter = 0,
+  buoyant = 0,
+  enabled = true,
+}) {
   const pointsRef = useRef(null);
-  const { positions, colors, kinds } = useMemo(() => {
-    const count = 280;
+  const matRef = useRef(null);
+  const { positions } = useMemo(() => {
     const pos = new Float32Array(count * 3);
-    const col = new Float32Array(count * 3);
-    const kind = new Uint8Array(count);
-    const cTss = new THREE.Color('#a8a29e');
-    const cNh3 = new THREE.Color('#bef264');
-    const cCod = new THREE.Color('#44403c');
-    const cTrace = new THREE.Color('#94a3b8');
     for (let i = 0; i < count; i += 1) {
-      const k = i % 4; // 0 tss, 1 nh3, 2 cod, 3 tracer
-      kind[i] = k;
       pos[i * 3] = (Math.random() - 0.5) * (CHANNEL_LEN - 0.6);
-      pos[i * 3 + 1] = -CHANNEL_H / 2 + 0.12 + Math.random() * WATER_H * 0.85;
+      // TSS starts higher then settles; COD mid-column flutter; NH3 lower then rises
+      const yBias = kind === 'tss' ? 0.55 : kind === 'cod' ? 0.4 : 0.25;
+      pos[i * 3 + 1] = -CHANNEL_H / 2 + 0.12 + Math.random() * WATER_H * yBias + WATER_H * (1 - yBias) * 0.35;
       pos[i * 3 + 2] = (Math.random() - 0.5) * (CHANNEL_W - 0.35);
-      const c = k === 0 ? cTss : k === 1 ? cNh3 : k === 2 ? cCod : cTrace;
-      col[i * 3] = c.r;
-      col[i * 3 + 1] = c.g;
-      col[i * 3 + 2] = c.b;
     }
-    return { positions: pos, colors: col, kinds: kind };
-  }, []);
+    return { positions: pos };
+  }, [count, kind]);
 
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     if (!enabled || !pointsRef.current) return;
     const attr = pointsRef.current.geometry.attributes.position;
     const arr = attr.array;
-    const tssD = particles?.tssDensity ?? 0.4;
-    const nh3D = particles?.nh3Density ?? 0.3;
-    const codD = particles?.codDensity ?? 0.3;
-    for (let i = 0; i < kinds.length; i += 1) {
-      const k = kinds[i];
-      const density = k === 0 ? tssD : k === 1 ? nh3D : k === 2 ? codD : 0.35;
-      if (Math.random() > density * 0.98) {
-        // keep drifting but faint — skip heavy updates occasionally
-      }
-      const ix = i * 3;
-      arr[ix] += flowSpeed * delta * (0.55 + (k === 3 ? 0.35 : 0.15));
-      if (k === 0) arr[ix + 1] -= delta * 0.08 * tssD; // settling
-      if (k === 1) arr[ix + 1] += delta * 0.06 * nh3D; // buoyant
-      if (k === 2) {
-        arr[ix + 1] += Math.sin(arr[ix] * 2 + performance.now() * 0.001) * delta * 0.02;
-      }
-      if (arr[ix] > CHANNEL_LEN / 2 - 0.3) arr[ix] = -CHANNEL_LEN / 2 + 0.3;
-      const yMin = -CHANNEL_H / 2 + 0.14;
-      const yMax = -CHANNEL_H / 2 + 0.1 + WATER_H * 0.92;
-      if (arr[ix + 1] < yMin) arr[ix + 1] = yMax;
-      if (arr[ix + 1] > yMax) arr[ix + 1] = yMin;
+    const d = Math.max(0, Math.min(1, density));
+    const activeCount = Math.max(0, Math.floor(count * d));
+    const yMin = -CHANNEL_H / 2 + 0.14;
+    const yMax = -CHANNEL_H / 2 + 0.1 + WATER_H * 0.92;
+    const t = state.clock.elapsedTime;
+
+    // Park inactive particles below floor (hidden)
+    for (let i = activeCount; i < count; i += 1) {
+      arr[i * 3 + 1] = -10;
     }
+
+    for (let i = 0; i < activeCount; i += 1) {
+      const ix = i * 3;
+      if (arr[ix + 1] < -5) {
+        arr[ix] = (Math.random() - 0.5) * (CHANNEL_LEN - 0.6);
+        arr[ix + 1] = kind === 'tss' ? yMax - Math.random() * 0.08 : yMin + Math.random() * (yMax - yMin);
+        arr[ix + 2] = (Math.random() - 0.5) * (CHANNEL_W - 0.35);
+      }
+
+      // Downstream drift — scales with flow; stagnant when drift≈0
+      arr[ix] += drift * delta * (kind === 'cod' ? 1.15 : kind === 'tss' ? 0.55 : 0.8);
+
+      if (settle > 0) {
+        arr[ix + 1] -= delta * 0.22 * settle;
+      }
+      if (buoyant > 0) {
+        arr[ix + 1] += delta * 0.18 * buoyant;
+      }
+      if (flutter > 0) {
+        arr[ix + 1] += Math.sin(arr[ix] * 3.2 + t * (2.2 + flutter)) * delta * 0.12 * flutter;
+        arr[ix + 2] += Math.cos(arr[ix] * 2.4 + t * 1.6) * delta * 0.05 * flutter;
+      }
+
+      if (arr[ix] > CHANNEL_LEN / 2 - 0.3) {
+        arr[ix] = -CHANNEL_LEN / 2 + 0.3;
+        arr[ix + 1] = kind === 'tss' ? yMax - Math.random() * 0.05 : yMin + Math.random() * (yMax - yMin) * 0.7;
+      }
+      if (arr[ix + 1] < yMin) {
+        arr[ix + 1] = kind === 'tss' ? yMax : yMin + 0.02;
+      }
+      if (arr[ix + 1] > yMax) {
+        arr[ix + 1] = kind === 'nh3' ? yMin + 0.02 : yMax - 0.02;
+      }
+      const zLimit = (CHANNEL_W - 0.35) / 2;
+      if (arr[ix + 2] > zLimit) arr[ix + 2] = zLimit;
+      if (arr[ix + 2] < -zLimit) arr[ix + 2] = -zLimit;
+    }
+
     attr.needsUpdate = true;
+    if (matRef.current) {
+      matRef.current.opacity = 0.35 + d * 0.55;
+      matRef.current.size = size * (0.75 + d * 0.55);
+    }
   });
 
-  if (!enabled) return null;
+  if (!enabled || density < 0.02) return null;
 
   return (
     <points ref={pointsRef}>
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
-        <bufferAttribute attach="attributes-color" args={[colors, 3]} />
       </bufferGeometry>
       <pointsMaterial
-        size={0.055}
-        vertexColors
+        ref={matRef}
+        color={color}
+        size={size}
         transparent
-        opacity={0.85}
+        opacity={0.8}
         depthWrite={false}
         sizeAttenuation
       />
     </points>
+  );
+}
+
+function WaterParticles({ particles, particleDrift = 0.7, enabled = true }) {
+  if (!enabled) return null;
+  const drift = particleDrift;
+  return (
+    <group>
+      <ParticleCloud
+        kind="tss"
+        count={160}
+        color="#a16207"
+        size={0.095}
+        density={particles?.tssDensity ?? 0.3}
+        drift={drift}
+        settle={particles?.tssSettle ?? 0.8}
+        enabled={enabled}
+      />
+      <ParticleCloud
+        kind="cod"
+        count={180}
+        color="#1c1917"
+        size={0.042}
+        density={particles?.codDensity ?? 0.3}
+        drift={drift * 1.2}
+        flutter={particles?.codFlutter ?? 0.9}
+        enabled={enabled}
+      />
+      <ParticleCloud
+        kind="nh3"
+        count={120}
+        color="#a3e635"
+        size={0.06}
+        density={particles?.nh3Density ?? 0.2}
+        drift={drift * 0.9}
+        buoyant={0.7 + (particles?.nh3Density ?? 0.2)}
+        enabled={enabled}
+      />
+    </group>
   );
 }
 
@@ -461,6 +548,9 @@ function SceneContent({
   showGrid = true,
 }) {
   const flowSpeed = telemetry?.flowSpeed ?? 0.8;
+  const waveAmp = telemetry?.waveAmp ?? 0.016;
+  const textureScroll = telemetry?.textureScroll ?? 0.014;
+  const particleDrift = telemetry?.particleDrift ?? 0.7;
   const waterTint = telemetry?.waterTint ?? '#4FC3F7';
   const particles = telemetry?.particles;
   const status = telemetry?.status || {};
@@ -496,8 +586,18 @@ function SceneContent({
       )}
 
       <ConcreteChannel />
-      <AnimatedWater flowSpeed={flowSpeed} tint={waterTint} animate={showFlow} />
-      <WaterParticles particles={particles} flowSpeed={flowSpeed} enabled={showParticles} />
+      <AnimatedWater
+        flowSpeed={flowSpeed}
+        waveAmp={waveAmp}
+        textureScroll={textureScroll}
+        tint={waterTint}
+        animate={showFlow}
+      />
+      <WaterParticles
+        particles={particles}
+        particleDrift={particleDrift}
+        enabled={showParticles}
+      />
 
       {PROBE_META.map((meta, i) => (
         <ProbeBridge
