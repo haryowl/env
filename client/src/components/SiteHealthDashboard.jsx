@@ -9,6 +9,7 @@ import {
   Chip,
   CircularProgress,
   FormControl,
+  Grid,
   InputLabel,
   ListItemText,
   MenuItem,
@@ -24,32 +25,21 @@ import {
   Typography,
   useTheme,
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import HealthAndSafetyIcon from '@mui/icons-material/HealthAndSafety';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import DownloadIcon from '@mui/icons-material/Download';
+import VerifiedUserOutlinedIcon from '@mui/icons-material/VerifiedUserOutlined';
+import ScienceOutlinedIcon from '@mui/icons-material/ScienceOutlined';
+import ThermostatOutlinedIcon from '@mui/icons-material/ThermostatOutlined';
 import moment from 'moment-timezone';
 import { API_BASE_URL } from '../config/api';
-import PageHeader from './PageHeader';
 import DeviceGroupFilterSelect from './DeviceGroupFilterSelect';
 import { useDeviceGroupFilter } from '../hooks/useDeviceGroupFilter';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import { filterDataViewParams } from '../utils/fieldCategory';
 import { getDeviceDisplayName } from '../utils/deviceLabel';
-import {
-  getAxisTickStyle,
-  getCartesianGridProps,
-  getChartCardSx,
-  getTooltipContentStyle,
-} from '../utils/chartStyles';
+import { getChartCardSx, getChartColor } from '../utils/chartStyles';
 import { compactMenuItemSx, compactSelectSx } from '../utils/compactUi';
 import SiteHealthHeatAnalysis, { resolveSiteHealthProgram } from './SiteHealthHeatAnalysis';
 
@@ -79,6 +69,75 @@ function formatNum(value, digits = 2) {
   });
 }
 
+function surfaceCardSx(theme) {
+  return {
+    ...getChartCardSx(theme),
+    borderRadius: 2,
+    boxShadow: theme.palette.mode === 'light'
+      ? '0 1px 2px rgba(15,23,42,0.04), 0 8px 24px rgba(15,23,42,0.04)'
+      : 'none',
+  };
+}
+
+function RankingBars({ rows, multiParam }) {
+  const max = Math.max(...rows.map((r) => Number(r.value) || 0), 1);
+  return (
+    <Stack spacing={1.75}>
+      {rows.map((row, idx) => {
+        const pct = Math.max(4, (Number(row.value) / max) * 100);
+        const color = STATUS_COLOR[row.status] || getChartColor(idx);
+        return (
+          <Box key={row.deviceId || row.name}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 0.5 }}>
+              <Typography sx={{ fontWeight: 800, fontSize: '0.84rem' }}>{row.name}</Typography>
+              <Typography sx={{ fontWeight: 800, fontSize: '0.9rem' }}>
+                {multiParam ? `${formatNum(row.value, 1)}%` : formatNum(row.value, 2)}
+              </Typography>
+            </Box>
+            <Box sx={{ height: 10, borderRadius: 999, bgcolor: alpha(color, 0.12), overflow: 'hidden' }}>
+              <Box sx={{ width: `${pct}%`, height: '100%', bgcolor: color, borderRadius: 999 }} />
+            </Box>
+            <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary', mt: 0.45 }}>
+              {row.subtitle}
+            </Typography>
+          </Box>
+        );
+      })}
+    </Stack>
+  );
+}
+
+function MiniFact({ icon, title, body }) {
+  return (
+    <Card variant="outlined" sx={{ borderRadius: 2, height: '100%' }}>
+      <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+        <Stack direction="row" spacing={1} alignItems="flex-start">
+          <Box
+            sx={{
+              width: 32,
+              height: 32,
+              borderRadius: 1.5,
+              display: 'grid',
+              placeItems: 'center',
+              bgcolor: alpha('#2563EB', 0.1),
+              color: 'primary.main',
+              flexShrink: 0,
+            }}
+          >
+            {icon}
+          </Box>
+          <Box>
+            <Typography sx={{ fontWeight: 800, fontSize: '0.72rem', color: 'text.secondary', letterSpacing: 0.3 }}>
+              {title}
+            </Typography>
+            <Typography sx={{ fontWeight: 700, fontSize: '0.82rem', mt: 0.25 }}>{body}</Typography>
+          </Box>
+        </Stack>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function SiteHealthDashboard() {
   const theme = useTheme();
   const tz = getUserTimezone();
@@ -92,6 +151,7 @@ export default function SiteHealthDashboard() {
   const [payload, setPayload] = useState(null);
   const [viewMode, setViewMode] = useState('ranking');
   const [heatRefreshKey, setHeatRefreshKey] = useState(0);
+  const [updatedAt, setUpdatedAt] = useState(null);
 
   const { setGroupFilter, knownGroups, filteredDevices, selectValue, groupFilter } =
     useDeviceGroupFilter(devices, 'site_health_group_filter');
@@ -152,6 +212,7 @@ export default function SiteHealthDashboard() {
         throw new Error(data.error || 'Failed to load site health');
       }
       setPayload(data);
+      setUpdatedAt(new Date());
     } catch (e) {
       setError(e.message || 'Failed to load site health');
     } finally {
@@ -187,6 +248,7 @@ export default function SiteHealthDashboard() {
     () => resolveSiteHealthProgram(knownGroups, groupFilter, selectedDevices),
     [knownGroups, groupFilter, selectedDevices]
   );
+  const selectedGroup = knownGroups.find((g) => String(g.id) === String(groupFilter));
 
   useEffect(() => {
     const program = resolveSiteHealthProgram(knownGroups, groupFilter, []);
@@ -196,55 +258,144 @@ export default function SiteHealthDashboard() {
 
   const multiParam = selectedParameters.length > 1;
   const rows = payload?.rows || [];
-  const chartData = rows
-    .map((row) => ({
-      name: getDeviceDisplayName({ name: row.name, device_id: row.deviceId }),
-      value: multiParam ? row.overallPctInRange : row.periodAverage,
-      status: row.status,
-    }))
-    .filter((row) => row.value != null);
+  const summary = payload?.summary || {};
 
-  const chartHeight = Math.max(240, Math.min(720, 36 * chartData.length + 80));
-  const chartLabel = multiParam ? '% in range (mean of selected parameters)' : 'Period average';
+  const rankingRows = useMemo(
+    () => rows
+      .map((row) => ({
+        deviceId: row.deviceId,
+        name: getDeviceDisplayName({ name: row.name, device_id: row.deviceId }),
+        value: multiParam ? row.overallPctInRange : row.periodAverage,
+        status: row.status,
+        subtitle: multiParam
+          ? `${row.statusLabel || row.status}${row.sampleCount ? ` · ${row.sampleCount} samples` : ''}`
+          : row.status === 'no_threshold'
+            ? `No threshold · ${row.sampleCount || 0} samples`
+            : `${row.statusLabel || row.status}${row.pctInRange != null ? ` · ${formatNum(row.pctInRange, 0)}% in range` : ''}`,
+      }))
+      .filter((row) => row.value != null),
+    [rows, multiParam]
+  );
+
+  const totalSamples = rows.reduce((s, r) => s + (Number(r.sampleCount) || 0), 0);
+  const scored = (summary.ok || 0) + (summary.watch || 0) + (summary.not_ok || 0);
+  const compliant = summary.ok || 0;
+  const avgCompliance = scored > 0 ? Math.round((compliant / scored) * 100) : null;
+  const topOk = rows.find((r) => r.status === 'ok');
+  const samplesPerDevice = rows.length ? Math.round(totalSamples / rows.length) : 0;
+
+  const exportCsv = () => {
+    if (!rows.length) return;
+    const headers = multiParam
+      ? ['rank', 'device', 'status', 'overall_pct_in_range', 'samples', 'days']
+      : ['rank', 'device', 'status', 'period_avg', 'last', 'pct_in_range', 'samples', 'days'];
+    const lines = [headers.join(',')];
+    rows.forEach((row, index) => {
+      const name = getDeviceDisplayName({ name: row.name, device_id: row.deviceId }).replace(/,/g, ' ');
+      if (multiParam) {
+        lines.push([index + 1, name, row.statusLabel || row.status, row.overallPctInRange ?? '', row.sampleCount || 0, row.dayCount || 0].join(','));
+      } else {
+        lines.push([
+          index + 1,
+          name,
+          row.statusLabel || row.status,
+          row.periodAverage ?? '',
+          row.lastValue ?? '',
+          row.pctInRange ?? '',
+          row.sampleCount || 0,
+          row.dayCount || 0,
+        ].join(','));
+      }
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `site-health-${period}-${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const refreshAll = () => {
+    loadHealth();
+    setHeatRefreshKey((k) => k + 1);
+  };
+
+  const paramLabel = selectedParameters.length === 1
+    ? formatDisplayName(selectedParameters[0], { withUnit: true })
+    : selectedParameters.length
+      ? `${selectedParameters.length} parameters`
+      : '—';
 
   return (
-    <Box sx={{ p: 2 }}>
-      <PageHeader
-        icon={<HealthAndSafetyIcon fontSize="small" />}
-        title="Site health"
-        subtitle="Pick a group, then a subset of those devices. Ranking compares period average and % in range. Heat analysis uses the same SPARING and TMAT ratio cards as N-Dashboard (COD×flow, COD/TSS, IP, infiltration, flood, drought) across the selected sites."
-        right={
-          <Button
-            size="small"
-            variant="outlined"
-            startIcon={loading ? <CircularProgress size={14} /> : <RefreshIcon />}
-            onClick={() => {
-              loadHealth();
-              setHeatRefreshKey((k) => k + 1);
-            }}
-            disabled={loading}
-          >
-            Refresh
-          </Button>
-        }
-      />
+    <Box sx={{ p: { xs: 1.5, md: 2 }, pb: 10 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: { xs: 'flex-start', sm: 'center' },
+          justifyContent: 'space-between',
+          gap: 1.5,
+          mb: 1.75,
+          flexWrap: 'wrap',
+        }}
+      >
+        <Box>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Box
+              sx={{
+                width: 34,
+                height: 34,
+                borderRadius: 1.5,
+                display: 'grid',
+                placeItems: 'center',
+                bgcolor: alpha('#059669', 0.12),
+                color: '#059669',
+              }}
+            >
+              <HealthAndSafetyIcon fontSize="small" />
+            </Box>
+            <Typography sx={{ fontWeight: 800, fontSize: '1.2rem', lineHeight: 1.1 }}>
+              Site health
+            </Typography>
+            <Chip
+              size="small"
+              label="BETA"
+              sx={{ height: 20, fontWeight: 800, fontSize: '0.62rem', bgcolor: alpha('#2563EB', 0.1), color: '#2563EB' }}
+            />
+          </Stack>
+          <Typography sx={{ fontSize: '0.74rem', color: 'text.secondary', mt: 0.6, maxWidth: 720 }}>
+            Pick a group and devices. Ranking compares period average and % in range.
+            Heat analysis compares SPARING / TMAT derived metrics across selected sites.
+          </Typography>
+        </Box>
+        <Button
+          size="small"
+          variant="outlined"
+          startIcon={loading ? <CircularProgress size={14} /> : <RefreshIcon />}
+          onClick={refreshAll}
+          disabled={loading}
+          sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700 }}
+        >
+          Refresh
+        </Button>
+      </Box>
 
-      <Card sx={{ ...getChartCardSx(theme), mt: 2, mb: 2 }}>
-        <CardContent>
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems={{ md: 'flex-start' }} flexWrap="wrap">
+      <Card sx={{ ...surfaceCardSx(theme), mb: 2 }}>
+        <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
+          <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1.25} alignItems={{ lg: 'center' }} flexWrap="wrap">
             <DeviceGroupFilterSelect
               value={selectValue}
               onChange={setGroupFilter}
               knownGroups={knownGroups}
               labelId="site-health-group"
-              sx={{ minWidth: 200 }}
+              sx={{ minWidth: 170 }}
             />
-            <FormControl size="small" sx={{ minWidth: 240, maxWidth: 360 }}>
-              <InputLabel id="site-health-devices">Devices in group</InputLabel>
+            <FormControl size="small" sx={{ minWidth: 180, maxWidth: 280 }}>
+              <InputLabel id="site-health-devices">Devices</InputLabel>
               <Select
                 multiple
                 labelId="site-health-devices"
-                label="Devices in group"
+                label="Devices"
                 value={selectedDeviceIds}
                 onChange={(e) => setSelectedDeviceIds(e.target.value)}
                 sx={compactSelectSx}
@@ -267,7 +418,7 @@ export default function SiteHealthDashboard() {
                 ))}
               </Select>
             </FormControl>
-            <FormControl size="small" sx={{ minWidth: 240, maxWidth: 360 }}>
+            <FormControl size="small" sx={{ minWidth: 180, maxWidth: 280 }}>
               <InputLabel id="site-health-params">Parameters</InputLabel>
               <Select
                 multiple
@@ -291,7 +442,7 @@ export default function SiteHealthDashboard() {
                 ))}
               </Select>
             </FormControl>
-            <FormControl size="small" sx={{ minWidth: 180 }}>
+            <FormControl size="small" sx={{ minWidth: 150 }}>
               <InputLabel id="site-health-period">Period</InputLabel>
               <Select
                 labelId="site-health-period"
@@ -310,197 +461,309 @@ export default function SiteHealthDashboard() {
               exclusive
               value={viewMode}
               onChange={(_, next) => { if (next) setViewMode(next); }}
-              sx={{ height: 32 }}
+              sx={{
+                height: 34,
+                bgcolor: alpha(theme.palette.text.primary, 0.04),
+                borderRadius: 2,
+                p: 0.35,
+                '& .MuiToggleButton-root': {
+                  border: 0,
+                  borderRadius: 1.5,
+                  px: 1.25,
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                  textTransform: 'none',
+                },
+                '& .Mui-selected': {
+                  bgcolor: `${theme.palette.background.paper} !important`,
+                  boxShadow: '0 1px 3px rgba(15,23,42,0.12)',
+                },
+              }}
             >
-              <ToggleButton value="ranking" sx={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'none' }}>
-                Ranking
-              </ToggleButton>
-              <ToggleButton value="heat" sx={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'none' }}>
-                Heat analysis
-              </ToggleButton>
+              <ToggleButton value="ranking">Ranking</ToggleButton>
+              <ToggleButton value="heat">Heat analysis</ToggleButton>
             </ToggleButtonGroup>
-            <Typography variant="caption" color="text.secondary" sx={{ pt: 1 }}>
-              {selectedDeviceIds.length} device{selectedDeviceIds.length === 1 ? '' : 's'} · {tz}
-              {heatProgram !== 'both' ? ` · ${heatProgram.toUpperCase()}` : ''}
-            </Typography>
           </Stack>
         </CardContent>
       </Card>
 
       {viewMode === 'ranking' && error ? (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      ) : null}
-
-      {viewMode === 'ranking' && payload?.summary ? (
-        <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: 'wrap' }}>
-          <Chip size="small" label={`OK ${payload.summary.ok || 0}`} color="success" />
-          <Chip size="small" label={`Watch ${payload.summary.watch || 0}`} color="warning" />
-          <Chip size="small" label={`Not OK ${payload.summary.not_ok || 0}`} color="error" />
-          <Chip size="small" label={`No data ${payload.summary.no_data || 0}`} />
-          <Chip size="small" label={`No threshold ${payload.summary.no_threshold || 0}`} color="secondary" />
-        </Stack>
+        <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
       ) : null}
 
       {viewMode === 'heat' ? (
-        <Card sx={getChartCardSx(theme)}>
-          <CardContent>
-            <SiteHealthHeatAnalysis
-              key={`${heatRefreshKey}-${selectedDevices.map((d) => d.device_id).join(',')}`}
-              devices={selectedDevices}
-              groupName={
-                knownGroups.find((g) => String(g.id) === String(groupFilter))?.name
-                || selectedDevices[0]?.group_name
-                || ''
-              }
-              groupDescription={
-                knownGroups.find((g) => String(g.id) === String(groupFilter))?.description
-                || selectedDevices[0]?.group_description
-                || ''
-              }
-              formatDisplayName={formatDisplayName}
-              getUnit={getUnit}
-              getDisplayRange={getDisplayRange}
-            />
-          </CardContent>
-        </Card>
+        <SiteHealthHeatAnalysis
+          key={`${heatRefreshKey}-${selectedDevices.map((d) => d.device_id).join(',')}`}
+          devices={selectedDevices}
+          groupName={selectedGroup?.name || selectedDevices[0]?.group_name || ''}
+          groupDescription={selectedGroup?.description || selectedDevices[0]?.group_description || ''}
+          timezone={tz}
+          getUnit={getUnit}
+          getDisplayRange={getDisplayRange}
+        />
       ) : (
-        <>
-      <Card sx={{ ...getChartCardSx(theme), mb: 2 }}>
-        <CardContent>
-          <Typography sx={{ fontWeight: 700, fontSize: '0.82rem', mb: 1 }}>
-            {multiParam ? 'Overall % in range ranking' : 'Period average ranking'}
-          </Typography>
-          {loading && !payload ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-              <CircularProgress />
-            </Box>
-          ) : chartData.length === 0 ? (
-            <Typography variant="body2" color="text.secondary">
-              {selectedParameters.length
-                ? 'No numeric samples in this period for the selected devices.'
-                : 'Choose at least one parameter.'}
-            </Typography>
-          ) : (
-            <Box sx={{ width: '100%', height: chartHeight }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={chartData}
-                  layout="vertical"
-                  margin={{ top: 8, right: 24, left: 8, bottom: 8 }}
-                >
-                  <CartesianGrid {...getCartesianGridProps(theme)} />
-                  <XAxis type="number" tick={getAxisTickStyle(theme)} />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    width={140}
-                    tick={getAxisTickStyle(theme)}
-                    interval={0}
-                  />
-                  <Tooltip
-                    contentStyle={getTooltipContentStyle(theme)}
-                    formatter={(value) => [
-                      multiParam ? `${formatNum(value, 1)}%` : formatNum(value, 3),
-                      chartLabel,
-                    ]}
-                  />
-                  <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                    {chartData.map((entry) => (
-                      <Cell key={entry.name} fill={STATUS_COLOR[entry.status] || STATUS_COLOR.no_data} />
+        <Grid container spacing={2}>
+          <Grid item xs={12} lg={5}>
+            <Stack spacing={2}>
+              <Card sx={surfaceCardSx(theme)}>
+                <CardContent>
+                  <Typography sx={{ fontWeight: 800, fontSize: '0.82rem', mb: 0.35 }}>
+                    Status overview
+                  </Typography>
+                  <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary', mb: 1.25 }}>
+                    {paramLabel} · {period === 'month' ? 'This month' : 'This week'} · {tz}
+                  </Typography>
+                  <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mb: 1.75 }}>
+                    <Chip size="small" label={`OK ${summary.ok || 0}`} color="success" sx={{ fontWeight: 700 }} />
+                    <Chip size="small" label={`Watch ${summary.watch || 0}`} color="warning" sx={{ fontWeight: 700 }} />
+                    <Chip size="small" label={`Not OK ${summary.not_ok || 0}`} color="error" sx={{ fontWeight: 700 }} />
+                    <Chip size="small" label={`No data ${summary.no_data || 0}`} sx={{ fontWeight: 700 }} />
+                    <Chip size="small" label={`No threshold ${summary.no_threshold || 0}`} color="secondary" sx={{ fontWeight: 700 }} />
+                  </Stack>
+                  <Grid container spacing={1}>
+                    {[
+                      { label: 'TOTAL SAMPLES', value: formatNum(totalSamples, 0), hint: period === 'month' ? 'This month' : 'This week' },
+                      { label: 'AVG COMPLIANCE', value: avgCompliance == null ? '—' : `${avgCompliance}%`, hint: `${compliant} of ${scored || rows.length} scored` },
+                      { label: 'DEVICES', value: String(rows.length), hint: tz },
+                    ].map((item) => (
+                      <Grid item xs={4} key={item.label}>
+                        <Box
+                          sx={{
+                            p: 1.1,
+                            borderRadius: 2,
+                            bgcolor: alpha(theme.palette.text.primary, 0.03),
+                            border: '1px solid',
+                            borderColor: 'divider',
+                            height: '100%',
+                          }}
+                        >
+                          <Typography sx={{ fontSize: '0.62rem', fontWeight: 800, color: 'text.secondary', letterSpacing: 0.4 }}>
+                            {item.label}
+                          </Typography>
+                          <Typography sx={{ fontWeight: 800, fontSize: '1.05rem', mt: 0.35 }}>{item.value}</Typography>
+                          <Typography sx={{ fontSize: '0.62rem', color: 'text.secondary' }}>{item.hint}</Typography>
+                        </Box>
+                      </Grid>
                     ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </Box>
-          )}
-        </CardContent>
-      </Card>
+                  </Grid>
+                </CardContent>
+              </Card>
 
-      <Card sx={getChartCardSx(theme)}>
-        <CardContent>
-          <Typography sx={{ fontWeight: 700, fontSize: '0.82rem', mb: 1 }}>
-            Device comparison
-          </Typography>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>#</TableCell>
-                <TableCell>Device</TableCell>
-                <TableCell>Overall</TableCell>
-                {multiParam ? (
-                  <TableCell>Parameters</TableCell>
-                ) : (
-                  <>
-                    <TableCell align="right">Period avg</TableCell>
-                    <TableCell align="right">Last</TableCell>
-                    <TableCell align="right">% in range</TableCell>
-                    <TableCell align="right">Samples</TableCell>
-                    <TableCell align="right">Days</TableCell>
-                  </>
-                )}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {rows.map((row, index) => (
-                <TableRow key={row.deviceId}>
-                  <TableCell>{index + 1}</TableCell>
-                  <TableCell>{getDeviceDisplayName({ name: row.name, device_id: row.deviceId })}</TableCell>
-                  <TableCell>
-                    <Chip
-                      size="small"
-                      label={row.statusLabel || row.label || row.status}
-                      color={STATUS_CHIP[row.status] || 'default'}
-                    />
-                  </TableCell>
-                  {multiParam ? (
-                    <TableCell>
-                      <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-                        {selectedParameters.map((p) => {
-                          const cell = row.byParameter?.[p];
-                          return (
-                            <Chip
-                              key={p}
-                              size="small"
-                              variant="outlined"
-                              color={STATUS_CHIP[cell?.status] || 'default'}
-                              label={`${formatDisplayName(p)}: ${cell?.statusLabel || '—'}${
-                                cell?.pctInRange != null ? ` ${formatNum(cell.pctInRange, 0)}%` : ''
-                              }`}
-                            />
-                          );
-                        })}
-                      </Stack>
-                    </TableCell>
+              <Card sx={surfaceCardSx(theme)}>
+                <CardContent>
+                  <Typography sx={{ fontWeight: 800, fontSize: '0.82rem', mb: 1.25 }}>
+                    {multiParam ? 'Overall % in range ranking' : 'Period average ranking'}
+                  </Typography>
+                  {loading && !payload ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 5 }}>
+                      <CircularProgress size={28} />
+                    </Box>
+                  ) : rankingRows.length === 0 ? (
+                    <Typography variant="body2" color="text.secondary">
+                      {selectedParameters.length
+                        ? 'No numeric samples in this period for the selected devices.'
+                        : 'Choose at least one parameter.'}
+                    </Typography>
                   ) : (
                     <>
-                      <TableCell align="right">{formatNum(row.periodAverage, 3)}</TableCell>
-                      <TableCell align="right">{formatNum(row.lastValue, 3)}</TableCell>
-                      <TableCell align="right">
-                        {row.pctInRange == null ? '—' : `${formatNum(row.pctInRange, 1)}%`}
-                      </TableCell>
-                      <TableCell align="right">{row.sampleCount || 0}</TableCell>
-                      <TableCell align="right">{row.dayCount || 0}</TableCell>
+                      <RankingBars rows={rankingRows} multiParam={multiParam} />
+                      <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary', mt: 1.5 }}>
+                        Sorted by {multiParam ? '% in range' : 'period average'}. Devices without thresholds skip compliance scoring.
+                      </Typography>
                     </>
                   )}
-                </TableRow>
-              ))}
-              {!rows.length ? (
-                <TableRow>
-                  <TableCell colSpan={multiParam ? 4 : 7}>
-                    <Typography variant="body2" color="text.secondary">
-                      No devices selected.
-                    </Typography>
-                  </TableCell>
-                </TableRow>
-              ) : null}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-        </>
+                </CardContent>
+              </Card>
+            </Stack>
+          </Grid>
+
+          <Grid item xs={12} lg={7}>
+            <Stack spacing={2}>
+              <Card sx={surfaceCardSx(theme)}>
+                <CardContent>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 1, flexWrap: 'wrap' }}>
+                    <Box>
+                      <Typography sx={{ fontWeight: 800, fontSize: '0.82rem' }}>Device comparison</Typography>
+                      <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary' }}>
+                        {rows.length} device{rows.length === 1 ? '' : 's'}
+                        {updatedAt ? ` · updated ${moment(updatedAt).fromNow()}` : ''}
+                      </Typography>
+                    </Box>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<DownloadIcon />}
+                      onClick={exportCsv}
+                      disabled={!rows.length}
+                      sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700 }}
+                    >
+                      Export CSV
+                    </Button>
+                  </Box>
+                  <Box sx={{ overflowX: 'auto' }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>#</TableCell>
+                          <TableCell>Device</TableCell>
+                          <TableCell>Status</TableCell>
+                          {multiParam ? (
+                            <>
+                              <TableCell align="right">% in range</TableCell>
+                              <TableCell>Parameters</TableCell>
+                            </>
+                          ) : (
+                            <>
+                              <TableCell align="right">Period avg</TableCell>
+                              <TableCell align="right">Last</TableCell>
+                              <TableCell align="right">% in range</TableCell>
+                              <TableCell align="right">Samples</TableCell>
+                              <TableCell align="right">Days</TableCell>
+                            </>
+                          )}
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {rows.map((row, index) => (
+                          <TableRow key={row.deviceId} hover>
+                            <TableCell>{index + 1}</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>
+                              {getDeviceDisplayName({ name: row.name, device_id: row.deviceId })}
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                size="small"
+                                label={row.statusLabel || row.label || row.status}
+                                color={STATUS_CHIP[row.status] || 'default'}
+                                sx={{ fontWeight: 700 }}
+                              />
+                            </TableCell>
+                            {multiParam ? (
+                              <>
+                                <TableCell align="right">
+                                  {row.overallPctInRange == null ? '—' : `${formatNum(row.overallPctInRange, 1)}%`}
+                                </TableCell>
+                                <TableCell>
+                                  <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                                    {selectedParameters.map((p) => {
+                                      const cell = row.byParameter?.[p];
+                                      return (
+                                        <Chip
+                                          key={p}
+                                          size="small"
+                                          variant="outlined"
+                                          color={STATUS_CHIP[cell?.status] || 'default'}
+                                          label={`${formatDisplayName(p)}: ${cell?.statusLabel || '—'}${
+                                            cell?.pctInRange != null ? ` ${formatNum(cell.pctInRange, 0)}%` : ''
+                                          }`}
+                                        />
+                                      );
+                                    })}
+                                  </Stack>
+                                </TableCell>
+                              </>
+                            ) : (
+                              <>
+                                <TableCell align="right">{formatNum(row.periodAverage, 3)}</TableCell>
+                                <TableCell align="right">{formatNum(row.lastValue, 3)}</TableCell>
+                                <TableCell align="right">
+                                  {row.pctInRange == null ? '—' : (
+                                    <Chip
+                                      size="small"
+                                      label={`${formatNum(row.pctInRange, 0)}%`}
+                                      color={row.pctInRange >= 90 ? 'success' : row.pctInRange >= 70 ? 'warning' : 'error'}
+                                      sx={{ fontWeight: 700 }}
+                                    />
+                                  )}
+                                </TableCell>
+                                <TableCell align="right">{row.sampleCount || 0}</TableCell>
+                                <TableCell align="right">{row.dayCount || 0}</TableCell>
+                              </>
+                            )}
+                          </TableRow>
+                        ))}
+                        {!rows.length ? (
+                          <TableRow>
+                            <TableCell colSpan={multiParam ? 5 : 7}>
+                              <Typography variant="body2" color="text.secondary">No devices selected.</Typography>
+                            </TableCell>
+                          </TableRow>
+                        ) : null}
+                      </TableBody>
+                    </Table>
+                  </Box>
+                </CardContent>
+              </Card>
+
+              <Grid container spacing={1.25}>
+                <Grid item xs={12} sm={4}>
+                  <MiniFact
+                    icon={<VerifiedUserOutlinedIcon fontSize="small" />}
+                    title="COMPLIANCE"
+                    body={topOk
+                      ? `${getDeviceDisplayName({ name: topOk.name, device_id: topOk.deviceId })} stable${topOk.pctInRange != null ? ` at ${formatNum(topOk.pctInRange, 0)}%` : ''}`
+                      : 'No OK devices yet'}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                  <MiniFact
+                    icon={<ScienceOutlinedIcon fontSize="small" />}
+                    title="COVERAGE"
+                    body={rows.length ? `${formatNum(samplesPerDevice, 0)} samples / device` : '—'}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                  <MiniFact
+                    icon={<ThermostatOutlinedIcon fontSize="small" />}
+                    title="TIMEZONE"
+                    body={tz}
+                  />
+                </Grid>
+              </Grid>
+            </Stack>
+          </Grid>
+        </Grid>
       )}
+
+      <Box
+        sx={{
+          position: 'fixed',
+          left: '50%',
+          bottom: 18,
+          transform: 'translateX(-50%)',
+          zIndex: 20,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          px: 1.25,
+          py: 0.75,
+          borderRadius: 999,
+          bgcolor: theme.palette.mode === 'dark' ? '#0F172A' : '#fff',
+          border: '1px solid',
+          borderColor: 'divider',
+          boxShadow: '0 10px 30px rgba(15,23,42,0.16)',
+        }}
+      >
+        <Typography sx={{ fontSize: '0.74rem', fontWeight: 700, px: 0.75, whiteSpace: 'nowrap' }}>
+          Viewing {viewMode === 'heat' ? 'Heat' : 'Ranking'}
+          {heatProgram !== 'both' ? ` · ${heatProgram.toUpperCase()}` : ''}
+        </Typography>
+        <Button
+          size="small"
+          variant="contained"
+          onClick={() => setViewMode(viewMode === 'heat' ? 'ranking' : 'heat')}
+          sx={{
+            borderRadius: 999,
+            textTransform: 'none',
+            fontWeight: 800,
+            bgcolor: '#0F172A',
+            '&:hover': { bgcolor: '#1E293B' },
+            px: 1.5,
+          }}
+        >
+          Switch to {viewMode === 'heat' ? 'Ranking' : 'Heat analysis'}
+        </Button>
+      </Box>
     </Box>
   );
 }

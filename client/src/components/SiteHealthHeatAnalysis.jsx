@@ -2,44 +2,34 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
+  Button,
+  Card,
+  CardContent,
   Chip,
   CircularProgress,
   FormControl,
+  Grid,
   InputLabel,
   MenuItem,
   Select,
-  Typography,
+  Stack,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableRow,
+  Typography,
   useTheme,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Legend,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import { API_BASE_URL } from '../config/api';
 import { alertAppliesToDevice } from '../utils/alertDevices';
 import { buildSparingCards } from '../utils/sparingAnalysis';
 import { buildTmatCards, isTmatKindParam } from '../utils/tmatAnalysis';
 import { getDeviceDisplayName } from '../utils/deviceLabel';
 import { appendCategoryQuery, EXCLUDE_STATUS_QUERY } from '../utils/fieldCategory';
-import {
-  getAxisTickStyle,
-  getCartesianGridProps,
-  getChartColor,
-  getTooltipContentStyle,
-} from '../utils/chartStyles';
+import { getChartCardSx, getChartColor } from '../utils/chartStyles';
 import { compactMenuItemSx, compactSelectSx } from '../utils/compactUi';
 import { buildHeatRows, resolveHeatProgram } from './HeatRatioModal';
 
@@ -106,7 +96,7 @@ function cardNumeric(card) {
 function shortMetricLabel(title) {
   const t = String(title || '');
   if (t.includes('Organic Load')) return 'Organic load';
-  if (t.includes('Ammonia')) return 'Ammonia';
+  if (t.includes('Ammonia')) return 'Toxic ammonia';
   if (t.includes('Physical') || t.includes('COD')) return 'COD/TSS';
   if (t.includes('WWTP')) return 'WWTP IP';
   if (t.includes('Infiltration')) return 'Infiltration';
@@ -116,10 +106,72 @@ function shortMetricLabel(title) {
   return t;
 }
 
+function metricHint(title) {
+  const t = String(title || '');
+  if (t.includes('Organic Load')) return 'COD × Flow · kg/hari';
+  if (t.includes('Ammonia')) return 'NH₃N × pH';
+  if (t.includes('Physical') || t.includes('COD')) return 'COD/TSS ratio';
+  if (t.includes('WWTP')) return 'IP score';
+  if (t.includes('Infiltration')) return 'Δ moisture / rainfall';
+  if (t.includes('Flood')) return 'TMAT + water + moisture';
+  if (t.includes('Drought')) return 'moisture · temp · dry spell';
+  if (t.includes('Recharge')) return 'ΔTMAT / rainfall';
+  return '';
+}
+
+function overallExplain(label) {
+  const key = String(label || '').toUpperCase();
+  if (key === 'KIMIA') return 'Chemical anomaly';
+  if (key === 'AMAN') return 'Within safe band';
+  if (key === 'WASPADA') return 'Watch threshold';
+  if (key === 'MELEBIHI' || key === 'KRITIS') return 'Above critical limit';
+  if (key === 'HITUNG') return 'Calculated load';
+  return label || '—';
+}
+
+function StatusPill({ label, color }) {
+  if (!label || label === '—') return null;
+  return (
+    <Chip
+      size="small"
+      label={label}
+      sx={{
+        height: 20,
+        fontSize: '0.62rem',
+        fontWeight: 800,
+        bgcolor: alpha(color || '#64748B', 0.14),
+        color: color || '#64748B',
+        border: `1px solid ${alpha(color || '#64748B', 0.28)}`,
+      }}
+    />
+  );
+}
+
+function MetricCellBar({ value, max, color }) {
+  if (value == null || !(max > 0)) return null;
+  const pct = Math.max(4, Math.min(100, (value / max) * 100));
+  return (
+    <Box sx={{ mt: 0.7, height: 6, borderRadius: 999, bgcolor: alpha(color || '#2563EB', 0.12), overflow: 'hidden', maxWidth: 140 }}>
+      <Box sx={{ width: `${pct}%`, height: '100%', bgcolor: color || '#2563EB', borderRadius: 999 }} />
+    </Box>
+  );
+}
+
+function surfaceCardSx(theme) {
+  return {
+    ...getChartCardSx(theme),
+    borderRadius: 2,
+    boxShadow: theme.palette.mode === 'light'
+      ? '0 1px 2px rgba(15,23,42,0.04), 0 8px 24px rgba(15,23,42,0.04)'
+      : 'none',
+  };
+}
+
 export default function SiteHealthHeatAnalysis({
   devices = [],
   groupName,
   groupDescription,
+  timezone,
   getUnit,
   getDisplayRange,
 }) {
@@ -141,6 +193,7 @@ export default function SiteHealthHeatAnalysis({
   const [bundles, setBundles] = useState([]);
   const [chartMetricId, setChartMetricId] = useState('');
   const [highlightDeviceId, setHighlightDeviceId] = useState('');
+  const [updatedAt, setUpdatedAt] = useState(null);
 
   useEffect(() => {
     if (!capped.length) {
@@ -213,6 +266,7 @@ export default function SiteHealthHeatAnalysis({
             return { device, sparingCards, tmatCards, overall };
           })
         );
+        setUpdatedAt(new Date());
       } catch (e) {
         if (!cancelled) setError(e.message || 'Failed to load heat analysis');
       } finally {
@@ -246,23 +300,57 @@ export default function SiteHealthHeatAnalysis({
     });
   }, [comparisonCards, bundles]);
 
-  const chartData = useMemo(() => {
-    return bundles.map((bundle) => {
-      const all = [...bundle.sparingCards, ...bundle.tmatCards];
-      const byId = Object.fromEntries(all.map((c) => [c.id, c]));
-      const row = {
-        name: getDeviceDisplayName(bundle.device),
-        deviceId: bundle.device.device_id,
-      };
-      comparisonCards.forEach((card) => {
-        row[card.id] = cardNumeric(byId[card.id]);
-      });
-      return row;
+  useEffect(() => {
+    if (!highlightDeviceId && bundles[0]?.device?.device_id) {
+      setHighlightDeviceId(bundles[0].device.device_id);
+    }
+  }, [bundles, highlightDeviceId]);
+
+  const metricMaxById = useMemo(() => {
+    const map = {};
+    comparisonCards.forEach((card) => {
+      const values = bundles
+        .map((b) => cardNumeric([...b.sparingCards, ...b.tmatCards].find((c) => c.id === card.id)))
+        .filter((v) => v != null);
+      map[card.id] = values.length ? Math.max(...values) * 1.15 : 1;
     });
+    return map;
   }, [bundles, comparisonCards]);
 
   const activeMetric = comparisonCards.find((c) => c.id === chartMetricId) || comparisonCards[0];
-  const chartHasValues = chartData.some((row) => row[chartMetricId] != null);
+  const chartSeries = useMemo(() => {
+    if (!activeMetric) return [];
+    return bundles.map((bundle, idx) => {
+      const card = [...bundle.sparingCards, ...bundle.tmatCards].find((c) => c.id === activeMetric.id);
+      return {
+        deviceId: bundle.device.device_id,
+        name: getDeviceDisplayName(bundle.device),
+        value: cardNumeric(card),
+        primary: card?.primary || '—',
+        label: card?.label || '—',
+        color: card?.color || getChartColor(idx),
+      };
+    });
+  }, [bundles, activeMetric]);
+
+  const chartValues = chartSeries.map((s) => s.value).filter((v) => v != null);
+  const chartMax = chartValues.length ? Math.max(...chartValues) * 1.2 : 1;
+  const ranked = [...chartSeries].filter((s) => s.value != null).sort((a, b) => b.value - a.value);
+  const deltaPct = ranked.length >= 2 && ranked[1].value
+    ? ((ranked[0].value - ranked[1].value) / Math.abs(ranked[1].value)) * 100
+    : null;
+
+  const kimiaDevices = bundles.filter((b) => String(b.overall?.label || '').toUpperCase() === 'KIMIA');
+  const wwtpBest = bundles
+    .map((b) => {
+      const card = [...b.sparingCards, ...b.tmatCards].find((c) => c.id === 'wwtp_ip' || c.id === 'infiltration');
+      return { bundle: b, card, value: cardNumeric(card) };
+    })
+    .filter((x) => x.card?.ready)
+    .sort((a, b) => {
+      if (a.card?.id === 'wwtp_ip') return (a.value ?? 99) - (b.value ?? 99);
+      return (b.value ?? 0) - (a.value ?? 0);
+    })[0];
 
   if (!capped.length) {
     return (
@@ -279,191 +367,311 @@ export default function SiteHealthHeatAnalysis({
           Heat analysis shows the first {MAX_HEAT_DEVICES} selected devices. Uncheck others to choose which sites to compare.
         </Alert>
       ) : null}
-      {error ? (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      ) : null}
+      {error ? <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert> : null}
 
-      <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', mb: 0.5 }}>
-        {programLabel} · analysis comparison
-      </Typography>
-      <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', mb: 1.5 }}>
-        {groupName || 'Group'} · last reading · derived metrics (COD×Flow, COD/TSS, IP, infiltration, flood, drought). Click a column or pick a metric to chart it.
-      </Typography>
+      <Card sx={{ ...surfaceCardSx(theme), mb: 2 }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap', mb: 1.25 }}>
+            <Box>
+              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                <Typography sx={{ fontWeight: 800, fontSize: '0.95rem' }}>
+                  {programLabel} · analysis comparison
+                </Typography>
+                <Chip
+                  size="small"
+                  icon={<FiberManualRecordIcon sx={{ fontSize: '10px !important', color: '#16A34A !important' }} />}
+                  label="LIVE"
+                  sx={{ height: 22, fontWeight: 800, fontSize: '0.62rem', bgcolor: alpha('#16A34A', 0.12), color: '#15803D' }}
+                />
+              </Stack>
+              <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary', mt: 0.4 }}>
+                Last reading · derived metrics · {capped.length} device{capped.length === 1 ? '' : 's'}
+                {timezone ? ` · ${timezone}` : ''}
+                {groupName ? ` · ${groupName}` : ''}
+                {updatedAt ? ` · updated ${Math.max(0, Math.round((Date.now() - updatedAt.getTime()) / 1000))}s ago` : ''}
+              </Typography>
+            </Box>
+          </Box>
 
-      {loading && !bundles.length ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-          <CircularProgress />
-        </Box>
-      ) : (
-        <>
-          <Box sx={{ overflowX: 'auto', mb: 2 }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Device</TableCell>
-                  <TableCell>Overall</TableCell>
+          {loading && !bundles.length ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+              <CircularProgress size={28} />
+            </Box>
+          ) : (
+            <Box sx={{ overflowX: 'auto' }}>
+              <Table size="small" sx={{ minWidth: 640 }}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 800, minWidth: 180 }}>Metric</TableCell>
+                    {bundles.map((bundle) => (
+                      <TableCell
+                        key={bundle.device.device_id}
+                        align="left"
+                        onClick={() => setHighlightDeviceId(bundle.device.device_id)}
+                        sx={{
+                          cursor: 'pointer',
+                          minWidth: 140,
+                          bgcolor: highlightDeviceId === bundle.device.device_id
+                            ? alpha(theme.palette.primary.main, 0.06)
+                            : undefined,
+                        }}
+                      >
+                        <Stack direction="row" spacing={0.75} alignItems="center">
+                          <Typography sx={{ fontWeight: 800 }}>
+                            {getDeviceDisplayName(bundle.device)}
+                          </Typography>
+                          <StatusPill label={bundle.overall?.label} color={bundle.overall?.color} />
+                        </Stack>
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  <TableRow
+                    sx={{
+                      bgcolor: theme.palette.mode === 'dark' ? alpha('#fff', 0.06) : '#0F172A',
+                      '& td': { color: '#F8FAFC', borderBottomColor: alpha('#fff', 0.08) },
+                    }}
+                  >
+                    <TableCell sx={{ fontWeight: 800 }}>Overall</TableCell>
+                    {bundles.map((bundle) => (
+                      <TableCell key={`overall-${bundle.device.device_id}`}>
+                        <Typography sx={{ fontWeight: 800, fontSize: '0.84rem' }}>
+                          {overallExplain(bundle.overall?.label)}
+                        </Typography>
+                        <Box sx={{ mt: 0.5 }}>
+                          <StatusPill label={bundle.overall?.label} color={bundle.overall?.color} />
+                        </Box>
+                      </TableCell>
+                    ))}
+                  </TableRow>
+
                   {comparisonCards.map((card) => (
-                    <TableCell
-                      key={card.id}
-                      onClick={() => setChartMetricId(card.id)}
-                      sx={{
-                        cursor: 'pointer',
-                        bgcolor: chartMetricId === card.id ? alpha(theme.palette.primary.main, 0.08) : undefined,
-                        fontWeight: chartMetricId === card.id ? 800 : 600,
-                      }}
-                    >
-                      {card.title}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {bundles.map((bundle) => {
-                  const allCards = [...bundle.sparingCards, ...bundle.tmatCards];
-                  const byId = Object.fromEntries(allCards.map((c) => [c.id, c]));
-                  const selected = highlightDeviceId === bundle.device.device_id;
-                  return (
                     <TableRow
-                      key={bundle.device.device_id}
+                      key={card.id}
                       hover
-                      selected={selected}
-                      onClick={() => setHighlightDeviceId(bundle.device.device_id)}
+                      selected={chartMetricId === card.id}
+                      onClick={() => setChartMetricId(card.id)}
                       sx={{ cursor: 'pointer' }}
                     >
-                      <TableCell sx={{ fontWeight: 700 }}>{getDeviceDisplayName(bundle.device)}</TableCell>
                       <TableCell>
-                        <Chip
-                          size="small"
-                          label={bundle.overall?.label || '—'}
-                          sx={{
-                            fontWeight: 800,
-                            bgcolor: alpha(bundle.overall?.color || '#64748B', 0.18),
-                            color: bundle.overall?.color,
-                          }}
-                        />
+                        <Typography sx={{ fontWeight: 800, fontSize: '0.8rem' }}>
+                          {shortMetricLabel(card.title)}
+                        </Typography>
+                        <Typography sx={{ fontSize: '0.64rem', color: 'text.secondary' }}>
+                          {metricHint(card.title)}
+                        </Typography>
                       </TableCell>
-                      {comparisonCards.map((card) => {
-                        const cell = byId[card.id];
+                      {bundles.map((bundle, idx) => {
+                        const cell = [...bundle.sparingCards, ...bundle.tmatCards].find((c) => c.id === card.id);
                         const empty = !cell?.ready || cell?.primary === '—' || cell?.primary === '-';
+                        const value = cardNumeric(cell);
                         return (
                           <TableCell
-                            key={card.id}
+                            key={`${bundle.device.device_id}-${card.id}`}
                             onClick={(e) => {
                               e.stopPropagation();
                               setChartMetricId(card.id);
                               setHighlightDeviceId(bundle.device.device_id);
                             }}
-                            sx={{
-                              bgcolor: chartMetricId === card.id ? alpha(theme.palette.primary.main, 0.06) : undefined,
-                            }}
                           >
-                            <Typography sx={{ fontSize: '0.82rem', fontWeight: 700 }}>
+                            <Typography sx={{ fontWeight: 800, fontSize: '0.88rem' }}>
                               {empty ? '—' : cell.primary}
                             </Typography>
-                            {!empty && cell?.label && cell.label !== '—' ? (
-                              <Chip
-                                size="small"
-                                label={cell.label}
-                                sx={{
-                                  mt: 0.35,
-                                  height: 18,
-                                  fontSize: '0.6rem',
-                                  fontWeight: 800,
-                                  bgcolor: alpha(cell.color || '#64748B', 0.16),
-                                  color: cell.color,
-                                }}
+                            {!empty ? <StatusPill label={cell.label} color={cell.color} /> : (
+                              <Typography sx={{ fontSize: '0.64rem', color: 'text.secondary', mt: 0.35 }}>
+                                {(cell?.missing || []).length ? `No ${(cell.missing || []).join(', ')}` : 'No data'}
+                              </Typography>
+                            )}
+                            {!empty ? (
+                              <MetricCellBar
+                                value={value}
+                                max={metricMaxById[card.id]}
+                                color={cell.color || getChartColor(idx)}
                               />
                             ) : null}
                           </TableCell>
                         );
                       })}
                     </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                  ))}
+                </TableBody>
+              </Table>
+            </Box>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card sx={{ ...surfaceCardSx(theme), mb: 2 }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap', mb: 1.5 }}>
+            <Box>
+              <Typography sx={{ fontWeight: 800, fontSize: '0.9rem' }}>
+                {shortMetricLabel(activeMetric?.title)} comparison
+              </Typography>
+              <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>
+                Click a metric row above or choose a metric to compare sites.
+              </Typography>
+            </Box>
+            <FormControl size="small" sx={{ minWidth: 220 }}>
+              <InputLabel id="heat-chart-metric">Metric</InputLabel>
+              <Select
+                labelId="heat-chart-metric"
+                label="Metric"
+                value={chartMetricId || ''}
+                onChange={(e) => setChartMetricId(e.target.value)}
+                sx={compactSelectSx}
+              >
+                {comparisonCards.map((card) => (
+                  <MenuItem key={card.id} value={card.id} sx={compactMenuItemSx}>
+                    {card.title}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
           </Box>
 
-          <Typography sx={{ fontWeight: 800, fontSize: '0.82rem', mb: 1 }}>
-            Chart comparison
-          </Typography>
-          <FormControl size="small" sx={{ minWidth: 260, mb: 1.5 }}>
-            <InputLabel id="heat-chart-metric">Metric</InputLabel>
-            <Select
-              labelId="heat-chart-metric"
-              label="Metric"
-              value={chartMetricId || ''}
-              onChange={(e) => setChartMetricId(e.target.value)}
-              sx={compactSelectSx}
-            >
-              {comparisonCards.map((card) => (
-                <MenuItem key={card.id} value={card.id} sx={compactMenuItemSx}>
-                  {card.title}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          {!chartHasValues ? (
+          {!chartValues.length ? (
             <Typography variant="body2" color="text.secondary">
               No numeric values for {activeMetric?.title || 'this metric'} on the selected devices.
             </Typography>
           ) : (
-            <Box sx={{ width: '100%', height: Math.max(260, 56 * chartData.length + 80) }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={chartData}
-                  layout="vertical"
-                  margin={{ top: 8, right: 24, left: 8, bottom: 8 }}
-                  onClick={(state) => {
-                    const id = state?.activePayload?.[0]?.payload?.deviceId;
-                    if (id) setHighlightDeviceId(id);
-                  }}
-                >
-                  <CartesianGrid {...getCartesianGridProps(theme)} />
-                  <XAxis type="number" tick={getAxisTickStyle(theme)} />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    width={120}
-                    tick={getAxisTickStyle(theme)}
-                    interval={0}
-                  />
-                  <Tooltip
-                    contentStyle={getTooltipContentStyle(theme)}
-                    formatter={(value, _name, item) => {
-                      const deviceId = item?.payload?.deviceId;
-                      const bundle = bundles.find((b) => b.device.device_id === deviceId);
-                      const all = bundle ? [...bundle.sparingCards, ...bundle.tmatCards] : [];
-                      const card = all.find((c) => c.id === chartMetricId);
-                      return [card?.primary || value, shortMetricLabel(activeMetric?.title)];
+            <Stack spacing={1.75}>
+              {chartSeries.map((row) => {
+                const pct = row.value == null ? 0 : Math.max(4, Math.min(100, (row.value / chartMax) * 100));
+                const active = highlightDeviceId === row.deviceId;
+                return (
+                  <Box
+                    key={row.deviceId}
+                    onClick={() => setHighlightDeviceId(row.deviceId)}
+                    sx={{
+                      p: 1.25,
+                      borderRadius: 2,
+                      border: '1px solid',
+                      borderColor: active ? alpha(row.color, 0.45) : 'divider',
+                      bgcolor: active ? alpha(row.color, 0.06) : 'transparent',
+                      cursor: 'pointer',
                     }}
-                  />
-                  <Legend />
-                  <Bar
-                    dataKey={chartMetricId}
-                    name={shortMetricLabel(activeMetric?.title)}
-                    radius={[0, 4, 4, 0]}
-                    maxBarSize={28}
                   >
-                    {chartData.map((entry) => (
-                      <Cell
-                        key={entry.deviceId}
-                        fill={
-                          highlightDeviceId && entry.deviceId !== highlightDeviceId
-                            ? alpha(getChartColor(0), 0.35)
-                            : getChartColor(0)
-                        }
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 0.7 }}>
+                      <Typography sx={{ fontWeight: 800 }}>{row.name}</Typography>
+                      <Stack direction="row" spacing={0.75} alignItems="center">
+                        <Typography sx={{ fontWeight: 800 }}>{row.primary}</Typography>
+                        <StatusPill label={row.label} color={row.color} />
+                      </Stack>
+                    </Box>
+                    <Box sx={{ height: 12, borderRadius: 999, bgcolor: alpha(row.color, 0.12), overflow: 'hidden' }}>
+                      <Box sx={{ width: `${pct}%`, height: '100%', bgcolor: row.color, borderRadius: 999 }} />
+                    </Box>
+                  </Box>
+                );
+              })}
+              {deltaPct != null && ranked.length >= 2 ? (
+                <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary' }}>
+                  {ranked[0].name} is {Math.abs(deltaPct).toFixed(0)}% {deltaPct >= 0 ? 'higher' : 'lower'} than {ranked[1].name}.
+                </Typography>
+              ) : null}
+            </Stack>
           )}
-        </>
-      )}
+        </CardContent>
+      </Card>
+
+      <Grid container spacing={1.5}>
+        <Grid item xs={12} md={4}>
+          <Card sx={{ ...surfaceCardSx(theme), height: '100%' }}>
+            <CardContent>
+              <Typography sx={{ fontWeight: 800, fontSize: '0.82rem', mb: 0.75 }}>
+                Why {kimiaDevices[0]?.overall?.label || bundles[0]?.overall?.label || 'this status'}?
+              </Typography>
+              <Typography sx={{ fontSize: '0.74rem', color: 'text.secondary', mb: 1.25, lineHeight: 1.5 }}>
+                {kimiaDevices.length
+                  ? 'COD/TSS above ~1.5 suggests dissolved chemical dominance (industrial influent). Check COD and TSS sensors, then verify sampling timing.'
+                  : 'Overall status is the worst badge among derived cards for each site. Investigate the metric that drives the badge.'}
+              </Typography>
+              <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+                <Button size="small" variant="outlined" sx={{ textTransform: 'none', borderRadius: 2, fontWeight: 700 }}>
+                  COD/TSS high
+                </Button>
+                <Button size="small" variant="outlined" sx={{ textTransform: 'none', borderRadius: 2, fontWeight: 700 }}>
+                  Check COD sensor
+                </Button>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <Card sx={{ ...surfaceCardSx(theme), height: '100%' }}>
+            <CardContent>
+              <Typography sx={{ fontWeight: 800, fontSize: '0.82rem', mb: 0.75 }}>
+                {showSparing && !showTmat ? 'WWTP health' : showTmat && !showSparing ? 'Site EWS' : 'Health highlight'}
+              </Typography>
+              {wwtpBest ? (
+                <>
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.75 }}>
+                    <Typography sx={{ fontWeight: 800, fontSize: '1.15rem' }}>
+                      {getDeviceDisplayName(wwtpBest.bundle.device)}
+                    </Typography>
+                    <StatusPill label={wwtpBest.card.label} color={wwtpBest.card.color} />
+                  </Stack>
+                  <Typography sx={{ fontWeight: 800, fontSize: '1.05rem', mb: 0.5 }}>
+                    {wwtpBest.card.primary}
+                  </Typography>
+                  <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', mb: 1 }}>
+                    {wwtpBest.card.detail || wwtpBest.card.formula}
+                  </Typography>
+                  <Box sx={{ height: 8, borderRadius: 999, bgcolor: alpha(wwtpBest.card.color || '#16A34A', 0.12), overflow: 'hidden' }}>
+                    <Box
+                      sx={{
+                        width: `${Math.max(8, Math.min(100, Number(wwtpBest.card.ratio) || 40))}%`,
+                        height: '100%',
+                        bgcolor: wwtpBest.card.color || '#16A34A',
+                        borderRadius: 999,
+                      }}
+                    />
+                  </Box>
+                </>
+              ) : (
+                <Typography sx={{ fontSize: '0.74rem', color: 'text.secondary' }}>
+                  Not enough derived metrics yet for a highlight.
+                </Typography>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <Card sx={{ ...surfaceCardSx(theme), height: '100%' }}>
+            <CardContent>
+              <Typography sx={{ fontWeight: 800, fontSize: '0.82rem', mb: 1 }}>
+                Derived metrics legend
+              </Typography>
+              <Stack spacing={0.85}>
+                {[
+                  { label: 'HITUNG', color: '#38BDF8', text: 'Calculated from COD × Flow' },
+                  { label: 'AMAN', color: '#16A34A', text: 'Within safe threshold' },
+                  { label: 'KIMIA', color: '#DC2626', text: 'Chemical dominance / anomaly' },
+                  { label: 'WASPADA', color: '#EA580C', text: 'Approaching limit' },
+                ].map((item) => (
+                  <Stack key={item.label} direction="row" spacing={1} alignItems="center">
+                    <Chip
+                      size="small"
+                      label={item.label}
+                      sx={{
+                        height: 20,
+                        fontWeight: 800,
+                        fontSize: '0.6rem',
+                        bgcolor: alpha(item.color, 0.14),
+                        color: item.color,
+                        minWidth: 72,
+                      }}
+                    />
+                    <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary' }}>{item.text}</Typography>
+                  </Stack>
+                ))}
+              </Stack>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
     </Box>
   );
 }
