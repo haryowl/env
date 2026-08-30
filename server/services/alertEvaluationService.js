@@ -59,6 +59,61 @@ function normalizeConsecutiveCount(alert) {
   return Math.min(100, Math.floor(n));
 }
 
+function readingTimestampMs(timestamp) {
+  if (timestamp == null) return null;
+  const t = new Date(timestamp).getTime();
+  return Number.isFinite(t) ? t : null;
+}
+
+function isNewReading(state, timestamp) {
+  const ts = readingTimestampMs(timestamp);
+  if (ts == null) return true;
+  const prev = readingTimestampMs(state?.last_reading_at);
+  if (prev == null) return true;
+  return ts !== prev;
+}
+
+async function getBreachState(alertId, deviceId, parameter) {
+  return getRow(
+    `SELECT alert_id, device_id, parameter, streak, in_breach, last_reading_at, last_fired_at
+     FROM alert_breach_streaks
+     WHERE alert_id = $1 AND device_id = $2 AND parameter = $3`,
+    [alertId, deviceId, parameter]
+  );
+}
+
+async function upsertBreachState({
+  alertId,
+  deviceId,
+  parameter,
+  streak,
+  inBreach,
+  lastReadingAt,
+  lastFiredAt = null,
+}) {
+  await query(
+    `INSERT INTO alert_breach_streaks
+       (alert_id, device_id, parameter, streak, in_breach, last_reading_at, last_fired_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+     ON CONFLICT (alert_id, device_id, parameter)
+     DO UPDATE SET
+       streak = EXCLUDED.streak,
+       in_breach = EXCLUDED.in_breach,
+       last_reading_at = EXCLUDED.last_reading_at,
+       last_fired_at = COALESCE(EXCLUDED.last_fired_at, alert_breach_streaks.last_fired_at),
+       updated_at = NOW()`,
+    [
+      alertId,
+      deviceId,
+      parameter,
+      streak,
+      inBreach,
+      lastReadingAt || null,
+      lastFiredAt,
+    ]
+  );
+}
+
 async function getActiveLog(alertId, deviceId, parameter) {
   return getRow(
     `SELECT log_id
@@ -79,28 +134,6 @@ async function resolveActiveLog(logId) {
      WHERE log_id = $1`,
     [logId]
   );
-}
-
-async function setBreachStreak(alertId, deviceId, parameter, streak) {
-  await query(
-    `INSERT INTO alert_breach_streaks (alert_id, device_id, parameter, streak, updated_at)
-     VALUES ($1, $2, $3, $4, NOW())
-     ON CONFLICT (alert_id, device_id, parameter)
-     DO UPDATE SET streak = EXCLUDED.streak, updated_at = NOW()`,
-    [alertId, deviceId, parameter, streak]
-  );
-}
-
-async function incrementBreachStreak(alertId, deviceId, parameter) {
-  const result = await query(
-    `INSERT INTO alert_breach_streaks (alert_id, device_id, parameter, streak, updated_at)
-     VALUES ($1, $2, $3, 1, NOW())
-     ON CONFLICT (alert_id, device_id, parameter)
-     DO UPDATE SET streak = alert_breach_streaks.streak + 1, updated_at = NOW()
-     RETURNING streak`,
-    [alertId, deviceId, parameter]
-  );
-  return Number(result.rows[0]?.streak || 1);
 }
 
 async function fireThresholdAlert({ alert, deviceId, parameter, value, timestamp, streak = null }) {
@@ -174,28 +207,60 @@ async function evaluateThresholdAlertsOnData(device_id, parameter, value, timest
     const outOfRange = (alert.min !== null && value < alert.min) || (alert.max !== null && value > alert.max);
     const triggerMode = normalizeTriggerMode(alert);
     const consecutiveCount = normalizeConsecutiveCount(alert);
+    const state = (await getBreachState(alert.alert_id, device_id, parameter)) || {};
     const active = await getActiveLog(alert.alert_id, device_id, parameter);
+    const newReading = isNewReading(state, timestamp);
 
     if (!outOfRange) {
-      await setBreachStreak(alert.alert_id, device_id, parameter, 0);
+      await upsertBreachState({
+        alertId: alert.alert_id,
+        deviceId: device_id,
+        parameter,
+        streak: 0,
+        inBreach: false,
+        lastReadingAt: timestamp,
+        lastFiredAt: null,
+      });
       if (active?.log_id) await resolveActiveLog(active.log_id);
       continue;
     }
 
-    const streak = await incrementBreachStreak(alert.alert_id, device_id, parameter);
+    let streak = Number(state.streak || 0);
+    if (newReading) {
+      streak = state.in_breach ? streak + 1 : 1;
+    }
+
+    // Sync episode state with an existing active log (e.g. after deploy / legacy data).
+    const inBreachEpisode = Boolean(
+      state.in_breach || (active?.log_id && triggerMode !== TRIGGER_EVERY_READING)
+    );
 
     let shouldFire = false;
     if (triggerMode === TRIGGER_EVERY_READING) {
-      shouldFire = true;
+      // Only on a genuinely new reading — ignore poll re-scans of the same timestamp.
+      shouldFire = newReading;
     } else if (triggerMode === TRIGGER_CONSECUTIVE) {
-      shouldFire = streak >= consecutiveCount && !active?.log_id;
+      shouldFire = newReading && streak >= consecutiveCount && !inBreachEpisode;
     } else {
-      shouldFire = !active?.log_id;
+      // on_enter: once per breach episode until value returns in range.
+      shouldFire = newReading && !inBreachEpisode;
     }
 
-    if (!shouldFire) continue;
+    if (!shouldFire) {
+      if (newReading || (inBreachEpisode && !state.in_breach)) {
+        await upsertBreachState({
+          alertId: alert.alert_id,
+          deviceId: device_id,
+          parameter,
+          streak,
+          inBreach: inBreachEpisode,
+          lastReadingAt: timestamp,
+          lastFiredAt: state.last_fired_at,
+        });
+      }
+      continue;
+    }
 
-    // every_reading: keep a single active episode but still log + notify each reading
     if (triggerMode === TRIGGER_EVERY_READING && active?.log_id) {
       await resolveActiveLog(active.log_id);
     }
@@ -207,6 +272,16 @@ async function evaluateThresholdAlertsOnData(device_id, parameter, value, timest
       value,
       timestamp,
       streak,
+    });
+
+    await upsertBreachState({
+      alertId: alert.alert_id,
+      deviceId: device_id,
+      parameter,
+      streak,
+      inBreach: true,
+      lastReadingAt: timestamp,
+      lastFiredAt: new Date(),
     });
   }
 }

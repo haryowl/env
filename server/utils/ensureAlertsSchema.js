@@ -173,9 +173,24 @@ async function ensureAlertsSchema() {
       device_id TEXT NOT NULL,
       parameter VARCHAR(100) NOT NULL,
       streak INTEGER NOT NULL DEFAULT 0,
+      in_breach BOOLEAN NOT NULL DEFAULT false,
+      last_reading_at TIMESTAMPTZ,
+      last_fired_at TIMESTAMPTZ,
       updated_at TIMESTAMPTZ DEFAULT NOW(),
       PRIMARY KEY (alert_id, device_id, parameter)
     )
+  `);
+  await query(`
+    ALTER TABLE alert_breach_streaks
+    ADD COLUMN IF NOT EXISTS in_breach BOOLEAN NOT NULL DEFAULT false
+  `);
+  await query(`
+    ALTER TABLE alert_breach_streaks
+    ADD COLUMN IF NOT EXISTS last_reading_at TIMESTAMPTZ
+  `);
+  await query(`
+    ALTER TABLE alert_breach_streaks
+    ADD COLUMN IF NOT EXISTS last_fired_at TIMESTAMPTZ
   `);
 
   ensured = true;
