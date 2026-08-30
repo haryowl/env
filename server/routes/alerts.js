@@ -65,7 +65,30 @@ function normalizeAlertRow(row) {
       : row.device_id
         ? [String(row.device_id)]
         : [];
-  return { ...row, device_ids, device_id: row.device_id || device_ids[0] || null };
+  const trigger_mode = ['every_reading', 'consecutive', 'on_enter'].includes(row.trigger_mode)
+    ? row.trigger_mode
+    : 'on_enter';
+  const consecutive_count = Number(row.consecutive_count);
+  return {
+    ...row,
+    device_ids,
+    device_id: row.device_id || device_ids[0] || null,
+    trigger_mode,
+    consecutive_count: Number.isFinite(consecutive_count) && consecutive_count >= 2
+      ? Math.min(100, Math.floor(consecutive_count))
+      : 3,
+  };
+}
+
+function parseTriggerFields(body, type) {
+  if (type === 'inactivity') {
+    return { trigger_mode: 'on_enter', consecutive_count: 3 };
+  }
+  const mode = String(body.trigger_mode || 'on_enter').trim();
+  const trigger_mode = ['every_reading', 'consecutive', 'on_enter'].includes(mode) ? mode : 'on_enter';
+  const n = Number(body.consecutive_count);
+  const consecutive_count = Number.isFinite(n) && n >= 2 ? Math.min(100, Math.floor(n)) : 3;
+  return { trigger_mode, consecutive_count };
 }
 
 // GET /api/alerts - List all alerts
@@ -108,6 +131,7 @@ router.post('/', authenticateToken, authorizeMenuAccess('/alerts', 'create'), as
   try {
     const { name, parameter, min, max, type, threshold_time, actions, template } = req.body;
     const { deviceIds, primaryDeviceId } = normalizeDeviceIdsInput(req.body);
+    const { trigger_mode, consecutive_count } = parseTriggerFields(req.body, type);
 
     if (!name || !primaryDeviceId || !parameter || !type) {
       return res.status(400).json({
@@ -123,8 +147,8 @@ router.post('/', authenticateToken, authorizeMenuAccess('/alerts', 'create'), as
 
     const result = await query(
       `
-      INSERT INTO alerts (name, device_id, device_ids, parameter, min, max, type, threshold_time, actions, template, created_by, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
+      INSERT INTO alerts (name, device_id, device_ids, parameter, min, max, type, threshold_time, actions, template, trigger_mode, consecutive_count, created_by, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())
       RETURNING *
     `,
       [
@@ -138,6 +162,8 @@ router.post('/', authenticateToken, authorizeMenuAccess('/alerts', 'create'), as
         threshold_time,
         actions ? JSON.stringify(actions) : '{}',
         template,
+        trigger_mode,
+        consecutive_count,
         req.user.user_id,
       ]
     );
@@ -158,6 +184,7 @@ router.put('/:id', authenticateToken, authorizeMenuAccess('/alerts', 'update'), 
     const { id } = req.params;
     const { name, parameter, min, max, type, threshold_time, actions, template } = req.body;
     const { deviceIds, primaryDeviceId } = normalizeDeviceIdsInput(req.body);
+    const { trigger_mode, consecutive_count } = parseTriggerFields(req.body, type);
 
     if (!name || !primaryDeviceId || !parameter || !type) {
       return res.status(400).json({
@@ -185,8 +212,10 @@ router.put('/:id', authenticateToken, authorizeMenuAccess('/alerts', 'update'), 
         threshold_time = $8,
         actions = $9,
         template = $10,
+        trigger_mode = $11,
+        consecutive_count = $12,
         updated_at = NOW()
-      WHERE alert_id = $11
+      WHERE alert_id = $13
     `;
     let params = [
       name,
@@ -199,11 +228,13 @@ router.put('/:id', authenticateToken, authorizeMenuAccess('/alerts', 'update'), 
       threshold_time,
       actions ? JSON.stringify(actions) : '{}',
       template,
+      trigger_mode,
+      consecutive_count,
       id,
     ];
 
     if (!isAdmin) {
-      sqlQuery += ' AND (created_by = $12 OR created_by IS NULL)';
+      sqlQuery += ' AND (created_by = $14 OR created_by IS NULL)';
       params.push(req.user.user_id);
     }
 

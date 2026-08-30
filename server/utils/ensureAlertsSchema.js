@@ -153,6 +153,31 @@ async function ensureAlertsSchema() {
     ON whatsapp_subscriptions(device_id)
   `);
 
+  // Threshold trigger rules: on_enter (default), every_reading, consecutive
+  await query(`
+    ALTER TABLE alerts
+    ADD COLUMN IF NOT EXISTS trigger_mode VARCHAR(32) DEFAULT 'on_enter'
+  `);
+  await query(`
+    ALTER TABLE alerts
+    ADD COLUMN IF NOT EXISTS consecutive_count INTEGER DEFAULT 3
+  `);
+  await query(`
+    UPDATE alerts
+    SET trigger_mode = 'on_enter'
+    WHERE trigger_mode IS NULL
+  `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS alert_breach_streaks (
+      alert_id INTEGER NOT NULL REFERENCES alerts(alert_id) ON DELETE CASCADE,
+      device_id TEXT NOT NULL,
+      parameter VARCHAR(100) NOT NULL,
+      streak INTEGER NOT NULL DEFAULT 0,
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (alert_id, device_id, parameter)
+    )
+  `);
+
   ensured = true;
 }
 

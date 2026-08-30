@@ -32,6 +32,133 @@ const ALERT_MATCHES_DEVICE_SQL = `(
   OR COALESCE(device_ids, ARRAY[]::text[]) @> ARRAY[$1]::text[]
 )`;
 
+const TRIGGER_ON_ENTER = 'on_enter';
+const TRIGGER_EVERY_READING = 'every_reading';
+const TRIGGER_CONSECUTIVE = 'consecutive';
+
+function parseAlertActions(alert) {
+  if (typeof alert.actions === 'string') {
+    try {
+      return JSON.parse(alert.actions);
+    } catch {
+      return {};
+    }
+  }
+  return alert.actions || {};
+}
+
+function normalizeTriggerMode(alert) {
+  const mode = String(alert.trigger_mode || TRIGGER_ON_ENTER).trim();
+  if (mode === TRIGGER_EVERY_READING || mode === TRIGGER_CONSECUTIVE) return mode;
+  return TRIGGER_ON_ENTER;
+}
+
+function normalizeConsecutiveCount(alert) {
+  const n = Number(alert.consecutive_count);
+  if (!Number.isFinite(n) || n < 2) return 3;
+  return Math.min(100, Math.floor(n));
+}
+
+async function getActiveLog(alertId, deviceId, parameter) {
+  return getRow(
+    `SELECT log_id
+     FROM alert_logs
+     WHERE alert_id = $1 AND device_id = $2 AND parameter = $3 AND status = 'active'
+     ORDER BY detected_at DESC
+     LIMIT 1`,
+    [alertId, deviceId, parameter]
+  );
+}
+
+async function resolveActiveLog(logId) {
+  if (!logId) return;
+  await query(
+    `UPDATE alert_logs
+     SET status = 'resolved',
+         details = jsonb_set(COALESCE(details, '{}'::jsonb), '{resolvedAt}', to_jsonb(NOW()), true)
+     WHERE log_id = $1`,
+    [logId]
+  );
+}
+
+async function setBreachStreak(alertId, deviceId, parameter, streak) {
+  await query(
+    `INSERT INTO alert_breach_streaks (alert_id, device_id, parameter, streak, updated_at)
+     VALUES ($1, $2, $3, $4, NOW())
+     ON CONFLICT (alert_id, device_id, parameter)
+     DO UPDATE SET streak = EXCLUDED.streak, updated_at = NOW()`,
+    [alertId, deviceId, parameter, streak]
+  );
+}
+
+async function incrementBreachStreak(alertId, deviceId, parameter) {
+  const result = await query(
+    `INSERT INTO alert_breach_streaks (alert_id, device_id, parameter, streak, updated_at)
+     VALUES ($1, $2, $3, 1, NOW())
+     ON CONFLICT (alert_id, device_id, parameter)
+     DO UPDATE SET streak = alert_breach_streaks.streak + 1, updated_at = NOW()
+     RETURNING streak`,
+    [alertId, deviceId, parameter]
+  );
+  return Number(result.rows[0]?.streak || 1);
+}
+
+async function fireThresholdAlert({ alert, deviceId, parameter, value, timestamp, streak = null }) {
+  const device = await getRow('SELECT name FROM devices WHERE device_id = $1', [deviceId]);
+  const deviceName = device ? device.name : deviceId;
+  const actions = parseAlertActions(alert);
+  const triggerMode = normalizeTriggerMode(alert);
+
+  console.log('Inserting into alert_logs:', { alert_id: alert.alert_id, device_id: deviceId, parameter, value, triggerMode });
+  await query(
+    `INSERT INTO alert_logs (alert_id, device_id, parameter, value, detected_at, status, details)
+     VALUES ($1, $2, $3, $4, NOW(), 'active', $5)`,
+    [
+      alert.alert_id,
+      deviceId,
+      parameter,
+      value,
+      JSON.stringify({
+        triggered: 'threshold',
+        min: alert.min,
+        max: alert.max,
+        at: timestamp,
+        trigger_mode: triggerMode,
+        streak,
+      }),
+    ]
+  );
+
+  try {
+    if (actions && (actions.email || actions.http || actions.mqtt || actions.whatsapp)) {
+      await NotificationService.sendNotification(
+        { ...alert, actions, device_id: deviceId },
+        deviceName,
+        parameter,
+        value,
+        alert.min,
+        alert.max,
+        timestamp,
+        null
+      );
+    }
+  } catch (error) {
+    console.error('Failed to send notification for alert', alert.alert_id, error);
+  }
+
+  if (global.io) {
+    global.io.emit('new_alert_log', {
+      alert_id: alert.alert_id,
+      device_id: deviceId,
+      parameter,
+      value,
+      detected_at: new Date().toISOString(),
+      type: 'threshold',
+      details: { min: alert.min, max: alert.max, trigger_mode: triggerMode, streak },
+    });
+  }
+}
+
 // Evaluate threshold alerts on new data ingest
 async function evaluateThresholdAlertsOnData(device_id, parameter, value, timestamp) {
   console.log('Evaluating threshold alerts for', device_id, parameter, value, timestamp);
@@ -45,81 +172,42 @@ async function evaluateThresholdAlertsOnData(device_id, parameter, value, timest
 
   for (const alert of alerts) {
     const outOfRange = (alert.min !== null && value < alert.min) || (alert.max !== null && value > alert.max);
-
-    // Crossing-only: create a log (and emit popup/notifications) only when we enter out-of-range.
-    const active = await getRow(
-      `SELECT log_id
-       FROM alert_logs
-       WHERE alert_id = $1 AND device_id = $2 AND parameter = $3 AND status = 'active'
-       ORDER BY detected_at DESC
-       LIMIT 1`,
-      [alert.alert_id, device_id, parameter]
-    );
+    const triggerMode = normalizeTriggerMode(alert);
+    const consecutiveCount = normalizeConsecutiveCount(alert);
+    const active = await getActiveLog(alert.alert_id, device_id, parameter);
 
     if (!outOfRange) {
-      if (active?.log_id) {
-        await query(
-          `UPDATE alert_logs
-           SET status = 'resolved',
-               details = jsonb_set(COALESCE(details, '{}'::jsonb), '{resolvedAt}', to_jsonb(NOW()), true)
-           WHERE log_id = $1`,
-          [active.log_id]
-        );
-      }
+      await setBreachStreak(alert.alert_id, device_id, parameter, 0);
+      if (active?.log_id) await resolveActiveLog(active.log_id);
       continue;
     }
 
-    if (active?.log_id) {
-      continue;
+    const streak = await incrementBreachStreak(alert.alert_id, device_id, parameter);
+
+    let shouldFire = false;
+    if (triggerMode === TRIGGER_EVERY_READING) {
+      shouldFire = true;
+    } else if (triggerMode === TRIGGER_CONSECUTIVE) {
+      shouldFire = streak >= consecutiveCount && !active?.log_id;
+    } else {
+      shouldFire = !active?.log_id;
     }
 
-    const device = await getRow('SELECT name FROM devices WHERE device_id = $1', [device_id]);
-    const deviceName = device ? device.name : device_id;
-    const actions = typeof alert.actions === 'string' ? (() => { try { return JSON.parse(alert.actions); } catch { return {}; } })() : (alert.actions || {});
+    if (!shouldFire) continue;
 
-    console.log('Inserting into alert_logs:', { alert_id: alert.alert_id, device_id, parameter, value });
-    await query(
-      `INSERT INTO alert_logs (alert_id, device_id, parameter, value, detected_at, status, details) VALUES ($1, $2, $3, $4, NOW(), 'active', $5)`,
-      [alert.alert_id, device_id, parameter, value, JSON.stringify({ triggered: 'threshold', min: alert.min, max: alert.max, at: timestamp })]
-    );
-
-    try {
-      if (actions && (actions.email || actions.http || actions.mqtt || actions.whatsapp)) {
-        console.log('Sending notification for alert:', {
-          alert_id: alert.alert_id,
-          template: alert.template,
-          current_value: value,
-          parameter: parameter,
-          device: deviceName
-        });
-
-        // Override device_id with the triggering device for MQTT topic / payload
-        await NotificationService.sendNotification(
-          { ...alert, actions, device_id },
-          deviceName,
-          parameter,
-          value,
-          alert.min,
-          alert.max,
-          timestamp,
-          null
-        );
-      }
-    } catch (error) {
-      console.error('Failed to send notification for alert', alert.alert_id, error);
+    // every_reading: keep a single active episode but still log + notify each reading
+    if (triggerMode === TRIGGER_EVERY_READING && active?.log_id) {
+      await resolveActiveLog(active.log_id);
     }
 
-    if (global.io) {
-      global.io.emit('new_alert_log', {
-        alert_id: alert.alert_id,
-        device_id,
-        parameter,
-        value,
-        detected_at: new Date().toISOString(),
-        type: 'threshold',
-        details: { min: alert.min, max: alert.max }
-      });
-    }
+    await fireThresholdAlert({
+      alert,
+      deviceId: device_id,
+      parameter,
+      value,
+      timestamp,
+      streak,
+    });
   }
 }
 

@@ -39,6 +39,8 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
     max: '',
     type: 'threshold',
     threshold_time: '',
+    trigger_mode: 'on_enter',
+    consecutive_count: 3,
     popup: false,
     http: false,
     email: false,
@@ -67,6 +69,8 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
         max: incomingType === 'inactivity' ? '' : (editingAlert.max ?? ''),
         type: incomingType,
         threshold_time: editingAlert.threshold_time || '',
+        trigger_mode: editingAlert.trigger_mode || 'on_enter',
+        consecutive_count: editingAlert.consecutive_count || 3,
         popup: editingAlert.actions?.popup || false,
         http: editingAlert.actions?.http || false,
         email: editingAlert.actions?.email || false,
@@ -157,6 +161,13 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
         return;
       }
     }
+    if (alertType === 'threshold' && form.trigger_mode === 'consecutive') {
+      const n = Number(form.consecutive_count);
+      if (!n || Number.isNaN(n) || n < 2) {
+        alert('Please provide a consecutive count of 2 or more.');
+        return;
+      }
+    }
 
     const alertData = {
       name: form.name,
@@ -168,6 +179,8 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
       type: alertType || 'threshold',
       threshold_time:
         form.threshold_time === '' || isNaN(Number(form.threshold_time)) ? null : Number(form.threshold_time),
+      trigger_mode: alertType === 'inactivity' ? 'on_enter' : (form.trigger_mode || 'on_enter'),
+      consecutive_count: Number(form.consecutive_count) || 3,
       actions: { popup: form.popup, http: form.http, email: form.email, mqtt: form.mqtt, whatsapp: form.whatsapp },
       template: form.template,
     };
@@ -316,6 +329,18 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
     { field: 'min', headerName: 'Min', flex: 0.5 },
     { field: 'max', headerName: 'Max', flex: 0.5 },
     { field: 'type', headerName: 'Type', flex: 1 },
+    {
+      field: 'trigger_mode',
+      headerName: 'Trigger',
+      flex: 1.1,
+      renderCell: (params) => {
+        if (params.row.type === 'inactivity') return '—';
+        const mode = params.row.trigger_mode || 'on_enter';
+        if (mode === 'every_reading') return 'Every reading';
+        if (mode === 'consecutive') return `${params.row.consecutive_count || 3} in a row`;
+        return 'On enter';
+      },
+    },
     {
       field: 'popup',
       headerName: 'Popup',
@@ -565,6 +590,30 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
                   />
                 </Grid>
               </Grid>
+              <FormControl fullWidth sx={{ mb: 2 }}>
+                <InputLabel>Trigger rule</InputLabel>
+                <Select
+                  value={form.trigger_mode || 'on_enter'}
+                  label="Trigger rule"
+                  onChange={(e) => handleFormChange('trigger_mode', e.target.value)}
+                >
+                  <MenuItem value="on_enter">Only when the value begins out of range</MenuItem>
+                  <MenuItem value="every_reading">Each time the value is out of range</MenuItem>
+                  <MenuItem value="consecutive">When out of range X times in a row</MenuItem>
+                </Select>
+              </FormControl>
+              {form.trigger_mode === 'consecutive' && (
+                <TextField
+                  label="Consecutive out-of-range readings (X)"
+                  fullWidth
+                  type="number"
+                  inputProps={{ min: 2, max: 100 }}
+                  sx={{ mb: 2 }}
+                  value={form.consecutive_count}
+                  onChange={(e) => handleFormChange('consecutive_count', e.target.value)}
+                  helperText="Fires after X consecutive out-of-range readings, then waits until the value is back in range."
+                />
+              )}
             </>
           )}
           <FormControl fullWidth sx={{ mb: 2 }}>

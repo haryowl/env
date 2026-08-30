@@ -1132,9 +1132,8 @@ class MQTTService {
         const numericValue = typeof value === 'string' ? parseFloat(value) : value;
         if (typeof numericValue !== 'number' || Number.isNaN(numericValue)) continue;
 
-        if ((alert.min !== null && numericValue < alert.min) || (alert.max !== null && numericValue > alert.max)) {
-          await evaluateThresholdAlertsOnData(deviceId, alert.parameter, numericValue, new Date());
-        }
+        // Always evaluate so in-range readings can resolve active alerts and reset consecutive streaks.
+        await evaluateThresholdAlertsOnData(deviceId, alert.parameter, numericValue, new Date());
       }
     } catch (error) {
       console.error('MQTT: Error evaluating alerts with real-time data:', error);
