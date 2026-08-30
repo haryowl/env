@@ -899,14 +899,14 @@ export default function AlertSettings({ user }) {
       headerName: 'Timestamp',
       flex: 1,
       minWidth: 150,
-      valueGetter: (params) => formatInUserTimezone(params.value),
+      valueFormatter: (value) => formatInUserTimezone(value),
     },
     { field: 'alert_name', headerName: 'Alert', flex: 0.8, minWidth: 100 },
     {
       field: 'type',
       headerName: 'Type',
       width: 90,
-      valueGetter: (params) => params.row.type || params.row.notification_type,
+      valueGetter: (value, row) => row?.type || row?.notification_type || value || '',
     },
     { field: 'recipient', headerName: 'Recipient', flex: 0.9, minWidth: 110 },
     {
