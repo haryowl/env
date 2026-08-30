@@ -128,8 +128,17 @@ async function ensureAlertsSchema() {
       alert_id INTEGER NOT NULL REFERENCES alerts(alert_id) ON DELETE CASCADE,
       phone VARCHAR(32) NOT NULL,
       created_at TIMESTAMPTZ DEFAULT NOW(),
-      UNIQUE (user_id, alert_id, phone)
+      UNIQUE (user_id, device_id, alert_id, phone)
     )
+  `);
+  // Allow same phone + alert on different devices (legacy DB had user_id + alert_id + phone only)
+  await query(`
+    ALTER TABLE whatsapp_subscriptions
+    DROP CONSTRAINT IF EXISTS whatsapp_subscriptions_user_id_alert_id_phone_key
+  `);
+  await query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_whatsapp_subscriptions_user_device_alert_phone
+    ON whatsapp_subscriptions (user_id, device_id, alert_id, phone)
   `);
   await query(`
     CREATE INDEX IF NOT EXISTS idx_whatsapp_subscriptions_alert_id

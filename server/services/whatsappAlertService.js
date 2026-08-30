@@ -162,7 +162,7 @@ async function addSubscription({ userId, deviceId, alertId, phone, req }) {
     return result.rows[0];
   } catch (e) {
     if (e.code === '23505') {
-      const err = new Error('This phone is already subscribed for that alert');
+      const err = new Error('This phone is already subscribed for that alert on this device');
       err.status = 409;
       throw err;
     }
