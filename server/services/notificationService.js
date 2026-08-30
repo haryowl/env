@@ -12,6 +12,38 @@ function humanizeFieldName(value = '') {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+const HTTP_LOG_BODY_MAX = 2000;
+
+function truncateForLog(value, max = HTTP_LOG_BODY_MAX) {
+  if (value === undefined || value === null) return '';
+  const s = typeof value === 'string' ? value : JSON.stringify(value);
+  return s.length > max ? `${s.slice(0, max)}…` : s;
+}
+
+function formatHttpExchangeLog({ response, error, url, method, requestBody }) {
+  const entry = {
+    url: url || '',
+    method: String(method || 'POST').toUpperCase(),
+  };
+  if (requestBody !== undefined && requestBody !== null) {
+    entry.requestBody = truncateForLog(requestBody, 1500);
+  }
+  if (response) {
+    entry.httpStatus = response.status;
+    entry.httpStatusText = response.statusText;
+    entry.responseBody = truncateForLog(response.data);
+  }
+  if (error) {
+    entry.error = error.message || String(error);
+    if (error.response) {
+      entry.httpStatus = error.response.status;
+      entry.httpStatusText = error.response.statusText;
+      entry.responseBody = truncateForLog(error.response.data);
+    }
+  }
+  return JSON.stringify(entry, null, 2);
+}
+
 class NotificationService {
   constructor() {
     this.emailTransporter = null;
@@ -437,6 +469,55 @@ class NotificationService {
   }
 
   // Send WhatsApp (Wablas) notifications — one POST per subscribed phone
+  async deliverWhatsAppRequest({
+    provider,
+    phone,
+    messageText,
+    ctx,
+    alertId = null,
+    createdBy = null,
+  }) {
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(provider.headers && typeof provider.headers === 'object' ? provider.headers : {}),
+    };
+    const method = String(provider.method || 'POST').toLowerCase();
+    const defaultPayload = {
+      data: [{ phone, message: messageText }],
+    };
+    const fakeConfig = { id: 'whatsapp', body_template: provider.body_template };
+    const payload = this.resolveHttpPayload(fakeConfig, ctx, defaultPayload);
+
+    try {
+      const response = await axios({
+        method,
+        url: provider.url,
+        headers,
+        timeout: 30000,
+        data: payload,
+      });
+      const httpLog = formatHttpExchangeLog({
+        response,
+        url: provider.url,
+        method,
+        requestBody: payload,
+      });
+      await this.logNotification(alertId, 'whatsapp', phone, 'sent', messageText, httpLog, createdBy);
+      console.log(`WhatsApp notification sent to ${phone}`, httpLog);
+      return { success: true, httpLog, response: response.data };
+    } catch (error) {
+      const httpLog = formatHttpExchangeLog({
+        error,
+        url: provider.url,
+        method,
+        requestBody: payload,
+      });
+      console.error(`WhatsApp notification failed for ${phone}:`, httpLog);
+      await this.logNotification(alertId, 'whatsapp', phone, 'failed', messageText, httpLog, createdBy);
+      return { success: false, httpLog, error: error.message || String(error) };
+    }
+  }
+
   async sendWhatsAppNotification(alert, deviceName, parameter, value, min, max, lastUpdate, thresholdTime, parameterDisplay) {
     try {
       const alertId = alert?.alert_id;
@@ -445,13 +526,33 @@ class NotificationService {
 
       const provider = await whatsappAlertService.getProviderConfig();
       if (!provider.enabled || !provider.url) {
-        console.log('WhatsApp provider disabled or URL missing; skip send');
+        const reason = !provider.url
+          ? 'WhatsApp provider URL is not configured'
+          : 'WhatsApp provider is disabled';
+        console.log(`${reason}; skip send`);
+        await this.logNotification(
+          alertId,
+          'whatsapp',
+          '(none)',
+          'skipped',
+          reason,
+          JSON.stringify({ reason: 'provider_disabled', deviceId, alertId }),
+        );
         return;
       }
 
       const phones = await whatsappAlertService.listPhonesForAlertFire(alertId, deviceId);
       if (!phones.length) {
-        console.log(`No WhatsApp subscriptions for alert ${alertId} / device ${deviceId || '*'}`);
+        const reason = `No WhatsApp subscriptions for alert ${alertId} / device ${deviceId || '*'}`;
+        console.log(reason);
+        await this.logNotification(
+          alertId,
+          'whatsapp',
+          '(none)',
+          'skipped',
+          reason,
+          JSON.stringify({ reason: 'no_subscriptions', deviceId, alertId }),
+        );
         return;
       }
 
@@ -468,11 +569,6 @@ class NotificationService {
       }));
 
       const timestamp = new Date().toISOString();
-      const headers = {
-        'Content-Type': 'application/json',
-        ...(provider.headers && typeof provider.headers === 'object' ? provider.headers : {}),
-      };
-      const method = String(provider.method || 'POST').toLowerCase();
 
       for (const phone of phones) {
         const ctx = {
@@ -492,34 +588,100 @@ class NotificationService {
           thresholdTime: thresholdTime ?? '',
           phone,
         };
-        const defaultPayload = {
-          data: [{ phone, message: processedTemplate }],
-        };
-        const fakeConfig = { id: 'whatsapp', body_template: provider.body_template };
-        const payload = this.resolveHttpPayload(fakeConfig, ctx, defaultPayload);
-
-        try {
-          await axios({
-            method,
-            url: provider.url,
-            headers,
-            timeout: 30000,
-            data: payload,
-          });
-          await this.logNotification(alertId, 'whatsapp', phone, 'sent', processedTemplate);
-          console.log(`WhatsApp notification sent to ${phone}`);
-        } catch (error) {
-          const errMsg = error?.response?.data
-            ? JSON.stringify(error.response.data).slice(0, 500)
-            : (error?.message || String(error));
-          console.error(`WhatsApp notification failed for ${phone}:`, errMsg);
-          await this.logNotification(alertId, 'whatsapp', phone, 'failed', processedTemplate, errMsg);
-        }
+        await this.deliverWhatsAppRequest({
+          provider,
+          phone,
+          messageText: processedTemplate,
+          ctx,
+          alertId,
+        });
       }
     } catch (error) {
       console.error('Failed to send WhatsApp notification:', error);
       throw error;
     }
+  }
+
+  async testWhatsApp({ phone, userId, isAdmin, createdBy, providerOverride = null }) {
+    const normalized = whatsappAlertService.normalizePhone(phone);
+    if (!whatsappAlertService.isValidNormalizedPhone(normalized)) {
+      return { success: false, message: 'Invalid phone number. Use digits, e.g. 0812… or 62812…' };
+    }
+
+    if (!isAdmin) {
+      const subs = await getRows(
+        'SELECT phone FROM whatsapp_subscriptions WHERE user_id = $1',
+        [userId]
+      );
+      const allowed = (subs || []).some(
+        (row) => whatsappAlertService.normalizePhone(row.phone) === normalized
+      );
+      if (!allowed) {
+        return {
+          success: false,
+          message: 'You can only send a test to phone numbers you have subscribed.',
+        };
+      }
+    }
+
+    let provider = await whatsappAlertService.getProviderConfig();
+    if (providerOverride && typeof providerOverride === 'object') {
+      provider = {
+        ...provider,
+        ...providerOverride,
+        headers:
+          providerOverride.headers && typeof providerOverride.headers === 'object'
+            ? providerOverride.headers
+            : provider.headers,
+        body_template:
+          providerOverride.body_template !== undefined
+            ? providerOverride.body_template
+            : provider.body_template,
+      };
+    }
+
+    if (!provider.url) {
+      return { success: false, message: 'WhatsApp provider URL is required.' };
+    }
+
+    const testMessage =
+      'Test message from IoT Alert System. If you receive this, WhatsApp notifications are configured correctly.';
+    const timestamp = new Date().toISOString();
+    const ctx = {
+      alert_id: null,
+      device: 'TestDevice',
+      device_id: '',
+      parameter: 'test',
+      parameter_display: 'Test',
+      parameter_key: 'test',
+      value: 0,
+      min: null,
+      max: null,
+      message: testMessage,
+      timestamp,
+      type: 'iot_alert_test',
+      lastUpdate: timestamp,
+      thresholdTime: '',
+      phone: normalized,
+    };
+
+    const result = await this.deliverWhatsAppRequest({
+      provider,
+      phone: normalized,
+      messageText: `[TEST] ${testMessage}`,
+      ctx,
+      alertId: null,
+      createdBy,
+    });
+
+    return {
+      success: result.success,
+      message: result.success
+        ? 'Test WhatsApp message sent successfully.'
+        : (result.error || 'Test WhatsApp message failed.'),
+      httpLog: result.httpLog,
+      response: result.response,
+    };
   }
 
   // Process template with variables

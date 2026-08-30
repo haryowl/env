@@ -490,19 +490,61 @@ router.post('/test-http', auth.authenticateToken, async (req, res) => {
       message: sampleCtx.message
     };
 
-    const response = await fetch(url, {
-      method: method || 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...headers
-      },
-      body: JSON.stringify(testData)
-    });
-    
+    const httpMethod = method || 'POST';
+    let response;
+    let responseBodyText = '';
+    try {
+      response = await fetch(url, {
+        method: httpMethod,
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers
+        },
+        body: JSON.stringify(testData)
+      });
+      responseBodyText = await response.text();
+    } catch (error) {
+      const httpLog = JSON.stringify({
+        url,
+        method: httpMethod,
+        requestBody: testData,
+        error: error.message || String(error),
+      }, null, 2);
+      await NotificationService.logNotification(
+        null,
+        'http',
+        url,
+        'failed',
+        sampleCtx.message,
+        httpLog,
+        req.user.user_id
+      );
+      return res.status(500).json({ error: 'Failed to test HTTP endpoint: ' + error.message, httpLog });
+    }
+
+    const httpLog = JSON.stringify({
+      url,
+      method: httpMethod,
+      requestBody: testData,
+      httpStatus: response.status,
+      httpStatusText: response.statusText,
+      responseBody: responseBodyText.slice(0, 2000),
+    }, null, 2);
+
+    await NotificationService.logNotification(
+      null,
+      'http',
+      url,
+      response.ok ? 'sent' : 'failed',
+      sampleCtx.message,
+      httpLog,
+      req.user.user_id
+    );
+
     if (response.ok) {
-      res.json({ message: 'HTTP endpoint test successful' });
+      res.json({ message: 'HTTP endpoint test successful', httpLog });
     } else {
-      res.status(400).json({ error: `HTTP endpoint test failed with status ${response.status}` });
+      res.status(400).json({ error: `HTTP endpoint test failed with status ${response.status}`, httpLog });
     }
   } catch (error) {
     console.error('Error testing HTTP endpoint:', error);
@@ -530,10 +572,15 @@ router.get('/notification-logs', auth.authenticateToken, async (req, res) => {
       params = [req.user.user_id];
     }
     
-    query += ' ORDER BY nl.timestamp DESC LIMIT 1000';
+    query += ' ORDER BY COALESCE(nl.sent_at, nl.created_at) DESC LIMIT 1000';
     
     const result = await db.query(query, params);
-    res.json({ logs: result.rows });
+    const logs = (result.rows || []).map((row) => ({
+      ...row,
+      type: row.notification_type,
+      timestamp: row.sent_at || row.created_at,
+    }));
+    res.json({ logs });
   } catch (error) {
     console.error('Error fetching notification logs:', error);
     res.status(500).json({ error: 'Failed to fetch notification logs' });
@@ -570,6 +617,31 @@ router.put('/whatsapp-provider', auth.authenticateToken, auth.authorizeRole(['su
     console.error('Error saving WhatsApp provider:', error);
     const status = error.status || (error instanceof SyntaxError ? 400 : 500);
     res.status(status).json({ error: error.message || 'Failed to save WhatsApp provider configuration' });
+  }
+});
+
+router.post('/test-whatsapp', auth.authenticateToken, async (req, res) => {
+  try {
+    await ensureAlertsSchema();
+    const { phone, provider } = req.body || {};
+    if (!phone) {
+      return res.status(400).json({ error: 'phone is required' });
+    }
+    const { NotificationService } = require('../services/notificationService');
+    const result = await NotificationService.testWhatsApp({
+      phone,
+      userId: req.user.user_id,
+      isAdmin: isReqAdmin(req),
+      createdBy: req.user.user_id,
+      providerOverride: provider || null,
+    });
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('Error testing WhatsApp:', error);
+    res.status(500).json({ error: error.message || 'Failed to test WhatsApp' });
   }
 });
 

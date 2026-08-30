@@ -95,6 +95,10 @@ export default function AlertSettings({ user }) {
   const [waEditAlertId, setWaEditAlertId] = useState('');
   const [waEditPhone, setWaEditPhone] = useState('');
   const [waEditAlerts, setWaEditAlerts] = useState([]);
+  const [waTestOpen, setWaTestOpen] = useState(false);
+  const [waTestPhone, setWaTestPhone] = useState('');
+  const [waTestHttpLog, setWaTestHttpLog] = useState('');
+  const [waTestUseFormProvider, setWaTestUseFormProvider] = useState(true);
 
   // Load configurations
   const loadConfigurations = async () => {
@@ -259,6 +263,86 @@ export default function AlertSettings({ user }) {
       const subData = await subRes.json();
       setWaSubscriptions(subData.subscriptions || []);
     }
+  };
+
+  const refreshNotificationLogs = async () => {
+    const token = localStorage.getItem('iot_token');
+    const logsRes = await fetch(`${API_BASE_URL}/alert-settings/notification-logs`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (logsRes.ok) {
+      const logsData = await logsRes.json();
+      setNotificationLogs(logsData.logs || []);
+    }
+  };
+
+  const buildWhatsAppProviderPayload = () => {
+    let headers = {};
+    try {
+      const raw = (waProvider.headersJson || '').trim();
+      headers = raw ? JSON.parse(raw) : {};
+    } catch {
+      throw new Error('HTTP headers must be valid JSON');
+    }
+    let body_template;
+    try {
+      body_template = JSON.parse(waProvider.body_template || DEFAULT_WA_BODY);
+    } catch {
+      throw new Error('Body template must be valid JSON');
+    }
+    return {
+      enabled: waProvider.enabled,
+      url: waProvider.url,
+      method: waProvider.method,
+      headers,
+      body_template,
+    };
+  };
+
+  const runWhatsAppTest = async ({ phone, useFormProvider = false }) => {
+    if (!phone?.trim()) {
+      setNotification({ open: true, message: 'Enter a phone number to test', severity: 'warning' });
+      return;
+    }
+    setWaBusy(true);
+    setWaTestHttpLog('');
+    try {
+      let provider;
+      if (useFormProvider) {
+        provider = buildWhatsAppProviderPayload();
+      }
+      const token = localStorage.getItem('iot_token');
+      const res = await fetch(`${API_BASE_URL}/alert-settings/test-whatsapp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          phone: phone.trim(),
+          ...(provider ? { provider } : {}),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setWaTestHttpLog(data.httpLog || data.error || JSON.stringify(data, null, 2));
+      if (!res.ok) {
+        throw new Error(data.message || data.error || 'WhatsApp test failed');
+      }
+      await refreshNotificationLogs();
+      setNotification({ open: true, message: data.message || 'Test WhatsApp sent', severity: 'success' });
+    } catch (e) {
+      await refreshNotificationLogs();
+      setNotification({ open: true, message: e.message || 'WhatsApp test failed', severity: 'error' });
+    } finally {
+      setWaBusy(false);
+    }
+  };
+
+  const openWhatsAppTestDialog = () => {
+    setWaTestPhone('');
+    setWaTestHttpLog('');
+    setWaTestUseFormProvider(isAdmin);
+    setWaTestOpen(true);
   };
 
   useEffect(() => {
@@ -781,12 +865,24 @@ export default function AlertSettings({ user }) {
       });
 
       if (response.ok) {
-        setNotification({ open: true, message: 'HTTP endpoint test successful', severity: 'success' });
+        const data = await response.json().catch(() => ({}));
+        await refreshNotificationLogs();
+        setNotification({
+          open: true,
+          message: data.httpLog
+            ? 'HTTP test completed — see Notification Logs for response'
+            : 'HTTP endpoint test successful',
+          severity: 'success',
+        });
       } else {
         let msg = 'HTTP endpoint test failed';
         try {
           const err = await response.json();
           msg = err.error || msg;
+          if (err.httpLog) {
+            await refreshNotificationLogs();
+            msg += ' — see Notification Logs for response';
+          }
         } catch {
           msg = `${msg} (${response.status})`;
         }
@@ -798,18 +894,63 @@ export default function AlertSettings({ user }) {
   };
 
   const notificationLogColumns = [
-    { field: 'timestamp', headerName: 'Timestamp', flex: 1, valueGetter: (params) => formatInUserTimezone(params.value) },
-    { field: 'alert_name', headerName: 'Alert', flex: 1 },
-    { field: 'type', headerName: 'Type', flex: 0.5 },
-    { field: 'recipient', headerName: 'Recipient', flex: 1 },
-    { field: 'status', headerName: 'Status', flex: 0.5, renderCell: (params) => (
-      <Chip 
-        label={params.value} 
-        color={params.value === 'success' || params.value === 'sent' ? 'success' : params.value === 'failed' ? 'error' : 'warning'}
-        size="small"
-      />
-    )},
-    { field: 'message', headerName: 'Message', flex: 1.5 },
+    {
+      field: 'timestamp',
+      headerName: 'Timestamp',
+      flex: 1,
+      minWidth: 150,
+      valueGetter: (params) => formatInUserTimezone(params.value),
+    },
+    { field: 'alert_name', headerName: 'Alert', flex: 0.8, minWidth: 100 },
+    {
+      field: 'type',
+      headerName: 'Type',
+      width: 90,
+      valueGetter: (params) => params.row.type || params.row.notification_type,
+    },
+    { field: 'recipient', headerName: 'Recipient', flex: 0.9, minWidth: 110 },
+    {
+      field: 'status',
+      headerName: 'Status',
+      width: 100,
+      renderCell: (params) => (
+        <Chip
+          label={params.value}
+          color={
+            params.value === 'success' || params.value === 'sent'
+              ? 'success'
+              : params.value === 'failed'
+                ? 'error'
+                : 'warning'
+          }
+          size="small"
+        />
+      ),
+    },
+    { field: 'message', headerName: 'Message', flex: 1.2, minWidth: 140 },
+    {
+      field: 'error_details',
+      headerName: 'HTTP response',
+      flex: 1.5,
+      minWidth: 180,
+      renderCell: (params) => (
+        <Typography
+          variant="caption"
+          component="pre"
+          sx={{
+            m: 0,
+            fontFamily: 'monospace',
+            fontSize: '0.68rem',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+            maxHeight: 72,
+            overflow: 'auto',
+          }}
+        >
+          {params.value || '—'}
+        </Typography>
+      ),
+    },
   ];
 
   const emailRecipientColumns = [
@@ -1364,8 +1505,11 @@ export default function AlertSettings({ user }) {
                     onChange={(e) => setWaProvider({ ...waProvider, body_template: e.target.value })}
                     sx={{ mb: 2, fontFamily: 'monospace' }}
                   />
-                  <Button variant="contained" onClick={saveWhatsAppProvider} disabled={waSaving}>
+                  <Button variant="contained" onClick={saveWhatsAppProvider} disabled={waSaving} sx={{ mr: 1 }}>
                     {waSaving ? 'Saving…' : 'Save provider'}
+                  </Button>
+                  <Button variant="outlined" onClick={openWhatsAppTestDialog} disabled={waBusy}>
+                    Send test
                   </Button>
                 </CardContent>
               </Card>
@@ -1470,6 +1614,16 @@ export default function AlertSettings({ user }) {
                           <TableCell align="right">
                             <IconButton
                               size="small"
+                              color="secondary"
+                              disabled={waBusy}
+                              onClick={() => runWhatsAppTest({ phone: row.phone, useFormProvider: false })}
+                              aria-label="Test WhatsApp"
+                              title="Send test message"
+                            >
+                              <PlayArrowIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                              size="small"
                               color="primary"
                               disabled={waBusy}
                               onClick={() => openWhatsAppEdit(row)}
@@ -1563,6 +1717,72 @@ export default function AlertSettings({ user }) {
         </Grid>
       )}
 
+      <Dialog open={waTestOpen} onClose={() => setWaTestOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Test WhatsApp</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Sends a test message through the configured Wablas provider and records the full HTTP
+            request/response in Notification Logs.
+          </Typography>
+          <TextField
+            label="Phone number"
+            fullWidth
+            size="small"
+            value={waTestPhone}
+            onChange={(e) => setWaTestPhone(e.target.value)}
+            placeholder="0812… or 62812…"
+            sx={{ mb: 2 }}
+          />
+          {isAdmin && (
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={waTestUseFormProvider}
+                  onChange={(e) => setWaTestUseFormProvider(e.target.checked)}
+                />
+              }
+              label="Use provider settings from form above (without saving first)"
+              sx={{ mb: 2, display: 'block' }}
+            />
+          )}
+          {waTestHttpLog && (
+            <Box>
+              <Typography variant="subtitle2" gutterBottom>HTTP log</Typography>
+              <Typography
+                variant="body2"
+                component="pre"
+                sx={{
+                  bgcolor: 'action.hover',
+                  p: 1.5,
+                  borderRadius: 1,
+                  fontFamily: 'monospace',
+                  fontSize: '0.75rem',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  maxHeight: 280,
+                  overflow: 'auto',
+                }}
+              >
+                {waTestHttpLog}
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setWaTestOpen(false)} disabled={waBusy}>Close</Button>
+          <Button
+            variant="contained"
+            disabled={waBusy || !waTestPhone.trim()}
+            onClick={() => runWhatsAppTest({
+              phone: waTestPhone,
+              useFormProvider: isAdmin && waTestUseFormProvider,
+            })}
+          >
+            Send test
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {tab === 'mqtt' && isAdmin && (
         <Card>
           <CardContent>
@@ -1612,10 +1832,11 @@ export default function AlertSettings({ user }) {
           <CardContent>
             <Typography variant="h6" gutterBottom>Notification Logs</Typography>
             {isAdmin ? (
-              <div style={{ height: 500 }}>
+              <div style={{ height: 560 }}>
                 <DataGrid
                   rows={notificationLogs}
                   columns={notificationLogColumns}
+                  getRowId={(row) => row.id}
                   pageSize={10}
                   rowsPerPageOptions={[10, 25, 50]}
                   disableSelectionOnClick
