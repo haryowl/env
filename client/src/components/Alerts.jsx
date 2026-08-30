@@ -737,13 +737,12 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
               }
             />
             <Typography variant="caption" color="text.secondary">
-              {'{parameter}'} inserts the display name. Use {'{parameter_key}'} for the raw field name.
-              {'{lastUpdate}'} is shown in your account timezone (Settings). Template is used
-              for email, HTTP, MQTT, and WhatsApp notifications.
+              Press Enter for a new line (WhatsApp, email, HTTP, MQTT). {'{parameter}'} is the display name;
+              {' {parameter_key}'} is the raw field. {'{lastUpdate}'} uses your account timezone (Settings).
             </Typography>
             <Box sx={{ mt: 1, p: 1, bgcolor: '#f5f5f5', borderRadius: 1 }}>
               <Typography variant="subtitle2">Preview:</Typography>
-              <Typography variant="body2">
+              <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
                 {form.template
                   .replaceAll('{device}', previewDeviceName)
                   .replaceAll('{parameter}', previewParameter)
