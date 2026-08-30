@@ -1,6 +1,6 @@
 import React, { useLayoutEffect, useMemo, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Line, Html } from '@react-three/drei';
+import { Html, Line, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 
 const TANK_RADIUS = 0.38;
@@ -60,18 +60,27 @@ const FLOW_CURVES = [
   { id: 'uplink', color: '#80deea', points: [HMI_ANCHOR, [1.68, 0.82, 0.02], STARLINK_ANCHOR] },
 ];
 
-function FixedCamera() {
+const CAMERA_TARGET = [0.1, 0.35, 0.05];
+const INITIAL_CAMERA_POS = [2.75, 1.55, 3.25];
+
+function InteractiveCamera() {
   const { camera } = useThree();
+  const primed = useRef(false);
+
   useLayoutEffect(() => {
-    camera.position.set(2.75, 1.55, 3.25);
-    camera.lookAt(0.1, 0.35, 0.05);
-    if ('fov' in camera) {
-      camera.fov = 42;
-      camera.near = 0.1;
-      camera.far = 40;
+    if (!primed.current) {
+      camera.position.set(...INITIAL_CAMERA_POS);
+      camera.lookAt(...CAMERA_TARGET);
+      if ('fov' in camera) {
+        camera.fov = 42;
+        camera.near = 0.1;
+        camera.far = 40;
+      }
+      primed.current = true;
     }
     camera.updateProjectionMatrix();
   }, [camera]);
+
   return null;
 }
 
@@ -921,7 +930,7 @@ function SceneContent({ levelPct, wellWater, flowDrivers, waterColors, uplinkAct
     <>
       <color attach="background" args={['#142822']} />
       <fog attach="fog" args={['#142822', 8, 18]} />
-      <FixedCamera />
+      <InteractiveCamera />
       <hemisphereLight color="#b2ebf2" groundColor="#1b3a32" intensity={0.95} />
       <ambientLight intensity={0.75} />
       <directionalLight position={[4, 8, 3]} intensity={1.65} castShadow color="#fff8e1" />
@@ -943,6 +952,18 @@ function SceneContent({ levelPct, wellWater, flowDrivers, waterColors, uplinkAct
       <TmatWellAssembly levelPct={levelPct} wellWater={wellWater} waterColors={waterColors} />
       <RainParticles active={drivers.showRain} intensity={drivers.rainIntensity} />
       <FlowPaths flowDrivers={flowDrivers} />
+
+      <OrbitControls
+        makeDefault
+        enablePan={false}
+        enableDamping
+        dampingFactor={0.08}
+        minDistance={1.85}
+        maxDistance={8.5}
+        minPolarAngle={0.35}
+        maxPolarAngle={Math.PI / 2 - 0.06}
+        target={CAMERA_TARGET}
+      />
     </>
   );
 }
@@ -952,6 +973,7 @@ export default function TmatScene3D({ levelPct, wellWater, flowDrivers, waterCol
     <Canvas
       shadows
       dpr={[1, 1.75]}
+      camera={{ position: INITIAL_CAMERA_POS, fov: 42, near: 0.1, far: 40 }}
       gl={{
         antialias: true,
         alpha: false,

@@ -205,6 +205,24 @@ export default function TmatSimulationModal({
           </Suspense>
         </SceneErrorBoundary>
 
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 56,
+            right: 10,
+            zIndex: 2,
+            px: 1,
+            py: 0.5,
+            borderRadius: 1,
+            bgcolor: alpha('#0c1715', 0.72),
+            border: `1px solid ${alpha('#34d399', 0.25)}`,
+          }}
+        >
+          <Typography sx={{ fontSize: '0.55rem', color: alpha('#fff', 0.65), letterSpacing: '0.06em', fontWeight: 700 }}>
+            DRAG TO ROTATE · SCROLL ZOOM
+          </Typography>
+        </Box>
+
         {/* Top bar */}
         <Box
           sx={{
@@ -226,7 +244,7 @@ export default function TmatSimulationModal({
             <ViewInArIcon sx={{ color: '#34d399', fontSize: 22 }} />
             <Box sx={{ minWidth: 0 }}>
               <Typography sx={{ fontWeight: 800, fontSize: '0.82rem', color: '#fff', letterSpacing: '0.06em' }}>
-                TMAT 3D · FIXED POV
+                TMAT 3D · INTERACTIVE
               </Typography>
               <Typography noWrap sx={{ fontSize: '0.65rem', color: alpha('#fff', 0.55) }}>
                 {deviceName || 'Device'} · {groupLabel} · live telemetry
