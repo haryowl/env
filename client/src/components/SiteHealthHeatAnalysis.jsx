@@ -1,47 +1,62 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
   Alert,
   Box,
   Chip,
   CircularProgress,
-  Stack,
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Select,
+  Typography,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableRow,
-  Typography,
+  useTheme,
 } from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import FavoriteIcon from '@mui/icons-material/Favorite';
-import OpacityIcon from '@mui/icons-material/Opacity';
 import { alpha } from '@mui/material/styles';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import { API_BASE_URL } from '../config/api';
 import { alertAppliesToDevice } from '../utils/alertDevices';
-import { buildSparingCards, toNum } from '../utils/sparingAnalysis';
-import {
-  buildTmatCards,
-  isTmatKindParam,
-} from '../utils/tmatAnalysis';
+import { buildSparingCards } from '../utils/sparingAnalysis';
+import { buildTmatCards, isTmatKindParam } from '../utils/tmatAnalysis';
 import { getDeviceDisplayName } from '../utils/deviceLabel';
 import { appendCategoryQuery, EXCLUDE_STATUS_QUERY } from '../utils/fieldCategory';
 import {
-  buildHeatRows,
-  HeatBar,
-  HEAT_GRADIENT,
-  HEAT_SCALE_MAX,
-  heatStatus,
-  LEGEND_CHIPS,
-  MiniHeatBar,
-  ratioForRow,
-  resolveHeatProgram,
-} from './HeatRatioModal';
+  getAxisTickStyle,
+  getCartesianGridProps,
+  getChartColor,
+  getTooltipContentStyle,
+} from '../utils/chartStyles';
+import { compactMenuItemSx, compactSelectSx } from '../utils/compactUi';
+import { buildHeatRows, resolveHeatProgram } from './HeatRatioModal';
 
 const MAX_HEAT_DEVICES = 12;
-const STATUS_RANK = { ok: 0, aman: 0, no_data: 1, unknown: 1, no_threshold: 2, watch: 3, waspada: 3, not_ok: 4, melebihi: 4, kritis: 4 };
+const STATUS_RANK = {
+  ok: 0,
+  aman: 0,
+  no_data: 1,
+  unknown: 1,
+  no_threshold: 2,
+  watch: 3,
+  waspada: 3,
+  not_ok: 4,
+  melebihi: 4,
+  kritis: 4,
+  kimia: 4,
+};
 
 function authHeaders() {
   const token = localStorage.getItem('iot_token');
@@ -71,199 +86,44 @@ function thresholdsForDevice(alerts, deviceId) {
 
 function worstCard(cards) {
   return (cards || []).reduce((worst, card) => {
-    const a = STATUS_RANK[card?.key] ?? 0;
-    const b = STATUS_RANK[worst?.key] ?? 0;
+    const a = STATUS_RANK[String(card?.key || '').toLowerCase()] ?? 0;
+    const b = STATUS_RANK[String(worst?.key || '').toLowerCase()] ?? 0;
     return a > b ? card : worst;
   }, cards?.[0] || { key: 'unknown', label: '—', color: '#64748B' });
 }
 
-function HeatLegend() {
-  return (
-    <Box
-      sx={{
-        mb: 2,
-        p: 1.5,
-        borderRadius: 2,
-        bgcolor: '#0F172A',
-        border: '1px solid',
-        borderColor: alpha('#fff', 0.08),
-      }}
-    >
-      <Typography sx={{ fontWeight: 800, fontSize: '0.78rem', color: '#F8FAFC', mb: 1 }}>
-        LEGENDA HEAT — 0% — {HEAT_SCALE_MAX}%
-      </Typography>
-      <Box sx={{ height: 14, borderRadius: 999, background: HEAT_GRADIENT, mb: 0.75 }} />
-      <Box
-        sx={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          fontSize: '0.62rem',
-          color: '#94A3B8',
-          fontWeight: 600,
-          mb: 1,
-        }}
-      >
-        <span>0% AMAN</span>
-        <span>75%</span>
-        <span>100% KRITIS</span>
-        <span>{HEAT_SCALE_MAX}% MELEBIHI</span>
-      </Box>
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(3, 1fr)' }, gap: 0.75 }}>
-        {LEGEND_CHIPS.map((c) => (
-          <Box
-            key={c.label}
-            sx={{
-              px: 1,
-              py: 0.65,
-              borderRadius: 1.25,
-              bgcolor: c.color,
-              color: c.text,
-              fontSize: '0.68rem',
-              fontWeight: 700,
-              textAlign: 'center',
-            }}
-          >
-            {c.label}
-          </Box>
-        ))}
-      </Box>
-    </Box>
-  );
+function parsePrimaryNumber(primary) {
+  if (primary == null || primary === '—' || primary === '-' || primary === '---') return null;
+  const m = String(primary).replace(/,/g, '').match(/-?\d+(?:\.\d+)?/);
+  return m ? Number(m[0]) : null;
 }
 
-function AnalysisCardGrid({ cards }) {
-  return (
-    <Box
-      sx={{
-        display: 'grid',
-        gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
-        gap: 1.25,
-      }}
-    >
-      {(cards || []).map((card) => (
-        <Box
-          key={card.id}
-          sx={{
-            p: 1.5,
-            borderRadius: 2,
-            bgcolor: '#0F172A',
-            border: '1px solid',
-            borderColor: alpha(card.color || '#94A3B8', 0.35),
-            minHeight: 110,
-          }}
-        >
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 0.75 }}>
-            <Typography sx={{ fontWeight: 800, fontSize: '0.78rem', color: '#F8FAFC' }}>
-              {card.title}
-            </Typography>
-            <Chip
-              size="small"
-              label={card.label}
-              sx={{
-                height: 20,
-                fontSize: '0.6rem',
-                fontWeight: 800,
-                bgcolor: alpha(card.color, 0.2),
-                color: card.color,
-                border: `1px solid ${alpha(card.color, 0.45)}`,
-                '& .MuiChip-label': { px: 0.7 },
-              }}
-            />
-          </Box>
-          <Typography sx={{ fontSize: '1.05rem', fontWeight: 800, color: '#F8FAFC', mb: 0.35 }}>
-            {card.primary}
-          </Typography>
-          <Typography sx={{ fontSize: '0.65rem', color: '#94A3B8' }}>
-            {card.ready ? card.detail : `Data kurang: ${(card.missing || []).join(', ') || '-'}`}
-          </Typography>
-          <Typography sx={{ fontSize: '0.6rem', color: '#64748B', mt: 0.5, fontFamily: 'monospace' }}>
-            {card.formula}
-          </Typography>
-          <MiniHeatBar ratio={card.ratio} color={card.color} />
-        </Box>
-      ))}
-    </Box>
-  );
+function cardNumeric(card) {
+  const n = parsePrimaryNumber(card?.primary);
+  return Number.isFinite(n) ? n : null;
 }
 
-function ParamHeatList({ rows, formatDisplayName, getUnit }) {
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.1 }}>
-      {rows.map((row) => {
-        const ratio = ratioForRow(row);
-        const status = heatStatus(ratio);
-        const unit = getUnit ? getUnit(row.param) : '';
-        return (
-          <Box
-            key={row.param}
-            sx={{
-              p: 1.1,
-              borderRadius: 2,
-              bgcolor: alpha('#fff', 0.03),
-              border: '1px solid',
-              borderColor: alpha('#fff', 0.06),
-            }}
-          >
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 0.75, flexWrap: 'wrap' }}>
-              <Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                  <Typography sx={{ fontWeight: 800, fontSize: '0.82rem', color: '#F8FAFC' }}>
-                    {formatDisplayName ? formatDisplayName(row.param, { withUnit: false }) : row.param}
-                  </Typography>
-                  <Chip
-                    size="small"
-                    label={status.label}
-                    sx={{
-                      height: 20,
-                      fontSize: '0.62rem',
-                      fontWeight: 800,
-                      bgcolor: alpha(status.color, 0.2),
-                      color: status.color,
-                      border: `1px solid ${alpha(status.color, 0.45)}`,
-                    }}
-                  />
-                </Box>
-                <Typography sx={{ fontSize: '0.65rem', color: '#94A3B8' }}>
-                  Nilai {row.nilai || '—'}
-                  {toNum(row.bakuMin) != null || toNum(row.bakuMax) != null
-                    ? ` · baku ${row.bakuMin || '—'} … ${row.bakuMax || '—'}`
-                    : ''}
-                  {unit ? ` | ${unit}` : ''}
-                </Typography>
-              </Box>
-              <Box
-                sx={{
-                  minWidth: 58,
-                  height: 32,
-                  px: 1,
-                  borderRadius: 999,
-                  bgcolor: '#fff',
-                  color: ratio != null && ratio >= 100 ? '#DC2626' : '#0F172A',
-                  display: 'grid',
-                  placeItems: 'center',
-                  fontWeight: 800,
-                  fontSize: '0.75rem',
-                }}
-              >
-                {ratio == null ? '-' : `${ratio.toFixed(1)}%`}
-              </Box>
-            </Box>
-            <HeatBar ratio={ratio} />
-          </Box>
-        );
-      })}
-    </Box>
-  );
+function shortMetricLabel(title) {
+  const t = String(title || '');
+  if (t.includes('Organic Load')) return 'Organic load';
+  if (t.includes('Ammonia')) return 'Ammonia';
+  if (t.includes('Physical') || t.includes('COD')) return 'COD/TSS';
+  if (t.includes('WWTP')) return 'WWTP IP';
+  if (t.includes('Infiltration')) return 'Infiltration';
+  if (t.includes('Flood')) return 'Flood risk';
+  if (t.includes('Drought')) return 'Drought';
+  if (t.includes('Recharge')) return 'Recharge';
+  return t;
 }
 
 export default function SiteHealthHeatAnalysis({
   devices = [],
   groupName,
   groupDescription,
-  formatDisplayName,
   getUnit,
   getDisplayRange,
 }) {
+  const theme = useTheme();
   const program = useMemo(
     () => resolveHeatProgram(groupName, groupDescription),
     [groupName, groupDescription]
@@ -279,6 +139,8 @@ export default function SiteHealthHeatAnalysis({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [bundles, setBundles] = useState([]);
+  const [chartMetricId, setChartMetricId] = useState('');
+  const [highlightDeviceId, setHighlightDeviceId] = useState('');
 
   useEffect(() => {
     if (!capped.length) {
@@ -343,27 +205,12 @@ export default function SiteHealthHeatAnalysis({
           latestList.map(({ device, fields }) => {
             const params = Object.keys(fields || {}).filter((k) => k && k !== 'datetime' && k !== 'timestamp');
             const rows = buildHeatRows(params, fields, thresholdsForDevice(alerts, device.device_id), getDisplayRange);
-            const sparingRows = showSparing
-              ? (program === 'sparing' ? rows : rows.filter((r) => !isTmatKindParam(r.param)))
-              : [];
-            const tmatRows = showTmat
-              ? (program === 'tmat' ? rows : rows.filter((r) => isTmatKindParam(r.param)))
-              : [];
             const sparingCards = showSparing ? buildSparingCards(rows, getUnit) : [];
             const tmatCards = showTmat
               ? buildTmatCards(rows, historyByDevice[device.device_id] || [], getUnit)
               : [];
             const overall = worstCard([...sparingCards, ...tmatCards]);
-            return {
-              device,
-              params,
-              rows,
-              sparingRows,
-              tmatRows,
-              sparingCards,
-              tmatCards,
-              overall,
-            };
+            return { device, sparingCards, tmatCards, overall };
           })
         );
       } catch (e) {
@@ -384,6 +231,38 @@ export default function SiteHealthHeatAnalysis({
     if (showTmat && !showSparing) return bundles[0].tmatCards;
     return [...(bundles[0].sparingCards || []), ...(bundles[0].tmatCards || [])];
   }, [bundles, showSparing, showTmat]);
+
+  useEffect(() => {
+    if (!comparisonCards.length) return;
+    setChartMetricId((prev) => {
+      if (prev && comparisonCards.some((c) => c.id === prev)) return prev;
+      const withValue = comparisonCards.find((c) =>
+        bundles.some((b) => {
+          const all = [...b.sparingCards, ...b.tmatCards];
+          return cardNumeric(all.find((x) => x.id === c.id)) != null;
+        })
+      );
+      return withValue?.id || comparisonCards[0].id;
+    });
+  }, [comparisonCards, bundles]);
+
+  const chartData = useMemo(() => {
+    return bundles.map((bundle) => {
+      const all = [...bundle.sparingCards, ...bundle.tmatCards];
+      const byId = Object.fromEntries(all.map((c) => [c.id, c]));
+      const row = {
+        name: getDeviceDisplayName(bundle.device),
+        deviceId: bundle.device.device_id,
+      };
+      comparisonCards.forEach((card) => {
+        row[card.id] = cardNumeric(byId[card.id]);
+      });
+      return row;
+    });
+  }, [bundles, comparisonCards]);
+
+  const activeMetric = comparisonCards.find((c) => c.id === chartMetricId) || comparisonCards[0];
+  const chartHasValues = chartData.some((row) => row[chartMetricId] != null);
 
   if (!capped.length) {
     return (
@@ -407,13 +286,11 @@ export default function SiteHealthHeatAnalysis({
       ) : null}
 
       <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', mb: 0.5 }}>
-        Visualisasi Rasio — Heat Gradation
+        {programLabel} · analysis comparison
       </Typography>
       <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', mb: 1.5 }}>
-        {groupName || 'Group'} · {programLabel} · last reading vs baku mutu / EWS · derived cards combine parameters (COD×Flow, COD/TSS, IP, infiltration, flood, drought)
+        {groupName || 'Group'} · last reading · derived metrics (COD×Flow, COD/TSS, IP, infiltration, flood, drought). Click a column or pick a metric to chart it.
       </Typography>
-
-      <HeatLegend />
 
       {loading && !bundles.length ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
@@ -421,9 +298,6 @@ export default function SiteHealthHeatAnalysis({
         </Box>
       ) : (
         <>
-          <Typography sx={{ fontWeight: 800, fontSize: '0.82rem', mb: 1 }}>
-            {programLabel} · analysis comparison
-          </Typography>
           <Box sx={{ overflowX: 'auto', mb: 2 }}>
             <Table size="small">
               <TableHead>
@@ -431,7 +305,17 @@ export default function SiteHealthHeatAnalysis({
                   <TableCell>Device</TableCell>
                   <TableCell>Overall</TableCell>
                   {comparisonCards.map((card) => (
-                    <TableCell key={card.id}>{card.title}</TableCell>
+                    <TableCell
+                      key={card.id}
+                      onClick={() => setChartMetricId(card.id)}
+                      sx={{
+                        cursor: 'pointer',
+                        bgcolor: chartMetricId === card.id ? alpha(theme.palette.primary.main, 0.08) : undefined,
+                        fontWeight: chartMetricId === card.id ? 800 : 600,
+                      }}
+                    >
+                      {card.title}
+                    </TableCell>
                   ))}
                 </TableRow>
               </TableHead>
@@ -439,9 +323,16 @@ export default function SiteHealthHeatAnalysis({
                 {bundles.map((bundle) => {
                   const allCards = [...bundle.sparingCards, ...bundle.tmatCards];
                   const byId = Object.fromEntries(allCards.map((c) => [c.id, c]));
+                  const selected = highlightDeviceId === bundle.device.device_id;
                   return (
-                    <TableRow key={bundle.device.device_id}>
-                      <TableCell>{getDeviceDisplayName(bundle.device)}</TableCell>
+                    <TableRow
+                      key={bundle.device.device_id}
+                      hover
+                      selected={selected}
+                      onClick={() => setHighlightDeviceId(bundle.device.device_id)}
+                      sx={{ cursor: 'pointer' }}
+                    >
+                      <TableCell sx={{ fontWeight: 700 }}>{getDeviceDisplayName(bundle.device)}</TableCell>
                       <TableCell>
                         <Chip
                           size="small"
@@ -455,14 +346,36 @@ export default function SiteHealthHeatAnalysis({
                       </TableCell>
                       {comparisonCards.map((card) => {
                         const cell = byId[card.id];
+                        const empty = !cell?.ready || cell?.primary === '—' || cell?.primary === '-';
                         return (
-                          <TableCell key={card.id}>
-                            <Typography sx={{ fontSize: '0.78rem', fontWeight: 700 }}>
-                              {cell?.primary || '—'}
+                          <TableCell
+                            key={card.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setChartMetricId(card.id);
+                              setHighlightDeviceId(bundle.device.device_id);
+                            }}
+                            sx={{
+                              bgcolor: chartMetricId === card.id ? alpha(theme.palette.primary.main, 0.06) : undefined,
+                            }}
+                          >
+                            <Typography sx={{ fontSize: '0.82rem', fontWeight: 700 }}>
+                              {empty ? '—' : cell.primary}
                             </Typography>
-                            <Typography sx={{ fontSize: '0.65rem', color: cell?.color || 'text.secondary' }}>
-                              {cell?.label || '—'}
-                            </Typography>
+                            {!empty && cell?.label && cell.label !== '—' ? (
+                              <Chip
+                                size="small"
+                                label={cell.label}
+                                sx={{
+                                  mt: 0.35,
+                                  height: 18,
+                                  fontSize: '0.6rem',
+                                  fontWeight: 800,
+                                  bgcolor: alpha(cell.color || '#64748B', 0.16),
+                                  color: cell.color,
+                                }}
+                              />
+                            ) : null}
                           </TableCell>
                         );
                       })}
@@ -473,90 +386,82 @@ export default function SiteHealthHeatAnalysis({
             </Table>
           </Box>
 
-          {bundles.map((bundle) => (
-            <Accordion
-              key={bundle.device.device_id}
-              defaultExpanded={capped.length <= 3}
-              sx={{
-                mb: 1,
-                bgcolor: '#0F172A',
-                color: '#E2E8F0',
-                '&:before': { display: 'none' },
-                border: '1px solid',
-                borderColor: alpha('#fff', 0.08),
-              }}
+          <Typography sx={{ fontWeight: 800, fontSize: '0.82rem', mb: 1 }}>
+            Chart comparison
+          </Typography>
+          <FormControl size="small" sx={{ minWidth: 260, mb: 1.5 }}>
+            <InputLabel id="heat-chart-metric">Metric</InputLabel>
+            <Select
+              labelId="heat-chart-metric"
+              label="Metric"
+              value={chartMetricId || ''}
+              onChange={(e) => setChartMetricId(e.target.value)}
+              sx={compactSelectSx}
             >
-              <AccordionSummary expandIcon={<ExpandMoreIcon sx={{ color: '#94A3B8' }} />}>
-                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                  <Typography sx={{ fontWeight: 800, fontSize: '0.85rem' }}>
-                    {getDeviceDisplayName(bundle.device)}
-                  </Typography>
-                  <Chip
-                    size="small"
-                    label={bundle.overall?.label || '—'}
-                    sx={{
-                      fontWeight: 800,
-                      bgcolor: alpha(bundle.overall?.color || '#64748B', 0.2),
-                      color: bundle.overall?.color,
+              {comparisonCards.map((card) => (
+                <MenuItem key={card.id} value={card.id} sx={compactMenuItemSx}>
+                  {card.title}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          {!chartHasValues ? (
+            <Typography variant="body2" color="text.secondary">
+              No numeric values for {activeMetric?.title || 'this metric'} on the selected devices.
+            </Typography>
+          ) : (
+            <Box sx={{ width: '100%', height: Math.max(260, 56 * chartData.length + 80) }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={chartData}
+                  layout="vertical"
+                  margin={{ top: 8, right: 24, left: 8, bottom: 8 }}
+                  onClick={(state) => {
+                    const id = state?.activePayload?.[0]?.payload?.deviceId;
+                    if (id) setHighlightDeviceId(id);
+                  }}
+                >
+                  <CartesianGrid {...getCartesianGridProps(theme)} />
+                  <XAxis type="number" tick={getAxisTickStyle(theme)} />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    width={120}
+                    tick={getAxisTickStyle(theme)}
+                    interval={0}
+                  />
+                  <Tooltip
+                    contentStyle={getTooltipContentStyle(theme)}
+                    formatter={(value, _name, item) => {
+                      const deviceId = item?.payload?.deviceId;
+                      const bundle = bundles.find((b) => b.device.device_id === deviceId);
+                      const all = bundle ? [...bundle.sparingCards, ...bundle.tmatCards] : [];
+                      const card = all.find((c) => c.id === chartMetricId);
+                      return [card?.primary || value, shortMetricLabel(activeMetric?.title)];
                     }}
                   />
-                </Stack>
-              </AccordionSummary>
-              <AccordionDetails>
-                {showSparing ? (
-                  <Box sx={{ mb: 2 }}>
-                    <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
-                      <FavoriteIcon sx={{ color: '#F43F5E', fontSize: 18 }} />
-                      <Typography sx={{ fontWeight: 800, fontSize: '0.78rem' }}>
-                        SECTION A — SPARING · WATER QUALITY COMPLIANCE
-                      </Typography>
-                    </Box>
-                    {bundle.sparingRows.length ? (
-                      <ParamHeatList
-                        rows={bundle.sparingRows}
-                        formatDisplayName={formatDisplayName}
-                        getUnit={getUnit}
+                  <Legend />
+                  <Bar
+                    dataKey={chartMetricId}
+                    name={shortMetricLabel(activeMetric?.title)}
+                    radius={[0, 4, 4, 0]}
+                    maxBarSize={28}
+                  >
+                    {chartData.map((entry) => (
+                      <Cell
+                        key={entry.deviceId}
+                        fill={
+                          highlightDeviceId && entry.deviceId !== highlightDeviceId
+                            ? alpha(getChartColor(0), 0.35)
+                            : getChartColor(0)
+                        }
                       />
-                    ) : (
-                      <Typography sx={{ fontSize: '0.75rem', color: '#94A3B8' }}>
-                        No SPARING parameters on this device.
-                      </Typography>
-                    )}
-                    <Typography sx={{ fontWeight: 800, fontSize: '0.75rem', mt: 1.5, mb: 1 }}>
-                      SPARING · Analysis cards (Table 1)
-                    </Typography>
-                    <AnalysisCardGrid cards={bundle.sparingCards} />
-                  </Box>
-                ) : null}
-
-                {showTmat ? (
-                  <Box>
-                    <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
-                      <OpacityIcon sx={{ color: '#38BDF8', fontSize: 18 }} />
-                      <Typography sx={{ fontWeight: 800, fontSize: '0.78rem' }}>
-                        SECTION B — TMAT · GROUNDWATER & PEAT EWS
-                      </Typography>
-                    </Box>
-                    {bundle.tmatRows.length ? (
-                      <ParamHeatList
-                        rows={bundle.tmatRows}
-                        formatDisplayName={formatDisplayName}
-                        getUnit={getUnit}
-                      />
-                    ) : (
-                      <Typography sx={{ fontSize: '0.75rem', color: '#94A3B8' }}>
-                        No TMAT parameters on this device.
-                      </Typography>
-                    )}
-                    <Typography sx={{ fontWeight: 800, fontSize: '0.75rem', mt: 1.5, mb: 1 }}>
-                      TMAT · Analysis cards (Table 2)
-                    </Typography>
-                    <AnalysisCardGrid cards={bundle.tmatCards} />
-                  </Box>
-                ) : null}
-              </AccordionDetails>
-            </Accordion>
-          ))}
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </Box>
+          )}
         </>
       )}
     </Box>
