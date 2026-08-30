@@ -192,6 +192,10 @@ async function ensureAlertsSchema() {
     ALTER TABLE alert_breach_streaks
     ADD COLUMN IF NOT EXISTS last_fired_at TIMESTAMPTZ
   `);
+  await query(`
+    ALTER TABLE alert_breach_streaks
+    ADD COLUMN IF NOT EXISTS last_value DOUBLE PRECISION
+  `);
 
   ensured = true;
 }

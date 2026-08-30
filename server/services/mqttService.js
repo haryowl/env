@@ -1090,6 +1090,15 @@ class MQTTService {
 
   async evaluateAlertsWithRealTimeData(deviceId, processedData) {
     try {
+      const readingAt = (() => {
+        const mappedDatetime = processedData?.datetime;
+        if (mappedDatetime != null && mappedDatetime !== '') {
+          const parsed = new Date(mappedDatetime);
+          if (!Number.isNaN(parsed.getTime())) return parsed;
+        }
+        return new Date();
+      })();
+
       const alertsResult = await query(
         `SELECT * FROM alerts
          WHERE type = 'threshold'
@@ -1133,7 +1142,7 @@ class MQTTService {
         if (typeof numericValue !== 'number' || Number.isNaN(numericValue)) continue;
 
         // Always evaluate so in-range readings can resolve active alerts and reset consecutive streaks.
-        await evaluateThresholdAlertsOnData(deviceId, alert.parameter, numericValue, new Date());
+        await evaluateThresholdAlertsOnData(deviceId, alert.parameter, numericValue, readingAt);
       }
     } catch (error) {
       console.error('MQTT: Error evaluating alerts with real-time data:', error);
