@@ -66,7 +66,9 @@ export const HEAT_GRADIENT =
   + ' #EF4444 83.3%,'
   + ' #7F1D1D 100%)';
 
-const LEGEND_CHIPS = [
+export const HEAT_SCALE_MAX = SCALE_MAX;
+
+export const LEGEND_CHIPS = [
   { label: '0-50% Hijau Aman', color: '#16A34A', text: '#fff' },
   { label: '45% Lime', color: '#84CC16', text: '#14532D' },
   { label: '75-81% Kuning', color: '#EAB308', text: '#422006' },
@@ -184,7 +186,7 @@ function rowSubtitle(row, ratio, unit, inverted) {
 /**
  * Prefer EWS / PP57 helpers for peat params; custom true bands for TMAT still win.
  */
-function ratioForRow(row) {
+export function ratioForRow(row) {
   const kind = tmatParamKind(row.param);
   if (kind === 'moisture') return computeMoistureEwsRatio(row.nilai);
   if (kind === 'soil_temp') return computeSoilTempEwsRatio(row.nilai);
@@ -207,7 +209,7 @@ function ratioForRow(row) {
   return computeHeatRatio(row.nilai, row.bakuMin, row.bakuMax);
 }
 
-function HeatBar({ ratio }) {
+export function HeatBar({ ratio }) {
   const pinned = ratio == null || !Number.isFinite(ratio)
     ? null
     : Math.max(0, Math.min(SCALE_MAX, ratio));
@@ -279,7 +281,7 @@ function HeatBar({ ratio }) {
   );
 }
 
-function MiniHeatBar({ ratio, color }) {
+export function MiniHeatBar({ ratio, color }) {
   const pinned = ratio == null || !Number.isFinite(ratio)
     ? 0
     : Math.max(0, Math.min(SCALE_MAX, ratio));
@@ -291,7 +293,7 @@ function MiniHeatBar({ ratio, color }) {
   );
 }
 
-function buildRows(params, latestFields, alertThresholds, getDisplayRange) {
+export function buildHeatRows(params, latestFields, alertThresholds, getDisplayRange) {
   return (params || []).map((p) => {
     const key = (p || '').toString().toLowerCase().replace(/\s+/g, '_');
     const thr = alertThresholds?.[key] || {};
@@ -344,7 +346,7 @@ export default function HeatRatioModal({
   const [rows, setRows] = useState([]);
 
   const seed = useMemo(
-    () => buildRows(params, latestFields, alertThresholds, getDisplayRange),
+    () => buildHeatRows(params, latestFields, alertThresholds, getDisplayRange),
     [params, latestFields, alertThresholds, getDisplayRange]
   );
 

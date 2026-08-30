@@ -19,6 +19,8 @@ import {
   TableCell,
   TableHead,
   TableRow,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
   useTheme,
 } from '@mui/material';
@@ -49,6 +51,7 @@ import {
   getTooltipContentStyle,
 } from '../utils/chartStyles';
 import { compactMenuItemSx, compactSelectSx } from '../utils/compactUi';
+import SiteHealthHeatAnalysis, { resolveSiteHealthProgram } from './SiteHealthHeatAnalysis';
 
 const getUserTimezone = () => localStorage.getItem('iot_timezone') || moment.tz.guess() || 'UTC';
 
@@ -79,7 +82,7 @@ function formatNum(value, digits = 2) {
 export default function SiteHealthDashboard() {
   const theme = useTheme();
   const tz = getUserTimezone();
-  const { formatDisplayName, metadata } = useFieldMetadata();
+  const { formatDisplayName, metadata, getUnit, getDisplayRange } = useFieldMetadata();
   const [devices, setDevices] = useState([]);
   const [selectedDeviceIds, setSelectedDeviceIds] = useState([]);
   const [selectedParameters, setSelectedParameters] = useState([]);
@@ -87,6 +90,8 @@ export default function SiteHealthDashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [payload, setPayload] = useState(null);
+  const [viewMode, setViewMode] = useState('ranking');
+  const [heatRefreshKey, setHeatRefreshKey] = useState(0);
 
   const { setGroupFilter, knownGroups, filteredDevices, selectValue, groupFilter } =
     useDeviceGroupFilter(devices, 'site_health_group_filter');
@@ -174,6 +179,21 @@ export default function SiteHealthDashboard() {
     });
   }, [paramOptions]);
 
+  const selectedDevices = useMemo(
+    () => filteredDevices.filter((d) => selectedDeviceIds.includes(d.device_id)),
+    [filteredDevices, selectedDeviceIds]
+  );
+  const heatProgram = useMemo(
+    () => resolveSiteHealthProgram(knownGroups, groupFilter, selectedDevices),
+    [knownGroups, groupFilter, selectedDevices]
+  );
+
+  useEffect(() => {
+    const program = resolveSiteHealthProgram(knownGroups, groupFilter, []);
+    if (program === 'sparing' || program === 'tmat') setViewMode('heat');
+    else setViewMode('ranking');
+  }, [groupFilter, knownGroups]);
+
   const multiParam = selectedParameters.length > 1;
   const rows = payload?.rows || [];
   const chartData = rows
@@ -192,13 +212,16 @@ export default function SiteHealthDashboard() {
       <PageHeader
         icon={<HealthAndSafetyIcon fontSize="small" />}
         title="Site health"
-        subtitle="Pick a group, then optionally a subset of those devices. Compare one or more parameters for this week or this month. Overall status is the worst result among the selected parameters. Average is the mean of daily means so different sampling rates stay comparable."
+        subtitle="Pick a group, then a subset of those devices. Ranking compares period average and % in range. Heat analysis uses the same SPARING and TMAT ratio cards as N-Dashboard (COD×flow, COD/TSS, IP, infiltration, flood, drought) across the selected sites."
         right={
           <Button
             size="small"
             variant="outlined"
             startIcon={loading ? <CircularProgress size={14} /> : <RefreshIcon />}
-            onClick={loadHealth}
+            onClick={() => {
+              loadHealth();
+              setHeatRefreshKey((k) => k + 1);
+            }}
             disabled={loading}
           >
             Refresh
@@ -253,6 +276,7 @@ export default function SiteHealthDashboard() {
                 value={selectedParameters}
                 onChange={(e) => setSelectedParameters(e.target.value.slice(0, 12))}
                 sx={compactSelectSx}
+                disabled={viewMode === 'heat'}
                 renderValue={(selected) => {
                   if (!selected.length) return 'None';
                   if (selected.length === 1) return formatDisplayName(selected[0], { withUnit: true });
@@ -275,25 +299,41 @@ export default function SiteHealthDashboard() {
                 value={period}
                 onChange={(e) => setPeriod(e.target.value)}
                 sx={compactSelectSx}
+                disabled={viewMode === 'heat'}
               >
                 <MenuItem value="week" sx={compactMenuItemSx}>This week</MenuItem>
                 <MenuItem value="month" sx={compactMenuItemSx}>This month</MenuItem>
               </Select>
             </FormControl>
+            <ToggleButtonGroup
+              size="small"
+              exclusive
+              value={viewMode}
+              onChange={(_, next) => { if (next) setViewMode(next); }}
+              sx={{ height: 32 }}
+            >
+              <ToggleButton value="ranking" sx={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'none' }}>
+                Ranking
+              </ToggleButton>
+              <ToggleButton value="heat" sx={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'none' }}>
+                Heat analysis
+              </ToggleButton>
+            </ToggleButtonGroup>
             <Typography variant="caption" color="text.secondary" sx={{ pt: 1 }}>
               {selectedDeviceIds.length} device{selectedDeviceIds.length === 1 ? '' : 's'} · {tz}
+              {heatProgram !== 'both' ? ` · ${heatProgram.toUpperCase()}` : ''}
             </Typography>
           </Stack>
         </CardContent>
       </Card>
 
-      {error ? (
+      {viewMode === 'ranking' && error ? (
         <Alert severity="error" sx={{ mb: 2 }}>
           {error}
         </Alert>
       ) : null}
 
-      {payload?.summary ? (
+      {viewMode === 'ranking' && payload?.summary ? (
         <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: 'wrap' }}>
           <Chip size="small" label={`OK ${payload.summary.ok || 0}`} color="success" />
           <Chip size="small" label={`Watch ${payload.summary.watch || 0}`} color="warning" />
@@ -303,6 +343,30 @@ export default function SiteHealthDashboard() {
         </Stack>
       ) : null}
 
+      {viewMode === 'heat' ? (
+        <Card sx={getChartCardSx(theme)}>
+          <CardContent>
+            <SiteHealthHeatAnalysis
+              key={`${heatRefreshKey}-${selectedDevices.map((d) => d.device_id).join(',')}`}
+              devices={selectedDevices}
+              groupName={
+                knownGroups.find((g) => String(g.id) === String(groupFilter))?.name
+                || selectedDevices[0]?.group_name
+                || ''
+              }
+              groupDescription={
+                knownGroups.find((g) => String(g.id) === String(groupFilter))?.description
+                || selectedDevices[0]?.group_description
+                || ''
+              }
+              formatDisplayName={formatDisplayName}
+              getUnit={getUnit}
+              getDisplayRange={getDisplayRange}
+            />
+          </CardContent>
+        </Card>
+      ) : (
+        <>
       <Card sx={{ ...getChartCardSx(theme), mb: 2 }}>
         <CardContent>
           <Typography sx={{ fontWeight: 700, fontSize: '0.82rem', mb: 1 }}>
@@ -435,6 +499,8 @@ export default function SiteHealthDashboard() {
           </Table>
         </CardContent>
       </Card>
+        </>
+      )}
     </Box>
   );
 }
