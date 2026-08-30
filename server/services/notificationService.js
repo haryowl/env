@@ -27,6 +27,24 @@ function formatTemplateInstant(value, timezone) {
   return m.tz(tz).format(TEMPLATE_DATETIME_FORMAT);
 }
 
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/** WhatsApp-style *bold*, _italic_, ~strike~ → HTML for email. */
+function templateToEmailHtml(text) {
+  let html = escapeHtml(text == null ? '' : text);
+  html = html.replace(/```([^`]+)```/g, '<code>$1</code>');
+  html = html.replace(/\*([^*\n]+)\*/g, '<strong>$1</strong>');
+  html = html.replace(/_([^_\n]+)_/g, '<em>$1</em>');
+  html = html.replace(/~([^~\n]+)~/g, '<s>$1</s>');
+  return html.replace(/\r\n/g, '\n').replace(/\n/g, '<br>');
+}
+
 const HTTP_LOG_BODY_MAX = 2000;
 
 function truncateForLog(value, max = HTTP_LOG_BODY_MAX) {
@@ -301,7 +319,7 @@ class NotificationService {
             text: processedTemplate,
             html: `<div style="font-family: Arial, sans-serif; padding: 20px;">
                     <h2 style="color: #d32f2f;">IoT Alert Notification</h2>
-                    <p style="font-size: 16px; line-height: 1.6;">${processedTemplate.replace(/\n/g, '<br>')}</p>
+                    <p style="font-size: 16px; line-height: 1.6;">${templateToEmailHtml(processedTemplate)}</p>
                     <hr style="margin: 20px 0;">
                     <p style="color: #666; font-size: 12px;">
                       This is an automated alert from your IoT monitoring system.<br>
