@@ -1,8 +1,10 @@
 const nodemailer = require('nodemailer');
 const axios = require('axios');
+const moment = require('moment-timezone');
 const { query, getRow, getRows } = require('../config/database');
 const mqttService = require('./mqttService');
 const whatsappAlertService = require('./whatsappAlertService');
+const { getEffectiveDeviceTimezone } = require('../utils/deviceTimezone');
 
 function humanizeFieldName(value = '') {
   return String(value)
@@ -10,6 +12,19 @@ function humanizeFieldName(value = '') {
     .replace(/\s+/g, ' ')
     .trim()
     .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+const TEMPLATE_DATETIME_FORMAT = 'YYYY-MM-DD HH:mm:ss';
+
+function formatTemplateInstant(value, timezone) {
+  if (value == null || value === '') return '';
+  if (typeof value === 'number' && Number.isFinite(value) && value < 1e6) {
+    return String(value);
+  }
+  const tz = timezone && moment.tz.zone(timezone) ? timezone : 'UTC';
+  const m = moment(value);
+  if (!m.isValid()) return String(value);
+  return m.tz(tz).format(TEMPLATE_DATETIME_FORMAT);
 }
 
 const HTTP_LOG_BODY_MAX = 2000;
@@ -71,6 +86,25 @@ class NotificationService {
       this._parameterDisplayCache.set(key, fallback);
       return fallback;
     }
+  }
+
+  async resolveDisplayTimezone(alert) {
+    if (alert?.created_by) {
+      const user = await getRow('SELECT timezone FROM users WHERE user_id = $1', [alert.created_by]);
+      if (user?.timezone && moment.tz.zone(user.timezone)) {
+        return user.timezone;
+      }
+    }
+    const deviceId = alert?.device_id;
+    if (deviceId) {
+      try {
+        const deviceTz = await getEffectiveDeviceTimezone(deviceId);
+        if (deviceTz && moment.tz.zone(deviceTz)) return deviceTz;
+      } catch {
+        /* ignore */
+      }
+    }
+    return process.env.DISPLAY_TIMEZONE || 'UTC';
   }
 
   buildTemplateVariables({
@@ -693,7 +727,7 @@ class NotificationService {
     // Replace variables in template
     Object.keys(variables).forEach(key => {
       const regex = new RegExp(`{${key}}`, 'g');
-      const replacement = variables[key] || '';
+      const replacement = variables[key] == null ? '' : String(variables[key]);
       processed = processed.replace(regex, replacement);
       console.log(`Replacing {${key}} with:`, replacement);
     });
@@ -759,21 +793,23 @@ class NotificationService {
     try {
       const { alert_id, actions, template } = alert;
       const parameterDisplay = await this.resolveParameterDisplayName(parameter);
+      const displayTz = await this.resolveDisplayTimezone(alert);
+      const formattedLastUpdate = formatTemplateInstant(lastUpdate, displayTz);
 
       if (actions?.email) {
-        await this.sendEmail(alert_id, template, deviceName, parameter, value, min, max, lastUpdate, thresholdTime, parameterDisplay);
+        await this.sendEmail(alert_id, template, deviceName, parameter, value, min, max, formattedLastUpdate, thresholdTime, parameterDisplay);
       }
 
       if (actions?.http) {
-        await this.sendHttpNotification(alert_id, template, deviceName, parameter, value, min, max, lastUpdate, thresholdTime, parameterDisplay);
+        await this.sendHttpNotification(alert_id, template, deviceName, parameter, value, min, max, formattedLastUpdate, thresholdTime, parameterDisplay);
       }
 
       if (actions?.mqtt) {
-        await this.sendMqttNotification(alert, deviceName, parameter, value, min, max, lastUpdate, thresholdTime, parameterDisplay);
+        await this.sendMqttNotification(alert, deviceName, parameter, value, min, max, formattedLastUpdate, thresholdTime, parameterDisplay);
       }
 
       if (actions?.whatsapp) {
-        await this.sendWhatsAppNotification(alert, deviceName, parameter, value, min, max, lastUpdate, thresholdTime, parameterDisplay);
+        await this.sendWhatsAppNotification(alert, deviceName, parameter, value, min, max, formattedLastUpdate, thresholdTime, parameterDisplay);
       }
     } catch (error) {
       console.error('Failed to send notification:', error);
