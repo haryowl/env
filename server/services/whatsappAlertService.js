@@ -28,6 +28,30 @@ function isValidNormalizedPhone(phone) {
   return /^62\d{8,15}$/.test(phone) || /^\d{10,16}$/.test(phone);
 }
 
+/** Split comma/newline/semicolon-separated phone input; dedupe by normalized number. */
+function parsePhoneList(raw) {
+  if (raw == null) return [];
+  if (Array.isArray(raw)) {
+    const merged = [];
+    for (const item of raw) {
+      merged.push(...parsePhoneList(item));
+    }
+    return merged;
+  }
+  const s = String(raw).trim();
+  if (!s) return [];
+  const parts = s.split(/[,;\n\r]+/).map((p) => p.trim()).filter(Boolean);
+  const seen = new Set();
+  const out = [];
+  for (const part of parts) {
+    const normalized = normalizePhone(part);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push(normalized);
+  }
+  return out;
+}
+
 function parseJsonField(value, fallback) {
   if (value == null) return fallback;
   if (typeof value === 'object') return value;
@@ -164,6 +188,101 @@ async function addSubscription({ userId, deviceId, alertId, phone, req }) {
     if (e.code === '23505') {
       const err = new Error('This phone is already subscribed for that alert on this device');
       err.status = 409;
+      err.code = 'duplicate';
+      throw err;
+    }
+    throw e;
+  }
+}
+
+async function addSubscriptionsBulk({ userId, deviceId, alertId, phones, req }) {
+  const list = parsePhoneList(phones);
+  if (!list.length) {
+    const err = new Error('Enter at least one valid phone number');
+    err.status = 400;
+    throw err;
+  }
+
+  const added = [];
+  const skipped = [];
+  const failed = [];
+
+  for (const phone of list) {
+    try {
+      const row = await addSubscription({ userId, deviceId, alertId, phone, req });
+      added.push(row);
+    } catch (e) {
+      if (e.status === 409 || e.code === 'duplicate') {
+        skipped.push({ phone, reason: e.message });
+      } else {
+        failed.push({ phone, error: e.message || 'Failed to add' });
+      }
+    }
+  }
+
+  if (!added.length && (skipped.length || failed.length)) {
+    const err = new Error(
+      failed.length
+        ? `No phones added. ${failed.length} invalid, ${skipped.length} duplicate.`
+        : 'All phone numbers are already subscribed for that alert on this device'
+    );
+    err.status = 400;
+    err.details = { added, skipped, failed };
+    throw err;
+  }
+
+  return { added, skipped, failed };
+}
+
+async function updateSubscription({ id, userId, deviceId, alertId, phone, req, isAdmin }) {
+  const existing = await getRow('SELECT * FROM whatsapp_subscriptions WHERE id = $1', [id]);
+  if (!existing) {
+    const err = new Error('Subscription not found');
+    err.status = 404;
+    throw err;
+  }
+  if (!isAdmin && Number(existing.user_id) !== Number(userId)) {
+    const err = new Error('Not allowed to edit this subscription');
+    err.status = 403;
+    throw err;
+  }
+
+  const normalized = normalizePhone(phone);
+  if (!isValidNormalizedPhone(normalized)) {
+    const err = new Error('Invalid phone number. Use digits, e.g. 0812… or 62812…');
+    err.status = 400;
+    throw err;
+  }
+  if (!userCanAccessDevice(req, deviceId)) {
+    const err = new Error('Device not allowed');
+    err.status = 403;
+    throw err;
+  }
+  const alert = await getAlertForSubscription(alertId);
+  if (!alert) {
+    const err = new Error('Alert not found');
+    err.status = 404;
+    throw err;
+  }
+  if (!alertAppliesToDevice(alert, deviceId)) {
+    const err = new Error('Selected alert does not apply to this device');
+    err.status = 400;
+    throw err;
+  }
+
+  try {
+    const result = await query(
+      `UPDATE whatsapp_subscriptions
+       SET device_id = $1, alert_id = $2, phone = $3
+       WHERE id = $4
+       RETURNING *`,
+      [String(deviceId), alertId, normalized, id]
+    );
+    return result.rows[0];
+  } catch (e) {
+    if (e.code === '23505') {
+      const err = new Error('This phone is already subscribed for that alert on this device');
+      err.status = 409;
       throw err;
     }
     throw e;
@@ -224,11 +343,14 @@ async function listPhonesForAlertFire(alertId, deviceId) {
 module.exports = {
   DEFAULT_BODY_TEMPLATE,
   normalizePhone,
+  parsePhoneList,
   isValidNormalizedPhone,
   getProviderConfig,
   upsertProviderConfig,
   listSubscriptionsForUser,
   addSubscription,
+  addSubscriptionsBulk,
+  updateSubscription,
   deleteSubscription,
   listAlertsForDevice,
   listPhonesForAlertFire,

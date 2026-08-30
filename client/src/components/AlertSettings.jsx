@@ -89,6 +89,12 @@ export default function AlertSettings({ user }) {
   const [waPhone, setWaPhone] = useState('');
   const [waSubscriptions, setWaSubscriptions] = useState([]);
   const [waBusy, setWaBusy] = useState(false);
+  const [waEditOpen, setWaEditOpen] = useState(false);
+  const [waEditId, setWaEditId] = useState(null);
+  const [waEditDeviceId, setWaEditDeviceId] = useState('');
+  const [waEditAlertId, setWaEditAlertId] = useState('');
+  const [waEditPhone, setWaEditPhone] = useState('');
+  const [waEditAlerts, setWaEditAlerts] = useState([]);
 
   // Load configurations
   const loadConfigurations = async () => {
@@ -244,6 +250,42 @@ export default function AlertSettings({ user }) {
     loadWaAlerts();
   }, [waDeviceId]);
 
+  const refreshWaSubscriptions = async () => {
+    const token = localStorage.getItem('iot_token');
+    const subRes = await fetch(`${API_BASE_URL}/alert-settings/whatsapp-subscriptions`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (subRes.ok) {
+      const subData = await subRes.json();
+      setWaSubscriptions(subData.subscriptions || []);
+    }
+  };
+
+  useEffect(() => {
+    if (!waEditOpen || !waEditDeviceId) {
+      if (!waEditOpen) setWaEditAlerts([]);
+      return;
+    }
+    const loadEditAlerts = async () => {
+      try {
+        const token = localStorage.getItem('iot_token');
+        const res = await fetch(
+          `${API_BASE_URL}/alert-settings/whatsapp-alerts?deviceId=${encodeURIComponent(waEditDeviceId)}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setWaEditAlerts(data.alerts || []);
+        } else {
+          setWaEditAlerts([]);
+        }
+      } catch {
+        setWaEditAlerts([]);
+      }
+    };
+    loadEditAlerts();
+  }, [waEditOpen, waEditDeviceId]);
+
   const saveWhatsAppProvider = async () => {
     if (!isAdmin) return;
     setWaSaving(true);
@@ -292,7 +334,7 @@ export default function AlertSettings({ user }) {
 
   const addWhatsAppSubscription = async () => {
     if (!waDeviceId || !waAlertId || !waPhone.trim()) {
-      setNotification({ open: true, message: 'Select device, alert, and enter a phone number', severity: 'warning' });
+      setNotification({ open: true, message: 'Select device, alert, and enter at least one phone number', severity: 'warning' });
       return;
     }
     setWaBusy(true);
@@ -313,16 +355,69 @@ export default function AlertSettings({ user }) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Failed to add phone');
       setWaPhone('');
-      const subRes = await fetch(`${API_BASE_URL}/alert-settings/whatsapp-subscriptions`, {
-        headers: { Authorization: `Bearer ${token}` },
+      await refreshWaSubscriptions();
+      const added = data.added?.length ?? (data.subscription ? 1 : 0);
+      const skipped = data.skipped?.length ?? 0;
+      const failed = data.failed?.length ?? 0;
+      let message = added === 1 ? 'Phone subscribed' : `${added} phone(s) subscribed`;
+      if (skipped > 0) message += `, ${skipped} skipped (duplicate)`;
+      if (failed > 0) message += `, ${failed} invalid`;
+      setNotification({
+        open: true,
+        message,
+        severity: failed > 0 && added === 0 ? 'warning' : 'success',
       });
-      if (subRes.ok) {
-        const subData = await subRes.json();
-        setWaSubscriptions(subData.subscriptions || []);
-      }
-      setNotification({ open: true, message: 'Phone subscribed', severity: 'success' });
     } catch (e) {
       setNotification({ open: true, message: e.message || 'Failed to add phone', severity: 'error' });
+    } finally {
+      setWaBusy(false);
+    }
+  };
+
+  const openWhatsAppEdit = (row) => {
+    setWaEditId(row.id);
+    setWaEditDeviceId(row.device_id || '');
+    setWaEditAlertId(String(row.alert_id ?? ''));
+    setWaEditPhone(row.phone || '');
+    setWaEditOpen(true);
+  };
+
+  const closeWhatsAppEdit = () => {
+    setWaEditOpen(false);
+    setWaEditId(null);
+    setWaEditDeviceId('');
+    setWaEditAlertId('');
+    setWaEditPhone('');
+    setWaEditAlerts([]);
+  };
+
+  const saveWhatsAppEdit = async () => {
+    if (!waEditId || !waEditDeviceId || !waEditAlertId || !waEditPhone.trim()) {
+      setNotification({ open: true, message: 'Device, alert, and phone are required', severity: 'warning' });
+      return;
+    }
+    setWaBusy(true);
+    try {
+      const token = localStorage.getItem('iot_token');
+      const res = await fetch(`${API_BASE_URL}/alert-settings/whatsapp-subscriptions/${waEditId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          device_id: waEditDeviceId,
+          alert_id: Number(waEditAlertId),
+          phone: waEditPhone.trim(),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to update subscription');
+      await refreshWaSubscriptions();
+      closeWhatsAppEdit();
+      setNotification({ open: true, message: 'Subscription updated', severity: 'success' });
+    } catch (e) {
+      setNotification({ open: true, message: e.message || 'Failed to update subscription', severity: 'error' });
     } finally {
       setWaBusy(false);
     }
@@ -1282,8 +1377,9 @@ export default function AlertSettings({ user }) {
               <CardContent>
                 <Typography variant="h6" gutterBottom>My WhatsApp subscriptions</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  Choose a device, then an alert for that device, and add one or more phone numbers.
-                  Numbers are private to your account. Enable <strong>WhatsApp</strong> on the alert under Alerts.
+                  Choose a device, then an alert for that device, and add one or more phone numbers
+                  (comma or new line separated). Numbers are private to your account. Enable{' '}
+                  <strong>WhatsApp</strong> on the alert under Alerts.
                 </Typography>
                 <Grid container spacing={2} alignItems="flex-end" sx={{ mb: 2 }}>
                   <Grid item xs={12} md={3}>
@@ -1320,24 +1416,28 @@ export default function AlertSettings({ user }) {
                       </Select>
                     </FormControl>
                   </Grid>
-                  <Grid item xs={12} md={3}>
+                  <Grid item xs={12} md={4}>
                     <TextField
-                      label="Phone number"
+                      label="Phone number(s)"
                       fullWidth
                       size="small"
+                      multiline
+                      minRows={2}
+                      maxRows={4}
                       value={waPhone}
                       onChange={(e) => setWaPhone(e.target.value)}
-                      placeholder="0812… or 62812…"
+                      placeholder={'0812… or 62812…\n0813…, 0814…'}
+                      helperText="One number, or several separated by comma or new line"
                     />
                   </Grid>
-                  <Grid item xs={12} md={3}>
+                  <Grid item xs={12} md={2}>
                     <Button
                       variant="contained"
                       fullWidth
                       onClick={addWhatsAppSubscription}
                       disabled={waBusy || !waDeviceId || !waAlertId || !waPhone.trim()}
                     >
-                      Add phone
+                      Add phone(s)
                     </Button>
                   </Grid>
                 </Grid>
@@ -1370,6 +1470,15 @@ export default function AlertSettings({ user }) {
                           <TableCell align="right">
                             <IconButton
                               size="small"
+                              color="primary"
+                              disabled={waBusy}
+                              onClick={() => openWhatsAppEdit(row)}
+                              aria-label="Edit"
+                            >
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                              size="small"
                               color="error"
                               disabled={waBusy}
                               onClick={() => deleteWhatsAppSubscription(row.id)}
@@ -1383,6 +1492,71 @@ export default function AlertSettings({ user }) {
                     </TableBody>
                   </Table>
                 </TableContainer>
+
+                <Dialog open={waEditOpen} onClose={closeWhatsAppEdit} maxWidth="sm" fullWidth>
+                  <DialogTitle>Edit WhatsApp subscription</DialogTitle>
+                  <DialogContent>
+                    <Grid container spacing={2} sx={{ mt: 0.5 }}>
+                      <Grid item xs={12}>
+                        <FormControl fullWidth size="small">
+                          <InputLabel id="wa-edit-device">Device</InputLabel>
+                          <Select
+                            labelId="wa-edit-device"
+                            label="Device"
+                            value={waEditDeviceId}
+                            onChange={(e) => {
+                              setWaEditDeviceId(e.target.value);
+                              setWaEditAlertId('');
+                            }}
+                          >
+                            {waDevices.map((d) => (
+                              <MenuItem key={d.device_id} value={d.device_id}>
+                                {getDeviceDisplayName(d)}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                      <Grid item xs={12}>
+                        <FormControl fullWidth size="small" disabled={!waEditDeviceId}>
+                          <InputLabel id="wa-edit-alert">Alert</InputLabel>
+                          <Select
+                            labelId="wa-edit-alert"
+                            label="Alert"
+                            value={waEditAlertId}
+                            onChange={(e) => setWaEditAlertId(e.target.value)}
+                          >
+                            {waEditAlerts.map((a) => (
+                              <MenuItem key={a.alert_id} value={String(a.alert_id)}>
+                                {a.name || a.parameter || a.alert_id}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                      <Grid item xs={12}>
+                        <TextField
+                          label="Phone number"
+                          fullWidth
+                          size="small"
+                          value={waEditPhone}
+                          onChange={(e) => setWaEditPhone(e.target.value)}
+                          placeholder="0812… or 62812…"
+                        />
+                      </Grid>
+                    </Grid>
+                  </DialogContent>
+                  <DialogActions>
+                    <Button onClick={closeWhatsAppEdit} disabled={waBusy}>Cancel</Button>
+                    <Button
+                      variant="contained"
+                      onClick={saveWhatsAppEdit}
+                      disabled={waBusy || !waEditDeviceId || !waEditAlertId || !waEditPhone.trim()}
+                    >
+                      Save
+                    </Button>
+                  </DialogActions>
+                </Dialog>
               </CardContent>
             </Card>
           </Grid>

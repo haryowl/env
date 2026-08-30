@@ -587,21 +587,58 @@ router.get('/whatsapp-subscriptions', auth.authenticateToken, async (req, res) =
 router.post('/whatsapp-subscriptions', auth.authenticateToken, async (req, res) => {
   try {
     await ensureAlertsSchema();
+    const { device_id, alert_id, phone, phones } = req.body || {};
+    if (!device_id || alert_id == null || (phone == null && phones == null)) {
+      return res.status(400).json({ error: 'device_id, alert_id, and phone (or phones) are required' });
+    }
+    const input = phones != null ? phones : phone;
+    const parsed = whatsappAlertService.parsePhoneList(input);
+    if (parsed.length <= 1) {
+      const row = await whatsappAlertService.addSubscription({
+        userId: req.user.user_id,
+        deviceId: device_id,
+        alertId: Number(alert_id),
+        phone: parsed[0] || input,
+        req,
+      });
+      return res.status(201).json({ subscription: row, added: [row], skipped: [], failed: [] });
+    }
+    const result = await whatsappAlertService.addSubscriptionsBulk({
+      userId: req.user.user_id,
+      deviceId: device_id,
+      alertId: Number(alert_id),
+      phones: input,
+      req,
+    });
+    res.status(201).json(result);
+  } catch (error) {
+    console.error('Error adding WhatsApp subscription:', error);
+    const body = { error: error.message || 'Failed to add subscription' };
+    if (error.details) body.details = error.details;
+    res.status(error.status || 500).json(body);
+  }
+});
+
+router.put('/whatsapp-subscriptions/:id', auth.authenticateToken, async (req, res) => {
+  try {
+    await ensureAlertsSchema();
     const { device_id, alert_id, phone } = req.body || {};
     if (!device_id || alert_id == null || !phone) {
       return res.status(400).json({ error: 'device_id, alert_id, and phone are required' });
     }
-    const row = await whatsappAlertService.addSubscription({
+    const row = await whatsappAlertService.updateSubscription({
+      id: Number(req.params.id),
       userId: req.user.user_id,
       deviceId: device_id,
       alertId: Number(alert_id),
       phone,
       req,
+      isAdmin: isReqAdmin(req),
     });
-    res.status(201).json({ subscription: row });
+    res.json({ subscription: row });
   } catch (error) {
-    console.error('Error adding WhatsApp subscription:', error);
-    res.status(error.status || 500).json({ error: error.message || 'Failed to add subscription' });
+    console.error('Error updating WhatsApp subscription:', error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to update subscription' });
   }
 });
 
