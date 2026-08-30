@@ -224,6 +224,7 @@ console.log('✓ /api/live-tracking route registered');
 app.use('/api/data', authenticateToken, filterDataByRole, filterDeviceData, dataRoutes);
 console.log('✓ /api/data route registered');
 app.use('/api/data-dash', authenticateToken, filterDataByRole, filterDeviceData, require('./routes/dataDash'));
+app.use('/api/site-health', authenticateToken, filterDataByRole, filterDeviceData, require('./routes/siteHealth'));
 console.log('✓ /api/data-dash route registered');
 app.use('/api/device-mapper', authenticateToken, filterDataByRole, deviceMapperRoutes);
 console.log('✓ /api/device-mapper route registered');

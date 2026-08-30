@@ -33,6 +33,7 @@ const Settings = lazy(() => import('./components/Settings'));
 const DataDash = lazy(() => import('./components/DataDash'));
 const DataDash2 = lazy(() => import('./components/DataDash2'));
 const ComparisonDoughnutDashboard = lazy(() => import('./components/ComparisonDoughnutDashboard'));
+const SiteHealthDashboard = lazy(() => import('./components/SiteHealthDashboard'));
 const Alerts = lazy(() => import('./components/Alerts'));
 const AlertSettings = lazy(() => import('./components/AlertSettings'));
 const NotificationConfig = lazy(() => import('./components/NotificationConfig'));
@@ -415,6 +416,7 @@ function App() {
                 <Route path="/data-dash" element={<ProtectedRoute><DataDash /></ProtectedRoute>} />
                 <Route path="/data-dash-2" element={<ProtectedRoute><DataDash2 /></ProtectedRoute>} />
                 <Route path="/comparison-dashboard" element={<ProtectedRoute><ComparisonDoughnutDashboard /></ProtectedRoute>} />
+                <Route path="/site-health" element={<ProtectedRoute><SiteHealthDashboard /></ProtectedRoute>} />
                 <Route path="/alerts" element={<ProtectedRoute><Alerts socket={socket} devices={devices} alerts={alerts} /></ProtectedRoute>} />
                 <Route path="/alert-settings" element={<ProtectedRoute><AlertSettings user={user} /></ProtectedRoute>} />
                 <Route path="/notification-config" element={<ProtectedRoute><NotificationConfig /></ProtectedRoute>} />

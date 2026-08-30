@@ -39,6 +39,7 @@ import {
   InfoOutlined as StatusIcon,
   SettingsInputAntenna as MqttConfigIcon,
   CloudUpload as KlhkReportingIcon,
+  HealthAndSafety as HealthAndSafetyIcon,
 } from '@mui/icons-material';
 
 export const MENU_SECTIONS = [
@@ -57,6 +58,7 @@ export const MENU_SECTIONS = [
       { text: 'Data Dash', icon: <TableChartIcon />, path: '/data-dash', menuPath: '/data-dash' },
       { text: 'Data Dash 2', icon: <DashboardIcon />, path: '/data-dash-2', menuPath: '/data-dash-2' },
       { text: 'Comparison', icon: <DonutLargeIcon />, path: '/comparison-dashboard', menuPath: '/comparison-dashboard' },
+      { text: 'Site health', icon: <HealthAndSafetyIcon />, path: '/site-health', menuPath: '/site-health' },
       { text: 'Theme Demo', icon: <PaletteIcon />, path: '/theme-demo', menuPath: '/theme-demo' },
       { text: 'Color Customizer', icon: <ColorLensIcon />, path: '/color-customizer', menuPath: '/color-customizer' },
       { text: 'Parameter Colors', icon: <ScienceIcon />, path: '/parameter-colors', menuPath: '/parameter-colors' },
@@ -154,6 +156,7 @@ export const ROUTE_MENU_PATH_MAP = {
   '/data-dash': '/data-dash',
   '/data-dash-2': '/data-dash-2',
   '/comparison-dashboard': '/comparison-dashboard',
+  '/site-health': '/site-health',
   '/alerts': '/alerts',
   '/alert-settings': '/alert-settings',
   '/notification-config': '/notification-config',
