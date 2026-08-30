@@ -431,7 +431,7 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
       field: 'detected_at',
       headerName: 'Detected At',
       flex: 1,
-      valueGetter: (params) => formatInUserTimezone(params.value),
+      valueFormatter: (value) => formatInUserTimezone(value),
     },
     { field: 'status', headerName: 'Status', flex: 1 },
   ];

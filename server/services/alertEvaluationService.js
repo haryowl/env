@@ -1,5 +1,4 @@
 const { query, getRows, getRow } = require('../config/database');
-const { processDeviceData } = require('./deviceMapper');
 const { NotificationService } = require('./notificationService');
 const { getAlertDeviceIds } = require('../utils/alertDevices');
 
@@ -12,19 +11,6 @@ async function getDeviceMapperTemplate(device_id) {
      ORDER BY mt.updated_at DESC LIMIT 1`,
     [device_id]
   );
-}
-
-// Helper: Apply template mapping
-function applyTemplateMapping(rawPayload, mappings) {
-  const mapped = {};
-  for (const map of mappings) {
-    const source = map.source || map.source_field;
-    const target = map.target || map.target_field;
-    if (rawPayload[source] !== undefined) {
-      mapped[target] = rawPayload[source];
-    }
-  }
-  return mapped;
 }
 
 const ALERT_MATCHES_DEVICE_SQL = `(
@@ -223,6 +209,18 @@ async function evaluateThresholdAlertsOnData(device_id, parameter, value, timest
     const newReading = isNewReading(state, timestamp);
 
     if (!outOfRange) {
+      const lastStillOutOfRange =
+        state.last_value != null
+        && Number.isFinite(Number(state.last_value))
+        && (
+          (alert.min !== null && Number(state.last_value) < alert.min)
+          || (alert.max !== null && Number(state.last_value) > alert.max)
+        );
+      // Poll/mapper can present a different field as this parameter. Do not close an
+      // episode while the last known value for this alert is still out of range.
+      if ((state.in_breach || active?.log_id) && lastStillOutOfRange && Number(state.last_value) !== Number(value)) {
+        continue;
+      }
       await upsertBreachState({
         alertId: alert.alert_id,
         deviceId: device_id,
@@ -242,9 +240,18 @@ async function evaluateThresholdAlertsOnData(device_id, parameter, value, timest
       streak = state.in_breach ? streak + 1 : 1;
     }
 
+    const lastStillOutOfRange =
+      state.last_value != null
+      && Number.isFinite(Number(state.last_value))
+      && (
+        (alert.min !== null && Number(state.last_value) < alert.min)
+        || (alert.max !== null && Number(state.last_value) > alert.max)
+      );
+
     const inBreachEpisode = Boolean(
       state.in_breach
       || (active?.log_id && triggerMode !== TRIGGER_EVERY_READING)
+      || (triggerMode === TRIGGER_ON_ENTER && lastStillOutOfRange)
     );
 
     let shouldFire = false;
@@ -379,47 +386,38 @@ async function pollLatestDataAndEvaluateAlerts() {
     }
   }
   for (const device_id of Object.keys(alertsByDevice)) {
-    const rows = await getRows(
-      `SELECT DISTINCT ON (sensor_type) sensor_type, value, unit, timestamp, metadata
-       FROM sensor_readings
-       WHERE device_id = $1
-       ORDER BY sensor_type, timestamp DESC`,
-      [device_id]
+    const template = await getDeviceMapperTemplate(device_id);
+    let mappings = [];
+    if (template?.mappings) {
+      try {
+        mappings = typeof template.mappings === 'string' ? JSON.parse(template.mappings) : template.mappings;
+      } catch (e) {
+        console.error('Failed to parse template mappings for device', device_id, e);
+        mappings = [];
+      }
+    }
+    const sourceByTarget = new Map(
+      (Array.isArray(mappings) ? mappings : [])
+        .filter((m) => m?.target || m?.target_field)
+        .map((m) => [m.target || m.target_field, m.source || m.source_field])
     );
-    if (rows.length) {
-      let latestPayload = {};
-      let latestTimestamp = null;
-      for (const row of rows) {
-        if (row.metadata && typeof row.metadata === 'object') {
-          latestPayload = { ...latestPayload, ...row.metadata };
-        }
-        latestPayload[row.sensor_type] = Number(row.value);
-        if (!latestTimestamp || row.timestamp > latestTimestamp) {
-          latestTimestamp = row.timestamp;
-        }
-      }
-      let mapped;
-      const template = await getDeviceMapperTemplate(device_id);
-      if (template && template.mappings) {
-        let mappings;
-        try {
-          mappings = typeof template.mappings === 'string' ? JSON.parse(template.mappings) : template.mappings;
-        } catch (e) {
-          console.error('Failed to parse template mappings for device', device_id, e);
-          mappings = [];
-        }
-        mapped = applyTemplateMapping(latestPayload, mappings);
-      } else {
-        const device = await getRow('SELECT * FROM devices WHERE device_id = $1', [device_id]);
-        if (!device) continue;
-        mapped = await processDeviceData(device, latestPayload);
-      }
-      for (const alert of alertsByDevice[device_id]) {
-        const value = mapped[alert.parameter];
-        if (typeof value === 'number') {
-          await evaluateThresholdAlertsOnData(device_id, alert.parameter, value, latestTimestamp);
-        }
-      }
+
+    for (const alert of alertsByDevice[device_id]) {
+      const sourceField = sourceByTarget.get(alert.parameter);
+      const candidates = [alert.parameter, sourceField].filter(Boolean);
+      const placeholders = candidates.map((_, i) => `$${i + 2}`).join(', ');
+      const row = await getRow(
+        `SELECT sensor_type, value, timestamp
+         FROM sensor_readings
+         WHERE device_id = $1 AND sensor_type IN (${placeholders})
+         ORDER BY timestamp DESC
+         LIMIT 1`,
+        [device_id, ...candidates]
+      );
+      if (!row) continue;
+      const numericValue = Number(row.value);
+      if (!Number.isFinite(numericValue)) continue;
+      await evaluateThresholdAlertsOnData(device_id, alert.parameter, numericValue, row.timestamp);
     }
   }
 }
