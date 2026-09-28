@@ -1127,8 +1127,8 @@ class MQTTService {
       }
       const sourceByTarget = new Map(
         (Array.isArray(mappings) ? mappings : [])
-          .filter((m) => m?.target_field)
-          .map((m) => [m.target_field, m.source_field || m.source])
+          .filter((m) => m?.target_field || m?.target)
+          .map((m) => [m.target_field || m.target, m.source_field || m.source])
       );
 
       for (const alert of alerts) {

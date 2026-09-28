@@ -1560,7 +1560,8 @@ export default function AlertSettings({ user }) {
                   <Typography variant="h6" gutterBottom>WhatsApp provider (admin)</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                     Base Wablas configuration. End users only manage Device → Alert → phone numbers below.
-                    Use placeholders {'{{phone}}'}, {'{{message}}'}, {'{{value}}'}, {'{{device}}'} in the body template.
+                    {'{{message}}'} is always filled with the alert Notification Template. Keep it in the body
+                    (along with {'{{phone}}'}). Other placeholders like {'{{device}}'} and {'{{timestamp}}'} are optional.
                   </Typography>
                   <FormControlLabel
                     control={

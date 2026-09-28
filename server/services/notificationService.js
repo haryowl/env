@@ -53,6 +53,43 @@ function truncateForLog(value, max = HTTP_LOG_BODY_MAX) {
   return s.length > max ? `${s.slice(0, max)}…` : s;
 }
 
+/** Always put the processed notification template into the Wablas message field. */
+function applyWhatsAppMessage(payload, phone, messageText) {
+  const text = String(messageText ?? '').replace(/\r\n/g, '\n');
+
+  const inject = (node) => {
+    if (Array.isArray(node)) return node.map(inject);
+    if (node && typeof node === 'object') {
+      const out = {};
+      for (const [k, v] of Object.entries(node)) {
+        out[k] = inject(v);
+      }
+      if ('message' in out) out.message = text;
+      if ('text' in out) out.text = text;
+      if ('phone' in out && (out.phone == null || out.phone === '')) out.phone = phone;
+      return out;
+    }
+    return node;
+  };
+
+  let result = inject(payload);
+  if (result && Array.isArray(result.data) && result.data.length) {
+    result = {
+      ...result,
+      data: result.data.map((item) => ({
+        ...(item && typeof item === 'object' ? item : {}),
+        phone: (item && item.phone) || phone,
+        message: text,
+      })),
+    };
+  } else if (result && typeof result === 'object' && !Array.isArray(result) && ('phone' in result || 'message' in result || 'text' in result)) {
+    result = { ...result, phone: result.phone || phone, message: text };
+  } else if (!result || typeof result !== 'object') {
+    result = { data: [{ phone, message: text }] };
+  }
+  return result;
+}
+
 function formatHttpExchangeLog({ response, error, url, method, requestBody }) {
   const entry = {
     url: url || '',
@@ -538,7 +575,11 @@ class NotificationService {
       data: [{ phone, message: messageText }],
     };
     const fakeConfig = { id: 'whatsapp', body_template: provider.body_template };
-    const payload = this.resolveHttpPayload(fakeConfig, ctx, defaultPayload);
+    const payload = applyWhatsAppMessage(
+      this.resolveHttpPayload(fakeConfig, ctx, defaultPayload),
+      phone,
+      messageText
+    );
 
     try {
       const response = await axios({
@@ -619,8 +660,9 @@ class NotificationService {
         lastUpdate,
         thresholdTime,
       }));
-
-      const timestamp = new Date().toISOString();
+      const messageText = String(processedTemplate || '').trim()
+        || `${deviceName || 'Device'} alert${display ? ` (${display})` : ''}`;
+      const timestamp = lastUpdate || '';
 
       for (const phone of phones) {
         const ctx = {
@@ -633,7 +675,7 @@ class NotificationService {
           value: value ?? null,
           min: min ?? null,
           max: max ?? null,
-          message: processedTemplate,
+          message: messageText,
           timestamp,
           type: 'iot_alert',
           lastUpdate: lastUpdate ?? '',
@@ -643,7 +685,7 @@ class NotificationService {
         await this.deliverWhatsAppRequest({
           provider,
           phone,
-          messageText: processedTemplate,
+          messageText,
           ctx,
           alertId,
         });
@@ -738,19 +780,13 @@ class NotificationService {
 
   // Process template with variables
   processTemplate(template, variables) {
-    console.log('processTemplate called with:', { template, variables });
-    
-    let processed = template;
-    
-    // Replace variables in template
-    Object.keys(variables).forEach(key => {
-      const regex = new RegExp(`{${key}}`, 'g');
+    if (template == null) return '';
+    let processed = String(template);
+    const keys = Object.keys(variables || {}).sort((a, b) => b.length - a.length);
+    for (const key of keys) {
       const replacement = variables[key] == null ? '' : String(variables[key]);
-      processed = processed.replace(regex, replacement);
-      console.log(`Replacing {${key}} with:`, replacement);
-    });
-    
-    console.log('Final processed template:', processed);
+      processed = processed.replaceAll(`{${key}}`, replacement);
+    }
     return processed;
   }
 
@@ -808,31 +844,48 @@ class NotificationService {
 
   // Send notification based on alert type
   async sendNotification(alert, deviceName, parameter, value, min, max, lastUpdate, thresholdTime) {
-    try {
-      const { alert_id, actions, template } = alert;
-      const parameterDisplay = await this.resolveParameterDisplayName(parameter);
-      const displayTz = await this.resolveDisplayTimezone(alert);
-      const formattedLastUpdate = formatTemplateInstant(lastUpdate, displayTz);
+    const { alert_id, actions, template } = alert;
+    const parameterDisplay = await this.resolveParameterDisplayName(parameter);
+    const displayTz = await this.resolveDisplayTimezone(alert);
+    const formattedLastUpdate = formatTemplateInstant(lastUpdate, displayTz);
+    const formattedThresholdTime =
+      thresholdTime == null || thresholdTime === ''
+        ? ''
+        : (typeof thresholdTime === 'number' || /^\d+(\.\d+)?$/.test(String(thresholdTime))
+          ? String(thresholdTime)
+          : formatTemplateInstant(thresholdTime, displayTz));
 
-      if (actions?.email) {
-        await this.sendEmail(alert_id, template, deviceName, parameter, value, min, max, formattedLastUpdate, thresholdTime, parameterDisplay);
-      }
+    const jobs = [];
+    const runChannel = (name, fn) => {
+      jobs.push(
+        fn().catch((error) => {
+          console.error(`Failed to send ${name} notification for alert ${alert_id}:`, error);
+        })
+      );
+    };
 
-      if (actions?.http) {
-        await this.sendHttpNotification(alert_id, template, deviceName, parameter, value, min, max, formattedLastUpdate, thresholdTime, parameterDisplay);
-      }
-
-      if (actions?.mqtt) {
-        await this.sendMqttNotification(alert, deviceName, parameter, value, min, max, formattedLastUpdate, thresholdTime, parameterDisplay);
-      }
-
-      if (actions?.whatsapp) {
-        await this.sendWhatsAppNotification(alert, deviceName, parameter, value, min, max, formattedLastUpdate, thresholdTime, parameterDisplay);
-      }
-    } catch (error) {
-      console.error('Failed to send notification:', error);
-      throw error;
+    if (actions?.email) {
+      runChannel('email', () =>
+        this.sendEmail(alert_id, template, deviceName, parameter, value, min, max, formattedLastUpdate, formattedThresholdTime, parameterDisplay)
+      );
     }
+    if (actions?.http) {
+      runChannel('http', () =>
+        this.sendHttpNotification(alert_id, template, deviceName, parameter, value, min, max, formattedLastUpdate, formattedThresholdTime, parameterDisplay)
+      );
+    }
+    if (actions?.mqtt) {
+      runChannel('mqtt', () =>
+        this.sendMqttNotification(alert, deviceName, parameter, value, min, max, formattedLastUpdate, formattedThresholdTime, parameterDisplay)
+      );
+    }
+    if (actions?.whatsapp) {
+      runChannel('whatsapp', () =>
+        this.sendWhatsAppNotification(alert, deviceName, parameter, value, min, max, formattedLastUpdate, formattedThresholdTime, parameterDisplay)
+      );
+    }
+
+    await Promise.all(jobs);
   }
 
   // Send export email with attachment

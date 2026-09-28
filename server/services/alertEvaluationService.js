@@ -305,25 +305,23 @@ async function evaluateThresholdAlertsOnData(device_id, parameter, value, timest
 }
 
 async function evaluateInactivityForDevice(alert, device_id) {
-  const active = await getRow(
-    `SELECT log_id
-     FROM alert_logs
-     WHERE alert_id = $1 AND device_id = $2 AND parameter = $3 AND status = 'active'
-     ORDER BY detected_at DESC
-     LIMIT 1`,
-    [alert.alert_id, device_id, alert.parameter]
-  );
+  const lastTimestamp = await getLastActivityAt(device_id);
+  if (!lastTimestamp) return;
 
-  const lastData = await getRows(
-    `SELECT timestamp FROM sensor_readings WHERE device_id = $1 ORDER BY timestamp DESC LIMIT 1`,
-    [device_id]
-  );
-  if (!lastData.length) return;
-
-  const lastTimestamp = new Date(lastData[0].timestamp);
   const now = new Date();
   const minutesSince = (now - lastTimestamp) / 60000;
-  if (!alert.threshold_time || !(minutesSince > alert.threshold_time)) return;
+  const threshold = Number(alert.threshold_time);
+  if (!Number.isFinite(threshold) || threshold <= 0) return;
+
+  const active = await getActiveLog(alert.alert_id, device_id, alert.parameter);
+  const isStale = minutesSince > threshold;
+
+  // Device is sending data again: close the inactive episode so the next outage can fire.
+  if (!isStale) {
+    if (active?.log_id) await resolveActiveLog(active.log_id);
+    return;
+  }
+
   if (active?.log_id) return;
 
   const device = await getRow('SELECT name FROM devices WHERE device_id = $1', [device_id]);
@@ -362,6 +360,45 @@ async function evaluateInactivityForDevice(alert, device_id) {
       type: 'inactivity',
       details: { lastUpdate: lastTimestamp, threshold: alert.threshold_time }
     });
+  }
+}
+
+async function getLastActivityAt(device_id) {
+  try {
+    const row = await getRow(
+      `SELECT GREATEST(
+         (SELECT MAX(timestamp) FROM sensor_readings WHERE device_id = $1),
+         (SELECT MAX(timestamp) FROM gps_tracks WHERE device_id = $1)
+       ) AS last_at`,
+      [device_id]
+    );
+    return row?.last_at ? new Date(row.last_at) : null;
+  } catch (error) {
+    console.warn('getLastActivityAt combined query failed, using sensor_readings only:', error.message);
+    const row = await getRow(
+      `SELECT MAX(timestamp) AS last_at FROM sensor_readings WHERE device_id = $1`,
+      [device_id]
+    );
+    return row?.last_at ? new Date(row.last_at) : null;
+  }
+}
+
+/** Clear open inactivity episodes as soon as the device reports data again. */
+async function acknowledgeDeviceActivity(device_id) {
+  if (!device_id) return;
+  const alerts = await getRows(
+    `SELECT alert_id, parameter
+     FROM alerts
+     WHERE type = 'inactivity'
+       AND (
+         device_id = $1
+         OR COALESCE(device_ids, ARRAY[]::text[]) @> ARRAY[$1]::text[]
+       )`,
+    [device_id]
+  );
+  for (const alert of alerts) {
+    const active = await getActiveLog(alert.alert_id, device_id, alert.parameter);
+    if (active?.log_id) await resolveActiveLog(active.log_id);
   }
 }
 
@@ -425,5 +462,6 @@ async function pollLatestDataAndEvaluateAlerts() {
 module.exports = {
   evaluateThresholdAlertsOnData,
   evaluateInactivityAlertsPeriodically,
-  pollLatestDataAndEvaluateAlerts
+  pollLatestDataAndEvaluateAlerts,
+  acknowledgeDeviceActivity,
 };
