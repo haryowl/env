@@ -632,7 +632,14 @@ export default function AlertSettings({ user }) {
         setEditingRecipient(null);
         loadConfigurations();
       } else {
-        setNotification({ open: true, message: 'Failed to delete email recipient', severity: 'error' });
+        let msg = 'Failed to delete email recipient';
+        try {
+          const data = await response.json();
+          if (data?.error) msg = data.error;
+        } catch {
+          // keep default message
+        }
+        setNotification({ open: true, message: msg, severity: 'error' });
       }
     } catch (error) {
       setNotification({ open: true, message: 'Failed to delete email recipient', severity: 'error' });
@@ -972,6 +979,7 @@ export default function AlertSettings({ user }) {
       field: 'actions',
       headerName: 'Actions',
       flex: 1,
+      minWidth: 160,
       renderCell: (params) => (
         <Box sx={{ display: 'flex', gap: 1 }}>
           <Button size="small" variant="outlined" onClick={() => setEditingRecipient({ id: params.row.id, name: params.row.name, email: params.row.email, alerts: Array.isArray(params.row.alerts) ? params.row.alerts : [] })}>
@@ -1154,7 +1162,7 @@ export default function AlertSettings({ user }) {
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>Email Recipients</Typography>
-                {/* Email Recipients - all users can add, only admins can delete */}
+                {/* Email Recipients — all users can add, edit, and delete recipients in their account */}
                 <Box sx={{ mb: 2, p: 2, border: '1px solid #ddd', borderRadius: 1 }}>
                   <Typography variant="subtitle2" gutterBottom>Add New Recipient</Typography>
                   <TextField
@@ -1192,7 +1200,7 @@ export default function AlertSettings({ user }) {
                 <div style={{ height: 300 }}>
                   <DataGrid
                     rows={emailRecipients}
-                    columns={isAdmin ? emailRecipientColumns : emailRecipientColumns.filter(col => col.field !== 'actions')}
+                    columns={emailRecipientColumns}
                     pageSize={5}
                     rowsPerPageOptions={[5]}
                     disableSelectionOnClick
