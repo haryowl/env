@@ -19,6 +19,66 @@ const DEFAULT_WA_BODY = JSON.stringify(
   2
 );
 
+function getAlertId(alert) {
+  return alert?.alert_id ?? alert?.id;
+}
+
+function hasAlertId(selectedIds, alertId) {
+  return (Array.isArray(selectedIds) ? selectedIds : []).some((id) => String(id) === String(alertId));
+}
+
+function toggleAlertId(selectedIds, alertId) {
+  const current = Array.isArray(selectedIds) ? selectedIds : [];
+  return hasAlertId(current, alertId)
+    ? current.filter((id) => String(id) !== String(alertId))
+    : [...current, alertId];
+}
+
+/** All alert options as one-row clickable chips (selected = filled). */
+function AlertOptionRow({ alerts, selectedIds, onToggle, disabled = false }) {
+  if (!alerts?.length) {
+    return (
+      <Typography variant="body2" color="text.secondary">
+        No alerts available
+      </Typography>
+    );
+  }
+
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        flexWrap: 'nowrap',
+        gap: 0.75,
+        alignItems: 'center',
+        overflowX: 'auto',
+        width: '100%',
+        py: 0.25,
+      }}
+    >
+      {alerts.map((alert) => {
+        const id = getAlertId(alert);
+        const isOn = hasAlertId(selectedIds, id);
+        return (
+          <Chip
+            key={id}
+            label={alert.name}
+            size="small"
+            clickable={!disabled}
+            color={isOn ? 'primary' : 'default'}
+            variant={isOn ? 'filled' : 'outlined'}
+            onClick={disabled ? undefined : (event) => {
+              event.stopPropagation();
+              onToggle(id);
+            }}
+            sx={{ flexShrink: 0 }}
+          />
+        );
+      })}
+    </Box>
+  );
+}
+
 export default function AlertSettings({ user }) {
   const [tab, setTab] = useState('email');
   const [loading, setLoading] = useState(false);
@@ -549,20 +609,45 @@ export default function AlertSettings({ user }) {
     }
   };
 
+  const persistEmailRecipient = async (id, payload, { notify = true, refresh = true } = {}) => {
+    const token = localStorage.getItem('iot_token');
+    const response = await fetch(`${API_BASE_URL}/alert-settings/email-recipients/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        name: payload.name,
+        email: payload.email,
+        alerts: Array.isArray(payload.alerts) ? payload.alerts : []
+      })
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || 'Failed to update recipient');
+    }
+
+    if (notify) {
+      setNotification({ open: true, message: 'Recipient updated successfully', severity: 'success' });
+    }
+    if (refresh) {
+      loadConfigurations();
+    } else {
+      setEmailRecipients((prev) =>
+        prev.map((row) => (row.id === id ? { ...row, ...payload } : row))
+      );
+    }
+    return true;
+  };
+
   // Add email recipient
   const addEmailRecipient = async () => {
     if (!newRecipient.email || !newRecipient.name) {
       setNotification({ open: true, message: 'Please fill in all required fields', severity: 'warning' });
       return;
     }
-
-    console.log('Adding email recipient with data:', newRecipient);
-    console.log('Alerts array details:', {
-      alerts: newRecipient.alerts,
-      alertsType: typeof newRecipient.alerts,
-      alertsLength: newRecipient.alerts.length,
-      alertsContent: newRecipient.alerts
-    });
 
     try {
       const token = localStorage.getItem('iot_token');
@@ -591,30 +676,33 @@ export default function AlertSettings({ user }) {
   const updateEmailRecipient = async () => {
     if (!editingRecipient) return;
     try {
-      const token = localStorage.getItem('iot_token');
-      const response = await fetch(`${API_BASE_URL}/alert-settings/email-recipients/${editingRecipient.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          name: editingRecipient.name,
-          email: editingRecipient.email,
-          alerts: Array.isArray(editingRecipient.alerts) ? editingRecipient.alerts : []
-        })
+      await persistEmailRecipient(editingRecipient.id, {
+        name: editingRecipient.name,
+        email: editingRecipient.email,
+        alerts: Array.isArray(editingRecipient.alerts) ? editingRecipient.alerts : []
       });
-
-      if (response.ok) {
-        setNotification({ open: true, message: 'Recipient updated successfully', severity: 'success' });
-        setEditingRecipient(null);
-        loadConfigurations();
-      } else {
-        const data = await response.json().catch(() => ({}));
-        setNotification({ open: true, message: data.error || 'Failed to update recipient', severity: 'error' });
-      }
+      setEditingRecipient(null);
     } catch (error) {
-      setNotification({ open: true, message: 'Failed to update recipient', severity: 'error' });
+      setNotification({ open: true, message: error.message || 'Failed to update recipient', severity: 'error' });
+    }
+  };
+
+  const toggleRecipientAlert = async (row, alertId) => {
+    const nextAlerts = toggleAlertId(row.alerts, alertId);
+    setEmailRecipients((prev) =>
+      prev.map((item) => (item.id === row.id ? { ...item, alerts: nextAlerts } : item))
+    );
+    try {
+      await persistEmailRecipient(
+        row.id,
+        { name: row.name, email: row.email, alerts: nextAlerts },
+        { notify: false, refresh: false }
+      );
+    } catch (error) {
+      setEmailRecipients((prev) =>
+        prev.map((item) => (item.id === row.id ? { ...item, alerts: row.alerts } : item))
+      );
+      setNotification({ open: true, message: error.message || 'Failed to update recipient', severity: 'error' });
     }
   };
 
@@ -961,20 +1049,22 @@ export default function AlertSettings({ user }) {
   ];
 
   const emailRecipientColumns = [
-    { field: 'name', headerName: 'Name', flex: 1 },
-    { field: 'email', headerName: 'Email', flex: 1.5 },
-    { field: 'alerts', headerName: 'Alerts', flex: 1.5, renderCell: (params) => {
-      console.log('Rendering alerts for recipient:', params.row.name, 'alerts value:', params.value, 'available alerts:', alerts);
-      return (
-        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-          {Array.isArray(params.value) ? params.value.map(alertId => {
-            const alert = alerts.find(a => a.id === alertId || a.alert_id === alertId);
-            console.log(`Looking for alert ID ${alertId}, found:`, alert);
-            return alert ? <Chip key={alertId} label={alert.name} size="small" /> : null;
-          }) : <Typography variant="body2" color="text.secondary">No alerts assigned</Typography>}
-        </Box>
-      );
-    }},
+    { field: 'name', headerName: 'Name', flex: 0.8, minWidth: 110 },
+    { field: 'email', headerName: 'Email', flex: 1.2, minWidth: 180 },
+    {
+      field: 'alerts',
+      headerName: 'Alerts',
+      flex: 1.8,
+      minWidth: 280,
+      sortable: false,
+      renderCell: (params) => (
+        <AlertOptionRow
+          alerts={alerts}
+          selectedIds={params.row.alerts}
+          onToggle={(alertId) => toggleRecipientAlert(params.row, alertId)}
+        />
+      ),
+    },
     {
       field: 'actions',
       headerName: 'Actions',
@@ -1058,7 +1148,7 @@ export default function AlertSettings({ user }) {
       {tab === 'email' && (
         <Grid container spacing={3}>
           {/* Email Configuration */}
-          <Grid item xs={12} md={6}>
+          <Grid item xs={12} md={5}>
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>SMTP Configuration</Typography>
@@ -1158,54 +1248,62 @@ export default function AlertSettings({ user }) {
           </Grid>
 
           {/* Email Recipients */}
-          <Grid item xs={12} md={6}>
+          <Grid item xs={12} md={7}>
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>Email Recipients</Typography>
                 {/* Email Recipients — all users can add, edit, and delete recipients in their account */}
                 <Box sx={{ mb: 2, p: 2, border: '1px solid #ddd', borderRadius: 1 }}>
                   <Typography variant="subtitle2" gutterBottom>Add New Recipient</Typography>
-                  <TextField
-                    label="Name"
-                    fullWidth
-                    value={newRecipient.name || ''}
-                    onChange={(e) => setNewRecipient({ ...newRecipient, name: e.target.value })}
-                    sx={{ mb: 1 }}
-                  />
-                  <TextField
-                    label="Email"
-                    fullWidth
-                    value={newRecipient.email || ''}
-                    onChange={(e) => setNewRecipient({ ...newRecipient, email: e.target.value })}
-                    sx={{ mb: 1 }}
-                  />
-                  <FormControl fullWidth sx={{ mb: 1 }}>
-                    <InputLabel>Alerts to Receive</InputLabel>
-                    <Select
-                      multiple
-                      value={newRecipient.alerts}
-                      onChange={(e) => setNewRecipient({ ...newRecipient, alerts: e.target.value })}
-                      label="Alerts to Receive"
-                    >
-                      {alerts.map(alert => (
-                        <MenuItem key={alert.alert_id} value={alert.alert_id}>{alert.name}</MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
+                  <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        label="Name"
+                        fullWidth
+                        value={newRecipient.name || ''}
+                        onChange={(e) => setNewRecipient({ ...newRecipient, name: e.target.value })}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        label="Email"
+                        fullWidth
+                        value={newRecipient.email || ''}
+                        onChange={(e) => setNewRecipient({ ...newRecipient, email: e.target.value })}
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>
+                        Alerts to receive — click to toggle
+                      </Typography>
+                      <AlertOptionRow
+                        alerts={alerts}
+                        selectedIds={newRecipient.alerts}
+                        onToggle={(alertId) =>
+                          setNewRecipient((prev) => ({ ...prev, alerts: toggleAlertId(prev.alerts, alertId) }))
+                        }
+                      />
+                    </Grid>
+                  </Grid>
                   <Button variant="contained" onClick={addEmailRecipient}>
                     Add Recipient
                   </Button>
                 </Box>
 
-                <div style={{ height: 300 }}>
-                  <DataGrid
-                    rows={emailRecipients}
-                    columns={emailRecipientColumns}
-                    pageSize={5}
-                    rowsPerPageOptions={[5]}
-                    disableSelectionOnClick
-                  />
-                </div>
+                <DataGrid
+                  rows={emailRecipients}
+                  columns={emailRecipientColumns}
+                  autoHeight
+                  getRowHeight={() => 'auto'}
+                  disableRowSelectionOnClick
+                  hideFooterSelectedRowCount
+                  pageSizeOptions={[10, 25, 100]}
+                  initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
+                  sx={{
+                    '& .MuiDataGrid-cell': { py: 1, alignItems: 'center' },
+                    '& .MuiDataGrid-columnHeader': { alignItems: 'center' },
+                  }}
+                />
 
                 <Dialog open={!!editingRecipient} onClose={() => setEditingRecipient(null)} maxWidth="sm" fullWidth>
                   <DialogTitle>Edit Recipient</DialogTitle>
@@ -1225,17 +1323,16 @@ export default function AlertSettings({ user }) {
                           onChange={(e) => setEditingRecipient({ ...editingRecipient, email: e.target.value })}
                         />
                         <FormControl fullWidth>
-                          <InputLabel>Alerts to Receive</InputLabel>
-                          <Select
-                            multiple
-                            value={editingRecipient.alerts}
-                            onChange={(e) => setEditingRecipient({ ...editingRecipient, alerts: e.target.value })}
-                            label="Alerts to Receive"
-                          >
-                            {alerts.map(alert => (
-                              <MenuItem key={alert.alert_id} value={alert.alert_id}>{alert.name}</MenuItem>
-                            ))}
-                          </Select>
+                          <Typography variant="caption" color="text.secondary" sx={{ mb: 0.75 }}>
+                            Alerts to receive — click to toggle
+                          </Typography>
+                          <AlertOptionRow
+                            alerts={alerts}
+                            selectedIds={editingRecipient.alerts}
+                            onToggle={(alertId) =>
+                              setEditingRecipient((prev) => ({ ...prev, alerts: toggleAlertId(prev.alerts, alertId) }))
+                            }
+                          />
                         </FormControl>
                       </Box>
                     )}
