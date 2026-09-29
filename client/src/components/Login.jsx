@@ -22,12 +22,15 @@ import {
   ArrowForward,
 } from '@mui/icons-material';
 
-const BRAND_BLUE = '#0a84c7';
-const BRAND_BLUE_DARK = '#0868a0';
+const BRAND_BLUE = '#1E6FD9';
+const BRAND_BLUE_DARK = '#1558B0';
+const PAGE_BG = '#F4F6F8';
+const FORM_MAX = 360;
 
 /** Decorative line/area chart for the left hero panel (pure SVG, no chart lib). */
 function HeroChart() {
-  const line = 'M0,86 C30,80 55,74 85,70 C118,65 138,72 168,62 C200,52 222,58 252,48 C285,38 310,42 340,30 C368,20 388,24 410,16';
+  const line =
+    'M0,86 C30,80 55,74 85,70 C118,65 138,72 168,62 C200,52 222,58 252,48 C285,38 310,42 340,30 C368,20 388,24 410,16';
   const area = `${line} L410,120 L0,120 Z`;
   return (
     <Box
@@ -36,7 +39,7 @@ function HeroChart() {
         borderRadius: 3,
         p: 2,
         pt: 1.5,
-        bgcolor: 'rgba(255,255,255,0.10)',
+        bgcolor: 'rgba(255,255,255,0.12)',
         border: '1px solid rgba(255,255,255,0.18)',
         backdropFilter: 'blur(4px)',
       }}
@@ -50,7 +53,7 @@ function HeroChart() {
             height: 20,
             fontSize: '0.62rem',
             fontWeight: 700,
-            color: '#BBF7D0',
+            color: '#E8FFF3',
             bgcolor: 'rgba(16,185,129,0.22)',
             '& .MuiChip-label': { px: 0.6 },
           }}
@@ -72,6 +75,22 @@ function HeroChart() {
         <Typography sx={{ fontSize: '0.58rem', color: 'rgba(255,255,255,0.65)' }}>Now</Typography>
       </Box>
     </Box>
+  );
+}
+
+function AksadataLogo({ size = 72 }) {
+  return (
+    <Box
+      component="img"
+      src="/aksadata-logo.png"
+      alt="AKSADATA"
+      sx={{
+        width: size,
+        height: 'auto',
+        display: 'block',
+        objectFit: 'contain',
+      }}
+    />
   );
 }
 
@@ -118,7 +137,7 @@ const Login = ({ onLogin }) => {
       },
     },
     '& .MuiInputBase-input': {
-      py: 1.1,
+      py: 1.15,
       color: '#0F172A',
       WebkitTextFillColor: '#0F172A',
       caretColor: '#0F172A',
@@ -126,7 +145,6 @@ const Login = ({ onLogin }) => {
         color: '#94A3B8',
         opacity: 1,
       },
-      // Keep typed/autofilled text dark even when the app theme is still dark after logout.
       '&:-webkit-autofill, &:-webkit-autofill:hover, &:-webkit-autofill:focus': {
         WebkitTextFillColor: '#0F172A',
         caretColor: '#0F172A',
@@ -140,48 +158,41 @@ const Login = ({ onLogin }) => {
   };
 
   const fieldLabel = (text) => (
-    <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', mb: 0.5 }}>
+    <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#334155', mb: 0.5 }}>
       {text}
     </Typography>
   );
 
   return (
-    <Box sx={{ minHeight: '100vh', display: 'flex', bgcolor: '#EEF2F6' }}>
+    <Box sx={{ minHeight: '100vh', display: 'flex', bgcolor: PAGE_BG }}>
       {/* ---- Left hero panel ---- */}
       <Box
         sx={{
-          flex: '0 0 52%',
+          flex: { md: '0 0 50%' },
           display: { xs: 'none', md: 'flex' },
           flexDirection: 'column',
           justifyContent: 'center',
           position: 'relative',
-          px: { md: 5, lg: 8 },
+          px: { md: 6, lg: 9 },
           py: 5,
           color: '#fff',
-          background: `linear-gradient(160deg, ${BRAND_BLUE} 0%, ${BRAND_BLUE_DARK} 100%)`,
+          bgcolor: BRAND_BLUE,
           overflow: 'hidden',
         }}
       >
-        <Typography
-          sx={{
-            position: 'absolute',
-            top: 28,
-            left: { md: 40, lg: 64 },
-            fontSize: '0.72rem',
-            fontWeight: 800,
-            letterSpacing: '0.12em',
-            textTransform: 'uppercase',
-            color: 'rgba(255,255,255,0.92)',
-          }}
-        >
-          Aksadata Monitoring Solution
-        </Typography>
-
-        <Box sx={{ maxWidth: 560, width: '100%', mx: 'auto' }}>
-          <Typography sx={{ fontSize: { md: '1.9rem', lg: '2.2rem' }, fontWeight: 800, lineHeight: 1.2, mb: 1 }}>
+        <Box sx={{ maxWidth: 520, width: '100%' }}>
+          <Typography
+            sx={{
+              fontSize: { md: '2rem', lg: '2.35rem' },
+              fontWeight: 800,
+              lineHeight: 1.15,
+              mb: 1.25,
+              letterSpacing: '-0.02em',
+            }}
+          >
             Environment Quality Monitoring
           </Typography>
-          <Typography sx={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.85)', mb: 4 }}>
+          <Typography sx={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.88)', mb: 4, maxWidth: 420 }}>
             Real-time environment data across all your monitoring sites
           </Typography>
           <HeroChart />
@@ -193,33 +204,37 @@ const Login = ({ onLogin }) => {
         sx={{
           flex: 1,
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
           px: 2,
-          py: 4,
+          py: { xs: 3, md: 4 },
+          position: 'relative',
+          minHeight: '100vh',
         }}
       >
-        <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%', maxWidth: 360 }}>
-          {/* Mobile-only brand */}
-          <Typography
-            sx={{
-              display: { xs: 'block', md: 'none' },
-              fontSize: '0.72rem',
-              fontWeight: 800,
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              color: BRAND_BLUE,
-              mb: 2,
-              textAlign: 'center',
-            }}
-          >
-            Aksadata Monitoring Solution
-          </Typography>
+        <Box
+          component="form"
+          onSubmit={handleSubmit}
+          sx={{
+            width: '100%',
+            maxWidth: FORM_MAX,
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            pb: { xs: 10, md: 12 },
+          }}
+        >
+          {/* Mobile-only brand mark */}
+          <Box sx={{ display: { xs: 'flex', md: 'none' }, justifyContent: 'center', mb: 3 }}>
+            <AksadataLogo size={88} />
+          </Box>
 
-          <Typography sx={{ fontSize: '1.15rem', fontWeight: 800, color: '#0F172A' }}>
+          <Typography sx={{ fontSize: '1.35rem', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>
             Welcome back
           </Typography>
-          <Typography sx={{ fontSize: '0.75rem', color: '#94A3B8', mb: 2.5 }}>
+          <Typography sx={{ fontSize: '0.8rem', color: '#94A3B8', mb: 3 }}>
             Sign in to your monitoring account
           </Typography>
 
@@ -281,6 +296,7 @@ const Login = ({ onLogin }) => {
                     edge="end"
                     disabled={loading}
                     size="small"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? <VisibilityOff sx={{ fontSize: 18 }} /> : <Visibility sx={{ fontSize: 18 }} />}
                   </IconButton>
@@ -304,7 +320,7 @@ const Login = ({ onLogin }) => {
                 Keep me signed in for 30 days
               </Typography>
             )}
-            sx={{ mb: 1.5, ml: -1 }}
+            sx={{ mb: 2, ml: -1 }}
           />
 
           <Button
@@ -314,14 +330,14 @@ const Login = ({ onLogin }) => {
             disabled={loading}
             endIcon={!loading ? <ArrowForward sx={{ fontSize: 16 }} /> : null}
             sx={{
-              py: 1.1,
+              py: 1.2,
               borderRadius: 5,
-              fontSize: '0.85rem',
+              fontSize: '0.9rem',
               fontWeight: 700,
               textTransform: 'none',
               color: '#fff',
               bgcolor: BRAND_BLUE,
-              boxShadow: '0 6px 16px rgba(10,132,199,0.35)',
+              boxShadow: '0 8px 20px rgba(30,111,217,0.35)',
               '&:hover': { bgcolor: BRAND_BLUE_DARK, color: '#fff' },
               '&.Mui-disabled': { color: 'rgba(255,255,255,0.7)' },
             }}
@@ -332,16 +348,31 @@ const Login = ({ onLogin }) => {
                 <Typography sx={{ fontSize: '0.85rem', fontWeight: 700 }}>Signing in…</Typography>
               </Box>
             ) : (
-              'Sign in'
+              'Sign In'
             )}
           </Button>
 
-          <Typography sx={{ fontSize: '0.72rem', color: '#94A3B8', textAlign: 'center', mt: 4 }}>
+          <Typography sx={{ fontSize: '0.72rem', color: '#94A3B8', textAlign: 'center', mt: 3.5 }}>
             Need access?{' '}
             <Typography component="span" sx={{ fontSize: '0.72rem', fontWeight: 700, color: BRAND_BLUE }}>
               Contact your administrator
             </Typography>
           </Typography>
+        </Box>
+
+        {/* Bottom brand mark — matches Login Page To Be */}
+        <Box
+          sx={{
+            position: 'absolute',
+            bottom: { xs: 20, md: 28 },
+            left: 0,
+            right: 0,
+            display: { xs: 'none', md: 'flex' },
+            justifyContent: 'center',
+            pointerEvents: 'none',
+          }}
+        >
+          <AksadataLogo size={80} />
         </Box>
       </Box>
     </Box>
