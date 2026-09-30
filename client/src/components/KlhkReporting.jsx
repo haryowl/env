@@ -62,8 +62,7 @@ const TMAT_LABELS = {
 };
 
 export default function KlhkReporting() {
-  const { canAccessMenu, userPermissions } = usePermissions();
-  const isAdmin = ['super_admin', 'admin'].includes(userPermissions?.role);
+  const { canAccessMenu, canUpdate: roleCanUpdate } = usePermissions();
 
   const [tab, setTab] = useState(0);
   const [devices, setDevices] = useState([]);
@@ -90,7 +89,7 @@ export default function KlhkReporting() {
   const [diagnostics, setDiagnostics] = useState(null);
   const [confirmStartOpen, setConfirmStartOpen] = useState(false);
 
-  const canUpdate = canAccessMenu('/klhk-reporting') && isAdmin;
+  const canUpdate = roleCanUpdate('/klhk-reporting');
 
   const loadDevices = useCallback(async () => {
     const res = await fetch(`${API_BASE_URL}/klhk-reporting/devices`, { headers: authHeaders() });
