@@ -191,8 +191,70 @@ const filterMenuAccess = (menuPath) => {
   };
 };
 
+/**
+ * Device ids a user may read. null means every device (admin or a role with all-device read).
+ * Matches the rules used when loading dashboards.
+ */
+async function getAllowedDeviceIdsForUser(userId) {
+  if (!userId) return [];
+  const user = await getRows(
+    'SELECT user_id, role FROM users WHERE user_id = $1',
+    [userId]
+  );
+  const roleName = user?.[0]?.role;
+  if (roleName === 'super_admin' || roleName === 'admin') return null;
+
+  let userRoles = await getRows(
+    `SELECT r.role_name, r.role_id, r.device_permissions
+     FROM user_roles ur
+     JOIN roles r ON ur.role_id = r.role_id
+     WHERE ur.user_id = $1`,
+    [userId]
+  );
+  if ((!userRoles || userRoles.length === 0) && roleName) {
+    userRoles = await getRows(
+      `SELECT role_id, role_name, device_permissions
+       FROM roles
+       WHERE role_name = $1`,
+      [roleName]
+    );
+  }
+  userRoles = Array.isArray(userRoles) ? userRoles : [];
+
+  for (const userRole of userRoles) {
+    const devicePerms = userRole?.device_permissions;
+    if (devicePerms && (devicePerms.all_devices?.read === true || devicePerms.all_groups?.read === true)) {
+      return null;
+    }
+  }
+
+  const allowedDeviceIds = [];
+  const roleIds = userRoles.map((r) => r?.role_id).filter(Boolean);
+  if (roleIds.length > 0) {
+    const roleDevicePermissions = await getRows(
+      `SELECT device_id FROM role_device_permissions
+       WHERE role_id = ANY($1)
+       AND permissions->>'read' = 'true'`,
+      [roleIds]
+    );
+    allowedDeviceIds.push(...(roleDevicePermissions || []).map((d) => d.device_id));
+  }
+
+  if (allowedDeviceIds.length === 0) {
+    const userDevicePermissions = await getRows(
+      `SELECT device_id FROM user_device_permissions
+       WHERE user_id = $1 AND permissions->>'read' = 'true'`,
+      [userId]
+    );
+    allowedDeviceIds.push(...(userDevicePermissions || []).map((d) => d && d.device_id).filter(Boolean));
+  }
+
+  return [...new Set(allowedDeviceIds.map(String))];
+}
+
 module.exports = {
   filterDataByRole,
   filterDeviceData,
-  filterMenuAccess
+  filterMenuAccess,
+  getAllowedDeviceIdsForUser,
 }; 

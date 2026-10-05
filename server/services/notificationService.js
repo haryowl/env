@@ -4,6 +4,7 @@ const moment = require('moment-timezone');
 const { query, getRow, getRows } = require('../config/database');
 const mqttService = require('./mqttService');
 const whatsappAlertService = require('./whatsappAlertService');
+const { getAllowedDeviceIdsForUser } = require('../middleware/dataFilter');
 const { getEffectiveDeviceTimezone } = require('../utils/deviceTimezone');
 
 function humanizeFieldName(value = '') {
@@ -300,7 +301,7 @@ class NotificationService {
   }
 
   // Send email notification (uses Alert Settings: alert_email_config for SMTP + alert_email_recipients for who receives)
-  async sendEmail(alertId, template, deviceName, parameter, value, min, max, lastUpdate, thresholdTime, parameterDisplay) {
+  async sendEmail(alertId, template, deviceName, parameter, value, min, max, lastUpdate, thresholdTime, parameterDisplay, deviceId = null) {
     try {
       // Use Alert Settings SMTP config for alert emails (recipients are also from Alert Settings)
       const alertConfig = await getRow('SELECT * FROM alert_email_config WHERE id = 1');
@@ -317,17 +318,42 @@ class NotificationService {
         auth: { user: alertConfig.smtp_user, pass: alertConfig.smtp_pass }
       });
 
-      // Get email recipients for this alert (Alert Settings > Email Recipients with "Alerts to Receive")
+      // Recipients who opted into this alert. Device scope is applied below.
       const recipients = await getRows(`
-        SELECT email, name
+        SELECT email, name, created_by
         FROM alert_email_recipients
         WHERE alerts @> $1::jsonb
       `, [JSON.stringify([alertId])]);
 
-      console.log(`Found ${recipients.length} email recipients for alert ${alertId}:`, recipients);
+      const allowedCache = new Map();
+      const scopedRecipients = [];
+      for (const recipient of recipients) {
+        if (!deviceId || recipient.created_by == null) {
+          scopedRecipients.push(recipient);
+          continue;
+        }
+        const ownerId = recipient.created_by;
+        if (!allowedCache.has(ownerId)) {
+          allowedCache.set(ownerId, await getAllowedDeviceIdsForUser(ownerId));
+        }
+        const allowed = allowedCache.get(ownerId);
+        const canReceive = allowed === null || allowed.includes(String(deviceId));
+        if (canReceive) {
+          scopedRecipients.push(recipient);
+        } else {
+          console.log(
+            `Skip email ${recipient.email}: user ${ownerId} has no access to device ${deviceId}`
+          );
+        }
+      }
 
-      if (recipients.length === 0) {
-        console.log(`No active email recipients found for alert ${alertId}`);
+      console.log(
+        `Found ${scopedRecipients.length} email recipients for alert ${alertId} device ${deviceId || '*'}:`,
+        scopedRecipients.map((r) => r.email)
+      );
+
+      if (scopedRecipients.length === 0) {
+        console.log(`No email recipients with access to device ${deviceId || '*'} for alert ${alertId}`);
         return;
       }
 
@@ -346,8 +372,8 @@ class NotificationService {
 
       const fromStr = `"${(alertConfig.from_name || 'Alert').replace(/"/g, '')}" <${alertConfig.from_email}>`;
 
-      // Send email to each recipient
-      for (const recipient of recipients) {
+      // Send email to each recipient who may see this device
+      for (const recipient of scopedRecipients) {
         try {
           const mailOptions = {
             from: fromStr,
@@ -866,7 +892,7 @@ class NotificationService {
 
     if (actions?.email) {
       runChannel('email', () =>
-        this.sendEmail(alert_id, template, deviceName, parameter, value, min, max, formattedLastUpdate, formattedThresholdTime, parameterDisplay)
+        this.sendEmail(alert_id, template, deviceName, parameter, value, min, max, formattedLastUpdate, formattedThresholdTime, parameterDisplay, alert?.device_id || null)
       );
     }
     if (actions?.http) {
