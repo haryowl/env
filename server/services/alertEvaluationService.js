@@ -306,17 +306,19 @@ async function evaluateThresholdAlertsOnData(device_id, parameter, value, timest
 
 async function evaluateInactivityForDevice(alert, device_id) {
   const lastTimestamp = await getLastActivityAt(device_id);
-  if (!lastTimestamp) return;
+  if (!lastTimestamp || Number.isNaN(lastTimestamp.getTime())) return;
 
-  const now = new Date();
-  const minutesSince = (now - lastTimestamp) / 60000;
+  const now = Date.now();
+  // Ignore clocks ahead of the server so a future payload cannot postpone the alert.
+  const activityMs = Math.min(lastTimestamp.getTime(), now);
+  const minutesSince = (now - activityMs) / 60000;
   const threshold = Number(alert.threshold_time);
   if (!Number.isFinite(threshold) || threshold <= 0) return;
 
   const active = await getActiveLog(alert.alert_id, device_id, alert.parameter);
   const isStale = minutesSince > threshold;
 
-  // Device is sending data again: close the inactive episode so the next outage can fire.
+  // Device stored data again: close the episode so the next outage can fire.
   if (!isStale) {
     if (active?.log_id) await resolveActiveLog(active.log_id);
     return;
@@ -342,13 +344,16 @@ async function evaluateInactivityForDevice(alert, device_id) {
         null,
         null,
         null,
-        lastTimestamp,
+        new Date(activityMs),
         alert.threshold_time
       );
     }
   } catch (error) {
     console.error('Failed to send notification for inactivity alert', alert.alert_id, error);
   }
+  console.log(
+    `Inactivity alert fired: alert=${alert.alert_id} device=${device_id} silent=${minutesSince.toFixed(1)}m threshold=${threshold}m`
+  );
 
   if (global.io) {
     global.io.emit('new_alert_log', {
@@ -364,22 +369,34 @@ async function evaluateInactivityForDevice(alert, device_id) {
 }
 
 async function getLastActivityAt(device_id) {
+  // Use when the server stored the row (created_at), not the clock inside the payload.
+  // A device timestamp a few minutes — or hours — ahead used to keep Last Update from ever firing.
+  // devices.last_seen is not used: subscribing to MQTT sets it even when no reading arrives.
   try {
     const row = await getRow(
       `SELECT GREATEST(
-         (SELECT MAX(timestamp) FROM sensor_readings WHERE device_id = $1),
-         (SELECT MAX(timestamp) FROM gps_tracks WHERE device_id = $1)
+         (SELECT MAX(created_at) FROM sensor_readings WHERE device_id = $1),
+         (SELECT MAX(created_at) FROM gps_tracks WHERE device_id = $1)
        ) AS last_at`,
+      [device_id]
+    );
+    if (row?.last_at) return new Date(row.last_at);
+  } catch (error) {
+    console.warn('getLastActivityAt created_at query failed, using reading timestamp:', error.message);
+  }
+
+  try {
+    const row = await getRow(
+      `SELECT MAX(timestamp) AS last_at
+       FROM sensor_readings
+       WHERE device_id = $1
+         AND timestamp <= NOW() + INTERVAL '2 minutes'`,
       [device_id]
     );
     return row?.last_at ? new Date(row.last_at) : null;
   } catch (error) {
-    console.warn('getLastActivityAt combined query failed, using sensor_readings only:', error.message);
-    const row = await getRow(
-      `SELECT MAX(timestamp) AS last_at FROM sensor_readings WHERE device_id = $1`,
-      [device_id]
-    );
-    return row?.last_at ? new Date(row.last_at) : null;
+    console.warn('getLastActivityAt fallback failed:', error.message);
+    return null;
   }
 }
 
@@ -408,7 +425,14 @@ async function evaluateInactivityAlertsPeriodically() {
   for (const alert of alerts) {
     const deviceIds = getAlertDeviceIds(alert);
     for (const device_id of deviceIds) {
-      await evaluateInactivityForDevice(alert, device_id);
+      try {
+        await evaluateInactivityForDevice(alert, device_id);
+      } catch (error) {
+        console.error(
+          `Inactivity check failed for alert ${alert.alert_id} device ${device_id}:`,
+          error.message || error
+        );
+      }
     }
   }
 }

@@ -8,7 +8,7 @@ const {
   validatePayload,
 } = require('../utils/mqttIngest');
 const { mergeObservedPayloadFields } = require('../utils/payloadFieldDiscovery');
-const { normalizeDatetimeToUtc } = require('../utils/deviceTimezone');
+const { normalizeDatetimeToUtc, getEffectiveDeviceTimezone } = require('../utils/deviceTimezone');
 const { evaluateThresholdAlertsOnData } = require('./alertEvaluationService');
 const bufferDataConfig = require('../config/bufferDataConfig');
 
@@ -677,17 +677,11 @@ class MQTTService {
       let canonicalDatetime = null;
 
       if (mappedDatetime != null && mappedDatetime !== '') {
-        const parsed = new Date(mappedDatetime);
-        if (!Number.isNaN(parsed.getTime())) {
-          canonicalDatetime =
-            typeof mappedDatetime === 'string' ? mappedDatetime : parsed.toISOString();
-          deviceTimestamp = parsed;
-        } else {
-          const normalized = normalizeDatetimeToUtc(mappedDatetime, tz);
-          if (normalized) {
-            canonicalDatetime = normalized;
-            deviceTimestamp = new Date(normalized);
-          }
+        const normalized = normalizeDatetimeToUtc(mappedDatetime, tz);
+        if (normalized) {
+          canonicalDatetime = normalized;
+          const parsed = new Date(normalized);
+          if (!Number.isNaN(parsed.getTime())) deviceTimestamp = parsed;
         }
       }
       const serverTimestamp = new Date();
@@ -1090,11 +1084,15 @@ class MQTTService {
 
   async evaluateAlertsWithRealTimeData(deviceId, processedData) {
     try {
+      const tz = await getEffectiveDeviceTimezone(deviceId);
       const readingAt = (() => {
         const mappedDatetime = processedData?.datetime;
         if (mappedDatetime != null && mappedDatetime !== '') {
-          const parsed = new Date(mappedDatetime);
-          if (!Number.isNaN(parsed.getTime())) return parsed;
+          const normalized = normalizeDatetimeToUtc(mappedDatetime, tz);
+          if (normalized) {
+            const parsed = new Date(normalized);
+            if (!Number.isNaN(parsed.getTime())) return parsed;
+          }
         }
         return new Date();
       })();

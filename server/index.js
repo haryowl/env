@@ -408,6 +408,9 @@ server.listen(PORT, async () => {
     }
   }
   await initializeServices();
+  evaluateInactivityAlertsPeriodically().catch((error) => {
+    console.error('Initial inactivity alert check failed:', error);
+  });
 });
 
 // After server startup, start periodic inactivity check
