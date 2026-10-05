@@ -47,6 +47,9 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
     mqtt: false,
     whatsapp: false,
     template: '',
+    resolve_email: false,
+    resolve_whatsapp: false,
+    resolve_template: '',
   };
 
   const [form, setForm] = useState(emptyForm);
@@ -77,6 +80,9 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
         mqtt: editingAlert.actions?.mqtt || false,
         whatsapp: editingAlert.actions?.whatsapp || false,
         template: editingAlert.template || '',
+        resolve_email: editingAlert.actions?.resolve_email || false,
+        resolve_whatsapp: editingAlert.actions?.resolve_whatsapp || false,
+        resolve_template: editingAlert.actions?.resolve_template || '',
       });
     } else {
       setAlertType('threshold');
@@ -181,7 +187,16 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
         form.threshold_time === '' || isNaN(Number(form.threshold_time)) ? null : Number(form.threshold_time),
       trigger_mode: alertType === 'inactivity' ? 'on_enter' : (form.trigger_mode || 'on_enter'),
       consecutive_count: Number(form.consecutive_count) || 3,
-      actions: { popup: form.popup, http: form.http, email: form.email, mqtt: form.mqtt, whatsapp: form.whatsapp },
+      actions: {
+        popup: form.popup,
+        http: form.http,
+        email: form.email,
+        mqtt: form.mqtt,
+        whatsapp: form.whatsapp,
+        resolve_email: form.resolve_email,
+        resolve_whatsapp: form.resolve_whatsapp,
+        resolve_template: form.resolve_template,
+      },
       template: form.template,
     };
 
@@ -664,7 +679,7 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
             </FormControl>
           </Box>
 
-          {(form.http || form.email) && (
+          {(form.http || form.email || form.resolve_email) && (
             <Box sx={{ mb: 2, p: 2, border: '1px solid #e0e0e0', borderRadius: 1 }}>
               <Typography variant="subtitle2" sx={{ mb: 1 }}>
                 Email &amp; HTTP setup
@@ -678,7 +693,7 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
               </Button>
             </Box>
           )}
-          {form.whatsapp && (
+          {(form.whatsapp || form.resolve_whatsapp) && (
             <Box sx={{ mb: 2, p: 2, border: '1px solid #e0e0e0', borderRadius: 1 }}>
               <Typography variant="subtitle2" sx={{ mb: 1 }}>
                 WhatsApp setup
@@ -754,6 +769,61 @@ export default function Alerts({ socket, devices = [], alerts = [], onAlertsChan
                   .replaceAll('{thresholdTime}', form.threshold_time)}
               </Typography>
             </Box>
+          </Box>
+          <Box sx={{ mb: 2, p: 2, border: '1px solid #e0e0e0', borderRadius: 1 }}>
+            <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+              When resolved
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+              Optional. Sends once when the value is back in range, or when an inactive device reports again.
+              Uses the same email recipients and WhatsApp numbers already assigned to this alert.
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 2, mb: 1 }}>
+              <FormControl>
+                <Checkbox
+                  checked={form.resolve_email}
+                  onChange={(e) => handleFormChange('resolve_email', e.target.checked)}
+                />
+                Email
+              </FormControl>
+              <FormControl>
+                <Checkbox
+                  checked={form.resolve_whatsapp}
+                  onChange={(e) => handleFormChange('resolve_whatsapp', e.target.checked)}
+                />
+                WhatsApp
+              </FormControl>
+            </Box>
+            {(form.resolve_email || form.resolve_whatsapp) && (
+              <>
+                <Box sx={{ display: 'flex', gap: 1, mb: 1, flexWrap: 'wrap' }}>
+                  {(variableHints[alertType] || []).map((v) => (
+                    <Button
+                      key={`resolve-${v.value}`}
+                      size="small"
+                      variant="outlined"
+                      onClick={() => handleFormChange('resolve_template', (form.resolve_template || '') + v.value)}
+                    >
+                      {v.label}
+                    </Button>
+                  ))}
+                </Box>
+                <TextField
+                  label="Resolved message"
+                  fullWidth
+                  multiline
+                  minRows={2}
+                  value={form.resolve_template}
+                  onChange={(e) => handleFormChange('resolve_template', e.target.value)}
+                  placeholder={
+                    alertType === 'threshold'
+                      ? '{device} {parameter} is back in range. Value {value} (min {min}, max {max}).'
+                      : '{device} is reporting again. Last update {lastUpdate}.'
+                  }
+                  helperText="Leave blank to use the placeholder text as the message."
+                />
+              </>
+            )}
           </Box>
         </DialogContent>
         <DialogActions>

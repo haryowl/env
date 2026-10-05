@@ -125,6 +125,45 @@ async function resolveActiveLog(logId) {
   );
 }
 
+function resolveMessageTemplate(alert, actions) {
+  const custom = String(actions.resolve_template || '').trim();
+  if (custom) return custom;
+  if (alert.type === 'inactivity') {
+    return '{device} is reporting again. Last update {lastUpdate}.';
+  }
+  return '{device} {parameter} is back in range. Value {value} (min {min}, max {max}).';
+}
+
+async function notifyAlertResolved({ alert, deviceId, parameter, value, timestamp }) {
+  const actions = parseAlertActions(alert);
+  if (!actions.resolve_email && !actions.resolve_whatsapp) return;
+
+  const device = await getRow('SELECT name FROM devices WHERE device_id = $1', [deviceId]);
+  const deviceName = device ? device.name : deviceId;
+  try {
+    await NotificationService.sendNotification(
+      {
+        ...alert,
+        device_id: deviceId,
+        template: resolveMessageTemplate(alert, actions),
+        actions: {
+          email: Boolean(actions.resolve_email),
+          whatsapp: Boolean(actions.resolve_whatsapp),
+        },
+      },
+      deviceName,
+      parameter,
+      value,
+      alert.min,
+      alert.max,
+      timestamp,
+      alert.threshold_time
+    );
+  } catch (error) {
+    console.error('Failed to send resolve notification for alert', alert.alert_id, error);
+  }
+}
+
 async function resolveActiveLogs(alertId, deviceId, parameter) {
   await query(
     `UPDATE alert_logs
@@ -235,6 +274,15 @@ async function evaluateThresholdAlertsOnData(device_id, parameter, value, timest
         console.log(
           `Threshold alert resolved: alert=${alert.alert_id} device=${device_id} parameter=${parameter} value=${value}`
         );
+        if (active?.log_id) {
+          await notifyAlertResolved({
+            alert,
+            deviceId: device_id,
+            parameter,
+            value,
+            timestamp,
+          });
+        }
       }
       continue;
     }
@@ -324,7 +372,16 @@ async function evaluateInactivityForDevice(alert, device_id) {
 
   // Device stored data again: close the episode so the next outage can fire.
   if (!isStale) {
-    if (active?.log_id) await resolveActiveLog(active.log_id);
+    if (active?.log_id) {
+      await resolveActiveLog(active.log_id);
+      await notifyAlertResolved({
+        alert,
+        deviceId: device_id,
+        parameter: alert.parameter,
+        value: null,
+        timestamp: new Date(activityMs),
+      });
+    }
     return;
   }
 
