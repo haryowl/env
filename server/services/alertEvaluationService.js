@@ -120,8 +120,18 @@ async function resolveActiveLog(logId) {
     `UPDATE alert_logs
      SET status = 'resolved',
          details = jsonb_set(COALESCE(details, '{}'::jsonb), '{resolvedAt}', to_jsonb(NOW()), true)
-     WHERE log_id = $1`,
+     WHERE log_id = $1 AND status = 'active'`,
     [logId]
+  );
+}
+
+async function resolveActiveLogs(alertId, deviceId, parameter) {
+  await query(
+    `UPDATE alert_logs
+     SET status = 'resolved',
+         details = jsonb_set(COALESCE(details, '{}'::jsonb), '{resolvedAt}', to_jsonb(NOW()), true)
+     WHERE alert_id = $1 AND device_id = $2 AND parameter = $3 AND status = 'active'`,
+    [alertId, deviceId, parameter]
   );
 }
 
@@ -209,18 +219,7 @@ async function evaluateThresholdAlertsOnData(device_id, parameter, value, timest
     const newReading = isNewReading(state, timestamp);
 
     if (!outOfRange) {
-      const lastStillOutOfRange =
-        state.last_value != null
-        && Number.isFinite(Number(state.last_value))
-        && (
-          (alert.min !== null && Number(state.last_value) < alert.min)
-          || (alert.max !== null && Number(state.last_value) > alert.max)
-        );
-      // Poll/mapper can present a different field as this parameter. Do not close an
-      // episode while the last known value for this alert is still out of range.
-      if ((state.in_breach || active?.log_id) && lastStillOutOfRange && Number(state.last_value) !== Number(value)) {
-        continue;
-      }
+      // Back in range ends the episode. The next breach must be able to open a new log.
       await upsertBreachState({
         alertId: alert.alert_id,
         deviceId: device_id,
@@ -231,7 +230,12 @@ async function evaluateThresholdAlertsOnData(device_id, parameter, value, timest
         lastFiredAt: null,
         lastValue: value,
       });
-      if (active?.log_id) await resolveActiveLog(active.log_id);
+      if (state.in_breach || active?.log_id) {
+        await resolveActiveLogs(alert.alert_id, device_id, parameter);
+        console.log(
+          `Threshold alert resolved: alert=${alert.alert_id} device=${device_id} parameter=${parameter} value=${value}`
+        );
+      }
       continue;
     }
 
@@ -279,7 +283,7 @@ async function evaluateThresholdAlertsOnData(device_id, parameter, value, timest
     }
 
     if (triggerMode === TRIGGER_EVERY_READING && active?.log_id) {
-      await resolveActiveLog(active.log_id);
+      await resolveActiveLogs(alert.alert_id, device_id, parameter);
     }
 
     await fireThresholdAlert({
@@ -465,16 +469,30 @@ async function pollLatestDataAndEvaluateAlerts() {
 
     for (const alert of alertsByDevice[device_id]) {
       const sourceField = sourceByTarget.get(alert.parameter);
-      const candidates = [alert.parameter, sourceField].filter(Boolean);
-      const placeholders = candidates.map((_, i) => `$${i + 2}`).join(', ');
-      const row = await getRow(
+      // Use this parameter's own latest row. Falling back to whichever of
+      // source/target is newest let a different field resolve or reopen the alert.
+      let row = await getRow(
         `SELECT sensor_type, value, timestamp
          FROM sensor_readings
-         WHERE device_id = $1 AND sensor_type IN (${placeholders})
+         WHERE device_id = $1 AND lower(sensor_type) = lower($2)
          ORDER BY timestamp DESC
          LIMIT 1`,
-        [device_id, ...candidates]
+        [device_id, alert.parameter]
       );
+      if (
+        !row
+        && sourceField
+        && String(sourceField).toLowerCase() !== String(alert.parameter).toLowerCase()
+      ) {
+        row = await getRow(
+          `SELECT sensor_type, value, timestamp
+           FROM sensor_readings
+           WHERE device_id = $1 AND lower(sensor_type) = lower($2)
+           ORDER BY timestamp DESC
+           LIMIT 1`,
+          [device_id, sourceField]
+        );
+      }
       if (!row) continue;
       const numericValue = Number(row.value);
       if (!Number.isFinite(numericValue)) continue;
