@@ -928,7 +928,9 @@ export default function KlhkReporting() {
                             </Table>
                           ) : periodSummary.results?.length > 20 ? (
                             <Typography variant="body2" color="text.secondary">
-                              {periodSummary.results.length} slot results — see Send logs tab for details.
+                              {periodSummary.skipped_no_data === periodSummary.results.length
+                                ? `${periodSummary.results.length} hours skipped. None of the mapped sensor fields have readings in this range, so nothing was queued or sent. Pick a range that shows data for those fields, or check the SPARING parameter mapping.`
+                                : `${periodSummary.results.length} slot results — see Send logs tab for details.`}
                             </Typography>
                           ) : null}
                         </Box>

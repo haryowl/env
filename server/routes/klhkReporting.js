@@ -1,7 +1,7 @@
 const express = require('express');
 const Joi = require('joi');
 const { getRow } = require('../config/database');
-const { authenticateToken, authorizeMenuAccess, authorizeRole } = require('../middleware/auth');
+const { authenticateToken, authorizeMenuAccess } = require('../middleware/auth');
 const { filterDataByRole, filterDeviceData } = require('../middleware/dataFilter');
 const klhkConfig = require('../services/klhkReporting/klhkConfigService');
 const klhkScheduler = require('../services/klhkReporting/klhkScheduler');
@@ -46,7 +46,7 @@ function getAllowedDeviceIds(req) {
 function requireDeviceAccess(req, res, deviceId) {
   const allowed = getAllowedDeviceIds(req);
   if (allowed === null) return true;
-  if (!Array.isArray(allowed) || !allowed.includes(deviceId)) {
+  if (!Array.isArray(allowed) || !allowed.map(String).includes(String(deviceId))) {
     res.status(403).json({ error: 'Access denied for device', code: 'DEVICE_ACCESS_DENIED' });
     return false;
   }
@@ -240,7 +240,6 @@ router.put('/devices/:deviceId/mappings/tmat', authorizeMenuAccess('/klhk-report
 
 router.post(
   '/devices/:deviceId/start',
-  authorizeRole(['super_admin', 'admin']),
   authorizeMenuAccess('/klhk-reporting', 'update'),
   async (req, res) => {
     try {
@@ -261,7 +260,6 @@ router.post(
 
 router.post(
   '/devices/:deviceId/stop',
-  authorizeRole(['super_admin', 'admin']),
   authorizeMenuAccess('/klhk-reporting', 'update'),
   async (req, res) => {
     try {
@@ -305,7 +303,6 @@ router.get('/devices/:deviceId/queue', authorizeMenuAccess('/klhk-reporting', 'r
 
 router.post(
   '/devices/:deviceId/fetch-secret',
-  authorizeRole(['super_admin', 'admin']),
   authorizeMenuAccess('/klhk-reporting', 'update'),
   async (req, res) => {
     try {
@@ -330,7 +327,6 @@ const sendNowSchema = Joi.object({
 
 router.post(
   '/devices/:deviceId/send-now',
-  authorizeRole(['super_admin', 'admin']),
   authorizeMenuAccess('/klhk-reporting', 'update'),
   async (req, res) => {
     try {
@@ -371,7 +367,6 @@ router.post(
 
 router.post(
   '/devices/:deviceId/backfill',
-  authorizeRole(['super_admin', 'admin']),
   authorizeMenuAccess('/klhk-reporting', 'update'),
   async (req, res) => {
     try {
@@ -404,7 +399,6 @@ const sparingPeriodSendSchema = sparingPeriodSchema.keys({
 
 router.post(
   '/devices/:deviceId/sparing/period/preview',
-  authorizeRole(['super_admin', 'admin']),
   authorizeMenuAccess('/klhk-reporting', 'read'),
   async (req, res) => {
     try {
@@ -424,7 +418,6 @@ router.post(
 
 router.post(
   '/devices/:deviceId/sparing/period/send',
-  authorizeRole(['super_admin', 'admin']),
   authorizeMenuAccess('/klhk-reporting', 'update'),
   async (req, res) => {
     try {
@@ -444,7 +437,6 @@ router.post(
 
 router.post(
   '/devices/:deviceId/process-queue',
-  authorizeRole(['super_admin', 'admin']),
   authorizeMenuAccess('/klhk-reporting', 'update'),
   async (req, res) => {
     try {
