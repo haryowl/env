@@ -1,5 +1,6 @@
 const { getRows } = require('../../config/database');
 const klhkConfig = require('./klhkConfigService');
+const { roundKlhkNumber } = require('./klhkConstants');
 
 const SLOT_MS = 2 * 60 * 1000;
 const BIN_SECONDS = 120;
@@ -143,7 +144,7 @@ function interpolateMissingData(records, hourTimestampMs, mappings) {
       .filter((value) => value !== null);
     fallbackByParam[param] =
       values.length > 0
-        ? Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(2))
+        ? roundKlhkNumber(values.reduce((sum, value) => sum + value, 0) / values.length, param)
         : 0;
   }
   const result = [];
@@ -190,7 +191,7 @@ async function collectHourlyData(deviceId, loggerId, hourTimestampMs, opts = {})
     if (!dataByTimestamp.has(binSeconds)) {
       dataByTimestamp.set(binSeconds, { datetime: binSeconds });
     }
-    const val = parseNumericValue(row.value);
+    const val = roundKlhkNumber(parseNumericValue(row.value), mapping.sparing_param);
     if (val != null) {
       dataByTimestamp.get(binSeconds)[mapping.sparing_param] = val;
     }
@@ -237,7 +238,7 @@ async function collect2MinData(deviceId, loggerId, slotTimestampMs, opts = {}) {
   for (const m of mappings) {
     const row = latestByField.get(m.sparing_param);
     if (row) {
-      const val = parseNumericValue(row.value);
+      const val = roundKlhkNumber(parseNumericValue(row.value), m.sparing_param);
       if (val != null) record[m.sparing_param] = val;
     }
   }

@@ -2,7 +2,7 @@ const https = require('https');
 const { URL } = require('url');
 const { query, getRow, getRows } = require('../../config/database');
 const klhkConfig = require('./klhkConfigService');
-const { DEFAULT_TMAT_API_URL } = require('./klhkConstants');
+const { DEFAULT_TMAT_API_URL, roundKlhkNumber } = require('./klhkConstants');
 
 function parseNumericValue(value) {
   if (value == null) return null;
@@ -38,7 +38,13 @@ async function collectRealtimePayload(deviceId) {
     const raw = await getLatestReading(deviceId, m.sensor_field);
     if (raw == null) continue;
     const num = parseNumericValue(raw);
-    body[m.tmat_param] = typeof num === 'number' ? String(num) : String(num);
+    if (typeof num === 'number') {
+      const rounded = roundKlhkNumber(num, m.tmat_param);
+      if (rounded == null) continue;
+      body[m.tmat_param] = String(rounded);
+    } else {
+      body[m.tmat_param] = String(num);
+    }
     hasAny = true;
   }
 
