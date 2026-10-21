@@ -31,6 +31,9 @@ import { alertAppliesToDevice } from '../utils/alertDevices';
 import DashboardMap from './DashboardMap';
 import RealtimeChartDisplaySelect from './RealtimeChartDisplaySelect';
 import ViewInArIcon from '@mui/icons-material/ViewInAr';
+import EventAvailableIcon from '@mui/icons-material/EventAvailable';
+import EventBusyIcon from '@mui/icons-material/EventBusy';
+import TagIcon from '@mui/icons-material/Tag';
 import HeatRatioModal, { resolveHeatProgram } from './HeatRatioModal';
 import TmatSimulationModal from './TmatSimulationModal';
 import SparingSimulationModal from './SparingSimulationModal';
@@ -170,6 +173,83 @@ const statusDotColor = (status) => {
   if (status === 'warning') return '#F59E0B';
   return '#94A3B8';
 };
+
+function parseDateOnly(value) {
+  if (!value) return null;
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  const parsed = new Date(value);
+  if (!Number.isFinite(parsed.getTime())) return null;
+  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+}
+
+function formatValidToMeta(value) {
+  const date = parseDateOnly(value);
+  if (!date) {
+    return { text: 'Not set', tone: 'muted', expired: false };
+  }
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const expired = date < today;
+  const text = date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  return { text, tone: expired ? 'expired' : 'ok', expired };
+}
+
+function klhkIdentityItems(device) {
+  if (!device) return [];
+  const items = [];
+  const loggerId = String(device.logger_id || '').trim();
+  const deviceIdUnik = String(device.device_id_unik || '').trim();
+  if (loggerId) items.push({ label: 'Logger ID', value: loggerId });
+  if (deviceIdUnik) items.push({ label: 'Device ID unik', value: deviceIdUnik });
+  return items;
+}
+
+function DeviceIdentityMeta({ device, compact = false }) {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+  if (!device) return null;
+
+  const valid = formatValidToMeta(device.valid_to);
+  const identities = klhkIdentityItems(device);
+  const validColors = {
+    ok: { fg: isDark ? '#6EE7B7' : '#047857', bg: alpha('#10B981', isDark ? 0.18 : 0.1) },
+    expired: { fg: isDark ? '#FBBF24' : '#B45309', bg: alpha('#F59E0B', isDark ? 0.2 : 0.12) },
+    muted: { fg: 'text.secondary', bg: alpha(theme.palette.text.primary, isDark ? 0.08 : 0.05) },
+  }[valid.tone];
+  const uidColors = { fg: isDark ? '#5EEAD4' : '#0F766E', bg: alpha('#14B8A6', isDark ? 0.18 : 0.1) };
+  const ValidIcon = valid.expired ? EventBusyIcon : EventAvailableIcon;
+  const chipSx = {
+    height: compact ? 22 : 24,
+    maxWidth: compact ? 220 : 280,
+    fontWeight: 700,
+    fontSize: compact ? '0.62rem' : '0.66rem',
+    '& .MuiChip-icon': { ml: 0.6, fontSize: compact ? '13px !important' : '15px !important' },
+    '& .MuiChip-label': { px: 0.75, overflow: 'hidden', textOverflow: 'ellipsis' },
+  };
+
+  return (
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.6, alignItems: 'center' }}>
+      <Chip
+        size="small"
+        icon={<ValidIcon sx={{ color: `${validColors.fg} !important` }} />}
+        label={valid.expired ? `Expired ${valid.text}` : `Valid to ${valid.text}`}
+        title={valid.expired ? `Device access expired ${valid.text}` : `Device valid to ${valid.text}`}
+        sx={{ ...chipSx, color: validColors.fg, bgcolor: validColors.bg }}
+      />
+      {identities.map((item) => (
+        <Chip
+          key={`${item.label}-${item.value}`}
+          size="small"
+          icon={<TagIcon sx={{ color: `${uidColors.fg} !important` }} />}
+          label={`${item.label} ${item.value}`}
+          title={`${item.label}: ${item.value}`}
+          sx={{ ...chipSx, color: uidColors.fg, bgcolor: uidColors.bg, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}
+        />
+      ))}
+    </Box>
+  );
+}
 
 export default function NDashboard({ socket }) {
   const theme = useTheme();
@@ -700,6 +780,11 @@ export default function NDashboard({ socket }) {
           <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary' }}>
             {overviewSubtitle}
           </Typography>
+          {selectedDevice && (
+            <Box sx={{ mt: 0.7 }}>
+              <DeviceIdentityMeta device={selectedDevice} />
+            </Box>
+          )}
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
           <FormControl size="small" sx={{ minWidth: 125 }}>
@@ -1146,6 +1231,11 @@ export default function NDashboard({ socket }) {
                   }}
                 />
               </Box>
+              {selectedDevice && (
+                <Box sx={{ mb: 1 }}>
+                  <DeviceIdentityMeta device={selectedDevice} compact />
+                </Box>
+              )}
               {(showTmat3dButton || showSparing3dButton) && (
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, mb: 1 }}>
                   {showTmat3dButton && (

@@ -20,6 +20,7 @@ const {
   normalizeReadingValue,
   resolveSensorReadingValue,
 } = require('../utils/sensorReadingValue');
+const { ensureKlhkReportingSchema } = require('../utils/ensureKlhkReportingSchema');
 
 const router = express.Router();
 
@@ -378,6 +379,20 @@ router.get('/', authenticateToken, async (req, res) => {
     const offsetParam = paramCount + 3;
     const listParams = [...params, staleMins, req.user.user_id, limit, offset];
 
+    let klhkSelect = `NULL::text AS logger_id,
+        NULL::text AS device_id_unik,
+        NULL::text AS klhk_reporting_type,`;
+    let klhkJoin = '';
+    try {
+      await ensureKlhkReportingSchema();
+      klhkSelect = `NULLIF(BTRIM(kdc.logger_id), '') AS logger_id,
+        NULLIF(BTRIM(kdc.device_id_unik), '') AS device_id_unik,
+        kdc.reporting_type AS klhk_reporting_type,`;
+      klhkJoin = 'LEFT JOIN klhk_device_config kdc ON kdc.device_id = d.device_id';
+    } catch (error) {
+      console.warn('KLHK identifiers unavailable on device list:', error.message);
+    }
+
     // Get total count
     const countResult = await getRow(`
       SELECT COUNT(*) as total
@@ -389,6 +404,7 @@ router.get('/', authenticateToken, async (req, res) => {
     const devices = await getRows(`
       SELECT 
         d.*,
+        ${klhkSelect}
         eff.last_data_at AS freshest_data_at,
         ${sqlUiStatusCase(staleParam)} AS ui_status,
         dg.name as group_name,
@@ -398,6 +414,7 @@ router.get('/', authenticateToken, async (req, res) => {
       ${sqlLateralLastDataAt()}
       LEFT JOIN device_groups dg ON d.group_id = dg.group_id
       LEFT JOIN user_device_permissions udp ON d.device_id = udp.device_id AND udp.user_id = $${userParam}
+      ${klhkJoin}
       ${whereClause}
       ORDER BY d.name ASC
       LIMIT $${limitParam} OFFSET $${offsetParam}
