@@ -8,12 +8,14 @@ import {
   Drawer,
   List,
   ListItem,
+  ListItemButton,
   ListItemIcon,
   ListItemText,
   Avatar,
   Menu,
   MenuItem,
   Divider,
+  Collapse,
   useMediaQuery,
   useTheme as useMuiTheme,
   CircularProgress,
@@ -21,6 +23,7 @@ import {
   Link,
   Tooltip,
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import {
   Menu as MenuIcon,
   Security as SecurityIcon,
@@ -48,7 +51,13 @@ import {
 } from '../config/navigationConfig';
 import { resolveProfilePictureUrl } from '../utils/profilePicture';
 
-const drawerWidth = 240;
+const drawerWidth = 248;
+
+function defaultExpandedSections() {
+  const stored = loadStoredExpandedSections();
+  if (stored) return stored;
+  return Object.fromEntries(MENU_SECTIONS.map((section) => [section.title, true]));
+}
 
 const Layout = ({ children, user, userContext, onLogout }) => {
   const avatarSrc = resolveProfilePictureUrl(user?.profile_picture);
@@ -99,6 +108,14 @@ const Layout = ({ children, user, userContext, onLogout }) => {
   };
 
   const sidebarColors = getSidebarColors();
+  const isLightSidebar = currentTheme === 'light' || currentTheme === 'green';
+  const navSelectedBg = alpha(theme.palette.primary.main, isLightSidebar ? 0.14 : 0.24);
+  const navSelectedFg = isLightSidebar ? theme.palette.primary.main : sidebarColors.textActive;
+  const navHoverBg = isLightSidebar ? 'rgba(15, 23, 42, 0.045)' : 'rgba(255,255,255,0.08)';
+  const navItemFg = sidebarColors.textSecondary;
+  const navSectionFg = isLightSidebar
+    ? alpha(sidebarColors.text, 0.45)
+    : alpha(sidebarColors.text, 0.55);
 
   // Get sidebar gradients based on theme
   const getSidebarGradients = () => {
@@ -127,7 +144,7 @@ const Layout = ({ children, user, userContext, onLogout }) => {
   const sidebarGradients = getSidebarGradients();
   const [drawerOpen, setDrawerOpen] = useState(!isMobile);
   const [anchorEl, setAnchorEl] = useState(null);
-  const [expandedSections, setExpandedSections] = useState(() => loadStoredExpandedSections() || {});
+  const [expandedSections, setExpandedSections] = useState(defaultExpandedSections);
   const navigate = useNavigate();
   const location = useLocation();
   const isMobileDataShell = /^\/m\//.test(location.pathname);
@@ -322,127 +339,130 @@ const Layout = ({ children, user, userContext, onLogout }) => {
       </Box>
 
       {/* Navigation Menu */}
-      <List sx={{ flexGrow: 1, minHeight: 0, overflow: 'auto', WebkitOverflowScrolling: 'touch', px: 1, py: 2 }}>
+      <List
+        sx={{
+          flexGrow: 1,
+          minHeight: 0,
+          overflow: 'auto',
+          WebkitOverflowScrolling: 'touch',
+          px: 1.25,
+          py: 1.25,
+        }}
+      >
         {permissionsLoading ? (
           <ListItem>
             <ListItemIcon>
-              <CircularProgress size={24} sx={{ color: 'white' }} />
+              <CircularProgress size={22} sx={{ color: sidebarColors.text }} />
             </ListItemIcon>
-            <ListItemText 
-              primary="Loading menu..." 
-              sx={{ color: 'white' }}
+            <ListItemText
+              primary="Loading menu..."
+              sx={{ '& .MuiListItemText-primary': { color: sidebarColors.text, fontSize: '0.82rem' } }}
             />
           </ListItem>
         ) : filteredMenuSections.length === 0 ? (
           <ListItem>
             <ListItemIcon>
-              <SecurityIcon sx={{ color: 'white' }} />
+              <SecurityIcon sx={{ color: sidebarColors.text }} />
             </ListItemIcon>
-            <ListItemText 
-              primary="No menu access" 
+            <ListItemText
+              primary="No menu access"
               secondary="Contact administrator for permissions"
-              sx={{ 
-                '& .MuiListItemText-primary': { color: 'white' },
-                '& .MuiListItemText-secondary': { color: 'rgba(255,255,255,0.7)' }
+              sx={{
+                '& .MuiListItemText-primary': { color: sidebarColors.text, fontSize: '0.82rem' },
+                '& .MuiListItemText-secondary': { color: sidebarColors.textSecondary, fontSize: '0.72rem' },
               }}
             />
           </ListItem>
         ) : (
-          filteredMenuSections.map((section) => (
-            <Box key={section.title}>
-              {/* Section Header */}
-              <ListItem
-                onClick={() => toggleSection(section.title)}
-                sx={{ 
-                  cursor: 'pointer',
-                  borderRadius: '4px',
-                  mb: 0.5,
-                  py: 1,
-                  '&:hover': {
-                    backgroundColor: currentTheme === 'light' || currentTheme === 'green' ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.1)',
-                  }
-                }}
-              >
-                <ListItemIcon sx={{ color: sidebarColors.text, minWidth: 36 }}>
-                  {section.icon}
-                </ListItemIcon>
-                <ListItemText 
-                  primary={section.title}
-                  sx={{ 
-                    color: sidebarColors.text,
-                    '& .MuiListItemText-primary': {
-                      fontSize: '0.875rem',
-                      fontWeight: 500
-                    }
-                  }}
-                />
-                {expandedSections[section.title] ? 
-                  <ExpandLessIcon sx={{ color: sidebarColors.text }} /> : 
-                  <ExpandMoreIcon sx={{ color: sidebarColors.text }} />
-                }
-              </ListItem>
-
-              {/* Section Items */}
-              {expandedSections[section.title] && section.items.map((item) => (
-                <ListItem
-                  key={item.text}
-                  onClick={() => handleNavigation(item.path)}
-                  selected={location.pathname === item.path}
-                  sx={{ 
-                    cursor: 'pointer',
-                    ml: 1.5,
-                    mr: 0.5,
-                    borderRadius: '4px',
-                    mb: 0.25,
-                    py: 0.75,
-                    pl: 2,
-                    borderLeft: '3px solid transparent',
-                    '&.Mui-selected': {
-                      backgroundColor: currentTheme === 'light' || currentTheme === 'green' ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.18)',
-                      borderLeftColor: currentTheme === 'light' || currentTheme === 'green' ? theme.palette.primary.main : 'rgba(255,255,255,0.9)',
-                      '&:hover': {
-                        backgroundColor: currentTheme === 'light' || currentTheme === 'green' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.22)',
-                      }
-                    },
-                    '&:hover': {
-                      backgroundColor: currentTheme === 'light' || currentTheme === 'green' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.08)',
-                    }
+          filteredMenuSections.map((section) => {
+            const open = Boolean(expandedSections[section.title]);
+            return (
+              <Box key={section.title} sx={{ mb: 0.75 }}>
+                <ListItemButton
+                  onClick={() => toggleSection(section.title)}
+                  sx={{
+                    minHeight: 32,
+                    px: 1.25,
+                    py: 0.7,
+                    borderRadius: '10px',
+                    '&:hover': { backgroundColor: navHoverBg },
                   }}
                 >
-                  <ListItemIcon sx={{ 
-                    color: location.pathname === item.path ? sidebarColors.textActive : sidebarColors.textSecondary,
-                    minWidth: 36
-                  }}>
-                    {item.icon}
-                  </ListItemIcon>
-                  <ListItemText 
-                    primary={item.text} 
-                    sx={{ 
-                      color: location.pathname === item.path ? sidebarColors.textActive : sidebarColors.textSecondary,
+                  <ListItemText
+                    primary={section.title}
+                    sx={{
+                      m: 0,
                       '& .MuiListItemText-primary': {
-                        fontSize: '0.8125rem',
-                        fontWeight: location.pathname === item.path ? 600 : 400
-                      }
+                        color: navSectionFg,
+                        fontSize: '0.68rem',
+                        fontWeight: 700,
+                        letterSpacing: '0.08em',
+                        textTransform: 'uppercase',
+                        lineHeight: 1.2,
+                      },
                     }}
                   />
-                  {location.pathname === item.path && (
-                    <Box sx={{ 
-                      width: 6, 
-                      height: 6, 
-                      borderRadius: '50%', 
-                      bgcolor:
-                        currentTheme === 'light' || currentTheme === 'green'
-                          ? theme.palette.primary.main
-                          : currentTheme === 'darkBlue'
-                            ? theme.palette.primary.main
-                            : '#F59E0B',
-                      ml: 0.5
-                    }} />
+                  {open ? (
+                    <ExpandLessIcon sx={{ fontSize: 18, color: navSectionFg }} />
+                  ) : (
+                    <ExpandMoreIcon sx={{ fontSize: 18, color: navSectionFg }} />
                   )}
-                </ListItem>
-              ))}
-            </Box>
-          ))
+                </ListItemButton>
+
+                <Collapse in={open} timeout="auto" unmountOnExit>
+                  <List disablePadding>
+                    {section.items.map((item) => {
+                      const selected = location.pathname === item.path;
+                      return (
+                        <ListItemButton
+                          key={item.text}
+                          onClick={() => handleNavigation(item.path)}
+                          selected={selected}
+                          sx={{
+                            minHeight: 38,
+                            mx: 0,
+                            mb: 0.15,
+                            px: 1.25,
+                            py: 0.55,
+                            borderRadius: '10px',
+                            color: selected ? navSelectedFg : navItemFg,
+                            '& .MuiListItemIcon-root': {
+                              minWidth: 32,
+                              color: 'inherit',
+                              '& .MuiSvgIcon-root': { fontSize: 18, color: 'currentColor !important' },
+                            },
+                            '&:hover': {
+                              backgroundColor: selected ? navSelectedBg : navHoverBg,
+                            },
+                            '&.Mui-selected': {
+                              backgroundColor: navSelectedBg,
+                              color: navSelectedFg,
+                              '&:hover': { backgroundColor: navSelectedBg },
+                            },
+                          }}
+                        >
+                          <ListItemIcon>{item.icon}</ListItemIcon>
+                          <ListItemText
+                            primary={item.text}
+                            sx={{
+                              m: 0,
+                              '& .MuiListItemText-primary': {
+                                fontSize: '0.8125rem',
+                                fontWeight: selected ? 600 : 500,
+                                letterSpacing: 0,
+                                color: 'inherit',
+                                lineHeight: 1.25,
+                              },
+                            }}
+                          />
+                        </ListItemButton>
+                      );
+                    })}
+                  </List>
+                </Collapse>
+              </Box>
+            );
+          })
         )}
       </List>
     </Box>
@@ -686,6 +706,7 @@ const Layout = ({ children, user, userContext, onLogout }) => {
               boxSizing: 'border-box', 
               width: drawerWidth,
               border: 'none',
+              borderRight: `1px solid ${isLightSidebar ? 'rgba(15,23,42,0.08)' : sidebarGradients.border}`,
               backgroundColor: sidebarColors.background
             },
           }}
@@ -703,7 +724,8 @@ const Layout = ({ children, user, userContext, onLogout }) => {
               boxSizing: 'border-box', 
               width: drawerWidth,
               border: 'none',
-              boxShadow: 2,
+              borderRight: `1px solid ${isLightSidebar ? 'rgba(15,23,42,0.08)' : sidebarGradients.border}`,
+              boxShadow: 'none',
               backgroundColor: sidebarColors.background
             },
           }}
