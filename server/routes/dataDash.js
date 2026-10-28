@@ -29,6 +29,7 @@ const {
   collectScopedSensorQuery,
   appendSensorScopeClause,
 } = require('../utils/dataDashSensorScope');
+const { getFieldVisibilityForUser, filterFieldNameList } = require('../utils/fieldPermissions');
 const router = express.Router();
 
 const EMPTY_DATA_DASH_RESPONSE = {
@@ -72,6 +73,8 @@ router.get(['/', ''], async (req, res) => {
     if (categoryOpts.excludeCategories.length || categoryOpts.categories) {
       params = filterFieldNames(params, categoryMap, categoryOpts);
     }
+    const fieldVisibility = await getFieldVisibilityForUser(req.user);
+    params = filterFieldNameList(params, fieldVisibility);
     const start = startDate ? new Date(startDate) : null;
     const end = endDate ? new Date(endDate) : null;
     const group = groupBy || null;
@@ -327,6 +330,7 @@ router.get(['/', ''], async (req, res) => {
       ? filteredParams
       : [...new Set(mappedData.flatMap(row => Object.keys(row)).filter(k => !['timestamp', 'datetime', 'server_received_at', 'device_id', 'device_name'].includes(k)))];
     paramCols = filterFieldNames(paramCols, categoryMap, categoryOpts);
+    paramCols = filterFieldNameList(paramCols, fieldVisibility);
     Object.values(merged).forEach(row => {
       for (const p of paramCols) {
         if (!(p in row)) {

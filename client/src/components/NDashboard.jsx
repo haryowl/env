@@ -446,8 +446,8 @@ export default function NDashboard({ socket }) {
     };
     addKeysFrom(latest.fields);
     history.forEach((row) => addKeysFrom(row));
-    return orderParams([...keySet]);
-  }, [mappedParams, latest.fields, history]);
+    return orderParams(filterDataViewParams([...keySet], fieldMetadata));
+  }, [mappedParams, latest.fields, history, fieldMetadata]);
 
   const heatProgram = useMemo(() => {
     const groupMeta = knownGroups.find((g) => {

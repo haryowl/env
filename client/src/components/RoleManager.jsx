@@ -33,7 +33,11 @@ import {
   CardContent,
   CardActions,
   Tooltip,
-  Divider
+  Divider,
+  Autocomplete,
+  Radio,
+  RadioGroup,
+  FormLabel
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -46,6 +50,111 @@ import {
 } from '@mui/icons-material';
 import { usePermissions } from '../hooks/usePermissions';
 import { getDeviceDisplayName } from '../utils/deviceLabel';
+
+const DEFAULT_FIELD_PERMISSIONS = { mode: 'all', fields: [] };
+
+const normalizeClientFieldPermissions = (raw) => {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { ...DEFAULT_FIELD_PERMISSIONS };
+  }
+  return {
+    mode: raw.mode === 'selected' ? 'selected' : 'all',
+    fields: Array.isArray(raw.fields) ? raw.fields.filter(Boolean) : [],
+  };
+};
+
+const ParameterVisibilityEditor = ({ value, onChange, fields }) => {
+  const perms = normalizeClientFieldPermissions(value);
+  const selectedFields = perms.fields.map((name) => {
+    const found = fields.find((f) => f.field_name === name);
+    return found || { field_name: name, display_name: name, category: 'Custom' };
+  });
+
+  return (
+    <Accordion sx={{ mt: 2 }}>
+      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+        <Typography variant="h6">Parameter Visibility</Typography>
+      </AccordionSummary>
+      <AccordionDetails>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Control which sensor parameters this role can see on dashboards and data views.
+          Admin and Super Admin always see all parameters.
+        </Typography>
+        <FormControl component="fieldset">
+          <FormLabel>Visible parameters</FormLabel>
+          <RadioGroup
+            value={perms.mode}
+            onChange={(e) => onChange({ ...perms, mode: e.target.value })}
+          >
+            <FormControlLabel
+              value="all"
+              control={<Radio />}
+              label="Show all parameters"
+            />
+            <FormControlLabel
+              value="selected"
+              control={<Radio />}
+              label="Show selected parameters only"
+            />
+          </RadioGroup>
+        </FormControl>
+        {perms.mode === 'selected' && (
+          <Box sx={{ mt: 2 }}>
+            <Autocomplete
+              multiple
+              freeSolo
+              options={fields}
+              groupBy={(option) => option.category || 'Other'}
+              getOptionLabel={(option) => {
+                if (typeof option === 'string') return option;
+                return option.display_name
+                  ? `${option.display_name} (${option.field_name})`
+                  : option.field_name;
+              }}
+              isOptionEqualToValue={(option, val) => {
+                const a = typeof option === 'string' ? option : option.field_name;
+                const b = typeof val === 'string' ? val : val.field_name;
+                return a === b;
+              }}
+              value={selectedFields}
+              onChange={(_, selected) =>
+                onChange({
+                  ...perms,
+                  fields: selected
+                    .map((f) => (typeof f === 'string' ? f.trim() : f.field_name))
+                    .filter(Boolean),
+                })
+              }
+              renderTags={(selected, getTagProps) =>
+                selected.map((option, index) => (
+                  <Chip
+                    {...getTagProps({ index })}
+                    key={option.field_name}
+                    label={option.display_name || option.field_name}
+                    size="small"
+                  />
+                ))
+              }
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Parameters this role can see"
+                  placeholder="Choose parameters"
+                  helperText="Datetime and device identity stay visible. Leave empty to hide all sensor values."
+                />
+              )}
+            />
+            {perms.fields.length === 0 && (
+              <Alert severity="warning" sx={{ mt: 1 }}>
+                No parameters selected. Users with this role will not see sensor values.
+              </Alert>
+            )}
+          </Box>
+        )}
+      </AccordionDetails>
+    </Accordion>
+  );
+};
 
 const RoleManager = () => {
   const { canAccessMenu, canCreate, canUpdate, canDelete } = usePermissions();
@@ -76,6 +185,9 @@ const RoleManager = () => {
     device_permissions: {}
   });
   const [devices, setDevices] = useState([]);
+  const [fieldCatalog, setFieldCatalog] = useState([]);
+  const [fieldPermissions, setFieldPermissions] = useState(DEFAULT_FIELD_PERMISSIONS);
+  const [editFieldPermissions, setEditFieldPermissions] = useState(DEFAULT_FIELD_PERMISSIONS);
   const [selectedDevices, setSelectedDevices] = useState([]);
   const [editSpecificDevicePermissions, setEditSpecificDevicePermissions] = useState({});
   const [editAddDevices, setEditAddDevices] = useState([]);
@@ -88,6 +200,7 @@ const RoleManager = () => {
     fetchTemplates();
     fetchDevices();
     fetchAvailableMenus();
+    fetchFieldCatalog();
   }, []);
 
   const buildDefaultMenuPermissions = (menus) => {
@@ -173,6 +286,24 @@ const RoleManager = () => {
     }
   };
 
+  const fetchFieldCatalog = async () => {
+    try {
+      const token = localStorage.getItem('iot_token');
+      const response = await fetch(`${API_BASE_URL}/field-definitions`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setFieldCatalog(data.fields || []);
+      }
+    } catch (error) {
+      console.error('Fetch field catalog error:', error);
+    }
+  };
+
   const fetchTemplates = async () => {
     try {
       const token = localStorage.getItem('iot_token');
@@ -216,7 +347,8 @@ const RoleManager = () => {
       const requestData = {
         ...form,
         ...permissions,
-        device_permissions: devicePermissions
+        device_permissions: devicePermissions,
+        field_permissions: normalizeClientFieldPermissions(fieldPermissions)
       };
 
       console.log('=== ROLE CREATION DEBUG ===');
@@ -315,6 +447,7 @@ const RoleManager = () => {
           menu_permissions: mergedMenus,
           device_permissions: data.role.device_permissions || {}
         });
+        setEditFieldPermissions(normalizeClientFieldPermissions(data.role.field_permissions));
         setEditSpecificDevicePermissions(data.role.specific_device_permissions ? { ...data.role.specific_device_permissions } : {});
         setEditAddDevices([]);
         setEditDialogOpen(true);
@@ -339,6 +472,7 @@ const RoleManager = () => {
       menu_permissions: buildDefaultMenuPermissions(availableMenus),
       device_permissions: {}
     });
+    setFieldPermissions({ ...DEFAULT_FIELD_PERMISSIONS });
     setSelectedDevices([]);
     setFormError('');
     setFormSuccess('');
@@ -382,7 +516,8 @@ const RoleManager = () => {
         display_name: editForm.display_name,
         description: editForm.description != null ? String(editForm.description) : '',
         menu_permissions: editPermissions.menu_permissions || {},
-        device_permissions: { ...(editPermissions.device_permissions || {}), ...editSpecificDevicePermissions }
+        device_permissions: { ...(editPermissions.device_permissions || {}), ...editSpecificDevicePermissions },
+        field_permissions: normalizeClientFieldPermissions(editFieldPermissions)
       };
 
       console.log('Updating role:', selectedRole.role_id, requestData);
@@ -816,6 +951,12 @@ const RoleManager = () => {
                 </Grid>
               </AccordionDetails>
             </Accordion>
+
+            <ParameterVisibilityEditor
+              value={fieldPermissions}
+              onChange={setFieldPermissions}
+              fields={fieldCatalog}
+            />
           </Box>
         </DialogContent>
         <DialogActions>
@@ -1008,6 +1149,12 @@ const RoleManager = () => {
                  </Grid>
                </AccordionDetails>
              </Accordion>
+
+             <ParameterVisibilityEditor
+               value={editFieldPermissions}
+               onChange={setEditFieldPermissions}
+               fields={fieldCatalog}
+             />
           </Box>
         </DialogContent>
         <DialogActions>

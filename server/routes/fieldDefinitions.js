@@ -3,6 +3,7 @@ const { authorizeRole } = require('../middleware/auth');
 const { getRow, getRows, query } = require('../config/database');
 const { ensureFieldDefinitionsSchema } = require('../utils/ensureFieldDefinitionsSchema');
 const { normalizeValueKind } = require('../utils/valueKind');
+const { getFieldVisibilityForUser, fieldIsVisible } = require('../utils/fieldPermissions');
 
 const router = express.Router();
 
@@ -74,10 +75,17 @@ router.get('/', async (req, res) => {
       }
     }
 
+    const visibility = await getFieldVisibilityForUser(req.user);
+    const visibleRows = (result.rows || []).filter((row) => fieldIsVisible(row.field_name, visibility));
+
     res.json({
       success: true,
-      fields: result.rows,
-      count: result.rows.length
+      fields: visibleRows,
+      count: visibleRows.length,
+      field_visibility: {
+        mode: visibility.mode,
+        fields: visibility.fields || [],
+      },
     });
 
   } catch (error) {

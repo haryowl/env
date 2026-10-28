@@ -2,6 +2,10 @@ const express = require('express');
 const { authorizeRole } = require('../middleware/auth');
 const { getRow, getRows, query } = require('../config/database');
 const Joi = require('joi');
+const {
+  ensureFieldPermissionsColumn,
+  normalizeFieldPermissions,
+} = require('../utils/fieldPermissions');
 
 const router = express.Router();
 
@@ -97,7 +101,11 @@ const createRoleSchema = Joi.object({
   template_name: Joi.string().optional(),
   permissions: Joi.object().optional(),
   menu_permissions: Joi.object().optional(),
-  device_permissions: Joi.object().optional()
+  device_permissions: Joi.object().optional(),
+  field_permissions: Joi.object({
+    mode: Joi.string().valid('all', 'selected').optional(),
+    fields: Joi.array().items(Joi.string().allow('')).optional(),
+  }).optional(),
 });
 
 // Update role schema
@@ -106,7 +114,11 @@ const updateRoleSchema = Joi.object({
   description: Joi.string().optional().allow(null, ''),
   permissions: Joi.object().optional(),
   menu_permissions: Joi.object().optional(),
-  device_permissions: Joi.object().pattern(Joi.string(), Joi.any()).optional()
+  device_permissions: Joi.object().pattern(Joi.string(), Joi.any()).optional(),
+  field_permissions: Joi.object({
+    mode: Joi.string().valid('all', 'selected').optional(),
+    fields: Joi.array().items(Joi.string().allow('')).optional(),
+  }).optional(),
 }).options({ stripUnknown: true, allowUnknown: true });
 
 // GET /api/roles/templates - Get role templates
@@ -751,6 +763,7 @@ router.post('/from-template', authorizeRole(['super_admin']), async (req, res) =
 // Get all roles (admin and super_admin only)
 router.get('/', authorizeRole(['super_admin', 'admin']), async (req, res) => {
   try {
+    await ensureFieldPermissionsColumn();
     const roles = await getRows(`
       SELECT 
         r.role_id,
@@ -761,6 +774,7 @@ router.get('/', authorizeRole(['super_admin', 'admin']), async (req, res) => {
         r.permissions,
         r.menu_permissions,
         r.device_permissions,
+        r.field_permissions,
         r.created_at,
         r.updated_at,
         u.username as created_by_username,
@@ -769,7 +783,7 @@ router.get('/', authorizeRole(['super_admin', 'admin']), async (req, res) => {
       LEFT JOIN users u ON r.created_by = u.user_id
       LEFT JOIN user_roles ur ON r.role_id = ur.role_id
       GROUP BY r.role_id, r.role_name, r.display_name, r.description, r.is_system_role, 
-               r.permissions, r.menu_permissions, r.device_permissions, r.created_at, 
+               r.permissions, r.menu_permissions, r.device_permissions, r.field_permissions, r.created_at, 
                r.updated_at, u.username
       ORDER BY r.is_system_role DESC, r.display_name ASC
     `);
@@ -789,6 +803,7 @@ router.get('/:roleId', authorizeRole(['super_admin', 'admin']), async (req, res)
   try {
     const { roleId } = req.params;
 
+    await ensureFieldPermissionsColumn();
     const role = await getRow(`
       SELECT 
         r.role_id,
@@ -799,6 +814,7 @@ router.get('/:roleId', authorizeRole(['super_admin', 'admin']), async (req, res)
         r.permissions,
         r.menu_permissions,
         r.device_permissions,
+        r.field_permissions,
         r.created_at,
         r.updated_at,
         u.username as created_by_username
@@ -889,7 +905,8 @@ router.post('/', authorizeRole(['super_admin']), async (req, res) => {
     console.log('Raw request body:', JSON.stringify(req.body, null, 2));
     
     // TEMPORARILY BYPASS VALIDATION TO SEE WHAT'S HAPPENING
-    const { role_name, display_name, description, permissions, menu_permissions, device_permissions } = req.body;
+    const { role_name, display_name, description, permissions, menu_permissions, device_permissions, field_permissions } = req.body;
+    const normalizedFieldPermissions = normalizeFieldPermissions(field_permissions);
     
     console.log('Extracted data:', { role_name, display_name, description, permissions, menu_permissions, device_permissions });
     
@@ -906,10 +923,11 @@ router.post('/', authorizeRole(['super_admin']), async (req, res) => {
       });
     }
 
+    await ensureFieldPermissionsColumn();
     // Insert new role
     const result = await query(`
-      INSERT INTO roles (role_name, display_name, description, permissions, menu_permissions, device_permissions, is_system_role, created_by, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, false, $7, NOW())
+      INSERT INTO roles (role_name, display_name, description, permissions, menu_permissions, device_permissions, field_permissions, is_system_role, created_by, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, NOW())
       RETURNING role_id, role_name, display_name, description, created_at
     `, [
       role_name,
@@ -918,6 +936,7 @@ router.post('/', authorizeRole(['super_admin']), async (req, res) => {
       JSON.stringify(permissions || {}),
       JSON.stringify(menu_permissions || {}),
       JSON.stringify(device_permissions || {}),
+      JSON.stringify(normalizedFieldPermissions),
       req.user.user_id
     ]);
 
@@ -993,7 +1012,7 @@ router.post('/', authorizeRole(['super_admin']), async (req, res) => {
 router.put('/:roleId', authorizeRole(['super_admin', 'admin']), async (req, res) => {
   try {
     const { roleId } = req.params;
-    const { display_name, description, permissions, menu_permissions, device_permissions } = req.body;
+    const { display_name, description, permissions, menu_permissions, device_permissions, field_permissions } = req.body;
 
     // Validate input
     const { error, value } = updateRoleSchema.validate(req.body, { abortEarly: false });
@@ -1055,6 +1074,12 @@ router.put('/:roleId', authorizeRole(['super_admin', 'admin']), async (req, res)
     if (device_permissions !== undefined) {
       updateFields.push(`device_permissions = $${paramCount++}`);
       updateValues.push(JSON.stringify(device_permissions));
+    }
+
+    if (field_permissions !== undefined) {
+      await ensureFieldPermissionsColumn();
+      updateFields.push(`field_permissions = $${paramCount++}`);
+      updateValues.push(JSON.stringify(normalizeFieldPermissions(field_permissions)));
     }
 
     if (updateFields.length === 0) {

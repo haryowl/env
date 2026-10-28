@@ -21,6 +21,7 @@ const {
   resolveSensorReadingValue,
 } = require('../utils/sensorReadingValue');
 const { ensureKlhkReportingSchema } = require('../utils/ensureKlhkReportingSchema');
+const { getFieldVisibilityForUser, filterPayloadByVisibility } = require('../utils/fieldPermissions');
 
 const router = express.Router();
 
@@ -999,6 +1000,9 @@ router.get('/:deviceId/latest-data', authenticateToken, async (req, res) => {
     if (dataMappings.length > 0) {
       latestData = filterLatestDataToMappedTargets(latestData, dataMappings);
     }
+
+    const fieldVisibility = await getFieldVisibilityForUser(req.user);
+    latestData = filterPayloadByVisibility(latestData, fieldVisibility);
 
     res.json({
       data: latestData,

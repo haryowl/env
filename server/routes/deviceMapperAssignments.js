@@ -1,6 +1,7 @@
 const express = require('express');
 const { authorizeRole, authenticateToken } = require('../middleware/auth');
 const { getRow, getRows, query } = require('../config/database');
+const { getFieldVisibilityForUser, fieldIsVisible } = require('../utils/fieldPermissions');
 
 const router = express.Router();
 
@@ -78,9 +79,17 @@ router.get('/:deviceId', async (req, res) => {
       });
     }
 
+    const assignment = result.rows[0];
+    const visibility = await getFieldVisibilityForUser(req.user);
+    if (visibility.mode === 'selected' && Array.isArray(assignment.mappings)) {
+      assignment.mappings = assignment.mappings.filter((m) =>
+        fieldIsVisible(m?.target_field, visibility)
+      );
+    }
+
     res.json({
       success: true,
-      assignment: result.rows[0]
+      assignment
     });
 
   } catch (error) {

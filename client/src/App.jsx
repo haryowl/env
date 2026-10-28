@@ -70,6 +70,7 @@ import { SocketService } from './services/socketService';
 // Config
 import { API_BASE_URL } from './config/api';
 import { resetAuthFailureGuard } from './utils/authSession';
+import { invalidateFieldMetadataCache } from './hooks/useFieldMetadata';
 
 // Hooks
 import { PermissionProvider, usePermissions } from './hooks/usePermissions.jsx';
@@ -276,6 +277,7 @@ function App() {
       localStorage.setItem('iot_token', token);
       localStorage.setItem('iot_user', JSON.stringify(userWithId));
       resetAuthFailureGuard();
+      invalidateFieldMetadataCache();
       // Initialize socket connection
       const socketService = new SocketService();
       socketService.connect(token);
@@ -306,6 +308,7 @@ function App() {
     setSocket(null);
     localStorage.removeItem('iot_token');
     localStorage.removeItem('iot_user');
+    invalidateFieldMetadataCache();
     if (redirectUrl) {
       window.location.assign(redirectUrl);
     }

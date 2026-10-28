@@ -5,6 +5,7 @@ import {
 } from '../utils/valueKind';
 import axios from 'axios';
 import { API_BASE_URL } from '../config/api';
+import { setFieldVisibilityCache } from '../utils/fieldCategory';
 
 const humanize = (value = '') =>
   value
@@ -58,15 +59,18 @@ const fetchFieldDefinitions = async () => {
   });
 
   if (!response.data?.fields) {
+    setFieldVisibilityCache({ mode: 'all', fields: [] });
     return {};
   }
 
+  setFieldVisibilityCache(response.data.field_visibility);
   return normalizeFields(response.data.fields);
 };
 
 export const invalidateFieldMetadataCache = () => {
   metadataCache = null;
   metadataPromise = null;
+  setFieldVisibilityCache({ mode: 'all', fields: [] });
 };
 
 export const getCachedFieldMetadata = () => metadataCache;
