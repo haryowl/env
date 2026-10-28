@@ -85,9 +85,9 @@ const Layout = ({ children, user, userContext, onLogout }) => {
       case 'dark':
         return {
           background: '#121212', // Dark background
-          text: 'white',
+          text: '#ffffff',
           textSecondary: 'rgba(255,255,255,0.8)',
-          textActive: 'white'
+          textActive: '#ffffff'
         };
       case 'darkBlue':
         return {
@@ -100,9 +100,9 @@ const Layout = ({ children, user, userContext, onLogout }) => {
       default:
         return {
           background: '#0E7490', // Teal for KIMA theme
-          text: 'white',
+          text: '#ffffff',
           textSecondary: 'rgba(255,255,255,0.85)',
-          textActive: 'white'
+          textActive: '#ffffff'
         };
     }
   };
