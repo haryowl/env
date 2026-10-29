@@ -61,6 +61,14 @@ const TMAT_LABELS = {
   tss_value: 'TSS',
 };
 
+/** SPARING slot datetime that was packed into the payload. TMAT has none. */
+function formatSentDataTime(row) {
+  if (!row || row.protocol === 'tmat' || row.send_type === 'realtime') return '—';
+  const ms = Number(row.hour_timestamp);
+  if (!Number.isFinite(ms) || ms <= 0) return '—';
+  return new Date(ms).toLocaleString();
+}
+
 export default function KlhkReporting() {
   const { canAccessMenu, canUpdate: roleCanUpdate } = usePermissions();
 
@@ -1186,6 +1194,7 @@ export default function KlhkReporting() {
                     <TableHead>
                       <TableRow>
                         <TableCell>Time</TableCell>
+                        <TableCell>Data time</TableCell>
                         <TableCell>Type</TableCell>
                         <TableCell>Status</TableCell>
                         <TableCell>Duration</TableCell>
@@ -1196,6 +1205,7 @@ export default function KlhkReporting() {
                       {logs.map((row) => (
                         <TableRow key={row.id}>
                           <TableCell>{new Date(row.created_at).toLocaleString()}</TableCell>
+                          <TableCell>{formatSentDataTime(row)}</TableCell>
                           <TableCell>{row.send_type}</TableCell>
                           <TableCell>
                             <Chip
