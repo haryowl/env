@@ -26,8 +26,8 @@ import 'react-leaflet-cluster/dist/assets/MarkerCluster.css';
 import 'react-leaflet-cluster/dist/assets/MarkerCluster.Default.css';
 import { subHours } from 'date-fns';
 import { API_BASE_URL } from '../config/api';
-import { MAP_BASE_LAYERS, DEFAULT_MAP_BASE_LAYER, WINDY_LAYER_VALUE } from '../config/mapLayers';
-import WindyDeviceMap from './WindyDeviceMap';
+import { MAP_BASE_LAYERS, DEFAULT_MAP_BASE_LAYER, WINDY_LAYER_VALUE, hasWindyMapApiKey } from '../config/mapLayers';
+import WindyWeatherBackdrop from './WindyDeviceMap';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import { getChartCardSx } from '../utils/chartStyles';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
@@ -422,6 +422,71 @@ const MapInvalidateSize = () => {
       window.removeEventListener('orientationchange', refresh);
     };
   }, [map]);
+
+  return null;
+};
+
+/** Keep the Windy weather iframe aligned with the Leaflet map that owns the pins. */
+const SyncWindyView = ({ iframeRef, enabled }) => {
+  const map = useMap();
+  const rafRef = useRef(0);
+
+  const send = useCallback(() => {
+    if (!enabled || !map) return;
+    let center;
+    let zoom;
+    try {
+      center = map.getCenter();
+      zoom = map.getZoom();
+    } catch {
+      return;
+    }
+    const win = iframeRef.current?.contentWindow;
+    if (!win || !center) return;
+    try {
+      if (win.WindyBridge?.setView) {
+        win.WindyBridge.setView(center.lat, center.lng, zoom);
+      } else {
+        win.postMessage({ type: 'windy-view', lat: center.lat, lng: center.lng, zoom }, '*');
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [enabled, map, iframeRef]);
+
+  useEffect(() => {
+    if (!enabled) return undefined;
+    const onMove = () => {
+      if (rafRef.current) return;
+      rafRef.current = window.requestAnimationFrame(() => {
+        rafRef.current = 0;
+        send();
+      });
+    };
+    send();
+    map.on('move', onMove);
+    map.on('zoom', onMove);
+    map.on('moveend', send);
+    map.on('zoomend', send);
+    const t = window.setTimeout(send, 350);
+    return () => {
+      window.clearTimeout(t);
+      if (rafRef.current) window.cancelAnimationFrame(rafRef.current);
+      map.off('move', onMove);
+      map.off('zoom', onMove);
+      map.off('moveend', send);
+      map.off('zoomend', send);
+    };
+  }, [enabled, map, send]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    try {
+      map.invalidateSize({ animate: false });
+    } catch {
+      /* ignore */
+    }
+  }, [enabled, map]);
 
   return null;
 };
@@ -853,6 +918,7 @@ const DashboardMap = ({
   const [alertThresholdsByDevice, setAlertThresholdsByDevice] = useState({});
   const [centerCoords, setCenterCoords] = useState(null);
   const mapRef = useRef(null);
+  const windyIframeRef = useRef(null);
   const refreshTimersRef = useRef({});
   const alertThresholdsRef = useRef({});
   const deviceLastUpdatedRef = useRef({});
@@ -1219,6 +1285,9 @@ const DashboardMap = ({
     [devices]
   );
 
+  const windyActive = selectedLayer === WINDY_LAYER_VALUE && hasWindyMapApiKey;
+  const activeTileLayer = mapLayers.find((l) => l.value === (windyActive ? 'satellite' : selectedLayer));
+
   const mapShellSx = embedded && fillHeight
     ? { flex: 1, minHeight: 0, height: '100%', width: '100%', display: 'flex', flexDirection: 'column', ...cardSx }
     : {};
@@ -1255,6 +1324,10 @@ const DashboardMap = ({
           overflow: 'hidden',
           ...mapBoxBaseSx,
           ...mapBoxSx,
+          '& .leaflet-container': {
+            background: windyActive ? 'transparent !important' : undefined,
+          },
+          '& .leaflet-tile-pane': windyActive ? { opacity: 0, pointerEvents: 'none' } : undefined,
         }}
       >
           {/* Device count badge - inside map, adjacent to zoom controls (Future Map style) */}
@@ -1377,35 +1450,44 @@ const DashboardMap = ({
               Site Location
             </Typography>
           </Box>
-          {selectedLayer === WINDY_LAYER_VALUE ? (
-            <Box sx={{ position: 'absolute', inset: 0, zIndex: 1 }}>
-              <WindyDeviceMap
-                devices={devicesWithCoordinates}
-                deviceAlerts={deviceAlerts}
-                deviceData={deviceData}
-                deviceMappedParams={deviceMappedParams}
-                deviceLastUpdated={deviceLastUpdated}
-                deviceDataLoading={deviceDataLoading}
-                formatLabelForPopup={formatLabelForPopup}
-                formatValueForPopup={formatValueForPopup}
-                onMarkerClick={handleMarkerClick}
-                onPopupOpen={handlePopupOpen}
-                centerCoords={centerCoords}
-                priorityDeviceId={priorityDeviceId}
-                buildPopupEntries={buildPopupParameterEntries}
-              />
-            </Box>
-          ) : (
+          {windyActive ? (
+            <WindyWeatherBackdrop
+              ref={windyIframeRef}
+              onLoad={() => {
+                const map = mapRef.current;
+                const win = windyIframeRef.current?.contentWindow;
+                if (!map || !win) return;
+                try {
+                  const center = map.getCenter();
+                  const zoom = map.getZoom();
+                  if (win.WindyBridge?.setView) win.WindyBridge.setView(center.lat, center.lng, zoom);
+                  else win.postMessage({ type: 'windy-view', lat: center.lat, lng: center.lng, zoom }, '*');
+                } catch {
+                  /* ignore */
+                }
+              }}
+            />
+          ) : null}
+          {selectedLayer === WINDY_LAYER_VALUE && !hasWindyMapApiKey ? (
+            <Alert
+              severity="info"
+              sx={{ position: 'absolute', top: 48, left: '50%', transform: 'translateX(-50%)', zIndex: 1300, maxWidth: 480 }}
+            >
+              Set VITE_WINDY_MAP_API_KEY in client/.env, then rebuild the client.
+            </Alert>
+          ) : null}
           <MapContainer
             ref={mapRef}
             center={[0, 0]}
             zoom={2}
-            style={{ height: '100%', width: '100%' }}
+            style={{ height: '100%', width: '100%', position: 'relative', zIndex: 1, background: windyActive ? 'transparent' : undefined }}
           >
-            <TileLayer
-              url={mapLayers.find(l => l.value === selectedLayer)?.url}
-              attribution={mapLayers.find(l => l.value === selectedLayer)?.attribution || '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}
-            />
+            {!windyActive && activeTileLayer?.url ? (
+              <TileLayer
+                url={activeTileLayer.url}
+                attribution={activeTileLayer.attribution || '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}
+              />
+            ) : null}
             
             <MarkerClusterGroup
               chunkedLoading
@@ -1444,8 +1526,8 @@ const DashboardMap = ({
             <MapCenterUpdater centerCoords={centerCoords} mapRef={mapRef} />
             <MapInvalidateSize />
             <FocusPriorityDevice deviceId={priorityDeviceId} devices={devicesWithCoordinates} />
+            <SyncWindyView iframeRef={windyIframeRef} enabled={windyActive} />
           </MapContainer>
-          )}
       </Box>
     </>
   );
