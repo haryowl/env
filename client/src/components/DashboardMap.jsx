@@ -26,8 +26,7 @@ import 'react-leaflet-cluster/dist/assets/MarkerCluster.css';
 import 'react-leaflet-cluster/dist/assets/MarkerCluster.Default.css';
 import { subHours } from 'date-fns';
 import { API_BASE_URL } from '../config/api';
-import { MAP_BASE_LAYERS, DEFAULT_MAP_BASE_LAYER, WINDY_LAYER_VALUE, hasWindyMapApiKey } from '../config/mapLayers';
-import WindyWeatherBackdrop from './WindyDeviceMap';
+import { MAP_BASE_LAYERS, DEFAULT_MAP_BASE_LAYER } from '../config/mapLayers';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import { getChartCardSx } from '../utils/chartStyles';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
@@ -422,71 +421,6 @@ const MapInvalidateSize = () => {
       window.removeEventListener('orientationchange', refresh);
     };
   }, [map]);
-
-  return null;
-};
-
-/** Keep the Windy weather iframe aligned with the Leaflet map that owns the pins. */
-const SyncWindyView = ({ iframeRef, enabled }) => {
-  const map = useMap();
-  const rafRef = useRef(0);
-
-  const send = useCallback(() => {
-    if (!enabled || !map) return;
-    let center;
-    let zoom;
-    try {
-      center = map.getCenter();
-      zoom = map.getZoom();
-    } catch {
-      return;
-    }
-    const win = iframeRef.current?.contentWindow;
-    if (!win || !center) return;
-    try {
-      if (win.WindyBridge?.setView) {
-        win.WindyBridge.setView(center.lat, center.lng, zoom);
-      } else {
-        win.postMessage({ type: 'windy-view', lat: center.lat, lng: center.lng, zoom }, '*');
-      }
-    } catch {
-      /* ignore */
-    }
-  }, [enabled, map, iframeRef]);
-
-  useEffect(() => {
-    if (!enabled) return undefined;
-    const onMove = () => {
-      if (rafRef.current) return;
-      rafRef.current = window.requestAnimationFrame(() => {
-        rafRef.current = 0;
-        send();
-      });
-    };
-    send();
-    map.on('move', onMove);
-    map.on('zoom', onMove);
-    map.on('moveend', send);
-    map.on('zoomend', send);
-    const t = window.setTimeout(send, 350);
-    return () => {
-      window.clearTimeout(t);
-      if (rafRef.current) window.cancelAnimationFrame(rafRef.current);
-      map.off('move', onMove);
-      map.off('zoom', onMove);
-      map.off('moveend', send);
-      map.off('zoomend', send);
-    };
-  }, [enabled, map, send]);
-
-  useEffect(() => {
-    if (!enabled) return;
-    try {
-      map.invalidateSize({ animate: false });
-    } catch {
-      /* ignore */
-    }
-  }, [enabled, map]);
 
   return null;
 };
@@ -918,7 +852,6 @@ const DashboardMap = ({
   const [alertThresholdsByDevice, setAlertThresholdsByDevice] = useState({});
   const [centerCoords, setCenterCoords] = useState(null);
   const mapRef = useRef(null);
-  const windyIframeRef = useRef(null);
   const refreshTimersRef = useRef({});
   const alertThresholdsRef = useRef({});
   const deviceLastUpdatedRef = useRef({});
@@ -1285,9 +1218,6 @@ const DashboardMap = ({
     [devices]
   );
 
-  const windyActive = selectedLayer === WINDY_LAYER_VALUE && hasWindyMapApiKey;
-  const activeTileLayer = mapLayers.find((l) => l.value === (windyActive ? 'satellite' : selectedLayer));
-
   const mapShellSx = embedded && fillHeight
     ? { flex: 1, minHeight: 0, height: '100%', width: '100%', display: 'flex', flexDirection: 'column', ...cardSx }
     : {};
@@ -1324,10 +1254,6 @@ const DashboardMap = ({
           overflow: 'hidden',
           ...mapBoxBaseSx,
           ...mapBoxSx,
-          '& .leaflet-container': {
-            background: windyActive ? 'transparent !important' : undefined,
-          },
-          '& .leaflet-tile-pane': windyActive ? { opacity: 0, pointerEvents: 'none' } : undefined,
         }}
       >
           {/* Device count badge - inside map, adjacent to zoom controls (Future Map style) */}
@@ -1357,17 +1283,16 @@ const DashboardMap = ({
             </Typography>
           </Box>
 
-          {/* Map controls - center top (layer swatches + refresh) */}
+          {/* Map controls - top right (layer swatches + refresh) */}
           <Box
             sx={{
               position: 'absolute',
-              top: 8,
-              left: '50%',
-              transform: 'translateX(-50%)',
+              top: 10,
+              right: 12,
               zIndex: 1200,
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 0.4,
+              gap: 0.75,
             }}
             role="group"
             aria-label="Map controls"
@@ -1382,22 +1307,22 @@ const DashboardMap = ({
                     aria-label={layer.label}
                     aria-pressed={selected}
                     sx={{
-                      p: '2px',
+                      p: '4px',
                       borderRadius: '50%',
-                      border: '1.5px solid',
+                      border: '2px solid',
                       borderColor: selected ? 'primary.main' : 'rgba(255,255,255,0.65)',
-                      bgcolor: 'rgba(11,18,32,0.45)',
+                      bgcolor: 'rgba(255,255,255,0.06)',
                       backdropFilter: 'blur(6px)',
                       boxShadow: selected ? 2 : 0,
                       '&:hover': {
-                        bgcolor: 'rgba(11,18,32,0.65)',
+                        bgcolor: 'rgba(255,255,255,0.12)',
                       },
                     }}
                   >
                     <Box
                       sx={{
-                        width: 12,
-                        height: 12,
+                        width: 18,
+                        height: 18,
                         borderRadius: '50%',
                         background: layer.swatch,
                         boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.18)',
@@ -1412,15 +1337,14 @@ const DashboardMap = ({
                 onClick={loadDevices}
                 size="small"
                 sx={{
-                  p: '3px',
                   color: 'rgba(255,255,255,0.9)',
-                  bgcolor: 'rgba(11,18,32,0.45)',
+                  bgcolor: 'rgba(255,255,255,0.06)',
                   backdropFilter: 'blur(6px)',
                   border: '1px solid rgba(255,255,255,0.35)',
-                  '&:hover': { bgcolor: 'rgba(11,18,32,0.65)' },
+                  '&:hover': { bgcolor: 'rgba(255,255,255,0.12)' },
                 }}
               >
-                <RefreshIcon sx={{ fontSize: 16 }} />
+                <RefreshIcon fontSize="small" />
               </IconButton>
             </Tooltip>
           </Box>
@@ -1450,44 +1374,16 @@ const DashboardMap = ({
               Site Location
             </Typography>
           </Box>
-          {windyActive ? (
-            <WindyWeatherBackdrop
-              ref={windyIframeRef}
-              onLoad={() => {
-                const map = mapRef.current;
-                const win = windyIframeRef.current?.contentWindow;
-                if (!map || !win) return;
-                try {
-                  const center = map.getCenter();
-                  const zoom = map.getZoom();
-                  if (win.WindyBridge?.setView) win.WindyBridge.setView(center.lat, center.lng, zoom);
-                  else win.postMessage({ type: 'windy-view', lat: center.lat, lng: center.lng, zoom }, '*');
-                } catch {
-                  /* ignore */
-                }
-              }}
-            />
-          ) : null}
-          {selectedLayer === WINDY_LAYER_VALUE && !hasWindyMapApiKey ? (
-            <Alert
-              severity="info"
-              sx={{ position: 'absolute', top: 48, left: '50%', transform: 'translateX(-50%)', zIndex: 1300, maxWidth: 480 }}
-            >
-              Set VITE_WINDY_MAP_API_KEY in client/.env, then rebuild the client.
-            </Alert>
-          ) : null}
           <MapContainer
             ref={mapRef}
             center={[0, 0]}
             zoom={2}
-            style={{ height: '100%', width: '100%', position: 'relative', zIndex: 1, background: windyActive ? 'transparent' : undefined }}
+            style={{ height: '100%', width: '100%' }}
           >
-            {!windyActive && activeTileLayer?.url ? (
-              <TileLayer
-                url={activeTileLayer.url}
-                attribution={activeTileLayer.attribution || '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}
-              />
-            ) : null}
+            <TileLayer
+              url={mapLayers.find(l => l.value === selectedLayer)?.url}
+              attribution={mapLayers.find(l => l.value === selectedLayer)?.attribution || '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}
+            />
             
             <MarkerClusterGroup
               chunkedLoading
@@ -1526,7 +1422,6 @@ const DashboardMap = ({
             <MapCenterUpdater centerCoords={centerCoords} mapRef={mapRef} />
             <MapInvalidateSize />
             <FocusPriorityDevice deviceId={priorityDeviceId} devices={devicesWithCoordinates} />
-            <SyncWindyView iframeRef={windyIframeRef} enabled={windyActive} />
           </MapContainer>
       </Box>
     </>

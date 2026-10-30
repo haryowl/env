@@ -175,12 +175,6 @@ app.use('/uploads', express.static(uploadsAbs));
 app.use('/api/uploads', express.static(uploadsAbs));
 const clientDist = path.join(__dirname, '../client/dist');
 const publicDir = path.join(__dirname, '../public');
-const windyEmbedFile = path.join(__dirname, '../client/public/windy-embed.html');
-app.get('/windy-embed.html', (req, res, next) => {
-  if (!fs.existsSync(windyEmbedFile)) return next();
-  res.setHeader('Cache-Control', 'no-store');
-  return res.sendFile(path.resolve(windyEmbedFile));
-});
 // Serve built React app (full UI) if it exists; else fall back to simple public page
 if (fs.existsSync(clientDist)) {
   app.use(express.static(clientDist));
