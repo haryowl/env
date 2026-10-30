@@ -872,6 +872,9 @@ export default function KlhkReporting() {
                         }
                         label="Skip already sent slots"
                       />
+                      <Typography variant="caption" color="text.secondary">
+                        Off will POST those hours again. KLHK may still reject them as duplicate data.
+                      </Typography>
                       {canUpdate ? (
                         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                           <Button variant="outlined" disabled={busy} onClick={previewPeriod}>
@@ -1195,6 +1198,7 @@ export default function KlhkReporting() {
                       <TableRow>
                         <TableCell>Time</TableCell>
                         <TableCell>Data time</TableCell>
+                        <TableCell>Records</TableCell>
                         <TableCell>Type</TableCell>
                         <TableCell>Status</TableCell>
                         <TableCell>Duration</TableCell>
@@ -1206,6 +1210,11 @@ export default function KlhkReporting() {
                         <TableRow key={row.id}>
                           <TableCell>{new Date(row.created_at).toLocaleString()}</TableCell>
                           <TableCell>{formatSentDataTime(row)}</TableCell>
+                          <TableCell>
+                            {row.send_type === 'hourly'
+                              ? `${row.records_count ?? '—'} / 30`
+                              : row.records_count ?? '—'}
+                          </TableCell>
                           <TableCell>{row.send_type}</TableCell>
                           <TableCell>
                             <Chip

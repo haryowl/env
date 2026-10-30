@@ -185,7 +185,7 @@ async function addToQueue(deviceId, sendType, hourTimestamp, errorMessage, opts 
   const apiSecret = await klhkConfig.getApiSecret(deviceId);
   if (!apiSecret || !config?.logger_id) return;
 
-  if (await hasAlreadySent(deviceId, sendType, hourTimestamp)) return;
+  if (!opts.force && (await hasAlreadySent(deviceId, sendType, hourTimestamp))) return;
 
   const payloadData =
     sendType === '2min'
@@ -193,8 +193,13 @@ async function addToQueue(deviceId, sendType, hourTimestamp, errorMessage, opts 
       : await collectHourlyData(deviceId, config.logger_id, hourTimestamp, { quiet: opts.quietCollect });
   if (!payloadData) return;
 
-  const jwtToken = encryptJWT(payloadData, apiSecret);
-  const recordsCount = sendType === '2min' ? 1 : (payloadData.data?.length ?? 0);
+  const jwtBody =
+    sendType === '2min'
+      ? payloadData
+      : { uid: payloadData.uid, data: payloadData.data };
+  const jwtToken = encryptJWT(jwtBody, apiSecret);
+  const recordsCount =
+    sendType === '2min' ? 1 : (payloadData.observed_count ?? payloadData.data?.length ?? 0);
 
   const existing = await getRow(
     `SELECT id, status FROM klhk_send_queue
@@ -334,10 +339,11 @@ async function requireSparingReady(deviceId, requireRunning = false) {
   return { config, apiSecret };
 }
 
-async function sendHourlyBatch(deviceId, hourTimestampMs, triggeredBy = null) {
+async function sendHourlyBatch(deviceId, hourTimestampMs, triggeredBy = null, opts = {}) {
   const { config, apiSecret } = await requireSparingReady(deviceId, false);
+  const force = Boolean(opts.force);
 
-  if (await hasAlreadySent(deviceId, 'hourly', hourTimestampMs)) {
+  if (!force && (await hasAlreadySent(deviceId, 'hourly', hourTimestampMs))) {
     return { skipped: true, reason: 'already_sent' };
   }
 
@@ -346,7 +352,8 @@ async function sendHourlyBatch(deviceId, hourTimestampMs, triggeredBy = null) {
     return { skipped: true, reason: 'no_data' };
   }
 
-  const jwtToken = encryptJWT(hourlyData, apiSecret);
+  const payload = { uid: hourlyData.uid, data: hourlyData.data };
+  const jwtToken = encryptJWT(payload, apiSecret);
   const startTime = Date.now();
   const { SEND_HOURLY_URL } = getApiUrls(config);
 
@@ -356,7 +363,7 @@ async function sendHourlyBatch(deviceId, hourTimestampMs, triggeredBy = null) {
     await writeLog(deviceId, {
       send_type: 'hourly',
       hour_timestamp: hourTimestampMs,
-      records_count: hourlyData.data.length,
+      records_count: hourlyData.observed_count ?? payload.data.length,
       status: response.status ? 'success' : 'failed',
       response: response.raw,
       duration_ms: duration,
@@ -365,19 +372,20 @@ async function sendHourlyBatch(deviceId, hourTimestampMs, triggeredBy = null) {
 
     if (response.status) {
       await markSlotSent(deviceId, 'hourly', hourTimestampMs);
-      return { success: true, records: hourlyData.data.length, response };
+      return { success: true, records: payload.data.length, observed: hourlyData.observed_count, response };
     }
     throw new Error(response.desc || 'SPARING API error');
   } catch (error) {
-    await addToQueue(deviceId, 'hourly', hourTimestampMs, error.message);
+    await addToQueue(deviceId, 'hourly', hourTimestampMs, error.message, { force });
     throw error;
   }
 }
 
-async function send2MinBatch(deviceId, slotTimestampMs, triggeredBy = null) {
+async function send2MinBatch(deviceId, slotTimestampMs, triggeredBy = null, opts = {}) {
   const { config, apiSecret } = await requireSparingReady(deviceId, false);
+  const force = Boolean(opts.force);
 
-  if (await hasAlreadySent(deviceId, '2min', slotTimestampMs)) {
+  if (!force && (await hasAlreadySent(deviceId, '2min', slotTimestampMs))) {
     return { skipped: true, reason: 'already_sent' };
   }
 
@@ -409,7 +417,7 @@ async function send2MinBatch(deviceId, slotTimestampMs, triggeredBy = null) {
     }
     throw new Error(response.desc || 'SPARING API error');
   } catch (error) {
-    await addToQueue(deviceId, '2min', slotTimestampMs, error.message);
+    await addToQueue(deviceId, '2min', slotTimestampMs, error.message, { force });
     throw error;
   }
 }
@@ -523,6 +531,7 @@ async function sendPeriod(deviceId, options, triggeredBy = null) {
 
   const { config } = await requireSparingReady(deviceId, false);
   const slots = buildPeriodSlots(period_from, period_to, mode);
+  const force = skip_already_sent === false;
 
   const summary = {
     total_slots: slots.length,
@@ -555,6 +564,7 @@ async function sendPeriod(deviceId, options, triggeredBy = null) {
     if (action === 'queue') {
       await addToQueue(deviceId, slot.send_type, slot.timestamp, 'Manual period enqueue', {
         quietCollect: true,
+        force,
       });
       summary.queued += 1;
       summary.results.push({ ...slot, status: 'queued' });
@@ -564,8 +574,8 @@ async function sendPeriod(deviceId, options, triggeredBy = null) {
     try {
       const result =
         slot.send_type === 'hourly'
-          ? await sendHourlyBatch(deviceId, slot.timestamp, triggeredBy)
-          : await send2MinBatch(deviceId, slot.timestamp, triggeredBy);
+          ? await sendHourlyBatch(deviceId, slot.timestamp, triggeredBy, { force })
+          : await send2MinBatch(deviceId, slot.timestamp, triggeredBy, { force });
 
       if (result?.skipped) {
         if (result.reason === 'already_sent') summary.skipped_already_sent += 1;

@@ -4,6 +4,7 @@ const { roundKlhkNumber } = require('./klhkConstants');
 
 const SLOT_MS = 2 * 60 * 1000;
 const BIN_SECONDS = 120;
+const HOURLY_SLOT_COUNT = 30;
 
 async function getEnabledSparingMappings(deviceId) {
   const rows = await klhkConfig.getSparingMappings(deviceId);
@@ -134,7 +135,6 @@ function rowMatchesMapping(row, lookup) {
 }
 
 function interpolateMissingData(records, hourTimestampMs, mappings) {
-  const TARGET_COUNT = 30;
   const startTimeSeconds = Math.floor(hourTimestampMs / 1000);
   const fallbackByParam = {};
   for (const mapping of mappings) {
@@ -149,7 +149,7 @@ function interpolateMissingData(records, hourTimestampMs, mappings) {
   }
   const result = [];
 
-  for (let i = 0; i < TARGET_COUNT; i++) {
+  for (let i = 0; i < HOURLY_SLOT_COUNT; i++) {
     const expectedTime = startTimeSeconds + i * BIN_SECONDS;
     const existing = records.find((r) => r.datetime === expectedTime);
     const completed = { datetime: expectedTime, ...(existing || {}) };
@@ -186,6 +186,7 @@ async function collectHourlyData(deviceId, loggerId, hourTimestampMs, opts = {})
     const seconds = Math.floor(tsMs / 1000);
     const offset = seconds - startSeconds;
     const binIndex = Math.floor(offset / BIN_SECONDS);
+    if (binIndex < 0 || binIndex >= HOURLY_SLOT_COUNT) continue;
     const binSeconds = startSeconds + binIndex * BIN_SECONDS;
 
     if (!dataByTimestamp.has(binSeconds)) {
@@ -197,9 +198,11 @@ async function collectHourlyData(deviceId, loggerId, hourTimestampMs, opts = {})
     }
   }
 
+  if (dataByTimestamp.size === 0) return null;
+
   const collectedData = Array.from(dataByTimestamp.values()).sort((a, b) => a.datetime - b.datetime);
 
-  if (collectedData.length < 30) {
+  if (collectedData.length < HOURLY_SLOT_COUNT) {
     if (!opts.quiet) {
       console.log(`[KLHK SPARING ${deviceId}] Interpolating ${collectedData.length} records to 30`);
     }
@@ -207,7 +210,11 @@ async function collectHourlyData(deviceId, loggerId, hourTimestampMs, opts = {})
 
   // Also fills missing parameters inside an otherwise existing 2-minute slot.
   const dataArray = interpolateMissingData(collectedData, hourTimestampMs, mappings);
-  return { uid: loggerId, data: dataArray };
+  return {
+    uid: loggerId,
+    data: dataArray,
+    observed_count: collectedData.length,
+  };
 }
 
 async function collect2MinData(deviceId, loggerId, slotTimestampMs, opts = {}) {
@@ -242,6 +249,9 @@ async function collect2MinData(deviceId, loggerId, slotTimestampMs, opts = {}) {
       if (val != null) record[m.sparing_param] = val;
     }
   }
+
+  const hasValue = mappings.some((m) => record[m.sparing_param] != null);
+  if (!hasValue) return null;
 
   // The SPARING 2-minute endpoint expects one flat reading, unlike the
   // hourly endpoint which expects { uid, data: [...] }.
