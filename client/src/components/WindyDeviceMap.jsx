@@ -51,30 +51,36 @@ export default function WindyDeviceMap({
   const iframeRef = useRef(null);
   const readyRef = useRef(false);
   const devicesRef = useRef(devices);
+  const markerPayloadRef = useRef([]);
   const onMarkerClickRef = useRef(onMarkerClick);
   const onPopupOpenRef = useRef(onPopupOpen);
   const center = useMemo(() => boundsCenter(devices), [devices]);
 
   const markerPayload = useMemo(
     () =>
-      devices.map((device) => {
-        const allowed = deviceMappedParams[device.device_id] || [];
-        const entries = buildPopupEntries
-          ? buildPopupEntries(deviceData[device.device_id], allowed, formatLabelForPopup, formatValueForPopup)
-          : [];
-        const lastUpdated = deviceLastUpdated[device.device_id];
-        return {
-          id: device.device_id,
-          lat: Number(device.latitude),
-          lng: Number(device.longitude),
-          name: device.name,
-          status: device.status,
-          hasAlert: !!deviceAlerts[device.device_id],
-          isLoading: !!deviceDataLoading[device.device_id],
-          lastUpdatedLabel: lastUpdated ? formatInUserTimezone(lastUpdated) : '',
-          entries,
-        };
-      }),
+      (devices || [])
+        .map((device) => {
+          const lat = Number(device.latitude);
+          const lng = Number(device.longitude);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+          const allowed = deviceMappedParams[device.device_id] || [];
+          const entries = buildPopupEntries
+            ? buildPopupEntries(deviceData[device.device_id], allowed, formatLabelForPopup, formatValueForPopup)
+            : [];
+          const lastUpdated = deviceLastUpdated[device.device_id];
+          return {
+            id: device.device_id,
+            lat,
+            lng,
+            name: device.name,
+            status: device.status,
+            hasAlert: !!deviceAlerts[device.device_id],
+            isLoading: !!deviceDataLoading[device.device_id],
+            lastUpdatedLabel: lastUpdated ? formatInUserTimezone(lastUpdated) : '',
+            entries,
+          };
+        })
+        .filter(Boolean),
     [
       devices,
       deviceAlerts,
@@ -89,6 +95,7 @@ export default function WindyDeviceMap({
   );
 
   devicesRef.current = devices;
+  markerPayloadRef.current = markerPayload;
   onMarkerClickRef.current = onMarkerClick;
   onPopupOpenRef.current = onPopupOpen;
 
@@ -99,13 +106,13 @@ export default function WindyDeviceMap({
   }, []);
 
   const sendInit = useCallback(() => {
-    readyRef.current = false;
     post({
       type: 'windy-init',
       key: WINDY_MAP_API_KEY,
       lat: center.lat,
       lon: center.lon,
       zoom: center.zoom,
+      devices: markerPayloadRef.current,
     });
   }, [post, center.lat, center.lon, center.zoom]);
 
@@ -117,7 +124,7 @@ export default function WindyDeviceMap({
         sendInit();
       } else if (data.type === 'windy-ready') {
         readyRef.current = true;
-        post({ type: 'windy-markers', devices: markerPayload });
+        post({ type: 'windy-markers', devices: markerPayloadRef.current });
       } else if (data.type === 'windy-marker-click' && data.deviceId) {
         const device = devicesRef.current.find((d) => d.device_id === data.deviceId);
         if (device) onMarkerClickRef.current?.(device);
@@ -127,7 +134,7 @@ export default function WindyDeviceMap({
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [post, sendInit, markerPayload]);
+  }, [post, sendInit]);
 
   useEffect(() => {
     if (!readyRef.current) return;

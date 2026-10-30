@@ -15,6 +15,14 @@
         overflow: hidden;
         background: #0b1220;
       }
+      #windy .leaflet-devicePins-pane {
+        z-index: 1200 !important;
+        pointer-events: auto;
+      }
+      #windy .leaflet-div-icon.custom-device-marker {
+        background: transparent !important;
+        border: none !important;
+      }
       @keyframes leafletDevicePulse {
         0% { transform: scale(0.9); opacity: 0.8; }
         70% { transform: scale(1.15); opacity: 0.2; }
@@ -31,6 +39,7 @@
         var parentOrigin = window.location.origin;
         var map = null;
         var markerLayer = null;
+        var lastDevices = [];
         var didFit = false;
         var starting = false;
         var pending = { markers: null, pan: null };
@@ -145,22 +154,43 @@
           );
         }
 
+        function ensurePinPane() {
+          if (!map) return;
+          if (!map.getPane('devicePins')) {
+            map.createPane('devicePins');
+          }
+          var pane = map.getPane('devicePins');
+          if (pane) {
+            pane.style.zIndex = '1200';
+            pane.style.pointerEvents = 'auto';
+          }
+        }
+
         function applyMarkers(devices) {
+          lastDevices = devices || [];
           if (!map) {
-            pending.markers = devices;
+            pending.markers = lastDevices;
             return;
           }
-          if (!markerLayer) {
+          ensurePinPane();
+          if (markerLayer) {
+            markerLayer.clearLayers();
+            if (markerLayer._map !== map) {
+              markerLayer.addTo(map);
+            }
+          } else {
             markerLayer = L.layerGroup().addTo(map);
           }
-          markerLayer.clearLayers();
           var bounds = [];
-          (devices || []).forEach(function (device) {
+          lastDevices.forEach(function (device) {
             var lat = Number(device.lat);
             var lng = Number(device.lng);
             if (!isFinite(lat) || !isFinite(lng)) return;
             bounds.push([lat, lng]);
-            var marker = L.marker([lat, lng], { icon: deviceIcon(device) });
+            var marker = L.marker([lat, lng], {
+              icon: deviceIcon(device),
+              pane: 'devicePins',
+            });
             marker.bindPopup(popupHtml(device), { maxWidth: 280, autoPan: false });
             marker.on('click', function () {
               window.parent.postMessage({ type: 'windy-marker-click', deviceId: device.id }, parentOrigin);
@@ -175,7 +205,7 @@
             if (bounds.length === 1) {
               map.setView(bounds[0], 9);
             } else {
-              map.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 });
+              map.fitBounds(bounds, { padding: [48, 48], maxZoom: 12 });
             }
           }
         }
@@ -197,6 +227,7 @@
             return;
           }
           starting = true;
+          if (opts.devices) pending.markers = opts.devices;
           var lat = Number(opts.lat);
           var lon = Number(opts.lon);
           windyInit(
@@ -210,18 +241,39 @@
             },
             function (windyAPI) {
               map = windyAPI.map;
-              if (pending.markers) applyMarkers(pending.markers);
-              if (pending.pan) panTo(pending.pan.lat, pending.pan.lng);
-              window.parent.postMessage({ type: 'windy-ready' }, parentOrigin);
+              ensurePinPane();
+              if (windyAPI.broadcast && typeof windyAPI.broadcast.on === 'function') {
+                windyAPI.broadcast.on('redrawFinished', function () {
+                  var missing =
+                    !markerLayer ||
+                    !markerLayer._map ||
+                    !markerLayer.getLayers ||
+                    markerLayer.getLayers().length === 0;
+                  if (lastDevices && lastDevices.length && missing) {
+                    applyMarkers(lastDevices);
+                  }
+                });
+              }
+              var finish = function () {
+                if (pending.markers) applyMarkers(pending.markers);
+                if (pending.pan) panTo(pending.pan.lat, pending.pan.lng);
+                try {
+                  map.invalidateSize(true);
+                } catch (e) {}
+                window.parent.postMessage({ type: 'windy-ready' }, parentOrigin);
+              };
+              setTimeout(finish, 250);
             }
           );
         }
 
         window.addEventListener('message', function (event) {
-          if (event.origin !== parentOrigin) return;
+          if (event.source !== window.parent && event.origin !== parentOrigin) return;
           var data = event.data || {};
           if (data.type === 'windy-init') {
+            if (data.devices) pending.markers = data.devices;
             startWindy(data);
+            if (map && data.devices) applyMarkers(data.devices);
           } else if (data.type === 'windy-markers') {
             applyMarkers(data.devices || []);
           } else if (data.type === 'windy-pan') {
