@@ -26,7 +26,8 @@ import 'react-leaflet-cluster/dist/assets/MarkerCluster.css';
 import 'react-leaflet-cluster/dist/assets/MarkerCluster.Default.css';
 import { subHours } from 'date-fns';
 import { API_BASE_URL } from '../config/api';
-import { MAP_BASE_LAYERS, DEFAULT_MAP_BASE_LAYER } from '../config/mapLayers';
+import { MAP_BASE_LAYERS, DEFAULT_MAP_BASE_LAYER, WINDY_LAYER_VALUE } from '../config/mapLayers';
+import WindyDeviceMap from './WindyDeviceMap';
 import { useFieldMetadata } from '../hooks/useFieldMetadata';
 import { getChartCardSx } from '../utils/chartStyles';
 import { formatInUserTimezone } from '../utils/timezoneUtils';
@@ -1262,7 +1263,7 @@ const DashboardMap = ({
               position: 'absolute',
               top: 10,
               left: 50,
-              zIndex: 1000,
+              zIndex: 1200,
               display: 'inline-flex',
               alignItems: 'center',
               gap: 1,
@@ -1289,7 +1290,7 @@ const DashboardMap = ({
               position: 'absolute',
               top: 10,
               right: 12,
-              zIndex: 1000,
+              zIndex: 1200,
               display: 'inline-flex',
               alignItems: 'center',
               gap: 0.75,
@@ -1374,6 +1375,22 @@ const DashboardMap = ({
               Site Location
             </Typography>
           </Box>
+          {selectedLayer === WINDY_LAYER_VALUE ? (
+            <WindyDeviceMap
+              devices={devicesWithCoordinates}
+              deviceAlerts={deviceAlerts}
+              deviceData={deviceData}
+              deviceMappedParams={deviceMappedParams}
+              deviceLastUpdated={deviceLastUpdated}
+              deviceDataLoading={deviceDataLoading}
+              formatLabelForPopup={formatLabelForPopup}
+              formatValueForPopup={formatValueForPopup}
+              onMarkerClick={handleMarkerClick}
+              onPopupOpen={handlePopupOpen}
+              centerCoords={centerCoords}
+              buildPopupEntries={buildPopupParameterEntries}
+            />
+          ) : (
           <MapContainer
             ref={mapRef}
             center={[0, 0]}
@@ -1423,6 +1440,7 @@ const DashboardMap = ({
             <MapInvalidateSize />
             <FocusPriorityDevice deviceId={priorityDeviceId} devices={devicesWithCoordinates} />
           </MapContainer>
+          )}
       </Box>
     </>
   );

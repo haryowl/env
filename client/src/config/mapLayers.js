@@ -1,5 +1,5 @@
 /**
- * Base map tiles (Carto / Esri / OpenTopoMap). Used by Dashboard map and Live tracking.
+ * Base map tiles (Carto / Esri / OpenTopoMap) plus optional Windy Map Forecast layer.
  *
  * Dark / Light use CARTO raster basemaps, which require a free API key:
  * https://carto.com/basemaps/apikey
@@ -7,6 +7,7 @@
  */
 
 const CARTO_KEY = (import.meta.env.VITE_CARTO_MAP_API_KEY || '').trim();
+const WINDY_KEY = (import.meta.env.VITE_WINDY_MAP_API_KEY || '').trim();
 
 function cartoUrl(stylePath) {
   const base = `https://{s}.basemaps.cartocdn.com/${stylePath}/{z}/{x}/{y}{r}.png`;
@@ -50,7 +51,20 @@ export const MAP_BASE_LAYERS = [
     url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
     attribution: '&copy; <a href="https://opentopomap.org/">OpenTopoMap</a> contributors',
   },
+  {
+    value: 'windy',
+    label: 'Windy',
+    kind: 'windy',
+    swatch: 'linear-gradient(135deg, #38bdf8 0%, #0284c7 40%, #166534 100%)',
+    url: null,
+    attribution: '&copy; <a href="https://www.windy.com">Windy</a>',
+  },
 ];
 
 /** True when Dark/Light tiles will include a CARTO key (avoids "API KEY REQUIRED" watermark). */
 export const hasCartoMapApiKey = Boolean(CARTO_KEY);
+
+/** Windy Map Forecast API key (client/.env VITE_WINDY_MAP_API_KEY). */
+export const WINDY_MAP_API_KEY = WINDY_KEY;
+export const hasWindyMapApiKey = Boolean(WINDY_KEY);
+export const WINDY_LAYER_VALUE = 'windy';

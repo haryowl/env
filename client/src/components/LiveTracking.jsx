@@ -789,7 +789,7 @@ export default function LiveTracking({ socket }) {
                   <Typography variant="caption" color="text.secondary" sx={{ mr: 0.25 }}>
                     Base
                   </Typography>
-                  {MAP_BASE_LAYERS.map((layer) => {
+                  {MAP_BASE_LAYERS.filter((layer) => layer.url).map((layer) => {
                     const selected = baseMapId === layer.value;
                     return (
                       <Tooltip key={layer.value} title={layer.label} placement="bottom">
