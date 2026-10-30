@@ -5,32 +5,237 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Windy map</title>
     <style>
-      html,
-      body,
-      #windy {
+      html, body {
         margin: 0;
         padding: 0;
         width: 100%;
         height: 100%;
         overflow: hidden;
         background: #0b1220;
+        position: relative;
       }
+      #windy {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      #pin-layer {
+        position: absolute;
+        inset: 0;
+        z-index: 100000;
+        pointer-events: none;
+        overflow: hidden;
+      }
+      .wd-pin {
+        position: absolute;
+        transform: translate(-50%, -80%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        border: 0;
+        padding: 0;
+        background: transparent;
+        cursor: pointer;
+        pointer-events: auto;
+      }
+      .wd-dot {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        border: 2.5px solid #fff;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+      }
+      .wd-label {
+        margin-top: 3px;
+        padding: 2px 5px;
+        background: #fff;
+        color: #1f2937;
+        font: 600 10px/1.2 system-ui, sans-serif;
+        border-radius: 4px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+        max-width: 96px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .wd-pop {
+        position: absolute;
+        transform: translate(-50%, calc(-100% - 36px));
+        min-width: 180px;
+        max-width: 260px;
+        background: #fff;
+        color: #0f172a;
+        border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+        padding: 10px 12px;
+        font: 13px/1.35 system-ui, sans-serif;
+        pointer-events: auto;
+        z-index: 2;
+      }
+      .wd-pop h4 {
+        margin: 0 24px 6px 0;
+        font-size: 15px;
+      }
+      .wd-pop-close {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        border: 0;
+        background: transparent;
+        cursor: pointer;
+        font-size: 16px;
+        line-height: 1;
+        color: #64748b;
+        pointer-events: auto;
+      }
+      .wd-chip {
+        display: inline-block;
+        border-radius: 999px;
+        padding: 1px 8px;
+        font-size: 11px;
+        color: #fff;
+        margin-right: 6px;
+      }
+      .wd-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 12px;
+      }
+      .wd-muted { color: #64748b; font-size: 12px; }
     </style>
     <script src="https://unpkg.com/leaflet@1.4.0/dist/leaflet.js"></script>
     <script src="https://api.windy.com/assets/map-forecast/libBoot.js"></script>
   </head>
   <body>
     <div id="windy"></div>
+    <div id="pin-layer"></div>
     <script>
       (function () {
         var map = null;
         var lastDevices = [];
         var didFit = false;
         var starting = false;
+        var openId = null;
         var pending = { markers: null, pan: null };
+        var qs = new URLSearchParams(window.location.search || '');
 
         function notify(payload) {
-          window.parent.postMessage(payload, '*');
+          try {
+            window.parent.postMessage(payload, '*');
+          } catch (e) {}
+        }
+
+        function escapeHtml(str) {
+          if (str == null || str === '') return '';
+          return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+        }
+
+        function truncateLabel(str, maxChars) {
+          var s = String(str || '').trim();
+          if (!s) return '';
+          if (s.length <= maxChars) return s;
+          return s.slice(0, Math.max(1, maxChars - 1)) + '…';
+        }
+
+        function pinColor(status, hasAlert) {
+          if (hasAlert) return '#EF4444';
+          if (status === 'offline') return '#6B7280';
+          if (status !== 'online') return '#F59E0B';
+          return '#10B981';
+        }
+
+        function deviceById(id) {
+          for (var i = 0; i < lastDevices.length; i++) {
+            if (String(lastDevices[i].id) === String(id)) return lastDevices[i];
+          }
+          return null;
+        }
+
+        function renderPins() {
+          var layer = document.getElementById('pin-layer');
+          if (!layer || !map) return;
+          var size;
+          try {
+            size = map.getSize();
+          } catch (e) {
+            return;
+          }
+          if (!size || !size.x || !size.y) return;
+          var html = '';
+          lastDevices.forEach(function (device) {
+            var lat = Number(device.lat);
+            var lng = Number(device.lng);
+            if (!isFinite(lat) || !isFinite(lng)) return;
+            var pt;
+            try {
+              pt = map.latLngToContainerPoint([lat, lng]);
+            } catch (e) {
+              return;
+            }
+            if (pt.x < -80 || pt.y < -80 || pt.x > size.x + 80 || pt.y > size.y + 80) return;
+            var color = pinColor(device.status, device.hasAlert);
+            var label = truncateLabel(device.name, 14);
+            html +=
+              '<button type="button" class="wd-pin" data-id="' +
+              escapeHtml(device.id) +
+              '" style="left:' +
+              pt.x +
+              'px;top:' +
+              pt.y +
+              'px">' +
+              '<span class="wd-dot" style="background:' +
+              color +
+              '"></span>' +
+              (label ? '<span class="wd-label">' + escapeHtml(label) + '</span>' : '') +
+              '</button>';
+          });
+          var open = openId ? deviceById(openId) : null;
+          if (open) {
+            var lat = Number(open.lat);
+            var lng = Number(open.lng);
+            if (isFinite(lat) && isFinite(lng)) {
+              var ppt = map.latLngToContainerPoint([lat, lng]);
+              var rows = (open.entries || [])
+                .map(function (e) {
+                  return (
+                    '<div class="wd-row"><span class="wd-muted">' +
+                    escapeHtml(e.label) +
+                    ':</span><strong>' +
+                    escapeHtml(e.displayValue) +
+                    '</strong></div>'
+                  );
+                })
+                .join('');
+              html +=
+                '<div class="wd-pop" style="left:' +
+                ppt.x +
+                'px;top:' +
+                ppt.y +
+                'px"><button type="button" class="wd-pop-close" data-close="1">×</button><h4>' +
+                escapeHtml(open.name || open.id) +
+                '</h4><div style="margin-bottom:6px"><span class="wd-chip" style="background:' +
+                (open.status === 'online' ? '#16a34a' : '#dc2626') +
+                '">' +
+                escapeHtml(open.status || '') +
+                '</span>' +
+                (open.hasAlert ? '<span class="wd-chip" style="background:#ef4444">ALERT</span>' : '') +
+                '</div><div class="wd-muted" style="margin-bottom:6px">Last update: ' +
+                escapeHtml(open.lastUpdatedLabel || 'no data yet') +
+                '</div><div style="font-weight:700;margin-bottom:4px">Latest Parameters:</div>' +
+                (rows ||
+                  '<div class="wd-muted">' +
+                    (open.isLoading ? 'Loading latest values...' : 'No recent data available') +
+                    '</div>') +
+                '</div>';
+            }
+          }
+          layer.innerHTML = html;
         }
 
         function applyMarkers(devices) {
@@ -43,72 +248,57 @@
           lastDevices.forEach(function (device) {
             var lat = Number(device.lat);
             var lng = Number(device.lng);
-            if (!isFinite(lat) || !isFinite(lng)) return;
-            bounds.push([lat, lng]);
+            if (isFinite(lat) && isFinite(lng)) bounds.push([lat, lng]);
           });
-          if (!didFit && bounds.length) {
+          if (!didFit && bounds.length && !pending.pan) {
             didFit = true;
             try {
-              if (bounds.length === 1) {
-                map.setView(bounds[0], 9);
-              } else {
-                map.fitBounds(bounds, { padding: [48, 48], maxZoom: 12 });
-              }
+              if (bounds.length === 1) map.setView(bounds[0], 9);
+              else map.fitBounds(bounds, { padding: [48, 48], maxZoom: 12 });
             } catch (e) {}
           }
-          projectPins();
+          renderPins();
         }
 
-        function projectPins() {
-          if (!map) return;
-          var size;
-          try {
-            size = map.getSize();
-          } catch (e) {
-            return;
-          }
-          var pins = [];
-          lastDevices.forEach(function (device) {
-            var lat = Number(device.lat);
-            var lng = Number(device.lng);
-            if (!isFinite(lat) || !isFinite(lng)) return;
-            var pt = map.latLngToContainerPoint([lat, lng]);
-            pins.push({
-              id: device.id,
-              x: pt.x,
-              y: pt.y,
-              name: device.name,
-              status: device.status,
-              hasAlert: device.hasAlert,
-              visible: pt.x >= -60 && pt.y >= -60 && pt.x <= size.x + 60 && pt.y <= size.y + 60,
-            });
-          });
-          notify({ type: 'windy-pin-positions', pins: pins });
-        }
-
-        function panTo(lat, lng) {
+        function panTo(lat, lng, zoom) {
+          lat = Number(lat);
+          lng = Number(lng);
+          zoom = Number(zoom);
+          if (!isFinite(lat) || !isFinite(lng)) return;
           if (!map) {
-            pending.pan = { lat: lat, lng: lng };
+            pending.pan = { lat: lat, lng: lng, zoom: zoom };
             return;
           }
-          if (isFinite(lat) && isFinite(lng)) {
-            map.setView([lat, lng], Math.max(map.getZoom() || 8, 9));
-          }
+          didFit = true;
+          try {
+            map.setView([lat, lng], isFinite(zoom) && zoom > 0 ? zoom : Math.max(map.getZoom() || 8, 14));
+          } catch (e) {}
+          renderPins();
         }
 
         function startWindy(opts) {
-          if (map || starting) return;
+          opts = opts || {};
+          if (opts.devices) pending.markers = opts.devices;
+          if (map) {
+            if (opts.devices) applyMarkers(opts.devices);
+            return;
+          }
+          if (starting) return;
+          var key = opts.key || qs.get('key') || '';
           if (typeof windyInit !== 'function') {
             notify({ type: 'windy-error', message: 'Windy library failed to load' });
             return;
           }
+          if (!key) {
+            notify({ type: 'windy-error', message: 'Missing Windy API key' });
+            return;
+          }
           starting = true;
-          if (opts.devices) pending.markers = opts.devices;
           var lat = Number(opts.lat);
           var lon = Number(opts.lon);
           windyInit(
             {
-              key: opts.key,
+              key: key,
               verbose: false,
               lat: isFinite(lat) ? lat : -2.5,
               lon: isFinite(lon) ? lon : 118,
@@ -118,46 +308,72 @@
             function (windyAPI) {
               map = windyAPI.map;
               ['move', 'zoom', 'moveend', 'zoomend', 'viewreset', 'resize'].forEach(function (evt) {
-                map.on(evt, projectPins);
+                map.on(evt, renderPins);
               });
               map.on('click', function () {
+                if (openId) {
+                  openId = null;
+                  renderPins();
+                }
                 notify({ type: 'windy-map-click' });
               });
               if (windyAPI.broadcast && typeof windyAPI.broadcast.on === 'function') {
-                windyAPI.broadcast.on('redrawFinished', projectPins);
+                windyAPI.broadcast.on('redrawFinished', renderPins);
               }
               var finish = function () {
-                if (pending.markers) applyMarkers(pending.markers);
-                if (pending.pan) panTo(pending.pan.lat, pending.pan.lng);
                 try {
                   map.invalidateSize(true);
                 } catch (e) {}
-                projectPins();
+                if (pending.markers) applyMarkers(pending.markers);
+                if (pending.pan) panTo(pending.pan.lat, pending.pan.lng, pending.pan.zoom);
+                renderPins();
                 notify({ type: 'windy-ready' });
               };
-              setTimeout(finish, 250);
-              setTimeout(projectPins, 800);
-              setTimeout(projectPins, 1800);
+              setTimeout(finish, 200);
+              setTimeout(finish, 800);
+              setTimeout(renderPins, 1600);
             }
           );
         }
 
-        window.addEventListener('message', function (event) {
-          if (event.source !== window.parent) return;
-          var data = event.data || {};
-          if (data.type === 'windy-init') {
-            if (data.devices) pending.markers = data.devices;
-            startWindy(data);
-            if (map && data.devices) applyMarkers(data.devices);
-          } else if (data.type === 'windy-markers') {
-            applyMarkers(data.devices || []);
-          } else if (data.type === 'windy-pan') {
-            panTo(data.lat, data.lng);
-          } else if (data.type === 'windy-project') {
-            projectPins();
+        document.getElementById('pin-layer').addEventListener('click', function (event) {
+          var close = event.target.closest('[data-close]');
+          if (close) {
+            openId = null;
+            renderPins();
+            event.stopPropagation();
+            return;
           }
+          var pin = event.target.closest('.wd-pin');
+          if (!pin) return;
+          event.stopPropagation();
+          openId = pin.getAttribute('data-id');
+          notify({ type: 'windy-marker-click', deviceId: openId });
+          notify({ type: 'windy-popup-open', deviceId: openId });
+          renderPins();
         });
 
+        window.WindyBridge = {
+          init: function (opts) {
+            startWindy(opts || {});
+          },
+          setDevices: function (devices) {
+            applyMarkers(devices || []);
+          },
+          panTo: function (lat, lng, zoom) {
+            panTo(lat, lng, zoom);
+          },
+        };
+
+        window.addEventListener('message', function (event) {
+          var data = event.data || {};
+          if (!data || typeof data.type !== 'string') return;
+          if (data.type === 'windy-init') startWindy(data);
+          else if (data.type === 'windy-markers') applyMarkers(data.devices || []);
+          else if (data.type === 'windy-pan') panTo(data.lat, data.lng, data.zoom);
+        });
+
+        if (qs.get('key')) startWindy({ key: qs.get('key') });
         notify({ type: 'windy-iframe-ready' });
       })();
     </script>

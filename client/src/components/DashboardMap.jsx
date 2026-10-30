@@ -1391,6 +1391,7 @@ const DashboardMap = ({
                 onMarkerClick={handleMarkerClick}
                 onPopupOpen={handlePopupOpen}
                 centerCoords={centerCoords}
+                priorityDeviceId={priorityDeviceId}
                 buildPopupEntries={buildPopupParameterEntries}
               />
             </Box>
