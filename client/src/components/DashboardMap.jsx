@@ -1284,16 +1284,17 @@ const DashboardMap = ({
             </Typography>
           </Box>
 
-          {/* Map controls - top right (layer swatches + refresh) */}
+          {/* Map controls - center top (layer swatches + refresh) */}
           <Box
             sx={{
               position: 'absolute',
-              top: 10,
-              right: 12,
+              top: 8,
+              left: '50%',
+              transform: 'translateX(-50%)',
               zIndex: 1200,
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 0.75,
+              gap: 0.4,
             }}
             role="group"
             aria-label="Map controls"
@@ -1308,22 +1309,22 @@ const DashboardMap = ({
                     aria-label={layer.label}
                     aria-pressed={selected}
                     sx={{
-                      p: '4px',
+                      p: '2px',
                       borderRadius: '50%',
-                      border: '2px solid',
+                      border: '1.5px solid',
                       borderColor: selected ? 'primary.main' : 'rgba(255,255,255,0.65)',
-                      bgcolor: 'rgba(255,255,255,0.06)',
+                      bgcolor: 'rgba(11,18,32,0.45)',
                       backdropFilter: 'blur(6px)',
                       boxShadow: selected ? 2 : 0,
                       '&:hover': {
-                        bgcolor: 'rgba(255,255,255,0.12)',
+                        bgcolor: 'rgba(11,18,32,0.65)',
                       },
                     }}
                   >
                     <Box
                       sx={{
-                        width: 18,
-                        height: 18,
+                        width: 12,
+                        height: 12,
                         borderRadius: '50%',
                         background: layer.swatch,
                         boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.18)',
@@ -1338,14 +1339,15 @@ const DashboardMap = ({
                 onClick={loadDevices}
                 size="small"
                 sx={{
+                  p: '3px',
                   color: 'rgba(255,255,255,0.9)',
-                  bgcolor: 'rgba(255,255,255,0.06)',
+                  bgcolor: 'rgba(11,18,32,0.45)',
                   backdropFilter: 'blur(6px)',
                   border: '1px solid rgba(255,255,255,0.35)',
-                  '&:hover': { bgcolor: 'rgba(255,255,255,0.12)' },
+                  '&:hover': { bgcolor: 'rgba(11,18,32,0.65)' },
                 }}
               >
-                <RefreshIcon fontSize="small" />
+                <RefreshIcon sx={{ fontSize: 16 }} />
               </IconButton>
             </Tooltip>
           </Box>
@@ -1376,20 +1378,22 @@ const DashboardMap = ({
             </Typography>
           </Box>
           {selectedLayer === WINDY_LAYER_VALUE ? (
-            <WindyDeviceMap
-              devices={devicesWithCoordinates}
-              deviceAlerts={deviceAlerts}
-              deviceData={deviceData}
-              deviceMappedParams={deviceMappedParams}
-              deviceLastUpdated={deviceLastUpdated}
-              deviceDataLoading={deviceDataLoading}
-              formatLabelForPopup={formatLabelForPopup}
-              formatValueForPopup={formatValueForPopup}
-              onMarkerClick={handleMarkerClick}
-              onPopupOpen={handlePopupOpen}
-              centerCoords={centerCoords}
-              buildPopupEntries={buildPopupParameterEntries}
-            />
+            <Box sx={{ position: 'absolute', inset: 0, zIndex: 1 }}>
+              <WindyDeviceMap
+                devices={devicesWithCoordinates}
+                deviceAlerts={deviceAlerts}
+                deviceData={deviceData}
+                deviceMappedParams={deviceMappedParams}
+                deviceLastUpdated={deviceLastUpdated}
+                deviceDataLoading={deviceDataLoading}
+                formatLabelForPopup={formatLabelForPopup}
+                formatValueForPopup={formatValueForPopup}
+                onMarkerClick={handleMarkerClick}
+                onPopupOpen={handlePopupOpen}
+                centerCoords={centerCoords}
+                buildPopupEntries={buildPopupParameterEntries}
+              />
+            </Box>
           ) : (
           <MapContainer
             ref={mapRef}
