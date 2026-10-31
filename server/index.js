@@ -78,6 +78,7 @@ const dataCleanupRoutes = require('./routes/dataCleanup');
 const dataImportRoutes = require('./routes/dataImport');
 const deploymentSettingsRoutes = require('./routes/deploymentSettings');
 const klhkReportingRoutes = require('./routes/klhkReporting');
+const firmsRoutes = require('./routes/firms');
 const dataCleanupService = require('./services/dataCleanupService');
 const { ensureCoreSchema } = require('./utils/ensureCoreSchema');
 const klhkScheduler = require('./services/klhkReporting/klhkScheduler');
@@ -298,6 +299,8 @@ app.use('/api/deployment-settings', authenticateToken, filterDataByRole, deploym
 console.log('✓ /api/deployment-settings route registered');
 app.use('/api/klhk-reporting', klhkReportingRoutes);
 console.log('✓ /api/klhk-reporting route registered');
+app.use('/api/firms', authenticateToken, firmsRoutes);
+console.log('✓ /api/firms route registered');
 console.log('All API routes registered successfully');
 
 // Serve the main application - React SPA if built, else simple public page

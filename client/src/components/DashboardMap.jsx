@@ -16,9 +16,10 @@ import {
 import {
   Map as MapIcon,
   Refresh as RefreshIcon,
-  LocationOn as LocationIcon
+  LocationOn as LocationIcon,
+  Whatshot as FireIcon
 } from '@mui/icons-material';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, CircleMarker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import MarkerClusterGroup from 'react-leaflet-cluster';
@@ -815,6 +816,46 @@ const DeviceMapMarker = React.memo(function DeviceMapMarker({
   );
 });
 
+function formatFirmsTime(acqTime) {
+  const t = String(acqTime || '').padStart(4, '0');
+  if (t.length < 4) return acqTime || '';
+  return `${t.slice(0, 2)}:${t.slice(2, 4)} UTC`;
+}
+
+function formatFirmsConfidence(value) {
+  const v = String(value || '').toLowerCase();
+  if (v === 'h' || v === 'high') return 'High';
+  if (v === 'n' || v === 'nominal') return 'Nominal';
+  if (v === 'l' || v === 'low') return 'Low';
+  return value || '—';
+}
+
+const FirmsFireLayer = ({ fires }) => (
+  <>
+    {fires.map((fire) => (
+      <CircleMarker
+        key={fire.id}
+        center={[fire.lat, fire.lng]}
+        radius={6}
+        pathOptions={{ color: '#7f1d1d', fillColor: '#ef4444', fillOpacity: 0.85, weight: 1 }}
+      >
+        <Popup>
+          <div style={{ minWidth: 160, fontFamily: 'system-ui, sans-serif' }}>
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>Active fire</div>
+            <div>Date: {fire.acqDate || '—'}</div>
+            <div>Time: {formatFirmsTime(fire.acqTime)}</div>
+            <div>Confidence: {formatFirmsConfidence(fire.confidence)}</div>
+            {fire.frp ? <div>FRP: {fire.frp} MW</div> : null}
+            {fire.brightness ? <div>Brightness: {fire.brightness} K</div> : null}
+            <div>Satellite: {fire.satellite || fire.instrument || fire.source}</div>
+            <div style={{ marginTop: 6, fontSize: 11, color: '#64748b' }}>NASA FIRMS VIIRS · last 24h</div>
+          </div>
+        </Popup>
+      </CircleMarker>
+    ))}
+  </>
+);
+
 const DashboardMap = ({
   socket,
   cardSx = {},
@@ -842,6 +883,17 @@ const DashboardMap = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedLayer, setSelectedLayer] = useState(DEFAULT_MAP_BASE_LAYER);
+  const [firmsEnabled, setFirmsEnabled] = useState(() => {
+    try {
+      return localStorage.getItem('iot_map_firms') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const [firmsFires, setFirmsFires] = useState([]);
+  const [firmsConfigured, setFirmsConfigured] = useState(false);
+  const [firmsLoading, setFirmsLoading] = useState(false);
+  const [firmsError, setFirmsError] = useState('');
   const [deviceData, setDeviceData] = useState({});
   /** Mapper target fields per device — popup shows only these (same as Realtime Data View cards) */
   const [deviceMappedParams, setDeviceMappedParams] = useState({});
@@ -1099,6 +1151,49 @@ const DashboardMap = ({
     [loadDeviceData]
   );
 
+  const loadFirmsFires = useCallback(async () => {
+    const token = localStorage.getItem('iot_token');
+    if (!token) return;
+    setFirmsLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/firms/fires`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (notifyAuthFailure(response)) return;
+      const data = await response.json().catch(() => ({}));
+      setFirmsConfigured(data.configured !== false);
+      setFirmsFires(Array.isArray(data.fires) ? data.fires : []);
+      setFirmsError(data.error || (!response.ok ? 'Could not load fire detections' : ''));
+    } catch (error) {
+      setFirmsError(error.message || 'Could not load fire detections');
+    } finally {
+      setFirmsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadFirmsFires();
+  }, [loadFirmsFires]);
+
+  useEffect(() => {
+    if (!firmsEnabled) return undefined;
+    const interval = window.setInterval(loadFirmsFires, 10 * 60 * 1000);
+    return () => window.clearInterval(interval);
+  }, [firmsEnabled, loadFirmsFires]);
+
+  const toggleFirmsLayer = useCallback(() => {
+    setFirmsEnabled((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('iot_map_firms', next ? '1' : '0');
+      } catch {
+        /* ignore */
+      }
+      if (next) loadFirmsFires();
+      return next;
+    });
+  }, [loadFirmsFires]);
+
   useSocketEvent(socket, 'device_status_update', (data) => {
     setDevices((prevDevices) =>
       prevDevices.map((device) =>
@@ -1347,6 +1442,34 @@ const DashboardMap = ({
                 <RefreshIcon fontSize="small" />
               </IconButton>
             </Tooltip>
+            {firmsConfigured ? (
+              <Tooltip
+                title={
+                  firmsError
+                    ? `Fires (24h): ${firmsError}`
+                    : firmsEnabled
+                      ? `Hide NASA FIRMS fires (${firmsFires.length})`
+                      : `Show NASA FIRMS fires last 24h (${firmsFires.length || '…'})`
+                }
+              >
+                <IconButton
+                  onClick={toggleFirmsLayer}
+                  size="small"
+                  aria-label="Toggle fire detections"
+                  aria-pressed={firmsEnabled}
+                  sx={{
+                    color: firmsEnabled ? '#fff' : 'rgba(255,255,255,0.9)',
+                    bgcolor: firmsEnabled ? 'rgba(220,38,38,0.85)' : 'rgba(255,255,255,0.06)',
+                    backdropFilter: 'blur(6px)',
+                    border: '1px solid',
+                    borderColor: firmsEnabled ? 'rgba(254,202,202,0.8)' : 'rgba(255,255,255,0.35)',
+                    '&:hover': { bgcolor: firmsEnabled ? 'rgba(185,28,28,0.95)' : 'rgba(255,255,255,0.12)' },
+                  }}
+                >
+                  {firmsLoading ? <CircularProgress size={16} color="inherit" /> : <FireIcon fontSize="small" />}
+                </IconButton>
+              </Tooltip>
+            ) : null}
           </Box>
 
           {/* Site Location label - bottom left (overlay) */}
@@ -1417,6 +1540,7 @@ const DashboardMap = ({
                 />
               ))}
             </MarkerClusterGroup>
+            {firmsEnabled ? <FirmsFireLayer fires={firmsFires} /> : null}
             
             <MapBoundsUpdater devices={devicesWithCoordinates} />
             <MapCenterUpdater centerCoords={centerCoords} mapRef={mapRef} />
